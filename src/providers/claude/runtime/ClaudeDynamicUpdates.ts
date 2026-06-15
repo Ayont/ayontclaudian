@@ -10,7 +10,9 @@ import type {
 } from '../../../core/runtime/types';
 import type { ClaudianSettings, PermissionMode } from '../../../core/types/settings';
 import {
+  isUltracodeEffort,
   resolveEffortLevel,
+  toApiEffortLevel,
 } from '../types/models';
 import type {
   ClaudeEnsureReadyOptions,
@@ -80,9 +82,14 @@ export async function applyClaudeDynamicUpdates(
   const currentEffort = deps.getCurrentConfig()?.effortLevel ?? null;
   if (effortLevel !== currentEffort) {
     try {
-      // SDK runtime accepts `max`, but the current type definition for
-      // Settings.effortLevel has not caught up yet.
-      await persistentQuery.applyFlagSettings({ effortLevel } as unknown as Parameters<Query['applyFlagSettings']>[0]);
+      // `ultracode` sends `xhigh` effort + standing dynamic-workflow orchestration.
+      // Toggle the `ultracode` flag together with the effort level so switching the
+      // effort gear in/out of Ultracode takes effect mid-session (no restart); every
+      // other level clears the flag. SDK accepts `xhigh`/`max`; its type defs lag.
+      await persistentQuery.applyFlagSettings({
+        effortLevel: toApiEffortLevel(effortLevel),
+        ultracode: isUltracodeEffort(effortLevel),
+      } as unknown as Parameters<Query['applyFlagSettings']>[0]);
       deps.mutateCurrentConfig(config => {
         config.effortLevel = effortLevel;
       });

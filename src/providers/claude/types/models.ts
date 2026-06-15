@@ -13,8 +13,16 @@ export const DEFAULT_CLAUDE_MODELS: { value: ClaudeModel; label: string; descrip
   { value: 'opus[1m]', label: 'Opus 1M', description: 'Most capable (1M context window)' },
 ];
 
-/** Effort levels for adaptive thinking models. */
-export type EffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+/**
+ * Effort levels for adaptive thinking models.
+ *
+ * `ultracode` is Claude Code's top setting (since v2.1.154): it sends `xhigh`
+ * effort AND has Claude stand up dynamic multi-agent workflows for substantive
+ * tasks. It is a session setting, not an API effort value, so it maps to `xhigh`
+ * for the API and is activated separately via the `ultracode` flag setting. Like
+ * `xhigh`, it is only offered on `xhigh`-capable models (Opus 4.7+).
+ */
+export type EffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultracode';
 
 export const EFFORT_LEVELS: { value: EffortLevel; label: string }[] = [
   { value: 'low', label: 'Low' },
@@ -22,6 +30,7 @@ export const EFFORT_LEVELS: { value: EffortLevel; label: string }[] = [
   { value: 'high', label: 'High' },
   { value: 'xhigh', label: 'XHigh' },
   { value: 'max', label: 'Max' },
+  { value: 'ultracode', label: 'Ultracode' },
 ];
 
 /** Default effort level per model tier. */
@@ -94,8 +103,10 @@ export function normalizeEffortLevel(
   effortLevel: unknown,
 ): EffortLevel {
   const allowsXHigh = supportsXHighEffort(model);
+  // `xhigh` and `ultracode` are both gated to xhigh-capable models (Opus 4.7+).
   const isSupported = EFFORT_LEVELS.some((level) =>
-    level.value === effortLevel && (allowsXHigh || level.value !== 'xhigh')
+    level.value === effortLevel
+    && (allowsXHigh || (level.value !== 'xhigh' && level.value !== 'ultracode'))
   );
 
   if (isSupported) {
@@ -103,6 +114,20 @@ export function normalizeEffortLevel(
   }
 
   return DEFAULT_EFFORT_LEVEL[normalizeModelId(model)] ?? 'high';
+}
+
+/** Whether the stored effort selects Claude Code's ultracode mode. */
+export function isUltracodeEffort(effortLevel: unknown): boolean {
+  return effortLevel === 'ultracode';
+}
+
+/**
+ * Effort value to send to the SDK/API. `ultracode` is a session setting, not an
+ * API effort level — it maps to `xhigh` (and is activated separately via the
+ * `ultracode` flag). All other levels pass through unchanged.
+ */
+export function toApiEffortLevel(effortLevel: EffortLevel): Exclude<EffortLevel, 'ultracode'> {
+  return effortLevel === 'ultracode' ? 'xhigh' : effortLevel;
 }
 
 export function resolveEffortLevel(

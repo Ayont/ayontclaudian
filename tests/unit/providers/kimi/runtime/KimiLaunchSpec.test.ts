@@ -1,5 +1,5 @@
-import { buildKimiLaunchSpec } from '@/providers/kimi/runtime/KimiLaunchSpec';
 import type { BuildKimiLaunchSpecParams } from '@/providers/kimi/runtime/KimiLaunchSpec';
+import { buildKimiLaunchSpec } from '@/providers/kimi/runtime/KimiLaunchSpec';
 
 const BASE: BuildKimiLaunchSpecParams = {
   command: '/usr/local/bin/kimi-cli',

@@ -41,6 +41,7 @@ export interface SubagentState {
 }
 
 const SUBAGENT_TOOL_STATUS_ICONS: Partial<Record<ToolCallInfo['status'], string>> = {
+  running: 'loader-2',
   completed: 'check',
   error: 'x',
   blocked: 'shield-off',
@@ -250,6 +251,7 @@ export function createSubagentBlock(
 
   const statusEl = headerEl.createDiv({ cls: 'claudian-subagent-status status-running' });
   statusEl.setAttribute('aria-label', 'Status: running');
+  setIcon(statusEl, 'loader-2');
 
   const contentEl = wrapperEl.createDiv({ cls: 'claudian-subagent-content' });
 
@@ -516,6 +518,7 @@ export function createAsyncSubagentBlock(
 
   const statusEl = headerEl.createDiv({ cls: 'claudian-subagent-status status-running' });
   statusEl.setAttribute('aria-label', 'Status: running');
+  setIcon(statusEl, 'loader-2');
 
   const contentEl = wrapperEl.createDiv({ cls: 'claudian-subagent-content' });
   renderAsyncContentLikeSync(contentEl, info, 'running');

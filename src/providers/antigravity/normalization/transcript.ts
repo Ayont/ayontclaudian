@@ -97,6 +97,54 @@ export function isAssistantTextEvent(event: AntigravityTranscriptEvent): boolean
 }
 
 /**
+ * Removes agy's verbose trailing recap that it appends to every reply, e.g.:
+ *
+ *   <answer>
+ *
+ *   ***
+ *
+ *   ### Summary of Actions
+ *   * Scanned the workspace ...
+ *
+ * The heading text is localized (`Summary of Actions`, `Zusammenfassung`, …), so
+ * we key off the structural signature instead: a trailing `***` thematic break
+ * whose next non-blank line is a markdown heading. That recap restates what the
+ * tool cards already show and is pure clutter in a chat transcript.
+ *
+ * Drops the LAST `***`+heading recap block, plus a trailing `***` followed only
+ * by blank lines (a dangling divider, or a recap whose heading has not streamed
+ * in yet — this also stops the live append-only text stream from emitting an
+ * orphaned `***` it could never retract). A `***` followed by real non-heading
+ * content is a genuine in-body divider and is kept.
+ */
+export function stripAgyTrailingRecap(content: string): string {
+  if (!content) {
+    return content;
+  }
+  const lines = content.split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i].trim() !== '***') {
+      continue;
+    }
+    let j = i + 1;
+    while (j < lines.length && lines[j].trim() === '') {
+      j++;
+    }
+    if (j < lines.length) {
+      // Content follows the `***`. Strip the whole block only when that content
+      // is agy's recap heading; otherwise it's a genuine in-body divider — keep.
+      return /^#{1,6}\s+\S/.test(lines[j].trim())
+        ? lines.slice(0, i).join('\n').replace(/\s+$/, '')
+        : content;
+    }
+    // Only blank lines (or nothing) follow the `***`: a trailing divider or a
+    // recap whose heading has not arrived yet — drop it.
+    return lines.slice(0, i).join('\n').replace(/\s+$/, '');
+  }
+  return content;
+}
+
+/**
  * Tool activity events.
  *
  * agy v1.0.3 does NOT use `TOOL_CALL`/`TOOL_RESULT`. Instead every concrete

@@ -1,5 +1,5 @@
-import { kimiChatUIConfig } from '@/providers/kimi/ui/KimiChatUIConfig';
 import { getKimiProviderSettings } from '@/providers/kimi/settings';
+import { kimiChatUIConfig } from '@/providers/kimi/ui/KimiChatUIConfig';
 
 describe('KimiChatUIConfig permission mode', () => {
   describe('getPermissionModeToggle', () => {

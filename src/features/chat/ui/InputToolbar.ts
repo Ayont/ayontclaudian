@@ -63,7 +63,10 @@ export class ModelSelector {
   private container: HTMLElement;
   private buttonEl: HTMLElement | null = null;
   private dropdownEl: HTMLElement | null = null;
+  private isOpen = false;
   private callbacks: ToolbarCallbacks;
+  private readonly boundOutsidePointer = (event: Event) => this.handleOutsidePointer(event);
+  private readonly boundKeydown = (event: Event) => this.handleKeydown(event);
   constructor(parentEl: HTMLElement, callbacks: ToolbarCallbacks) {
     this.callbacks = callbacks;
     this.container = parentEl.createDiv({ cls: 'claudian-model-selector' });
@@ -83,6 +86,18 @@ export class ModelSelector {
     this.container.empty();
 
     this.buttonEl = this.container.createDiv({ cls: 'claudian-model-btn' });
+    this.buttonEl.setAttribute('role', 'button');
+    this.buttonEl.setAttribute('tabindex', '0');
+    this.buttonEl.addEventListener('click', (event) => {
+      event.stopPropagation();
+      this.toggle();
+    });
+    this.buttonEl.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        this.toggle();
+      }
+    });
     this.updateDisplay();
 
     this.dropdownEl = this.container.createDiv({ cls: 'claudian-model-dropdown' });
@@ -140,12 +155,71 @@ export class ModelSelector {
 
       option.addEventListener('click', (e) => {
         e.stopPropagation();
+        this.close();
         runToolbarAction(async () => {
           await this.callbacks.onModelChange(model.value);
           this.updateDisplay();
           this.renderOptions();
         }, 'Failed to change model');
       });
+    }
+  }
+
+  private toggle(): void {
+    if (this.isOpen) {
+      this.close();
+    } else {
+      this.open();
+    }
+  }
+
+  private open(): void {
+    if (this.isOpen || !this.dropdownEl) {
+      return;
+    }
+    this.isOpen = true;
+    // Re-render so the option list and the current selection are fresh on open.
+    this.renderOptions();
+    this.dropdownEl.addClass('claudian-open');
+    const doc = this.container.ownerDocument;
+    if (!doc) {
+      return;
+    }
+    // Defer attaching the dismiss listeners so the click that opened the menu
+    // does not immediately close it.
+    window.setTimeout(() => {
+      doc.addEventListener('pointerdown', this.boundOutsidePointer, true);
+      doc.addEventListener('keydown', this.boundKeydown, true);
+    }, 0);
+  }
+
+  close(): void {
+    if (!this.isOpen) {
+      return;
+    }
+    this.isOpen = false;
+    this.dropdownEl?.removeClass('claudian-open');
+    const doc = this.container.ownerDocument;
+    doc?.removeEventListener('pointerdown', this.boundOutsidePointer, true);
+    doc?.removeEventListener('keydown', this.boundKeydown, true);
+  }
+
+  destroy(): void {
+    this.close();
+  }
+
+  private handleOutsidePointer(event: Event): void {
+    const target = event.target;
+    if (target instanceof Node && this.container.contains(target)) {
+      return;
+    }
+    this.close();
+  }
+
+  private handleKeydown(event: Event): void {
+    if ((event as KeyboardEvent).key === 'Escape') {
+      event.stopPropagation();
+      this.close();
     }
   }
 }

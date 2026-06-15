@@ -190,6 +190,13 @@
   color: var(--text-accent);
 }
 
+/* Live activity: spin the loader while an agent or one of its tools is running,
+   so the task sequence visibly shows what each agent is doing right now. */
+.claudian-subagent-status.status-running svg,
+.claudian-subagent-tool-status.status-running svg {
+  animation: spin 1s linear infinite;
+}
+
 .claudian-subagent-tool-status.status-completed {
   color: var(--color-green);
 }

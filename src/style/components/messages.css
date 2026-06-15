@@ -11,10 +11,10 @@
 .claudian-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 0;
+  padding: var(--cl-space-3) 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--cl-space-4);
 }
 
 /* Focusable messages panel for vim-style navigation */
@@ -43,43 +43,56 @@
 }
 
 .claudian-message {
-  padding: 10px 14px;
-  border-radius: 8px;
+  padding: var(--cl-space-3) var(--cl-space-4);
+  border-radius: var(--cl-radius-md);
   max-width: 95%;
   word-wrap: break-word;
 }
 
+/* User bubble — a raised surface with a hairline border and a whisper of accent
+   on the trailing edge, so the user's turn reads as a distinct, contained card. */
 .claudian-message-user {
   position: relative;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--cl-surface-raised);
+  border: 1px solid var(--cl-border-subtle);
+  border-inline-end: 2px solid var(--cl-accent-line);
+  box-shadow: var(--cl-shadow-sm);
   align-self: flex-end;
-  border-end-end-radius: 4px;
+  border-end-end-radius: var(--cl-radius-xs);
+  transition: border-color var(--cl-dur) var(--cl-ease);
+}
+
+.claudian-message-user:hover {
+  border-color: var(--cl-border-strong);
+  border-inline-end-color: var(--cl-accent);
 }
 
 /* Text selection in user messages - visible highlight */
 .claudian-message-user ::selection {
-  background: rgba(255, 255, 255, 0.35);
+  background: var(--cl-accent-soft);
   color: inherit;
 }
 
+/* Assistant turn — full-width, surface-free so prose flows like an answer,
+   distinguished from the user card by openness rather than a competing fill. */
 .claudian-message-assistant {
   background: transparent;
   align-self: stretch;
   width: 100%;
   max-width: 100%;
-  border-end-start-radius: 4px;
+  border-end-start-radius: var(--cl-radius-xs);
   text-align: start;
 }
 
 .claudian-message-content {
-  line-height: 1.5;
+  line-height: var(--cl-leading);
   user-select: text;
   -webkit-user-select: text;
   unicode-bidi: plaintext; /* Proper BiDi text handling for mixed RTL/LTR */
 }
 
 .claudian-interrupted {
-  color: #d45d5d;
+  color: var(--color-red);
 }
 
 .claudian-interrupted-hint {
@@ -99,11 +112,13 @@
   color: var(--text-faint);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.15s ease, color 0.15s ease;
+  transition:
+    opacity var(--cl-dur-fast) var(--cl-ease),
+    color var(--cl-dur-fast) var(--cl-ease);
   z-index: 2;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--cl-space-1);
 }
 
 .claudian-text-copy-btn svg {
@@ -120,21 +135,21 @@
 }
 
 .claudian-text-copy-btn.copied {
-  color: var(--text-accent);
-  font-size: 11px;
-  font-family: var(--font-monospace);
+  color: var(--cl-accent);
+  font-size: var(--cl-text-xs);
+  font-family: var(--cl-font-mono);
 }
 
 .claudian-text-block+.claudian-tool-call {
-  margin-top: 8px;
+  margin-top: var(--cl-space-2);
 }
 
 .claudian-tool-call+.claudian-text-block {
-  margin-top: 8px;
+  margin-top: var(--cl-space-2);
 }
 
 .claudian-message-content p {
-  margin: 0 0 8px 0;
+  margin: 0 0 var(--cl-space-2) 0;
 }
 
 .claudian-message-content p:last-child {
@@ -143,31 +158,37 @@
 
 .claudian-message-content ul,
 .claudian-message-content ol {
-  margin: 8px 0;
-  padding-inline-start: 20px;
+  margin: var(--cl-space-2) 0;
+  padding-inline-start: var(--cl-space-5);
 }
 
-/* Full-width tables */
+/* Full-width tables — bordered, tokenized, with a soft hover on rows. */
 .claudian-message-content table {
   width: 100%;
   border-collapse: collapse;
-  margin: 8px 0;
+  margin: var(--cl-space-2) 0;
+  border-radius: var(--cl-radius-sm);
+  overflow: hidden;
 }
 
 .claudian-message-content th,
 .claudian-message-content td {
-  border: 1px solid var(--background-modifier-border);
-  padding: 6px 10px;
+  border: 1px solid var(--cl-border-subtle);
+  padding: var(--cl-space-2) var(--cl-space-3);
   text-align: start;
 }
 
 .claudian-message-content th {
-  background: var(--background-secondary);
+  background: var(--cl-surface-raised);
   font-weight: 600;
 }
 
+.claudian-message-content tr {
+  transition: background var(--cl-dur-fast) var(--cl-ease);
+}
+
 .claudian-message-content tr:hover {
-  background: var(--background-secondary-alt);
+  background: var(--cl-surface-overlay);
 }
 
 .claudian-messages::-webkit-scrollbar {
@@ -179,22 +200,22 @@
 }
 
 .claudian-messages::-webkit-scrollbar-thumb {
-  background: var(--background-modifier-border);
-  border-radius: 3px;
+  background: var(--cl-border-subtle);
+  border-radius: var(--cl-radius-pill);
 }
 
 .claudian-messages::-webkit-scrollbar-thumb:hover {
-  background: var(--background-modifier-border-hover);
+  background: var(--cl-border-strong);
 }
 
 /* Response duration footer - styled as another line of content */
 .claudian-response-footer {
-  margin-top: 8px;
+  margin-top: var(--cl-space-2);
 }
 
 .claudian-baked-duration {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--cl-text-sm);
   font-weight: 500;
   font-style: italic;
 }
@@ -205,9 +226,9 @@
   bottom: -20px;
   right: 0;
   display: flex;
-  gap: 12px;
+  gap: var(--cl-space-3);
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity var(--cl-dur-fast) var(--cl-ease);
   z-index: 1;
 }
 
@@ -221,7 +242,7 @@
   align-items: center;
   justify-content: center;
   color: var(--text-faint);
-  transition: color 0.15s;
+  transition: color var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-user-msg-actions span svg {
@@ -230,21 +251,21 @@
 }
 
 .claudian-user-msg-actions span:hover {
-  color: var(--text-normal);
+  color: var(--cl-accent);
 }
 
 .claudian-user-msg-actions span.copied {
-  color: var(--text-accent);
-  font-size: 11px;
-  font-family: var(--font-monospace);
+  color: var(--cl-accent);
+  font-size: var(--cl-text-xs);
+  font-family: var(--cl-font-mono);
 }
 
 /* Compact boundary indicator */
 .claudian-compact-boundary {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin: 12px 0;
+  gap: var(--cl-space-3);
+  margin: var(--cl-space-3) 0;
 }
 
 .claudian-compact-boundary::before,
@@ -252,11 +273,11 @@
   content: '';
   flex: 1;
   height: 1px;
-  background: var(--background-modifier-border);
+  background: var(--cl-border-subtle);
 }
 
 .claudian-compact-boundary-label {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: var(--cl-text-xs);
   white-space: nowrap;
 }

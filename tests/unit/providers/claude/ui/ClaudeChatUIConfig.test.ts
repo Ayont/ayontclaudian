@@ -135,7 +135,7 @@ describe('claudeChatUIConfig', () => {
     it('keeps xhigh on supported opus models', () => {
       const options = claudeChatUIConfig.getReasoningOptions('claude-opus-4-7', {});
 
-      expect(options.map(option => option.value)).toEqual(['low', 'medium', 'high', 'xhigh', 'max']);
+      expect(options.map(option => option.value)).toEqual(['low', 'medium', 'high', 'xhigh', 'max', 'ultracode']);
     });
 
     it('uses effort options for custom model ids', () => {

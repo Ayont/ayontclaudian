@@ -12,6 +12,7 @@ import {
 } from '../settings';
 import {
   resolveEffortLevel,
+  toApiEffortLevel,
 } from '../types/models';
 import { createCustomSpawnFunction } from './customSpawn';
 
@@ -117,9 +118,10 @@ export async function runColdStartQuery(
   if (!config.thinking?.disabled) {
     const effortLevel = resolveEffortLevel(selectedModel, settings.effortLevel);
     options.thinking = { type: 'adaptive' };
-    // SDK runtime accepts `xhigh` on Opus 4.7+ and silently falls back to
-    // `high` elsewhere, but its type definition lags our local EffortLevel.
-    options.effort = effortLevel;
+    // One-shot aux query: take ultracode's `xhigh` reasoning but NOT its workflow
+    // orchestration (a title/refine/inline-edit turn must never fan out subagents).
+    // Map ultracode -> xhigh; other levels pass through. SDK type defs lag our union.
+    options.effort = toApiEffortLevel(effortLevel);
   }
 
   const response = agentQuery({ prompt, options });

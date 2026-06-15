@@ -43,7 +43,7 @@ export const claudeChatUIConfig: ProviderChatUIConfig = {
   getReasoningOptions(model: string, _settings: Record<string, unknown>): ProviderReasoningOption[] {
     const levels = supportsXHighEffort(model)
       ? EFFORT_LEVELS
-      : EFFORT_LEVELS.filter(e => e.value !== 'xhigh');
+      : EFFORT_LEVELS.filter(e => e.value !== 'xhigh' && e.value !== 'ultracode');
     return levels.map(e => ({ value: e.value, label: e.label }));
   },
 

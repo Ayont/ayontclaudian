@@ -255,24 +255,36 @@ export function isToolResultError(event: KimiStreamEvent): boolean {
   return false;
 }
 
-const TOOL_NAME_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  Shell: 'Run command',
-  Bash: 'Run command',
-  Read: 'Read file',
-  View: 'View file',
-  Write: 'Write file',
-  Edit: 'Edit file',
-  Grep: 'Grep search',
-  Glob: 'Find files',
-  WebSearch: 'Web search',
-  WebFetch: 'Fetch URL',
+// Map Kimi's tool names onto the plugin's CANONICAL tool names so the chat
+// renderer picks the right icon + input summary (folder-search + pattern for
+// Glob, terminal + command for Bash, file icons + filename for Read/Write/Edit),
+// matching how Claude, Codex and Antigravity tool cards render. Unknown tools
+// fall through to a humanized label so they still read cleanly.
+const KIMI_CANONICAL_TOOL_NAMES: Readonly<Record<string, string>> = Object.freeze({
+  Shell: 'Bash',
+  Bash: 'Bash',
+  Read: 'Read',
+  View: 'Read',
+  Write: 'Write',
+  Edit: 'Edit',
+  MultiEdit: 'Edit',
+  Grep: 'Grep',
+  Glob: 'Glob',
+  LS: 'LS',
+  List: 'LS',
+  WebSearch: 'WebSearch',
+  WebFetch: 'WebFetch',
 });
 
-/** Human-friendly label for a Kimi tool name (e.g. `Shell` → `Run command`). */
+/**
+ * Canonical plugin tool name for a Kimi tool (e.g. `Shell` → `Bash`, `Glob` →
+ * `Glob`), so the renderer shows the matching icon + summary. Unknown tool names
+ * are humanized (e.g. `some_tool` → `Some tool`) as a readable fallback.
+ */
 export function humanizeKimiTool(name: string): string {
-  const known = TOOL_NAME_LABELS[name];
-  if (known) {
-    return known;
+  const canonical = KIMI_CANONICAL_TOOL_NAMES[name];
+  if (canonical) {
+    return canonical;
   }
   const words = String(name).trim().split(/(?=[A-Z])|[-_\s]+/).filter(Boolean);
   if (words.length === 0) {

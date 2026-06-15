@@ -82,6 +82,9 @@ export class KimiAuxQueryRunner implements AuxQueryRunner {
       ...(resolvedSpawnSpec.windowsVerbatimArguments ? { windowsVerbatimArguments: true } : {}),
     });
     this.activeProcess = proc;
+    // Close stdin so a non-TTY child process can't block on the open pipe;
+    // `kimi-cli` print mode never reads stdin.
+    proc.stdin.end();
 
     let stdout = '';
     let stderr = '';

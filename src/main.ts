@@ -676,9 +676,15 @@ export default class ClaudianPlugin extends Plugin {
     const conversation = this.conversations.find(c => c.id === id);
     if (!conversation) return;
 
-    // providerId is immutable — strip it from updates to prevent accidental mutation
+    // `providerId` is intentionally mutable: switching a bound conversation to
+    // another provider's model mid-chat (switchBoundTabProvider) rebinds it, and
+    // that must persist so the next send + a reload use the new provider. Only an
+    // explicitly-`undefined` providerId is ignored, so unrelated partial updates
+    // never blank an existing binding.
     const safeUpdates = { ...updates };
-    delete safeUpdates.providerId;
+    if (safeUpdates.providerId === undefined) {
+      delete safeUpdates.providerId;
+    }
     Object.assign(conversation, safeUpdates, { updatedAt: Date.now() });
 
     await this.storage.sessions.saveMetadata(

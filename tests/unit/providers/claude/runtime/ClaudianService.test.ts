@@ -1590,7 +1590,7 @@ describe('ClaudianService', () => {
 
       await (service as any).applyDynamicUpdates({});
 
-      expect(mockPersistentQuery.applyFlagSettings).toHaveBeenCalledWith({ effortLevel: 'max' });
+      expect(mockPersistentQuery.applyFlagSettings).toHaveBeenCalledWith({ effortLevel: 'max', ultracode: false });
       expect((service as any).currentConfig.effortLevel).toBe('max');
     });
 
@@ -1600,7 +1600,7 @@ describe('ClaudianService', () => {
 
       await (service as any).applyDynamicUpdates({});
 
-      expect(mockPersistentQuery.applyFlagSettings).toHaveBeenCalledWith({ effortLevel: 'max' });
+      expect(mockPersistentQuery.applyFlagSettings).toHaveBeenCalledWith({ effortLevel: 'max', ultracode: false });
     });
 
     it('should keep effort active when switching from custom to built-in model ids', async () => {

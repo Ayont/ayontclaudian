@@ -17,9 +17,11 @@ import {
   DEFAULT_CLAUDE_MODELS,
   filterVisibleModelOptions,
   getContextWindowSize,
+  isUltracodeEffort,
   normalizeEffortLevel,
   normalizeVisibleModelVariant,
   supportsXHighEffort,
+  toApiEffortLevel,
 } from '@/providers/claude/types/models';
 import {
   createPermissionRule,
@@ -724,6 +726,30 @@ describe('types.ts', () => {
     it('falls back to high for unknown or missing effort values', () => {
       expect(normalizeEffortLevel('claude-sonnet-4-5', 'invalid')).toBe('high');
       expect(normalizeEffortLevel('claude-sonnet-4-5', undefined)).toBe('high');
+    });
+  });
+
+  describe('ultracode effort', () => {
+    it('allows ultracode on xhigh-capable models (Opus) and clamps elsewhere', () => {
+      expect(normalizeEffortLevel('opus', 'ultracode')).toBe('ultracode');
+      expect(normalizeEffortLevel('opus[1m]', 'ultracode')).toBe('ultracode');
+      // Non-xhigh models cannot select ultracode -> clamped to the model default.
+      expect(normalizeEffortLevel('sonnet', 'ultracode')).toBe('high');
+      expect(normalizeEffortLevel('haiku', 'ultracode')).toBe('high');
+    });
+
+    it('isUltracodeEffort only matches the ultracode value', () => {
+      expect(isUltracodeEffort('ultracode')).toBe(true);
+      expect(isUltracodeEffort('xhigh')).toBe(false);
+      expect(isUltracodeEffort('max')).toBe(false);
+      expect(isUltracodeEffort(undefined)).toBe(false);
+    });
+
+    it('toApiEffortLevel maps ultracode to xhigh and passes other levels through', () => {
+      expect(toApiEffortLevel('ultracode')).toBe('xhigh');
+      expect(toApiEffortLevel('xhigh')).toBe('xhigh');
+      expect(toApiEffortLevel('high')).toBe('high');
+      expect(toApiEffortLevel('max')).toBe('max');
     });
   });
 });

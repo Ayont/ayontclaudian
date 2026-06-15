@@ -1733,6 +1733,10 @@ export async function destroyTab(tab: TabData): Promise<void> {
   tab.ui.statusPanel = null;
   tab.ui.navigationSidebar?.destroy();
   tab.ui.navigationSidebar = null;
+  // Closes the model dropdown and removes its document-level dismiss listeners
+  // (pointerdown/keydown), preventing a leak if a tab is closed while open.
+  tab.ui.modelSelector?.destroy();
+  tab.ui.modelSelector = null;
 
   tab.services.subagentManager.orphanAllActive();
   tab.services.subagentManager.clear();

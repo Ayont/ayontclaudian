@@ -112,6 +112,7 @@ const createMockModelSelector = () => ({
   updateDisplay: jest.fn(),
   renderOptions: jest.fn(),
   setReady: jest.fn(),
+  destroy: jest.fn(),
 });
 
 const createMockModeSelector = () => ({

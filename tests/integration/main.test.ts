@@ -649,6 +649,30 @@ describe('ClaudianPlugin', () => {
     // Note: Session management is now per-tab via TabManager
   });
 
+  describe('updateConversation - providerId (mid-chat provider switch)', () => {
+    it('persists a providerId change so the next send + a reload use the new provider', async () => {
+      await plugin.onload();
+      const conv = await plugin.createConversation({ providerId: 'claude' });
+
+      await plugin.updateConversation(conv.id, { providerId: 'kimi' });
+
+      // In-memory drives getTabProviderId on the next send; on disk it survives reload.
+      expect(plugin.getConversationSync(conv.id)?.providerId).toBe('kimi');
+      const reloaded = await plugin.getConversationById(conv.id);
+      expect(reloaded?.providerId).toBe('kimi');
+    });
+
+    it('ignores an explicitly-undefined providerId (never blanks an existing binding)', async () => {
+      await plugin.onload();
+      const conv = await plugin.createConversation({ providerId: 'antigravity' });
+
+      await plugin.updateConversation(conv.id, { providerId: undefined, title: 'renamed' });
+
+      expect(plugin.getConversationSync(conv.id)?.providerId).toBe('antigravity');
+      expect(plugin.getConversationSync(conv.id)?.title).toBe('renamed');
+    });
+  });
+
   describe('switchConversation', () => {
     it('should switch to existing conversation', async () => {
       await plugin.onload();

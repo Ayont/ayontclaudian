@@ -83,8 +83,14 @@ export function snapshotBrainConversationIds(): Set<string> {
 /**
  * Discovers the newest brain conversation id created after a spawn.
  *
- * Prefers an id absent from `previousIds` (a freshly created conversation);
- * falls back to the most recently modified directory overall.
+ * With a `previousIds` baseline, returns ONLY a conversation absent from it (one
+ * created after the snapshot), or `null` if none exists yet. It must never fall
+ * back to a pre-existing conversation: doing so would lock a fresh turn onto an
+ * unrelated leftover conversation (and surface its stale answer) during the
+ * window before `agy` has created its new brain directory.
+ *
+ * Without a baseline (e.g. history listing), returns the most recently modified
+ * conversation.
  */
 export function discoverNewestConversationId(
   previousIds?: ReadonlySet<string>,
@@ -98,9 +104,7 @@ export function discoverNewestConversationId(
 
   if (previousIds && previousIds.size > 0) {
     const fresh = entries.find((entry) => !previousIds.has(entry.id));
-    if (fresh) {
-      return fresh.id;
-    }
+    return fresh ? fresh.id : null;
   }
 
   return entries[0].id;

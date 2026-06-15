@@ -22,6 +22,7 @@ import {
   isToolTerminalStatus,
   parsePlannerToolCalls,
   parseTranscript,
+  stripAgyTrailingRecap,
   subagentRefFromEvent,
   unwrapUserRequest,
 } from './transcript';
@@ -249,7 +250,7 @@ export function mapTranscriptEventToChunks(
   }
 
   if (isAssistantTextEvent(event)) {
-    const full = event.content ?? '';
+    const full = stripAgyTrailingRecap(event.content ?? '');
     const seen = state.seenTextByStep.get(event.stepIndex) ?? '';
     if (full.length > seen.length) {
       const delta = full.slice(seen.length);
@@ -478,7 +479,7 @@ export function transcriptToChatMessages(buffer: string): ChatMessage[] {
 
     if (isAssistantTextEvent(event)) {
       ensureAssistant(event);
-      textByStep.set(event.stepIndex, event.content ?? '');
+      textByStep.set(event.stepIndex, stripAgyTrailingRecap(event.content ?? ''));
       continue;
     }
 

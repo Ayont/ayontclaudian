@@ -175,6 +175,13 @@ export class AntigravityChatRuntime implements ChatRuntime {
     const prompt = this.buildPromptText(turn);
 
     const previousBrainIds = this.conversationId ? null : snapshotBrainConversationIds();
+    // Capture how much transcript already exists BEFORE spawning. agy appends
+    // this turn's events to the same transcript.jsonl on `--conversation <id>`;
+    // starting the tail past the prior lines keeps the new bubble from
+    // re-emitting the entire conversation history (duplicated messages).
+    const priorTranscriptLineCount = this.conversationId
+      ? (readAntigravityTranscript(this.conversationId)?.split('\n').length ?? 0)
+      : 0;
     const launchSpec = buildAntigravityLaunchSpec({
       command,
       conversationId: this.conversationId,
@@ -214,6 +221,10 @@ export class AntigravityChatRuntime implements ChatRuntime {
     }
 
     this.activeProcess = proc;
+    // `agy` blocks reading stdin until EOF under a non-TTY child process (the
+    // open `stdio: 'pipe'` stdin never closes on its own), so the turn would
+    // hang forever and write no transcript. Close the write end immediately.
+    proc.stdin.end();
     let stdout = '';
     let stderr = '';
     proc.stdout.on('data', (chunk: Buffer | string) => {
@@ -231,7 +242,7 @@ export class AntigravityChatRuntime implements ChatRuntime {
     // If resuming a known conversation, start tailing its transcript right away.
     // Otherwise discover the id once the brain directory appears.
     const tailState: AntigravityTailState = createAntigravityTailState();
-    let tailCursor = 0;
+    let tailCursor = priorTranscriptLineCount;
     let emittedAnyTextFromTranscript = false;
 
     const drainTranscript = (): StreamChunk[] => {

@@ -10,6 +10,13 @@ import {
   resolveWindowsCmdShimSpawnSpec,
   terminateSpawnedProcess,
 } from '../../../utils/windowsCmdShim';
+import {
+  deleteAntigravityConversationDir,
+  discoverNewestConversationId,
+  readAntigravityTranscript,
+  snapshotBrainConversationIds,
+} from '../history/AntigravityBrainStore';
+import { isAssistantTextEvent, parseTranscript, stripAgyTrailingRecap } from '../normalization/transcript';
 import { ANTIGRAVITY_PROVIDER_ID, getAntigravityProviderSettings } from '../settings';
 import { buildAntigravityLaunchSpec } from './AntigravityLaunchSpec';
 import { buildAntigravityRuntimeEnv } from './AntigravityRuntimeEnvironment';
@@ -24,6 +31,14 @@ import { buildAntigravityRuntimeEnv } from './AntigravityRuntimeEnvironment';
  * flag), and resolves the final assistant text from stdout. Mirrors the
  * `AuxQueryRunner` contract used by `OpencodeAuxQueryRunner` / `PiAuxQueryRunner`.
  */
+
+/** Settle delay so `agy` finishes flushing transcript.jsonl after process exit. */
+const ANTIGRAVITY_AUX_SETTLE_MS = 400;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 export class AntigravityAuxQueryRunner implements AuxQueryRunner {
   private activeProcess: ChildProcessWithoutNullStreams | null = null;
 
@@ -60,6 +75,10 @@ export class AntigravityAuxQueryRunner implements AuxQueryRunner {
       prompt: fullPrompt,
     });
 
+    // Snapshot existing conversations so we can identify the fresh one this aux
+    // run creates — its transcript is the only output source under non-TTY.
+    const previousBrainIds = snapshotBrainConversationIds();
+
     const resolvedSpawnSpec = resolveWindowsCmdShimSpawnSpec(launchSpec);
     const proc = spawn(resolvedSpawnSpec.command, resolvedSpawnSpec.args, {
       cwd,
@@ -72,6 +91,9 @@ export class AntigravityAuxQueryRunner implements AuxQueryRunner {
       ...(resolvedSpawnSpec.windowsVerbatimArguments ? { windowsVerbatimArguments: true } : {}),
     });
     this.activeProcess = proc;
+    // `agy` blocks reading an open non-TTY stdin until EOF; close it so the
+    // one-shot aux run completes (and writes its transcript) instead of hanging.
+    proc.stdin.end();
 
     let stdout = '';
     let stderr = '';
@@ -105,7 +127,12 @@ export class AntigravityAuxQueryRunner implements AuxQueryRunner {
         throw new Error(tail ? `${message}\n\n${tail}` : message);
       }
 
-      const text = stdout.trim();
+      // `agy` print mode writes nothing to stdout under a non-TTY child process
+      // (it only renders to a real terminal), so recover the final assistant
+      // text from the fresh conversation's transcript, falling back to stdout
+      // for the rare TTY case.
+      await sleep(ANTIGRAVITY_AUX_SETTLE_MS);
+      const text = stdout.trim() || this.recoverFinalTextFromTranscript(previousBrainIds);
       config.onTextChunk?.(text);
       return text;
     } finally {
@@ -114,6 +141,32 @@ export class AntigravityAuxQueryRunner implements AuxQueryRunner {
         this.activeProcess = null;
       }
     }
+  }
+
+  /**
+   * Recovers the final assistant text for a one-shot aux run from the freshly
+   * created conversation's transcript. Only a conversation created by this run
+   * (absent from `previousBrainIds`) is read or deleted — never a pre-existing
+   * chat conversation. Returns `''` when no fresh conversation was produced.
+   */
+  private recoverFinalTextFromTranscript(previousBrainIds: ReadonlySet<string>): string {
+    const conversationId = discoverNewestConversationId(previousBrainIds);
+    if (!conversationId || previousBrainIds.has(conversationId)) {
+      return '';
+    }
+    const buffer = readAntigravityTranscript(conversationId);
+    let finalText = '';
+    if (buffer) {
+      for (const event of parseTranscript(buffer)) {
+        if (isAssistantTextEvent(event) && event.content) {
+          // Strip agy's `***`/recap so generated titles/refinements stay clean,
+          // matching the chat-facing paths in transcriptMapping.
+          finalText = stripAgyTrailingRecap(event.content).trim();
+        }
+      }
+    }
+    deleteAntigravityConversationDir(conversationId);
+    return finalText;
   }
 
   reset(): void {

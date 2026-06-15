@@ -48,7 +48,10 @@
   transition: opacity 0.15s ease, visibility 0.15s ease;
 }
 
-.claudian-model-selector:hover .claudian-model-dropdown {
+/* Click-to-open (pinned): the menu stays open regardless of cursor position so
+   every option is reliably clickable, even in a narrow sidebar. A hover-only
+   menu vanished the moment the cursor left the button while reaching an item. */
+.claudian-model-dropdown.claudian-open {
   opacity: 1;
   visibility: visible;
 }

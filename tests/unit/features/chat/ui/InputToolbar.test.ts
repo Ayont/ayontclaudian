@@ -251,6 +251,34 @@ describe('ModelSelector', () => {
     expect(callbacks.onModelChange).toHaveBeenCalledWith('opus');
   });
 
+  it('opens the dropdown (pinned) on button click, not just hover', () => {
+    const dropdown = parentEl.querySelector('.claudian-model-dropdown');
+    expect(dropdown?.hasClass('claudian-open')).toBe(false);
+    const btn = parentEl.querySelector('.claudian-model-btn');
+    btn?.dispatchEvent('click', { stopPropagation: () => {} });
+    expect(dropdown?.hasClass('claudian-open')).toBe(true);
+  });
+
+  it('toggles closed on a second button click', () => {
+    const dropdown = parentEl.querySelector('.claudian-model-dropdown');
+    const btn = parentEl.querySelector('.claudian-model-btn');
+    btn?.dispatchEvent('click', { stopPropagation: () => {} });
+    btn?.dispatchEvent('click', { stopPropagation: () => {} });
+    expect(dropdown?.hasClass('claudian-open')).toBe(false);
+  });
+
+  it('closes the dropdown after an option is selected', async () => {
+    const dropdown = parentEl.querySelector('.claudian-model-dropdown');
+    const btn = parentEl.querySelector('.claudian-model-btn');
+    btn?.dispatchEvent('click', { stopPropagation: () => {} });
+    expect(dropdown?.hasClass('claudian-open')).toBe(true);
+    const options = dropdown?.children || [];
+    const opusOption = options.find((o: any) => o.children[0]?.textContent === 'Opus');
+    await opusOption?.dispatchEvent('click', { stopPropagation: () => {} });
+    expect(dropdown?.hasClass('claudian-open')).toBe(false);
+    expect(callbacks.onModelChange).toHaveBeenCalledWith('opus');
+  });
+
   it('should always show brand color on model button', () => {
     const btn = parentEl.querySelector('.claudian-model-btn');
     expect(btn).toBeTruthy();

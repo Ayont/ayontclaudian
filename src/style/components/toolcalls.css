@@ -1,24 +1,27 @@
 .claudian-tool-call {
-  margin: 8px 0;
+  margin: var(--cl-space-2) 0;
 }
 
 .claudian-tool-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 0;
+  gap: var(--cl-space-2);
+  padding: var(--cl-space-1) 0;
   cursor: pointer;
+  user-select: none;
   overflow: hidden;
+  transition: color var(--cl-dur-fast) var(--cl-ease);
 }
 
-.claudian-tool-header:hover {
-  opacity: 0.85;
+/* Refined hover: lift the tool name toward accent rather than fading the row. */
+.claudian-tool-header:hover .claudian-tool-name {
+  color: var(--cl-accent);
 }
 
 .claudian-tool-icon {
   display: flex;
   align-items: center;
-  color: var(--text-accent);
+  color: var(--cl-accent);
   flex-shrink: 0;
 }
 
@@ -28,17 +31,18 @@
 }
 
 .claudian-tool-name {
-  font-family: var(--font-monospace);
-  font-size: 13px;
-  font-weight: 400;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-md);
+  font-weight: 500;
   color: var(--text-normal);
   white-space: nowrap;
   flex-shrink: 0;
+  transition: color var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-tool-summary {
-  font-family: var(--font-monospace);
-  font-size: 13px;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-md);
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -56,19 +60,19 @@
 }
 
 .claudian-tool-bash-command {
-  font-family: var(--font-monospace);
-  font-size: 12px;
-  line-height: 1.4;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-sm);
+  line-height: var(--cl-leading);
   color: var(--text-normal);
   white-space: pre-wrap;
   word-break: break-word;
-  padding: 2px 0 4px;
+  padding: var(--cl-space-1) 0 var(--cl-space-1);
 }
 
 /* Legacy: StatusPanel bash entries still use claudian-tool-label */
 .claudian-tool-label {
-  font-family: var(--font-monospace);
-  font-size: 13px;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-md);
   font-weight: 400;
   color: var(--text-normal);
   white-space: nowrap;
@@ -77,8 +81,8 @@
 }
 
 .claudian-tool-current {
-  font-family: var(--font-monospace);
-  font-size: 13px;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-md);
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -92,6 +96,7 @@
   align-items: center;
   flex-shrink: 0;
   margin-left: auto;
+  transition: color var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-tool-status svg {
@@ -99,8 +104,13 @@
   height: 14px;
 }
 
+/* Status semantics — running uses accent, others keep green/red/orange. */
 .claudian-tool-status.status-running {
-  color: var(--text-accent);
+  color: var(--cl-accent);
+}
+
+.claudian-tool-status.status-running svg {
+  animation: spin 1s linear infinite;
 }
 
 .claudian-tool-status.status-completed {
@@ -115,12 +125,17 @@
   color: var(--color-orange);
 }
 
-/* Tool call content - border style (like thinking block) */
+/* Tool call content — calm inset on an accent rail, matching the thinking
+   block but quieter so nested results read as a contained aside. */
 .claudian-tool-content {
-  padding: 4px 0;
-  padding-inline-start: 16px;
-  margin-inline-start: 7px;
-  border-inline-start: 2px solid var(--background-modifier-border);
+  padding: var(--cl-space-1) 0 var(--cl-space-1) var(--cl-space-4);
+  margin-inline-start: var(--cl-space-2);
+  border-inline-start: 2px solid var(--cl-border-subtle);
+  transition: border-color var(--cl-dur) var(--cl-ease);
+}
+
+.claudian-tool-call:hover .claudian-tool-content {
+  border-inline-start-color: var(--cl-accent-line);
 }
 
 /* Tool content variants that render inline widgets instead of bordered results */
@@ -133,9 +148,9 @@
 
 /* Expanded content: per-line rendering */
 .claudian-tool-lines {
-  font-family: var(--font-monospace);
-  font-size: 12px;
-  line-height: 1.4;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-sm);
+  line-height: var(--cl-leading);
   overflow-x: auto;
 }
 
@@ -151,6 +166,11 @@
 }
 
 /* Hover highlight for file search results */
+.claudian-tool-line.hoverable {
+  border-radius: var(--cl-radius-xs);
+  transition: background var(--cl-dur-fast) var(--cl-ease);
+}
+
 .claudian-tool-line.hoverable:hover {
   background: var(--background-modifier-hover);
 }
@@ -159,19 +179,19 @@
 .claudian-tool-truncated {
   color: var(--text-faint);
   font-style: italic;
-  padding: 4px 0;
-  font-family: var(--font-monospace);
-  font-size: 12px;
+  padding: var(--cl-space-1) 0;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-sm);
 }
 
 /* ToolSearch expanded: icon + tool name rows */
 .claudian-tool-search-item {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--cl-space-1);
   padding: 2px 0;
-  font-family: var(--font-monospace);
-  font-size: 12px;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-sm);
   color: var(--text-muted);
 }
 
@@ -193,18 +213,19 @@
 .claudian-tool-link {
   display: flex;
   align-items: flex-start;
-  gap: 6px;
+  gap: var(--cl-space-2);
   padding: 3px 0;
   color: var(--text-muted);
   text-decoration: none;
   cursor: pointer;
-  font-family: var(--font-monospace);
-  font-size: 12px;
-  line-height: 1.4;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-sm);
+  line-height: var(--cl-leading);
+  transition: color var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-tool-link:hover {
-  color: var(--text-accent);
+  color: var(--cl-accent);
 }
 
 .claudian-tool-link-icon {
@@ -228,12 +249,12 @@
 
 /* Web search summary section */
 .claudian-tool-web-summary {
-  font-family: var(--font-monospace);
-  font-size: 12px;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-sm);
   color: var(--text-muted);
-  padding-top: 4px;
-  border-top: 1px solid var(--background-modifier-border);
-  margin-top: 4px;
+  padding-top: var(--cl-space-1);
+  border-top: 1px solid var(--cl-border-subtle);
+  margin-top: var(--cl-space-1);
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 200px;
@@ -244,9 +265,9 @@
 .claudian-tool-empty {
   color: var(--text-faint);
   font-style: italic;
-  font-family: var(--font-monospace);
-  font-size: 12px;
-  padding: 4px 0;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-sm);
+  padding: var(--cl-space-1) 0;
 }
 
 .claudian-tool-result-row {
@@ -255,10 +276,10 @@
 }
 
 .claudian-tool-result-text {
-  font-family: var(--font-monospace);
-  font-size: 12px;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-sm);
   color: var(--text-muted);
-  line-height: 1.4;
+  line-height: var(--cl-leading);
   white-space: pre-wrap;
   overflow: hidden;
   flex: 1;
@@ -270,7 +291,7 @@
 }
 
 .claudian-tool-patch-section + .claudian-tool-patch-section {
-  margin-top: 10px;
+  margin-top: var(--cl-space-3);
 }
 
 .claudian-tool-result-item:last-child {

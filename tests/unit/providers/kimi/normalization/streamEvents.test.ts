@@ -132,10 +132,12 @@ describe('kimi stream-json parser', () => {
     expect(renderToolResult(event)).toBe('Command failed: exit code 1.');
   });
 
-  it('humanizes tool names', () => {
-    expect(humanizeKimiTool('Shell')).toBe('Run command');
-    expect(humanizeKimiTool('Read')).toBe('Read file');
-    expect(humanizeKimiTool('WebSearch')).toBe('Web search');
+  it('maps tool names to canonical plugin names (for icons + summaries)', () => {
+    expect(humanizeKimiTool('Shell')).toBe('Bash');
+    expect(humanizeKimiTool('Read')).toBe('Read');
+    expect(humanizeKimiTool('Glob')).toBe('Glob');
+    expect(humanizeKimiTool('WebSearch')).toBe('WebSearch');
+    // Unknown tools fall back to a humanized label.
     expect(humanizeKimiTool('CustomTool')).toBe('Custom tool');
   });
 });
@@ -150,7 +152,7 @@ describe('kimi stream mapping (live)', () => {
       {
         type: 'tool_use',
         id: 'tool_mx2QYPQVjDJ7dNK7bVkhtxc7',
-        name: 'Run command',
+        name: 'Bash',
         input: { command: 'ls -la', timeout: 10 },
       },
     ]);
@@ -222,7 +224,7 @@ describe('kimi stream mapping (history)', () => {
     expect(withTool.toolCalls).toHaveLength(1);
     expect(withTool.toolCalls?.[0]).toMatchObject({
       id: 'tool_mx2QYPQVjDJ7dNK7bVkhtxc7',
-      name: 'Run command',
+      name: 'Bash',
       status: 'completed',
     });
     expect(withTool.toolCalls?.[0].result).toContain('alpha.txt');

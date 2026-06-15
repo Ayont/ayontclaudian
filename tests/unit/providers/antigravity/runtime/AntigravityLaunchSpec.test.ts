@@ -10,14 +10,31 @@ const BASE = {
 describe('buildAntigravityLaunchSpec', () => {
   it('builds the verified base invocation (vault-only, no extras)', () => {
     const spec = buildAntigravityLaunchSpec(BASE);
+    // `agy` parses with Go's `flag` package: `-p/--print/--prompt` is a STRING
+    // flag whose value IS the prompt (`agy --print` with no value errors with
+    // "flag needs an argument: -print"). All other flags must precede the
+    // prompt, and there is NO `--` terminator (Go flag stops at the first bare
+    // positional, which would silently drop later flags).
     expect(spec.args).toEqual([
-      '--print',
       '--add-dir',
       '/vault',
       '--dangerously-skip-permissions',
-      '--',
+      '-p',
       'hi',
     ]);
+  });
+
+  it('never emits a `--` terminator or a bare boolean --print (the agy parse bug)', () => {
+    const spec = buildAntigravityLaunchSpec(BASE);
+    expect(spec.args).not.toContain('--');
+    // `-p` must be immediately followed by the prompt as its value.
+    const pIndex = spec.args.indexOf('-p');
+    expect(pIndex).toBeGreaterThan(-1);
+    expect(spec.args[pIndex + 1]).toBe('hi');
+    // Permission + workspace flags must come BEFORE the prompt value so Go's
+    // flag parser actually applies them.
+    expect(spec.args.indexOf('--dangerously-skip-permissions')).toBeLessThan(pIndex);
+    expect(spec.args.indexOf('--add-dir')).toBeLessThan(pIndex);
   });
 
   it('defaults to YOLO (--dangerously-skip-permissions, no --sandbox) when no posture is given', () => {
@@ -30,7 +47,8 @@ describe('buildAntigravityLaunchSpec', () => {
     const spec = buildAntigravityLaunchSpec({ ...BASE, permissionMode: 'yolo' });
     expect(spec.args).toContain('--dangerously-skip-permissions');
     expect(spec.args).not.toContain('--sandbox');
-    // The prompt still comes last, after the `--` terminator.
+    // The prompt is the value of `-p` and comes last (no `--` terminator).
+    expect(spec.args[spec.args.length - 2]).toBe('-p');
     expect(spec.args[spec.args.length - 1]).toBe('hi');
   });
 
@@ -38,7 +56,8 @@ describe('buildAntigravityLaunchSpec', () => {
     const spec = buildAntigravityLaunchSpec({ ...BASE, permissionMode: 'sandbox' });
     expect(spec.args).toContain('--sandbox');
     expect(spec.args).not.toContain('--dangerously-skip-permissions');
-    // The prompt still comes last, after the `--` terminator.
+    // The prompt is the value of `-p` and comes last (no `--` terminator).
+    expect(spec.args[spec.args.length - 2]).toBe('-p');
     expect(spec.args[spec.args.length - 1]).toBe('hi');
   });
 
@@ -112,7 +131,8 @@ describe('buildAntigravityLaunchSpec', () => {
     });
     expect(spec.args).toContain('--conversation');
     expect(spec.args[spec.args.indexOf('--conversation') + 1]).toBe('conv-1');
-    expect(spec.args[spec.args.length - 2]).toBe('--');
+    expect(spec.args).not.toContain('--');
+    expect(spec.args[spec.args.length - 2]).toBe('-p');
     expect(spec.args[spec.args.length - 1]).toBe('hi');
   });
 });

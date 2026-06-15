@@ -13,6 +13,7 @@ import {
   parsePlannerToolCalls,
   parseTranscript,
   parseTranscriptLine,
+  stripAgyTrailingRecap,
   unwrapUserRequest,
 } from '@/providers/antigravity/normalization/transcript';
 import {
@@ -512,5 +513,49 @@ describe('antigravity mapping with planner correlation (history)', () => {
       description: 'Summarize the directory',
       status: 'completed',
     });
+  });
+});
+
+describe('stripAgyTrailingRecap', () => {
+  it("drops agy's trailing '*** + heading' recap section", () => {
+    const content = [
+      "Hello! I'm Antigravity.",
+      '',
+      'How can I help you today?',
+      '',
+      '***',
+      '',
+      '### Summary of Actions',
+      '* Scanned the workspace to locate projects.',
+    ].join('\n');
+    expect(stripAgyTrailingRecap(content)).toBe(
+      "Hello! I'm Antigravity.\n\nHow can I help you today?",
+    );
+  });
+
+  it('drops a localized recap heading (structural match, not text)', () => {
+    const content = 'Mir geht es gut.\n\n***\n\n### Zusammenfassung\n* Auf die Begrüßung geantwortet.';
+    expect(stripAgyTrailingRecap(content)).toBe('Mir geht es gut.');
+  });
+
+  it('drops a trailing `***` with nothing but blanks after it (dangling / streaming recap-start)', () => {
+    // Prevents the live append-only stream from emitting an orphaned `***` it
+    // cannot retract once the (later) recap heading arrives.
+    expect(stripAgyTrailingRecap('Done.\n\n***')).toBe('Done.');
+    expect(stripAgyTrailingRecap('Done.\n\n***\n\n')).toBe('Done.');
+  });
+
+  it('keeps a `***` divider that has real non-heading content after it', () => {
+    const content = 'Part A\n\n***\n\nPart B';
+    expect(stripAgyTrailingRecap(content)).toBe(content);
+  });
+
+  it('keeps content with no trailing recap', () => {
+    const content = 'Just a normal answer with no recap.';
+    expect(stripAgyTrailingRecap(content)).toBe(content);
+  });
+
+  it('returns an empty string unchanged', () => {
+    expect(stripAgyTrailingRecap('')).toBe('');
   });
 });

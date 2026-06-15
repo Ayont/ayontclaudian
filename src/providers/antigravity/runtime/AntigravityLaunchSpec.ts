@@ -1,21 +1,30 @@
 import type { AntigravityPermissionMode, AntigravityWorkspaceScope } from '../settings';
 
 /**
- * Builds the command/args/cwd for a single-shot `agy --print` run.
+ * Builds the command/args/cwd for a single-shot `agy` print-mode run.
  *
- * Verified `agy` v1.0.3 invocation:
- *   agy --print --add-dir <vaultPath> \
+ * Verified `agy` v1.0.8 invocation (`agy --help`):
+ *   agy --add-dir <vaultPath> \
  *       (--dangerously-skip-permissions | --sandbox) \
- *       [--print-timeout <v>] [--add-dir <home>] \
- *       [--conversation <id>] -- "<prompt>"
+ *       [--add-dir <home>] [--print-timeout <v>] \
+ *       [--conversation <id>] -p "<prompt>"
+ *
+ * CRITICAL — `agy` uses Go's `flag` package, where `-p` / `--print` /
+ * `--prompt` is a STRING flag whose value IS the prompt. `agy --print` with no
+ * value fails: "flag needs an argument: -print". Go's flag parser also stops at
+ * the first bare positional, so a `--` terminator followed by the prompt would
+ * silently drop every flag after the first positional. Therefore the prompt
+ * must be passed as the value of `-p` (placed last, after all other flags), and
+ * there must be NO `--` terminator.
  *
  * Permission posture is mutually exclusive:
  *   - `yolo`    -> `--dangerously-skip-permissions` (default; required for the
- *                  unattended `--print` mode, which cannot answer prompts).
+ *                  unattended print mode, which cannot answer prompts).
  *   - `sandbox` -> `--sandbox`, and the skip-permissions flag is omitted.
  *
- * `--print` returns the final assistant text on stdout. The structured event
- * stream is read separately from the per-conversation transcript.jsonl.
+ * Under a non-TTY stdout (a spawned child process), `agy` prints no final text
+ * to stdout; the structured event stream is read from the per-conversation
+ * transcript.jsonl instead.
  */
 
 export interface BuildAntigravityLaunchSpecParams {
@@ -54,7 +63,9 @@ export function buildAntigravityLaunchSpec(
   // Default to YOLO so unattended `--print` runs (and aux one-shots that pass
   // no posture) keep the prior always-on `--dangerously-skip-permissions`.
   const permissionMode: AntigravityPermissionMode = params.permissionMode ?? 'yolo';
-  const args = ['--print', '--add-dir', params.cwd];
+  // Prompt is appended last as the value of `-p` (see the file header). Every
+  // other flag must precede it.
+  const args = ['--add-dir', params.cwd];
 
   // YOLO skips permission prompts; sandbox runs inside agy's OS sandbox and
   // never skips. The two postures are mutually exclusive.
@@ -81,8 +92,10 @@ export function buildAntigravityLaunchSpec(
     args.push('--conversation', conversationId);
   }
 
-  // Terminate flag parsing so the prompt is never mistaken for a flag.
-  args.push('--', params.prompt);
+  // `-p <prompt>`: the prompt is the VALUE of the print flag, placed last so
+  // every preceding flag is parsed before Go's `flag` package consumes it.
+  // No `--` terminator (it would strand the prompt as a dropped positional).
+  args.push('-p', params.prompt);
 
   return {
     args,

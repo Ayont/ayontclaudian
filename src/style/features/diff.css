@@ -1,33 +1,46 @@
-/* Write/Edit Diff Block - Subagent style */
+/* Write/Edit Diff Block — a contained card so "what the AI codes" reads as a
+   distinct, scannable artifact: a path-bar header over a quiet diff surface. */
 .claudian-write-edit-block {
-  margin: 4px 0;
-  background: transparent;
+  margin: var(--cl-space-2) 0;
+  background: var(--cl-accent-softer);
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: var(--cl-radius-md);
   overflow: hidden;
+  transition: border-color var(--cl-dur) var(--cl-ease);
+}
+
+.claudian-write-edit-block:hover {
+  border-color: var(--cl-accent-line);
 }
 
 .claudian-text-block+.claudian-write-edit-block {
-  margin-top: 8px;
+  margin-top: var(--cl-space-2);
 }
 
 .claudian-write-edit-block+.claudian-text-block {
-  margin-top: 8px;
+  margin-top: var(--cl-space-2);
 }
 
+/* Header reads like a file path bar: icon + path + diff stats + status. */
 .claudian-write-edit-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 0;
+  gap: var(--cl-space-2);
+  padding: var(--cl-space-2) var(--cl-space-3);
   cursor: pointer;
   user-select: none;
   background: transparent;
   overflow: hidden;
 }
 
+.claudian-write-edit-header:hover .claudian-write-edit-name {
+  color: var(--cl-accent);
+}
+
 .claudian-write-edit-icon {
   width: 16px;
   height: 16px;
-  color: var(--text-accent);
+  color: var(--cl-accent);
   flex-shrink: 0;
 }
 
@@ -38,17 +51,18 @@
 
 /* Two-part header: name (fixed) + summary (flexible) */
 .claudian-write-edit-name {
-  font-family: var(--font-monospace);
-  font-size: 13px;
-  font-weight: 400;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-md);
+  font-weight: 500;
   color: var(--text-normal);
   white-space: nowrap;
   flex-shrink: 0;
+  transition: color var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-write-edit-summary {
-  font-family: var(--font-monospace);
-  font-size: 13px;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-md);
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -58,8 +72,9 @@
 }
 
 .claudian-write-edit-stats {
-  font-family: var(--font-monospace);
-  font-size: 11px;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-xs);
+  font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
 
@@ -69,7 +84,7 @@
 
 .claudian-write-edit-stats .removed {
   color: var(--color-red);
-  margin-left: 4px;
+  margin-left: var(--cl-space-1);
 }
 
 .claudian-write-edit-status {
@@ -97,9 +112,11 @@
   color: var(--color-red);
 }
 
+/* Diff body — a quiet sunken surface set off from the header by a hairline. */
 .claudian-write-edit-content {
-  padding: 0;
-  background: transparent;
+  padding: var(--cl-space-2) 0;
+  background: var(--cl-surface-sunken);
+  border-top: 1px solid var(--cl-border-subtle);
   overflow: hidden;
 }
 
@@ -109,9 +126,9 @@
 
 .claudian-write-edit-diff {
   flex: 1;
-  font-family: var(--font-monospace);
-  font-size: 12px;
-  line-height: 1.5;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-sm);
+  line-height: var(--cl-leading);
   background: transparent;
   max-height: 300px;
   overflow-y: auto;
@@ -122,9 +139,10 @@
 .claudian-write-edit-binary,
 .claudian-write-edit-error,
 .claudian-write-edit-done-text {
-  font-family: var(--font-monospace);
-  font-size: 12px;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-sm);
   color: var(--text-muted);
+  padding: 0 var(--cl-space-3);
 }
 
 .claudian-write-edit-error {
@@ -133,7 +151,7 @@
 
 /* Diff line styling */
 .claudian-diff-hunk {
-  margin-bottom: 4px;
+  margin-bottom: var(--cl-space-1);
 }
 
 .claudian-diff-line {

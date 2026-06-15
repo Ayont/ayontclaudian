@@ -1,5 +1,5 @@
-import { antigravityChatUIConfig } from '@/providers/antigravity/ui/AntigravityChatUIConfig';
 import { getAntigravityProviderSettings } from '@/providers/antigravity/settings';
+import { antigravityChatUIConfig } from '@/providers/antigravity/ui/AntigravityChatUIConfig';
 
 describe('AntigravityChatUIConfig permission mode', () => {
   describe('getPermissionModeToggle', () => {

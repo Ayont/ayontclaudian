@@ -167,7 +167,10 @@ export class KimiChatRuntime implements ChatRuntime {
       model,
       permissionMode: settings.permissionMode,
       prompt: turn.request.text,
-      resume: !this.sessionId,
+      // Never `--continue` on a fresh chat: that resumes the most recent
+      // kimi-cli session for this cwd (e.g. an unrelated terminal session or a
+      // prior chat) and bleeds its context in. Resume only via an explicit
+      // `--session <id>` once this conversation already owns one.
       sessionId: this.sessionId,
       thinking: settings.thinkingDefault,
     });
@@ -198,6 +201,9 @@ export class KimiChatRuntime implements ChatRuntime {
     }
 
     this.activeProcess = proc;
+    // Close stdin so a non-TTY child process can't block on the open pipe;
+    // `kimi-cli` print mode never reads stdin.
+    proc.stdin.end();
     const streamState = createKimiStreamState();
     let stdoutBuffer = '';
     let stderr = '';

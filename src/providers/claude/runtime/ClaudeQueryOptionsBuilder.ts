@@ -18,7 +18,9 @@ import {
   resolveClaudeSettingSources,
 } from '../settings';
 import {
+  isUltracodeEffort,
   resolveEffortLevel,
+  toApiEffortLevel,
 } from '../types/models';
 import { createCustomSpawnFunction } from './customSpawn';
 import {
@@ -298,9 +300,16 @@ export class QueryOptionsBuilder {
   ): void {
     const effortLevel = resolveEffortLevel(model, settings.effortLevel);
     options.thinking = { type: 'adaptive' };
-    // SDK runtime accepts `xhigh` on Opus 4.7+ and silently falls back to
-    // `high` elsewhere, but its type definition lags our local EffortLevel.
-    options.effort = effortLevel;
+    // `ultracode` is a session setting (xhigh effort + standing dynamic-workflow
+    // orchestration), not an API effort value — send `xhigh` and enable the
+    // `ultracode` flag so Claude Code stands up workflows for substantive tasks.
+    // SDK runtime accepts `xhigh`/`max` on Opus 4.7+; its type defs lag our union.
+    options.effort = toApiEffortLevel(effortLevel);
+    if (isUltracodeEffort(effortLevel)) {
+      const existing =
+        options.settings && typeof options.settings === 'object' ? options.settings : {};
+      options.settings = { ...existing, ultracode: true };
+    }
   }
 
   private static pathsChanged(a?: string[], b?: string[]): boolean {

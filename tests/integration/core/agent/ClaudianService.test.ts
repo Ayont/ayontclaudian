@@ -1617,7 +1617,7 @@ describe('ClaudianService', () => {
       for await (const c of service.query('second')) chunks2.push(c);
 
       const response = getLastResponse();
-      expect(response?.applyFlagSettings).toHaveBeenCalledWith({ effortLevel: 'max' });
+      expect(response?.applyFlagSettings).toHaveBeenCalledWith({ effortLevel: 'max', ultracode: false });
       expect(getQueryCallCount()).toBe(queryCountBefore);
     });
 
