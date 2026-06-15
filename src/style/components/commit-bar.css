@@ -1,0 +1,213 @@
+/* Smart commit bar — compact git commit/push surface in the chat input area. */
+
+.claudian-commit-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cl-space-2);
+  margin-bottom: var(--cl-space-2);
+  padding: var(--cl-space-3);
+  background: var(--cl-surface-raised);
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: var(--cl-radius-md);
+  box-shadow: var(--cl-shadow-sm);
+  font-family: var(--cl-font-ui);
+  animation: cl-rise var(--cl-dur) var(--cl-ease) both;
+}
+
+/* ── Header: branch + change count ─────────────────────────────── */
+.claudian-commit-bar-header {
+  display: flex;
+  align-items: center;
+  gap: var(--cl-space-2);
+  font-size: var(--cl-text-sm);
+}
+
+.claudian-commit-bar-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cl-space-1);
+  padding: 2px var(--cl-space-2);
+  color: var(--cl-accent);
+  background: var(--cl-accent-soft);
+  border: 1px solid var(--cl-accent-line);
+  border-radius: var(--cl-radius-pill);
+  font-family: var(--cl-font-mono);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.claudian-commit-bar-branch-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.claudian-commit-bar-branch-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.claudian-commit-bar-count {
+  color: var(--text-muted);
+  font-size: var(--cl-text-xs);
+}
+
+/* ── Message row: input + suggest ──────────────────────────────── */
+.claudian-commit-bar-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--cl-space-2);
+}
+
+.claudian-commit-bar-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--cl-space-2) var(--cl-space-3);
+  color: var(--text-normal);
+  background: var(--cl-surface-sunken);
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: var(--cl-radius-sm);
+  font-family: var(--cl-font-ui);
+  font-size: var(--cl-text-md);
+  line-height: var(--cl-leading);
+  transition: border-color var(--cl-dur-fast) var(--cl-ease),
+    box-shadow var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-commit-bar-input::placeholder {
+  color: var(--text-faint);
+}
+
+.claudian-commit-bar-input:focus {
+  outline: none;
+  border-color: var(--cl-accent-line);
+  box-shadow: 0 0 0 2px var(--cl-accent-softer);
+}
+
+.claudian-commit-bar-suggest {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 30px;
+  color: var(--text-muted);
+  background: var(--cl-surface-overlay);
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: var(--cl-radius-sm);
+  cursor: pointer;
+  transition: color var(--cl-dur-fast) var(--cl-ease),
+    background var(--cl-dur-fast) var(--cl-ease),
+    transform var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-commit-bar-suggest:hover {
+  color: var(--cl-accent);
+  background: var(--cl-accent-soft);
+}
+
+.claudian-commit-bar-suggest:active {
+  transform: scale(0.94);
+}
+
+.claudian-commit-bar-suggest-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ── Action buttons ────────────────────────────────────────────── */
+.claudian-commit-bar-actions {
+  display: flex;
+  gap: var(--cl-space-2);
+}
+
+.claudian-commit-bar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cl-space-1);
+  min-height: 28px;
+  padding: var(--cl-space-1) var(--cl-space-4);
+  border-radius: var(--cl-radius-sm);
+  font-size: var(--cl-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--cl-dur-fast) var(--cl-ease),
+    color var(--cl-dur-fast) var(--cl-ease),
+    border-color var(--cl-dur-fast) var(--cl-ease),
+    transform var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-commit-bar-commit {
+  flex: 1 1 auto;
+  color: var(--text-on-accent, #fff);
+  background: var(--cl-accent);
+  border: 1px solid var(--cl-accent);
+}
+
+.claudian-commit-bar-commit:hover {
+  background: rgba(var(--cl-accent-rgb), 0.85);
+}
+
+.claudian-commit-bar-push {
+  flex: 0 0 auto;
+  color: var(--text-normal);
+  background: transparent;
+  border: 1px solid var(--cl-border-strong);
+}
+
+.claudian-commit-bar-push:hover {
+  color: var(--cl-accent);
+  border-color: var(--cl-accent-line);
+  background: var(--cl-accent-softer);
+}
+
+.claudian-commit-bar-btn:active {
+  transform: translateY(1px);
+}
+
+.claudian-commit-bar-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+  cursor: default;
+}
+
+.claudian-commit-bar-spinner {
+  display: inline-flex;
+  align-items: center;
+}
+
+.claudian-commit-bar-spinner svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ── Inline feedback ───────────────────────────────────────────── */
+.claudian-commit-bar-feedback {
+  display: flex;
+  align-items: center;
+  gap: var(--cl-space-1);
+  font-size: var(--cl-text-xs);
+  animation: cl-pop var(--cl-dur-fast) var(--cl-ease) both;
+}
+
+.claudian-commit-bar-feedback-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.claudian-commit-bar-feedback-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.claudian-commit-bar-feedback-success {
+  color: var(--color-green);
+}
+
+.claudian-commit-bar-feedback-error {
+  color: var(--color-red);
+}
+
+.claudian-commit-bar-feedback-text {
+  word-break: break-word;
+}

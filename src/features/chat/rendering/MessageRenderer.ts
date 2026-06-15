@@ -45,6 +45,63 @@ function runRendererAction(action: () => Promise<void>): void {
   });
 }
 
+/** How long the code-block Copy button stays in its "Copied" state (ms). */
+const CODE_COPY_FEEDBACK_MS = 1500;
+
+/**
+ * Builds a premium header bar for a multi-line code block: language label on the
+ * left, a real Copy <button> on the right that copies the raw code to clipboard
+ * and briefly confirms. Header is prepended to the wrapper, above the <pre>.
+ */
+function addCodeBlockHeader(
+  wrapperEl: HTMLElement,
+  preEl: HTMLElement,
+  language: string | null
+): void {
+  const headerEl = createEl('div', { cls: 'claudian-code-header' });
+
+  const langEl = headerEl.createSpan({ cls: 'claudian-code-lang' });
+  langEl.setText(language ?? 'text');
+
+  const copyBtn = headerEl.createEl('button', { cls: 'claudian-code-copy' });
+  copyBtn.setAttribute('type', 'button');
+  copyBtn.setAttribute('aria-label', 'Copy code');
+
+  const iconEl = copyBtn.createSpan({ cls: 'claudian-code-copy-icon' });
+  setIcon(iconEl, 'copy');
+  const textEl = copyBtn.createSpan({ cls: 'claudian-code-copy-text' });
+  textEl.setText('Copy');
+
+  let feedbackTimeout: number | null = null;
+  copyBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    runRendererAction(async () => {
+      const code = preEl.querySelector('code')?.textContent ?? preEl.textContent ?? '';
+      try {
+        await navigator.clipboard.writeText(code);
+      } catch {
+        // Clipboard API may fail in non-secure contexts.
+        return;
+      }
+
+      if (feedbackTimeout) window.clearTimeout(feedbackTimeout);
+
+      setIcon(iconEl, 'check');
+      textEl.setText('Copied');
+      copyBtn.classList.add('copied');
+
+      feedbackTimeout = window.setTimeout(() => {
+        setIcon(iconEl, 'copy');
+        textEl.setText('Copy');
+        copyBtn.classList.remove('copied');
+        feedbackTimeout = null;
+      }, CODE_COPY_FEEDBACK_MS);
+    });
+  });
+
+  wrapperEl.insertBefore(headerEl, preEl);
+}
+
 export class MessageRenderer {
   private app: App;
   private plugin: ClaudianPlugin;
@@ -671,39 +728,19 @@ export class MessageRenderer {
         pre.parentElement?.insertBefore(wrapper, pre);
         wrapper.appendChild(pre);
 
-        // Check for language class and add label
+        // Detect language from the highlighted <code> class (e.g. language-ts).
         const code = pre.querySelector('code[class*="language-"]');
-        if (code) {
-          const match = code.className.match(/language-(\w+)/);
-          if (match) {
-            wrapper.classList.add('has-language');
-            const label = createEl('span', {
-              cls: 'claudian-code-lang-label',
-              text: match[1],
-            });
-            wrapper.appendChild(label);
-            label.addEventListener('click', () => {
-              runRendererAction(async () => {
-                const originalLabel = match[1];
-                if (!originalLabel) return;
-
-                try {
-                  await navigator.clipboard.writeText(code.textContent || '');
-                  label.setText('Copied!');
-                  window.setTimeout(() => label.setText(originalLabel), 1500);
-                } catch {
-                  // Clipboard API may fail in non-secure contexts
-                }
-              });
-            });
-          }
+        const match = code?.className.match(/language-(\w+)/);
+        const language = match ? match[1] : null;
+        if (language) {
+          wrapper.classList.add('has-language');
         }
 
-        // Move Obsidian's copy button outside pre into wrapper
-        const copyBtn = pre.querySelector('.copy-code-button');
-        if (copyBtn) {
-          wrapper.appendChild(copyBtn);
-        }
+        // Premium header bar: language label + working Copy button.
+        addCodeBlockHeader(wrapper, pre, language);
+
+        // Obsidian's own copy button is redundant now — drop it.
+        pre.querySelector('.copy-code-button')?.remove();
       });
 
       // Process wikilinks only when the source can contain them; the DOM pass is expensive.

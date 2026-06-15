@@ -13,6 +13,7 @@
 @import "./components/messages.css";
 @import "./components/nav-sidebar.css";
 @import "./components/code.css";
+@import "./components/commit-bar.css";
 @import "./components/thinking.css";
 @import "./components/toolcalls.css";
 @import "./components/status-panel.css";

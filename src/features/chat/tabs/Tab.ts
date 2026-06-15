@@ -2,6 +2,7 @@ import type { Component } from 'obsidian';
 import { Notice, Platform } from 'obsidian';
 
 import { buildConversationContextBootstrap } from '../../../core/conversation/ConversationContextBootstrap';
+import { GitService } from '../../../core/git/GitService';
 import { getHiddenProviderCommandSet } from '../../../core/providers/commands/hiddenCommands';
 import type { ProviderCommandDropdownConfig } from '../../../core/providers/commands/ProviderCommandCatalog';
 import type { ProviderCommandEntry } from '../../../core/providers/commands/ProviderCommandEntry';
@@ -41,6 +42,7 @@ import { BangBashService } from '../services/BangBashService';
 import { SubagentManager } from '../services/SubagentManager';
 import { ChatState } from '../state/ChatState';
 import { BangBashModeManager as BangBashModeManagerClass } from '../ui/BangBashModeManager';
+import { CommitBar } from '../ui/CommitBar';
 import { FileContextManager } from '../ui/FileContext';
 import { ImageContextManager } from '../ui/ImageContext';
 import { createInputToolbar } from '../ui/InputToolbar';
@@ -855,6 +857,14 @@ function initializeInputToolbar(
   onProviderChanged?: (providerId: ProviderId) => void | Promise<void>,
 ): void {
   const { dom } = tab;
+
+  // Smart commit bar — sits just above the toolbar. Hides itself unless the
+  // vault is a git repo. Cleaned up via the tab's eventCleanups list.
+  const vaultPath = getVaultPath(plugin.app);
+  if (vaultPath) {
+    const commitBar = new CommitBar(dom.inputWrapper, new GitService(vaultPath));
+    dom.eventCleanups.push(() => commitBar.destroy());
+  }
 
   const inputToolbar = dom.inputWrapper.createDiv({ cls: 'claudian-input-toolbar' });
 

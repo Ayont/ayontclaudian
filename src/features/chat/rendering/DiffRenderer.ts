@@ -75,6 +75,31 @@ export function splitIntoHunks(diffLines: DiffLine[], contextLines = 3): DiffHun
 /** Max lines to render for all-inserts diffs (new file creation). */
 const NEW_FILE_DISPLAY_CAP = 20;
 
+/** Marker shown in a gutter cell when a line has no number on that side. */
+const GUTTER_EMPTY = '';
+
+/**
+ * Renders one diff line: a two-column gutter (old / new line numbers), a +/-/space
+ * prefix and the line text. Class names match the existing contract so styling and
+ * tests keep working; the gutter is additive.
+ */
+function renderDiffLine(hunkEl: HTMLElement, line: DiffLine): void {
+  const lineEl = hunkEl.createDiv({ cls: `claudian-diff-line claudian-diff-${line.type}` });
+
+  const gutterEl = lineEl.createSpan({ cls: 'claudian-diff-gutter' });
+  const oldEl = gutterEl.createSpan({ cls: 'claudian-diff-gutter-old' });
+  oldEl.setText(line.oldLineNum != null ? String(line.oldLineNum) : GUTTER_EMPTY);
+  const newEl = gutterEl.createSpan({ cls: 'claudian-diff-gutter-new' });
+  newEl.setText(line.newLineNum != null ? String(line.newLineNum) : GUTTER_EMPTY);
+
+  const prefix = line.type === 'insert' ? '+' : line.type === 'delete' ? '-' : ' ';
+  const prefixEl = lineEl.createSpan({ cls: 'claudian-diff-prefix' });
+  prefixEl.setText(prefix);
+
+  const contentEl = lineEl.createSpan({ cls: 'claudian-diff-text' });
+  contentEl.setText(line.text || ' '); // Show space for empty lines
+}
+
 export function renderDiffContent(
   containerEl: HTMLElement,
   diffLines: DiffLine[],
@@ -87,11 +112,7 @@ export function renderDiffContent(
   if (allInserts && diffLines.length > NEW_FILE_DISPLAY_CAP) {
     const hunkEl = containerEl.createDiv({ cls: 'claudian-diff-hunk' });
     for (const line of diffLines.slice(0, NEW_FILE_DISPLAY_CAP)) {
-      const lineEl = hunkEl.createDiv({ cls: 'claudian-diff-line claudian-diff-insert' });
-      const prefixEl = lineEl.createSpan({ cls: 'claudian-diff-prefix' });
-      prefixEl.setText('+');
-      const contentEl = lineEl.createSpan({ cls: 'claudian-diff-text' });
-      contentEl.setText(line.text || ' ');
+      renderDiffLine(hunkEl, line);
     }
     const remaining = diffLines.length - NEW_FILE_DISPLAY_CAP;
     const separator = containerEl.createDiv({ cls: 'claudian-diff-separator' });
@@ -119,16 +140,7 @@ export function renderDiffContent(
     const hunkEl = containerEl.createDiv({ cls: 'claudian-diff-hunk' });
 
     for (const line of hunk.lines) {
-      const lineEl = hunkEl.createDiv({ cls: `claudian-diff-line claudian-diff-${line.type}` });
-
-      // Line prefix
-      const prefix = line.type === 'insert' ? '+' : line.type === 'delete' ? '-' : ' ';
-      const prefixEl = lineEl.createSpan({ cls: 'claudian-diff-prefix' });
-      prefixEl.setText(prefix);
-
-      // Line content
-      const contentEl = lineEl.createSpan({ cls: 'claudian-diff-text' });
-      contentEl.setText(line.text || ' '); // Show space for empty lines
+      renderDiffLine(hunkEl, line);
     }
   });
 }

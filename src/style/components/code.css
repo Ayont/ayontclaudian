@@ -1,20 +1,94 @@
-/* Code block wrapper — contains pre + button outside the scroll area. */
+/* Code block wrapper — a self-contained artifact: header bar over the <pre>. */
 .claudian-code-wrapper {
   position: relative;
   margin: var(--cl-space-3) 0;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: var(--cl-radius-md);
+  overflow: hidden;
+  box-shadow: var(--cl-shadow-sm);
+  transition: border-color var(--cl-dur-fast) var(--cl-ease);
 }
 
-/* Code blocks in chat messages — a bordered, slightly-elevated surface so code
-   reads as a distinct artifact rather than inline text. */
+.claudian-code-wrapper:hover {
+  border-color: var(--cl-border-strong);
+}
+
+/* Header bar — language label (left) + Copy button (right) on a raised strip. */
+.claudian-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cl-space-2);
+  padding: var(--cl-space-1) var(--cl-space-2) var(--cl-space-1) var(--cl-space-3);
+  background: var(--cl-surface-raised);
+  border-bottom: 1px solid var(--cl-border-subtle);
+}
+
+.claudian-code-lang {
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+/* Copy button — a real, accessible button; quiet until hover/focus. */
+.claudian-code-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cl-space-1);
+  padding: 2px var(--cl-space-2);
+  font-family: var(--cl-font-ui);
+  font-size: var(--cl-text-xs);
+  line-height: 1;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--cl-radius-sm);
+  cursor: pointer;
+  box-shadow: none;
+  transition:
+    color var(--cl-dur-fast) var(--cl-ease),
+    background var(--cl-dur-fast) var(--cl-ease),
+    border-color var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-code-copy:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+  border-color: var(--cl-border-subtle);
+}
+
+.claudian-code-copy:focus-visible {
+  outline: none;
+  color: var(--text-normal);
+  border-color: var(--cl-accent-line);
+  box-shadow: 0 0 0 2px var(--cl-accent-soft);
+}
+
+.claudian-code-copy.copied {
+  color: var(--color-green);
+}
+
+.claudian-code-copy-icon {
+  display: inline-flex;
+}
+
+.claudian-code-copy-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* Code body — monospace, scrollable; the wrapper owns the border/radius. */
 .claudian-code-wrapper pre,
 .claudian-message-content pre {
   background: rgba(0, 0, 0, 0.22);
-  border: 1px solid var(--cl-border-subtle);
   padding: var(--cl-space-3);
-  border-radius: var(--cl-radius-md);
   overflow-x: auto;
   margin: 0;
-  box-shadow: var(--cl-shadow-sm);
+  border: none;
+  border-radius: 0;
 }
 
 /* Light mode: lighter fill so hljs comment colors stay readable. */
@@ -30,79 +104,15 @@ body.theme-light .claudian-message-content pre {
   overflow-x: hidden;
 }
 
-/* Unwrapped pre still needs margin. */
+/* Unwrapped pre (rendered outside our wrapper) keeps its own card look. */
 .claudian-message-content > pre {
   margin: var(--cl-space-3) 0;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: var(--cl-radius-md);
+  box-shadow: var(--cl-shadow-sm);
 }
 
 .claudian-message-content code {
   font-family: var(--cl-font-mono);
   font-size: var(--cl-text-md);
-}
-
-/* Clickable language label — a chip pinned to the top-right corner. */
-.claudian-code-wrapper .claudian-code-lang-label {
-  position: absolute;
-  top: var(--cl-space-1);
-  inset-inline-end: var(--cl-space-1);
-  padding: 2px var(--cl-space-2);
-  font-size: var(--cl-text-xs);
-  font-family: var(--cl-font-mono);
-  letter-spacing: 0.04em;
-  color: var(--text-faint);
-  background: var(--cl-surface-overlay);
-  border: 1px solid var(--cl-border-subtle);
-  border-radius: var(--cl-radius-sm);
-  cursor: pointer;
-  z-index: 2;
-  transition:
-    color var(--cl-dur-fast) var(--cl-ease),
-    background var(--cl-dur-fast) var(--cl-ease),
-    border-color var(--cl-dur-fast) var(--cl-ease);
-}
-
-.claudian-code-wrapper .claudian-code-lang-label:hover {
-  color: var(--text-normal);
-  background: var(--background-modifier-hover);
-  border-color: var(--cl-border-strong);
-}
-
-/* Hide default copy button when a language label exists. */
-.claudian-code-wrapper.has-language .copy-code-button {
-  display: none;
-}
-
-/* Copy button — corner chip, revealed on hover. */
-.claudian-code-wrapper .copy-code-button {
-  position: absolute;
-  top: var(--cl-space-1);
-  inset-inline-end: var(--cl-space-1);
-  padding: var(--cl-space-1) var(--cl-space-2);
-  font-size: var(--cl-text-xs);
-  background: var(--cl-surface-overlay);
-  border: 1px solid var(--cl-border-subtle);
-  color: var(--text-muted);
-  cursor: pointer;
-  opacity: 0;
-  transition:
-    opacity var(--cl-dur-fast) var(--cl-ease),
-    color var(--cl-dur-fast) var(--cl-ease),
-    background var(--cl-dur-fast) var(--cl-ease);
-  border-radius: var(--cl-radius-sm);
-  z-index: 2;
-}
-
-.claudian-code-wrapper .copy-code-button svg {
-  width: 14px;
-  height: 14px;
-}
-
-/* Show copy button on hover. */
-.claudian-code-wrapper:not(.has-language):hover .copy-code-button {
-  opacity: 1;
-}
-
-.claudian-code-wrapper .copy-code-button:hover {
-  background: var(--background-modifier-hover);
-  color: var(--text-normal);
 }
