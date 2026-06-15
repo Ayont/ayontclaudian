@@ -1,28 +1,28 @@
 .claudian-subagent-list {
-  margin: 8px 0;
+  margin: var(--cl-space-2) 0;
 }
 
 .claudian-text-block+.claudian-subagent-list {
-  margin-top: 8px;
+  margin-top: var(--cl-space-2);
 }
 
 .claudian-subagent-list+.claudian-text-block {
-  margin-top: 8px;
+  margin-top: var(--cl-space-2);
 }
 
 .claudian-tool-call+.claudian-subagent-list {
-  margin-top: 8px;
+  margin-top: var(--cl-space-2);
 }
 
 .claudian-subagent-list+.claudian-tool-call {
-  margin-top: 8px;
+  margin-top: var(--cl-space-2);
 }
 
 .claudian-subagent-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 0;
+  gap: var(--cl-space-2);
+  padding: var(--cl-space-1) 0;
   cursor: pointer;
   overflow: hidden;
 }
@@ -30,7 +30,7 @@
 .claudian-subagent-icon {
   display: flex;
   align-items: center;
-  color: var(--interactive-accent);
+  color: var(--cl-accent);
   flex-shrink: 0;
 }
 
@@ -41,8 +41,8 @@
 
 .claudian-subagent-label {
   flex: 1;
-  font-family: var(--font-monospace);
-  font-size: 13px;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-md);
   font-weight: 400;
   color: var(--text-normal);
 }
@@ -59,7 +59,7 @@
 }
 
 .claudian-subagent-status.status-running {
-  color: var(--text-accent);
+  color: var(--cl-accent);
 }
 
 .claudian-subagent-status.status-completed {
@@ -71,10 +71,10 @@
 }
 
 .claudian-subagent-content {
-  padding: 4px 0;
-  padding-inline-start: 16px;
+  padding: var(--cl-space-1) 0;
+  padding-inline-start: var(--cl-space-4);
   margin-inline-start: 7px;
-  border-inline-start: 2px solid var(--background-modifier-border);
+  border-inline-start: 2px solid var(--cl-border-subtle);
 }
 
 .claudian-subagent-section {
@@ -87,8 +87,8 @@
   gap: 6px;
   cursor: pointer;
   user-select: none;
-  font-family: var(--font-monospace);
-  font-size: 12px;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-sm);
   color: var(--text-muted);
   padding: 2px 0;
 }
@@ -108,8 +108,8 @@
 
 .claudian-subagent-prompt-text,
 .claudian-subagent-result-output {
-  font-family: var(--font-monospace);
-  font-size: 12px;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-sm);
   line-height: 1.4;
   color: var(--text-muted);
   white-space: pre-wrap;
@@ -124,7 +124,7 @@
 .claudian-subagent-tools {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--cl-space-1);
 }
 
 .claudian-subagent-tool-item {
@@ -147,7 +147,7 @@
 .claudian-subagent-tool-icon {
   display: flex;
   align-items: center;
-  color: var(--text-accent);
+  color: var(--cl-accent);
   flex-shrink: 0;
 }
 
@@ -157,16 +157,16 @@
 }
 
 .claudian-subagent-tool-name {
-  font-family: var(--font-monospace);
-  font-size: 12px;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-sm);
   color: var(--text-normal);
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .claudian-subagent-tool-summary {
-  font-family: var(--font-monospace);
-  font-size: 12px;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-sm);
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -187,7 +187,7 @@
 }
 
 .claudian-subagent-tool-status.status-running {
-  color: var(--text-accent);
+  color: var(--cl-accent);
 }
 
 /* Live activity: spin the loader while an agent or one of its tools is running,
@@ -207,27 +207,27 @@
 }
 
 .claudian-subagent-tool-content {
-  padding: 2px 0 2px 16px;
+  padding: 2px 0 2px var(--cl-space-4);
 }
 
 .claudian-subagent-tool-empty {
   color: var(--text-faint);
   font-style: italic;
-  font-family: var(--font-monospace);
-  font-size: 12px;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-sm);
   padding: 2px 0;
 }
 
 .claudian-subagent-status-text {
-  font-size: 11px;
-  font-family: var(--font-monospace);
+  font-size: var(--cl-text-xs);
+  font-family: var(--cl-font-mono);
   color: var(--text-muted);
   margin-inline-start: auto;
-  padding-inline-start: 8px;
+  padding-inline-start: var(--cl-space-2);
 }
 
 .claudian-subagent-list.async .claudian-subagent-icon {
-  color: var(--interactive-accent);
+  color: var(--cl-accent);
 }
 
 .claudian-subagent-list.async.pending .claudian-subagent-status-text {
@@ -235,7 +235,7 @@
 }
 
 .claudian-subagent-list.async.running .claudian-subagent-status-text {
-  color: var(--text-accent);
+  color: var(--cl-accent);
 }
 
 .claudian-subagent-list.async.awaiting .claudian-subagent-status-text {

@@ -110,6 +110,18 @@ export function discoverNewestConversationId(
   return entries[0].id;
 }
 
+/**
+ * Splits a transcript buffer into lines for cursor-based tailing, dropping the
+ * trailing newline agy always writes. Plain `split('\n')` yields a phantom empty
+ * final element, making the line count one too high — the tail cursor then
+ * over-advances and silently drops the first new event of the next append (and
+ * the first event of every resumed turn). Returns [] for an empty/blank buffer.
+ */
+export function splitTranscriptLines(buffer: string): string[] {
+  const trimmed = buffer.replace(/\n+$/, '');
+  return trimmed.length === 0 ? [] : trimmed.split('\n');
+}
+
 /** True when a transcript.jsonl exists for the conversation id. */
 export function hasAntigravityTranscript(conversationId: string): boolean {
   try {

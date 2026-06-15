@@ -42,6 +42,7 @@ import {
   getAntigravityTranscriptPath,
   readAntigravityTranscript,
   snapshotBrainConversationIds,
+  splitTranscriptLines,
 } from '../history/AntigravityBrainStore';
 import { parseTranscript } from '../normalization/transcript';
 import {
@@ -180,7 +181,7 @@ export class AntigravityChatRuntime implements ChatRuntime {
     // starting the tail past the prior lines keeps the new bubble from
     // re-emitting the entire conversation history (duplicated messages).
     const priorTranscriptLineCount = this.conversationId
-      ? (readAntigravityTranscript(this.conversationId)?.split('\n').length ?? 0)
+      ? splitTranscriptLines(readAntigravityTranscript(this.conversationId) ?? '').length
       : 0;
     const launchSpec = buildAntigravityLaunchSpec({
       command,
@@ -260,7 +261,7 @@ export class AntigravityChatRuntime implements ChatRuntime {
       if (buffer === null) {
         return [];
       }
-      const lines = buffer.split('\n');
+      const lines = splitTranscriptLines(buffer);
       if (tailCursor > lines.length) {
         tailCursor = 0;
       }

@@ -42,3 +42,48 @@
     transform: rotate(360deg);
   }
 }
+
+/* Premium entrance: each message (and the activity blocks inside it) rises +
+   fades in. Compositor-only (opacity/transform) for smoothness. */
+@keyframes cl-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.claudian-message {
+  animation: cl-rise var(--cl-dur) var(--cl-ease) both;
+}
+
+/* Status-flip pop (e.g. a tool/agent finishing): scales its check/result in. */
+@keyframes cl-pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Accessibility: honor the OS "reduce motion" setting — neutralize all motion
+   inside the plugin (including the infinite spin/pulse) without touching the
+   rest of Obsidian. */
+@media (prefers-reduced-motion: reduce) {
+  .claudian-container *,
+  .claudian-container *::before,
+  .claudian-container *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
