@@ -135,17 +135,64 @@ export const KIMI_PROVIDER_ICON: ProviderIconSvg = {
   path: 'M12 2a10 10 0 1 0 9.95 11.04A8 8 0 0 1 12 2Z',
 };
 
-// Vibe / Mistral mark: the three-stripe "Mistral" motif as rounded vertical
-// bars, tinted to `currentColor` like the other monochrome provider marks.
+// Vibe / Mistral mark: Mistral's banded "flag" — stacked horizontal bars filled
+// with the brand's sunrise gradient (yellow at the top fading to orange at the
+// bottom). A continuous userSpaceOnUse gradient spans all bands so the sunrise
+// reads across the whole mark.
 export const VIBE_PROVIDER_ICON: ProviderIconSvg = {
+  kind: 'composite',
   viewBox: '0 0 24 24',
-  path: 'M4 5a1 1 0 0 1 2 0v14a1 1 0 0 1-2 0V5Zm7 0a1 1 0 0 1 2 0v14a1 1 0 0 1-2 0V5Zm7 0a1 1 0 0 1 2 0v14a1 1 0 0 1-2 0V5Z',
+  children: [
+    {
+      tag: 'defs',
+      attributes: {},
+      children: [
+        {
+          tag: 'linearGradient',
+          attributes: { id: 'claudian-mistral-grad', gradientUnits: 'userSpaceOnUse', x1: '12', y1: '3', x2: '12', y2: '22' },
+          children: [
+            { tag: 'stop', attributes: { offset: '0%', 'stop-color': '#FFD60A' } },
+            { tag: 'stop', attributes: { offset: '55%', 'stop-color': '#FF8A00' } },
+            { tag: 'stop', attributes: { offset: '100%', 'stop-color': '#FF5A00' } },
+          ],
+        },
+      ],
+    },
+    { tag: 'rect', attributes: { x: '3', y: '3', width: '18', height: '3.6', rx: '1', fill: 'url(#claudian-mistral-grad)' } },
+    { tag: 'rect', attributes: { x: '3', y: '8.2', width: '18', height: '3.6', rx: '1', fill: 'url(#claudian-mistral-grad)' } },
+    { tag: 'rect', attributes: { x: '3', y: '13.4', width: '18', height: '3.6', rx: '1', fill: 'url(#claudian-mistral-grad)' } },
+    { tag: 'rect', attributes: { x: '3', y: '18.6', width: '18', height: '3.6', rx: '1', fill: 'url(#claudian-mistral-grad)' } },
+  ],
 };
 
-// Grok / xAI mark: a bold filled "X" glyph, tinted to `currentColor`.
+// Grok / xAI mark: the angular "X" glyph filled with xAI's white→black gradient
+// (diagonal, top-left white fading to near-black bottom-right).
 export const GROK_PROVIDER_ICON: ProviderIconSvg = {
+  kind: 'composite',
   viewBox: '0 0 24 24',
-  path: 'M3.5 3.5h4.2l4.3 6 4.3-6h4.2l-6.4 8.5 6.4 8.5h-4.2l-4.3-6-4.3 6H3.5l6.4-8.5z',
+  children: [
+    {
+      tag: 'defs',
+      attributes: {},
+      children: [
+        {
+          tag: 'linearGradient',
+          attributes: { id: 'claudian-grok-grad', gradientUnits: 'userSpaceOnUse', x1: '4', y1: '4', x2: '20', y2: '20' },
+          children: [
+            { tag: 'stop', attributes: { offset: '0%', 'stop-color': '#FFFFFF' } },
+            { tag: 'stop', attributes: { offset: '100%', 'stop-color': '#222222' } },
+          ],
+        },
+      ],
+    },
+    {
+      tag: 'path',
+      attributes: {
+        d: 'M3.5 3.5h4.2l4.3 6 4.3-6h4.2l-6.4 8.5 6.4 8.5h-4.2l-4.3-6-4.3 6H3.5l6.4-8.5z',
+        fill: 'url(#claudian-grok-grad)',
+      },
+    },
+  ],
 };
 
 export interface CreateProviderIconSvgOptions {
@@ -200,7 +247,9 @@ function createProviderSvgChild(child: ProviderSvgChild, ownerDocument: Document
     element.setAttribute(name, value);
   }
 
-  if (child.tag === 'g') {
+  // Recurse for any element with children (g, defs, linearGradient, …) so
+  // gradient definitions and grouped marks render.
+  if (child.children) {
     for (const nestedChild of child.children) {
       element.appendChild(createProviderSvgChild(nestedChild, ownerDocument));
     }

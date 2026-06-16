@@ -77,6 +77,14 @@
   box-shadow: inset 0 -3px 0 var(--claudian-brand-antigravity);
 }
 
+.claudian-tab-badge[data-provider="vibe"] {
+  box-shadow: inset 0 -3px 0 var(--claudian-brand-vibe);
+}
+
+.claudian-tab-badge[data-provider="grok"] {
+  box-shadow: inset 0 -3px 0 var(--claudian-brand-grok);
+}
+
 .claudian-tab-badge-streaming {
   border-color: var(--claudian-brand, #da7756);
   animation: cl-tab-pulse 1.6s var(--cl-ease) infinite;
@@ -104,6 +112,14 @@
 
 .claudian-tab-badge-streaming[data-provider="antigravity"] {
   border-color: var(--claudian-brand-antigravity, #4286F4);
+}
+
+.claudian-tab-badge-streaming[data-provider="vibe"] {
+  border-color: var(--claudian-brand-vibe, #FF7A00);
+}
+
+.claudian-tab-badge-streaming[data-provider="grok"] {
+  border-color: var(--claudian-brand-grok, #E8E8E8);
 }
 
 .claudian-tab-badge-attention {

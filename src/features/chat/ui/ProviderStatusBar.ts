@@ -23,6 +23,8 @@ const PROVIDER_COLOR: Record<string, string> = {
   pi: '#cfcfcf',
   kimi: '#7C6CF2',
   antigravity: '#4286F4',
+  vibe: '#FF7A00',
+  grok: '#E8E8E8',
 };
 
 export interface ProviderStatus {

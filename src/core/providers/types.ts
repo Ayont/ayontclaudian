@@ -183,18 +183,17 @@ export interface ProviderPathIconSvg {
   path: string;
 }
 
-export interface ProviderSvgPathChild {
-  tag: 'path';
+/**
+ * A generic SVG element descriptor for composite provider icons. `tag` is any
+ * SVG element name (`path`, `g`, `rect`, `defs`, `linearGradient`, `stop`, …);
+ * `children` (when present) are rendered recursively — enabling gradients
+ * (`defs > linearGradient > stop`) and grouped/colored brand marks.
+ */
+export interface ProviderSvgChild {
+  tag: string;
   attributes: Record<string, string>;
+  children?: ProviderSvgChild[];
 }
-
-export interface ProviderSvgGroupChild {
-  tag: 'g';
-  attributes: Record<string, string>;
-  children: ProviderSvgPathChild[];
-}
-
-export type ProviderSvgChild = ProviderSvgGroupChild | ProviderSvgPathChild;
 
 export interface ProviderCompositeIconSvg {
   kind: 'composite';
