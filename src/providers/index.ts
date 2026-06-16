@@ -12,6 +12,8 @@ import { opencodeWorkspaceRegistration } from './opencode/app/OpencodeWorkspaceS
 import { opencodeProviderRegistration } from './opencode/registration';
 import { piWorkspaceRegistration } from './pi/app/PiWorkspaceServices';
 import { piProviderRegistration } from './pi/registration';
+import { vibeWorkspaceRegistration } from './vibe/app/VibeWorkspaceServices';
+import { vibeProviderRegistration } from './vibe/registration';
 
 let builtInProvidersRegistered = false;
 
@@ -26,12 +28,14 @@ export function registerBuiltInProviders(): void {
   ProviderRegistry.register('pi', piProviderRegistration);
   ProviderRegistry.register('antigravity', antigravityProviderRegistration);
   ProviderRegistry.register('kimi', kimiProviderRegistration);
+  ProviderRegistry.register('vibe', vibeProviderRegistration);
   ProviderWorkspaceRegistry.register('claude', claudeWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('codex', codexWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('opencode', opencodeWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('pi', piWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('antigravity', antigravityWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('kimi', kimiWorkspaceRegistration);
+  ProviderWorkspaceRegistry.register('vibe', vibeWorkspaceRegistration);
   builtInProvidersRegistered = true;
 }
 

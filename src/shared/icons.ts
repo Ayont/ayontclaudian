@@ -135,6 +135,13 @@ export const KIMI_PROVIDER_ICON: ProviderIconSvg = {
   path: 'M12 2a10 10 0 1 0 9.95 11.04A8 8 0 0 1 12 2Z',
 };
 
+// Vibe / Mistral mark: the three-stripe "Mistral" motif as rounded vertical
+// bars, tinted to `currentColor` like the other monochrome provider marks.
+export const VIBE_PROVIDER_ICON: ProviderIconSvg = {
+  viewBox: '0 0 24 24',
+  path: 'M4 5a1 1 0 0 1 2 0v14a1 1 0 0 1-2 0V5Zm7 0a1 1 0 0 1 2 0v14a1 1 0 0 1-2 0V5Zm7 0a1 1 0 0 1 2 0v14a1 1 0 0 1-2 0V5Z',
+};
+
 export interface CreateProviderIconSvgOptions {
   className?: string;
   dataProvider?: string;
