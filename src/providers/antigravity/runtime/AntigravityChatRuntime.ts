@@ -43,6 +43,7 @@ import { ANTIGRAVITY_PROVIDER_CAPABILITIES } from '../capabilities';
 import {
   discoverNewestConversationId,
   getAntigravityTranscriptPath,
+  hasAntigravityTranscript,
   readAntigravityTranscript,
   snapshotBrainConversationIds,
   splitTranscriptLines,
@@ -125,7 +126,15 @@ export class AntigravityChatRuntime implements ChatRuntime {
     }
 
     const state = getAntigravityState(conversation.providerState);
-    this.conversationId = state.conversationId ?? conversation.sessionId ?? null;
+    // Prefer Antigravity's own stored conversation id. Only fall back to the
+    // shared `conversation.sessionId` when it is actually an Antigravity brain
+    // conversation (a transcript exists on disk) — after switching providers in
+    // the same chat that shared field can hold another provider's session id
+    // (e.g. a Kimi `ses_…`), which agy would reject with "conversation not
+    // found". An unrecognized id is dropped so agy starts a fresh conversation.
+    const sharedId = conversation.sessionId;
+    const legacyId = sharedId && hasAntigravityTranscript(sharedId) ? sharedId : null;
+    this.conversationId = state.conversationId ?? legacyId;
     this.transcriptPath = state.transcriptPath
       ?? (this.conversationId ? getAntigravityTranscriptPath(this.conversationId) : null);
     this.sessionInvalidated = false;
@@ -472,10 +481,17 @@ export class AntigravityChatRuntime implements ChatRuntime {
   }
 
   resolveSessionIdForFork(conversation: Conversation | null): string | null {
-    return this.conversationId
-      ?? getAntigravityState(conversation?.providerState).conversationId
-      ?? conversation?.sessionId
-      ?? null;
+    if (this.conversationId) {
+      return this.conversationId;
+    }
+    const stateId = getAntigravityState(conversation?.providerState).conversationId;
+    if (stateId) {
+      return stateId;
+    }
+    // Only trust the shared session id when it is a real Antigravity brain
+    // conversation; otherwise it may be another provider's id.
+    const shared = conversation?.sessionId;
+    return shared && hasAntigravityTranscript(shared) ? shared : null;
   }
 
   async loadSubagentToolCalls(_agentId: string): Promise<ToolCallInfo[]> {
