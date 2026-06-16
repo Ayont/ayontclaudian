@@ -7,16 +7,26 @@
 /* Input wrapper (border container) - flex column so textarea expands when no chips */
 /* Height calculation: context row (36px) + textarea min (60px) + toolbar (38px) + border (2px) = 136px */
 .claudian-input-wrapper {
-  --claudian-input-wrapper-border-color: var(--background-modifier-border);
+  --claudian-input-wrapper-border-color: var(--cl-border-subtle);
   --claudian-input-wrapper-box-shadow: none;
   position: relative;
   display: flex;
   flex-direction: column;
   min-height: 140px;
   border: 1px solid var(--claudian-input-wrapper-border-color);
-  border-radius: 6px;
-  background: var(--background-primary);
+  border-radius: var(--cl-radius-md);
+  background: var(--cl-surface-base);
   box-shadow: var(--claudian-input-wrapper-box-shadow);
+  transition: border-color var(--cl-dur) var(--cl-ease),
+    box-shadow var(--cl-dur) var(--cl-ease);
+}
+
+/* Focus elevation: lift the composer with an accent border + soft shadow while
+   it (or any child) has focus. Placed before the instruction/bash mode rules so
+   an active mode color still wins over the focus accent. */
+.claudian-input-wrapper:focus-within {
+  --claudian-input-wrapper-border-color: var(--cl-accent-line);
+  --claudian-input-wrapper-box-shadow: var(--cl-shadow-md);
 }
 
 /* Context row (file chip start, selection indicator end) - inside input wrapper at top */

@@ -1,13 +1,13 @@
 .claudian-tab-bar-container {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--cl-space-1);
 }
 
 .claudian-tab-badges {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--cl-space-1);
 }
 
 .claudian-tab-badge {
@@ -16,24 +16,38 @@
   justify-content: center;
   width: 24px;
   height: 24px;
-  border-radius: 4px;
-  border: 2px solid var(--background-modifier-border);
-  font-size: 12px;
+  border-radius: var(--cl-radius-sm);
+  border: 2px solid var(--cl-border-subtle);
+  font-size: var(--cl-text-sm);
   font-weight: 500;
   cursor: pointer;
   color: var(--text-muted);
-  background: var(--background-primary);
-  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+  background: var(--cl-surface-base);
+  transition: border-color var(--cl-dur-fast) var(--cl-ease),
+    color var(--cl-dur-fast) var(--cl-ease),
+    background var(--cl-dur-fast) var(--cl-ease),
+    transform var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-tab-badge:hover {
-  background: var(--background-modifier-hover);
+  background: var(--cl-accent-soft);
   color: var(--text-normal);
+  border-color: var(--cl-accent-line);
+}
+
+.claudian-tab-badge:active {
+  transform: scale(0.94);
+}
+
+.claudian-tab-badge:focus-visible {
+  outline: 2px solid var(--cl-accent-line);
+  outline-offset: 2px;
 }
 
 .claudian-tab-badge-active {
-  border-color: var(--interactive-accent);
+  border-color: var(--cl-accent);
   color: var(--text-normal);
+  background: var(--cl-accent-soft);
 }
 
 .claudian-tab-badge-streaming {
@@ -56,12 +70,20 @@
   border-color: var(--claudian-brand-pi, #ffffff);
 }
 
+.claudian-tab-badge-streaming[data-provider="kimi"] {
+  border-color: var(--claudian-brand-kimi, #7C6CF2);
+}
+
+.claudian-tab-badge-streaming[data-provider="antigravity"] {
+  border-color: var(--claudian-brand-antigravity, #4286F4);
+}
+
 .claudian-tab-badge-attention {
   border-color: var(--text-error);
 }
 
 .claudian-tab-badge-idle {
-  border-color: var(--background-modifier-border);
+  border-color: var(--cl-border-subtle);
 }
 
 .claudian-tab-content-container {

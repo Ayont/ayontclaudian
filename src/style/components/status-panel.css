@@ -38,7 +38,7 @@
 .claudian-status-panel-icon {
   display: flex;
   align-items: center;
-  color: var(--text-accent);
+  color: var(--cl-accent);
   flex-shrink: 0;
 }
 
@@ -48,7 +48,7 @@
 }
 
 .claudian-status-panel-label {
-  font-family: var(--font-monospace);
+  font-family: var(--cl-font-mono);
   font-size: 13px;
   font-weight: 500;
   color: var(--text-normal);
@@ -56,7 +56,7 @@
 
 .claudian-status-panel-current {
   flex: 1;
-  font-family: var(--font-monospace);
+  font-family: var(--cl-font-mono);
   font-size: 13px;
   color: var(--text-muted);
   overflow: hidden;
@@ -102,7 +102,7 @@
 }
 
 .claudian-todo-list-container .claudian-todo-text {
-  font-family: var(--font-monospace);
+  font-family: var(--cl-font-mono);
   font-size: 12px;
   line-height: 1.4;
   flex: 1;
@@ -122,7 +122,7 @@
 }
 
 .claudian-todo-list-container .claudian-todo-in_progress .claudian-todo-status-icon {
-  color: var(--interactive-accent);
+  color: var(--cl-accent);
 }
 
 .claudian-todo-list-container .claudian-todo-in_progress .claudian-todo-status-icon svg {
