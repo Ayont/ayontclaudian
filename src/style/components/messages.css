@@ -11,10 +11,15 @@
 .claudian-messages {
   flex: 1;
   overflow-y: auto;
+  /* Clip horizontal overflow at the list level so a wide code block / diff /
+     long token can never push the column sideways (the "chat shifts right"
+     bug). Wide blocks scroll inside themselves instead. */
+  overflow-x: hidden;
   padding: var(--cl-space-3) 0;
   display: flex;
   flex-direction: column;
   gap: var(--cl-space-4);
+  min-width: 0;
 }
 
 /* Focusable messages panel for vim-style navigation */
@@ -49,6 +54,11 @@
   padding: var(--cl-space-3) var(--cl-space-4);
   border-radius: var(--cl-radius-md);
   max-width: 95%;
+  /* min-width:0 lets the flex item shrink below its widest child (e.g. a long
+     code line); without it the item grows past the pane and forces a sideways
+     scroll. overflow-wrap breaks unbreakable tokens (URLs, hashes). */
+  min-width: 0;
+  overflow-wrap: anywhere;
   word-wrap: break-word;
 }
 
@@ -91,7 +101,20 @@
   line-height: var(--cl-leading);
   user-select: text;
   -webkit-user-select: text;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   unicode-bidi: plaintext; /* Proper BiDi text handling for mixed RTL/LTR */
+}
+
+/* Safety net: nothing inside a message may exceed the column width. Wide media
+   is capped; pre/code/tables scroll inside their own box (never the page). */
+.claudian-message-content :is(img, video, canvas, svg, table) {
+  max-width: 100%;
+}
+
+.claudian-message-content :is(pre, table) {
+  overflow-x: auto;
 }
 
 .claudian-interrupted {

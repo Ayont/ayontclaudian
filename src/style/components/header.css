@@ -26,8 +26,16 @@
 .claudian-title-text {
   margin: 0;
   font-size: var(--cl-text-lg);
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  /* Wordmark: a gradient from the active-provider accent into the text color,
+     so the brand reads as premium and reflects which provider is live. */
+  background: linear-gradient(90deg, var(--cl-accent), var(--text-normal) 75%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--text-normal);
+  transition: background var(--cl-dur) var(--cl-ease);
 }
 
 .claudian-logo {

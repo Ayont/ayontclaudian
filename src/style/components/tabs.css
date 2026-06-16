@@ -50,6 +50,33 @@
   background: var(--cl-accent-soft);
 }
 
+/* Persistent per-provider accent: a brand-colored underline on every tab badge
+   so each tab's provider is identifiable at a glance (multitasking). Sits under
+   the state border (active/attention/streaming) without fighting it. */
+.claudian-tab-badge[data-provider="claude"] {
+  box-shadow: inset 0 -3px 0 var(--claudian-brand-claude);
+}
+
+.claudian-tab-badge[data-provider="codex"] {
+  box-shadow: inset 0 -3px 0 var(--claudian-brand-codex);
+}
+
+.claudian-tab-badge[data-provider="opencode"] {
+  box-shadow: inset 0 -3px 0 var(--claudian-brand-opencode);
+}
+
+.claudian-tab-badge[data-provider="pi"] {
+  box-shadow: inset 0 -3px 0 var(--claudian-brand-pi);
+}
+
+.claudian-tab-badge[data-provider="kimi"] {
+  box-shadow: inset 0 -3px 0 var(--claudian-brand-kimi);
+}
+
+.claudian-tab-badge[data-provider="antigravity"] {
+  box-shadow: inset 0 -3px 0 var(--claudian-brand-antigravity);
+}
+
 .claudian-tab-badge-streaming {
   border-color: var(--claudian-brand, #da7756);
   animation: cl-tab-pulse 1.6s var(--cl-ease) infinite;
