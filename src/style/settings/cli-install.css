@@ -1,0 +1,64 @@
+/* CLI-Installation section (Settings → General). Lives outside
+   .claudian-container, so it uses Obsidian theme vars, not --cl-* tokens. */
+.claudian-cli-install-hint {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  margin: 0 0 12px;
+}
+
+/* Missing CLIs read as grayed out until installed; installed ones go green. */
+.claudian-cli-row.is-missing .setting-item-name {
+  opacity: 0.55;
+}
+
+.claudian-cli-row.is-installed .setting-item-description {
+  color: var(--text-success);
+}
+
+.claudian-cli-progress {
+  position: relative;
+  height: 18px;
+  margin: 0 0 14px;
+  border-radius: 9px;
+  background: var(--background-modifier-border);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+.claudian-cli-progress-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: var(--interactive-accent);
+  transition: width 200ms ease;
+}
+
+.claudian-cli-progress.is-indeterminate .claudian-cli-progress-bar {
+  width: 40% !important;
+  animation: claudian-cli-indeterminate 1.2s ease-in-out infinite;
+}
+
+.claudian-cli-progress.is-error .claudian-cli-progress-bar {
+  width: 100%;
+  background: var(--text-error);
+}
+
+.claudian-cli-progress-text {
+  position: relative;
+  z-index: 1;
+  margin: 0 auto;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-normal);
+}
+
+@keyframes claudian-cli-indeterminate {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  100% {
+    transform: translateX(260%);
+  }
+}

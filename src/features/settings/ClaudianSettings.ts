@@ -14,6 +14,7 @@ import type { Locale, TranslationKey } from '../../i18n/types';
 import type ClaudianPlugin from '../../main';
 import { formatContextLimit, parseContextLimit, parseEnvironmentVariables } from '../../utils/env';
 import { buildNavMappingText, parseNavMappings } from './keyboardNavigation';
+import { renderCliInstallSection } from './ui/CliInstallSection';
 import { renderEnvironmentSettingsSection } from './ui/EnvironmentSettingsSection';
 
 type SettingsTabId = string;
@@ -156,6 +157,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
     }
 
     this.renderGeneralTab(tabContents.get('general')!);
+    renderCliInstallSection(tabContents.get('general')!, this.plugin);
 
     for (const providerId of providerTabs) {
       const content = tabContents.get(providerId);

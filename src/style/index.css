@@ -57,6 +57,7 @@
 @import "./settings/plugin-settings.css";
 @import "./settings/agent-settings.css";
 @import "./settings/provider-model-picker.css";
+@import "./settings/cli-install.css";
 
 /* Accessibility */
 @import "./accessibility.css";
