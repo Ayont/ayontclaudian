@@ -15,7 +15,7 @@ export const ANTIGRAVITY_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> =
   supportsPlanMode: false,
   supportsRewind: false,
   supportsFork: false,
-  supportsProviderCommands: false,
+  supportsProviderCommands: true,
   supportsImageAttachments: false,
   supportsInstructionMode: false,
   supportsMcpTools: false,

@@ -1,7 +1,9 @@
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 import * as path from 'node:path';
 
+import { expandProviderCommandInput } from '../../../core/providers/commands/expandProviderCommandInput';
 import { getRuntimeEnvironmentText } from '../../../core/providers/providerEnvironment';
+import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorkspaceRegistry';
 import type { ProviderCapabilities } from '../../../core/providers/types';
 import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
 import type {
@@ -156,6 +158,21 @@ export class KimiChatRuntime implements ChatRuntime {
       || resolveKimiModelSelection(settingsBag, typeof settingsBag.model === 'string' ? settingsBag.model : '')
       || '';
 
+    // Expand a chosen vault command/skill client-side — kimi-cli print mode
+    // can't expand `/command` or `$skill` tokens itself. Unknown input and
+    // ordinary prompts pass through unchanged. Best-effort: any catalog error
+    // falls back to the raw text.
+    let promptText = turn.request.text;
+    try {
+      const catalog = ProviderWorkspaceRegistry.getCommandCatalog(KIMI_PROVIDER_ID);
+      if (catalog) {
+        const entries = await catalog.listDropdownEntries({ includeBuiltIns: false });
+        promptText = expandProviderCommandInput(turn.request.text, entries);
+      }
+    } catch {
+      promptText = turn.request.text;
+    }
+
     const launchSpec = buildKimiLaunchSpec({
       agent: settings.agent,
       agentFile: settings.agentFile,
@@ -166,7 +183,7 @@ export class KimiChatRuntime implements ChatRuntime {
       mcpConfigFile: settings.mcpConfigFile,
       model,
       permissionMode: settings.permissionMode,
-      prompt: turn.request.text,
+      prompt: promptText,
       // Never `--continue` on a fresh chat: that resumes the most recent
       // kimi-cli session for this cwd (e.g. an unrelated terminal session or a
       // prior chat) and bleeds its context in. Resume only via an explicit

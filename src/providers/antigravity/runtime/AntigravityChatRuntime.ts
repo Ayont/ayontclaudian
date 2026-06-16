@@ -2,7 +2,9 @@ import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
+import { expandProviderCommandInput } from '../../../core/providers/commands/expandProviderCommandInput';
 import { getRuntimeEnvironmentText } from '../../../core/providers/providerEnvironment';
+import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorkspaceRegistry';
 import type { ProviderCapabilities } from '../../../core/providers/types';
 import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
 import type {
@@ -173,7 +175,19 @@ export class AntigravityChatRuntime implements ChatRuntime {
     const cwd = getVaultPath(this.plugin.app) ?? process.cwd();
     const env = buildAntigravityRuntimeEnv(settingsBag, command);
     const envText = getRuntimeEnvironmentText(settingsBag, ANTIGRAVITY_PROVIDER_ID);
-    const prompt = this.buildPromptText(turn);
+    // Expand a chosen vault command/skill client-side — agy print mode can't
+    // expand `/command` or `$skill` tokens itself. Unknown input and ordinary
+    // prompts pass through unchanged. Best-effort: any catalog error falls back.
+    let prompt = this.buildPromptText(turn);
+    try {
+      const catalog = ProviderWorkspaceRegistry.getCommandCatalog(ANTIGRAVITY_PROVIDER_ID);
+      if (catalog) {
+        const entries = await catalog.listDropdownEntries({ includeBuiltIns: false });
+        prompt = expandProviderCommandInput(prompt, entries);
+      }
+    } catch {
+      // Keep the unexpanded prompt on any catalog failure.
+    }
 
     const previousBrainIds = this.conversationId ? null : snapshotBrainConversationIds();
     // Capture how much transcript already exists BEFORE spawning. agy appends
