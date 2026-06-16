@@ -145,10 +145,15 @@ export class ClaudianSettingTab extends PluginSettingTab {
           tabButtons.get(tabId)?.toggleClass('claudian-settings-tab--active', tabId === id);
           tabContents.get(tabId)?.toggleClass('claudian-settings-tab-content--active', tabId === id);
         }
-        // Start every tab at the top — otherwise the retained scroll position
-        // can hide the first section (e.g. the provider "Enable" toggle).
-        containerEl.scrollTop = 0;
-        tabContents.get(id)?.scrollIntoView({ block: 'start' });
+        // Start every tab at the top. The tab content has no scroll of its own
+        // (display:none/block), so the scroll lives on an ancestor (Obsidian's
+        // modal). Walk up and reset every ancestor — otherwise the retained
+        // scroll position hides the first section (the provider "Enable" toggle).
+        let node: HTMLElement | null = containerEl;
+        for (let depth = 0; node && depth < 8; depth += 1) {
+          node.scrollTop = 0;
+          node = node.parentElement;
+        }
       });
       tabButtons.set(id, button);
     }
