@@ -268,6 +268,22 @@ export class AntigravityChatRuntime implements ChatRuntime {
       }
     };
 
+    // Estimated context-window usage from history + this turn's prompt/response.
+    // agy reports no token counts, so this is a heuristic (≈4 chars/token).
+    const buildUsageChunk = (): StreamChunk => ({
+      type: 'usage',
+      usage: buildEstimatedUsageInfo({
+        contextTokens: estimateTokensForTexts([
+          ...(conversationHistory ?? []).map((message) => message.content ?? ''),
+          prompt,
+          responseText,
+        ]),
+        contextWindow: 1_000_000,
+      }),
+      sessionId: this.conversationId,
+    });
+    let lastUsageLen = -1;
+
     const drainTranscript = (): StreamChunk[] => {
       if (!this.conversationId && previousBrainIds) {
         const discovered = discoverNewestConversationId(previousBrainIds);
@@ -316,6 +332,11 @@ export class AntigravityChatRuntime implements ChatRuntime {
           accumulateResponse(chunk);
           yield chunk;
         }
+        // Live context meter: emit an updated estimate when the response grew.
+        if (responseText.length !== lastUsageLen) {
+          lastUsageLen = responseText.length;
+          yield buildUsageChunk();
+        }
         if (settled.done) {
           exited = settled.value;
         }
@@ -358,19 +379,8 @@ export class AntigravityChatRuntime implements ChatRuntime {
       }
 
       this.currentTurnMetadata.wasSent = true;
-      // Estimated context-window feedback: agy reports no token usage, so
-      // approximate from the conversation history + this turn's prompt/response.
-      // 1,000,000 matches AntigravityChatUIConfig's default context window.
-      const contextTokens = estimateTokensForTexts([
-        ...(conversationHistory ?? []).map((message) => message.content ?? ''),
-        prompt,
-        responseText,
-      ]);
-      yield {
-        type: 'usage',
-        usage: buildEstimatedUsageInfo({ contextTokens, contextWindow: 1_000_000 }),
-        sessionId: this.conversationId,
-      };
+      // Final context-window estimate (includes the stdout fallback text).
+      yield buildUsageChunk();
       yield { type: 'done' };
     } finally {
       if (this.activeProcess === proc) {
