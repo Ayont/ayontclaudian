@@ -142,6 +142,12 @@ export const VIBE_PROVIDER_ICON: ProviderIconSvg = {
   path: 'M4 5a1 1 0 0 1 2 0v14a1 1 0 0 1-2 0V5Zm7 0a1 1 0 0 1 2 0v14a1 1 0 0 1-2 0V5Zm7 0a1 1 0 0 1 2 0v14a1 1 0 0 1-2 0V5Z',
 };
 
+// Grok / xAI mark: a bold filled "X" glyph, tinted to `currentColor`.
+export const GROK_PROVIDER_ICON: ProviderIconSvg = {
+  viewBox: '0 0 24 24',
+  path: 'M3.5 3.5h4.2l4.3 6 4.3-6h4.2l-6.4 8.5 6.4 8.5h-4.2l-4.3-6-4.3 6H3.5l6.4-8.5z',
+};
+
 export interface CreateProviderIconSvgOptions {
   className?: string;
   dataProvider?: string;

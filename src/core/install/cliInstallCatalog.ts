@@ -55,6 +55,20 @@ export const CLI_INSTALL_CATALOG: Record<string, CliInstallSpec> = {
     },
   },
 
+  // xAI Grok CLI — installer script (mac/Linux) / PowerShell (Windows).
+  grok: {
+    id: 'grok',
+    displayName: 'Grok (xAI)',
+    binary: 'grok',
+    docsUrl: 'https://docs.x.ai/build/overview',
+    methods: {
+      darwin: [{ label: 'Installer-Skript', command: 'curl -fsSL https://x.ai/cli/install.sh | bash' }],
+      linux: [{ label: 'Installer-Skript', command: 'curl -fsSL https://x.ai/cli/install.sh | bash' }],
+      win32: [{ label: 'PowerShell', command: 'powershell -NoProfile -Command "irm https://x.ai/cli/install.ps1 | iex"' }],
+      default: [{ label: 'Installer-Skript', command: 'curl -fsSL https://x.ai/cli/install.sh | bash' }],
+    },
+  },
+
   claude: {
     id: 'claude',
     displayName: 'Claude Code',
