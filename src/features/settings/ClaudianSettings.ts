@@ -145,6 +145,10 @@ export class ClaudianSettingTab extends PluginSettingTab {
           tabButtons.get(tabId)?.toggleClass('claudian-settings-tab--active', tabId === id);
           tabContents.get(tabId)?.toggleClass('claudian-settings-tab-content--active', tabId === id);
         }
+        // Start every tab at the top — otherwise the retained scroll position
+        // can hide the first section (e.g. the provider "Enable" toggle).
+        containerEl.scrollTop = 0;
+        tabContents.get(id)?.scrollIntoView({ block: 'start' });
       });
       tabButtons.set(id, button);
     }
