@@ -179,7 +179,6 @@ export const grokSettingsTabRenderer: ProviderSettingsTabRenderer = {
       .addDropdown((dropdown) => {
         dropdown
           .addOption('default', 'Default')
-          .addOption('okabe', 'Okabe')
           .setValue(settings.agent)
           .onChange(async (value) => {
             updateGrokProviderSettings(settingsBag, { agent: value === 'okabe' ? 'okabe' : 'default' });

@@ -179,7 +179,6 @@ export const vibeSettingsTabRenderer: ProviderSettingsTabRenderer = {
       .addDropdown((dropdown) => {
         dropdown
           .addOption('default', 'Default')
-          .addOption('okabe', 'Okabe')
           .setValue(settings.agent)
           .onChange(async (value) => {
             updateVibeProviderSettings(settingsBag, { agent: value === 'okabe' ? 'okabe' : 'default' });

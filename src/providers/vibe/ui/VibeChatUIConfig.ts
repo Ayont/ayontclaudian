@@ -34,7 +34,6 @@ const VIBE_PERMISSION_MODE_TOGGLE: ProviderPermissionModeToggleConfig = {
 
 const VIBE_AGENT_OPTIONS: ProviderUIOption[] = [
   { value: 'default', label: 'Default' },
-  { value: 'okabe', label: 'Okabe' },
 ];
 
 function asSettingsBag(settings: unknown): Record<string, unknown> | null {
@@ -145,7 +144,7 @@ export const vibeChatUIConfig: ProviderChatUIConfig = {
     if (!bag) {
       return;
     }
-    updateVibeProviderSettings(bag, { agent: value === 'okabe' ? 'okabe' : 'default' });
+    updateVibeProviderSettings(bag, { agent: 'default' });
   },
 
   getProviderIcon() {

@@ -34,7 +34,6 @@ const GROK_PERMISSION_MODE_TOGGLE: ProviderPermissionModeToggleConfig = {
 
 const GROK_AGENT_OPTIONS: ProviderUIOption[] = [
   { value: 'default', label: 'Default' },
-  { value: 'okabe', label: 'Okabe' },
 ];
 
 function asSettingsBag(settings: unknown): Record<string, unknown> | null {
@@ -145,7 +144,7 @@ export const grokChatUIConfig: ProviderChatUIConfig = {
     if (!bag) {
       return;
     }
-    updateGrokProviderSettings(bag, { agent: value === 'okabe' ? 'okabe' : 'default' });
+    updateGrokProviderSettings(bag, { agent: 'default' });
   },
 
   getProviderIcon() {
