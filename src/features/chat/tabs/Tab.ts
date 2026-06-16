@@ -439,6 +439,9 @@ async function switchBoundTabProvider(
 
   refreshTabProviderUI(tab, plugin);
   applyProviderUIGating(tab, plugin);
+
+  // Visible confirmation that the in-chat provider switch took effect.
+  new Notice(`Gewechselt zu ${ProviderRegistry.getProviderDisplayName(newProvider)}`);
 }
 
 /**
