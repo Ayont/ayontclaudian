@@ -1,5 +1,21 @@
 // Mock for Obsidian API
 
+/** Minimal chainable element stub for status-bar / DOM-creating mocks. */
+function makeElStub(): any {
+  const el: any = {
+    style: {},
+    addClass: jest.fn(() => el),
+    removeClass: jest.fn(() => el),
+    toggleClass: jest.fn(() => el),
+    empty: jest.fn(),
+    setText: jest.fn(),
+    setAttribute: jest.fn(),
+    createSpan: jest.fn(() => makeElStub()),
+    createDiv: jest.fn(() => makeElStub()),
+  };
+  return el;
+}
+
 export class Plugin {
   app: any;
   manifest: any;
@@ -13,6 +29,7 @@ export class Plugin {
   addCommand = jest.fn();
   addSettingTab = jest.fn();
   registerView = jest.fn();
+  addStatusBarItem = jest.fn(() => makeElStub());
   loadData = jest.fn().mockResolvedValue({});
   saveData = jest.fn().mockResolvedValue(undefined);
 }

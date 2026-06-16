@@ -437,6 +437,7 @@ function createMockPlugin(overrides: Record<string, any> = {}): any {
     getConversationSync: jest.fn().mockReturnValue(null),
     saveSettings: jest.fn().mockResolvedValue(undefined),
     getActiveEnvironmentVariables: jest.fn().mockReturnValue(''),
+    updateProviderStatusBar: jest.fn(),
     ...overrides,
   };
 }

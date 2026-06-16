@@ -31,6 +31,7 @@ import {
 } from './core/types';
 import type { ChatViewPlacement, EnvironmentScope } from './core/types/settings';
 import { ClaudianView } from './features/chat/ClaudianView';
+import { ProviderStatusBar } from './features/chat/ui/ProviderStatusBar';
 import { type InlineEditContext, InlineEditModal } from './features/inline-edit/ui/InlineEditModal';
 import { ClaudianSettingTab } from './features/settings/ClaudianSettings';
 import { setLocale } from './i18n/i18n';
@@ -49,6 +50,7 @@ function isClaudianView(value: unknown): value is ClaudianView {
 
 export default class ClaudianPlugin extends Plugin {
   settings!: ClaudianSettings;
+  private providerStatusBar: ProviderStatusBar | null = null;
   storage!: SharedAppStorage;
   private conversations: Conversation[] = [];
   private lastKnownTabManagerState: AppTabManagerState | null = null;
@@ -176,10 +178,45 @@ export default class ClaudianPlugin extends Plugin {
     });
 
     this.addSettingTab(new ClaudianSettingTab(this.app, this));
+
+    // Status-bar item: active provider, set-up/auth state, and context usage %.
+    this.providerStatusBar = new ProviderStatusBar(this.addStatusBarItem());
+    this.updateProviderStatusBar();
   }
 
   onunload(): void {
+    this.providerStatusBar?.destroy();
+    this.providerStatusBar = null;
     void this.persistOpenTabStates();
+  }
+
+  /**
+   * Refreshes the status-bar item from the active chat tab: which provider is
+   * active, whether it is set up/ready (enabled + CLI resolves), and the current
+   * context-window usage percent. No-op until the status bar exists.
+   */
+  updateProviderStatusBar(): void {
+    if (!this.providerStatusBar) {
+      return;
+    }
+    const tab = this.getView()?.getActiveTab() ?? null;
+    if (!tab) {
+      this.providerStatusBar.update(null);
+      return;
+    }
+    const providerId = tab.providerId;
+    const settingsBag = this.settings as unknown as Record<string, unknown>;
+    const enabled = ProviderRegistry.isEnabled(providerId, settingsBag);
+    const ready = enabled && Boolean(this.getResolvedProviderCliPath(providerId));
+    const usage = tab.state.usage ?? null;
+    this.providerStatusBar.update({
+      providerId,
+      name: ProviderRegistry.getProviderDisplayName(providerId),
+      ready,
+      enabled,
+      percentage: usage ? usage.percentage : null,
+      estimated: usage ? usage.contextWindowIsAuthoritative === false : false,
+    });
   }
 
   private async persistOpenTabStates(): Promise<void> {

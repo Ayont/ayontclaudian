@@ -1,0 +1,46 @@
+/* Status-bar item (Obsidian bottom bar). This lives OUTSIDE .claudian-container,
+   so it uses Obsidian theme vars + inline brand colors — never --cl-* tokens. */
+.claudian-statusbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.claudian-statusbar-dot {
+  display: inline-flex;
+  align-items: center;
+}
+
+.claudian-statusbar-dot svg {
+  width: 9px;
+  height: 9px;
+}
+
+.claudian-statusbar-name {
+  font-weight: 500;
+}
+
+.claudian-statusbar-state {
+  color: var(--text-muted);
+}
+
+.claudian-statusbar-state.is-ready {
+  color: var(--color-green);
+}
+
+.claudian-statusbar-state.is-setup {
+  color: var(--color-orange, var(--text-warning));
+}
+
+.claudian-statusbar-state.is-off {
+  color: var(--text-faint);
+}
+
+.claudian-statusbar-pct {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.claudian-statusbar-pct.is-warning {
+  color: var(--color-red);
+}

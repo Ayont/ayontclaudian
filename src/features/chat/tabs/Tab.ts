@@ -324,6 +324,7 @@ function refreshTabProviderUI(tab: TabData, plugin: ClaudianPlugin): void {
     'claudian-input-plan-mode',
     permissionMode === 'plan' && capabilities.supportsPlanMode,
   );
+  plugin.updateProviderStatusBar();
 }
 
 /**
@@ -1111,6 +1112,7 @@ export function initializeTabUI(
     ...state.callbacks,
     onUsageChanged: (usage) => {
       tab.ui.contextUsageMeter?.update(usage);
+      plugin.updateProviderStatusBar();
     },
     onTodosChanged: (todos) => tab.ui.statusPanel?.updateTodos(todos),
     onAutoScrollChanged: () => tab.ui.navigationSidebar?.updateVisibility(),

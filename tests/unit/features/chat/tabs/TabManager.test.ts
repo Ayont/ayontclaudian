@@ -124,6 +124,7 @@ function createMockPlugin(overrides: Record<string, any> = {}): any {
     getConversationSync: jest.fn().mockReturnValue(null),
     getConversationList: jest.fn().mockReturnValue([]),
     findConversationAcrossViews: jest.fn().mockReturnValue(null),
+    updateProviderStatusBar: jest.fn(),
     ...overrides,
   };
 }
