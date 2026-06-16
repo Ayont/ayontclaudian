@@ -23,6 +23,7 @@ export interface MockElement {
   createEl: (tag: string, opts?: { cls?: string; text?: string; attr?: Record<string, string> }) => MockElement;
   appendChild: (child: any) => any;
   insertBefore: (el: MockElement, ref: MockElement | null) => void;
+  prepend: (el: MockElement) => void;
   firstChild: MockElement | null;
   remove: () => void;
   empty: () => void;
@@ -274,6 +275,11 @@ export function createMockEl(tag = 'div'): any {
 
     appendChild(child: any) { children.push(child); return child; },
     insertBefore(el: MockElement, _ref: MockElement | null) { children.unshift(el); },
+    prepend(el: MockElement) {
+      const idx = children.indexOf(el);
+      if (idx !== -1) children.splice(idx, 1);
+      children.unshift(el);
+    },
     get firstChild() { return children[0] || null; },
     remove() {},
     empty() {

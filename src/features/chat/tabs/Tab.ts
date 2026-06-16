@@ -49,6 +49,7 @@ import { createInputToolbar } from '../ui/InputToolbar';
 import { InstructionModeManager as InstructionModeManagerClass } from '../ui/InstructionModeManager';
 import { NavigationSidebar } from '../ui/NavigationSidebar';
 import { StatusPanel } from '../ui/StatusPanel';
+import { StreamStatusBar } from '../ui/StreamStatusBar';
 import { autoResizeTextarea } from '../ui/textareaResize';
 import { recalculateUsageForModel } from '../utils/usageInfo';
 import { getTabProviderId } from './providerResolution';
@@ -505,8 +506,14 @@ export function createTab(options: TabCreateOptions): TabData {
 
   const contentEl = containerEl.createDiv({ cls: 'claudian-tab-content claudian-hidden' });
 
+  // Live "working" status bar above the composer; driven by streaming state so
+  // every provider shows continuous feedback (with an elapsed timer).
+  let streamStatusBar: StreamStatusBar | null = null;
   const state = new ChatState({
-    onStreamingStateChanged: onStreamingChanged,
+    onStreamingStateChanged: (isStreaming: boolean) => {
+      streamStatusBar?.setStreaming(isStreaming);
+      onStreamingChanged?.(isStreaming);
+    },
     onAttentionChanged: onAttentionChanged,
     onConversationChanged: onConversationIdChanged,
   });
@@ -519,6 +526,8 @@ export function createTab(options: TabCreateOptions): TabData {
 
   const dom = buildTabDOM(contentEl);
   state.queueIndicatorEl = dom.queueIndicatorEl;
+
+  streamStatusBar = new StreamStatusBar(dom.inputContainerEl);
 
   const isBound = !!conversation?.id;
   const restoredDraftModel = typeof options.draftModel === 'string'
@@ -571,6 +580,7 @@ export function createTab(options: TabCreateOptions): TabData {
       contextUsageMeter: null,
       statusPanel: null,
       navigationSidebar: null,
+      streamStatusBar,
     },
     dom,
     renderer: null,
@@ -1746,6 +1756,7 @@ export async function destroyTab(tab: TabData): Promise<void> {
   // Closes the model dropdown and removes its document-level dismiss listeners
   // (pointerdown/keydown), preventing a leak if a tab is closed while open.
   tab.ui.modelSelector?.destroy();
+  tab.ui.streamStatusBar?.destroy();
   tab.ui.modelSelector = null;
 
   tab.services.subagentManager.orphanAllActive();

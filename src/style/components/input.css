@@ -280,3 +280,36 @@
 .claudian-input-wrapper.claudian-input-bang-bash-mode .claudian-input {
   font-family: var(--font-monospace);
 }
+
+/* Live "working" status bar — shown above the composer while a turn streams. */
+.claudian-stream-status {
+  display: flex;
+  align-items: center;
+  gap: var(--cl-space-2);
+  padding: var(--cl-space-1) var(--cl-space-2);
+  margin-bottom: var(--cl-space-2);
+  font-size: var(--cl-text-sm);
+  color: var(--text-muted);
+  animation: cl-rise var(--cl-dur) var(--cl-ease) both;
+}
+
+.claudian-stream-status-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: var(--cl-radius-pill);
+  background: var(--cl-accent);
+  /* Pulses in the active provider's accent (cl-tab-pulse uses --claudian-brand-rgb). */
+  animation: cl-tab-pulse 1.4s var(--cl-ease) infinite;
+}
+
+.claudian-stream-status-label {
+  color: var(--text-muted);
+}
+
+.claudian-stream-status-timer {
+  margin-inline-start: auto;
+  font-family: var(--cl-font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--cl-accent);
+}
