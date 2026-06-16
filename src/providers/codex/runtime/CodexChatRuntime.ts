@@ -351,8 +351,7 @@ export class CodexChatRuntime implements ChatRuntime {
       } else if (existingThreadId && existingThreadId !== this.loadedThreadId) {
         // Resume a persisted thread not yet loaded in this daemon
         const permissionMode = this.resolveSandboxConfig();
-        const resumeResult = await this.transport!.request<ThreadResumeResult>('thread/resume', {
-          threadId: existingThreadId,
+        const resumeRequest = {
           model: model ?? DEFAULT_CODEX_PRIMARY_MODEL,
           approvalPolicy: permissionMode.approvalPolicy,
           sandbox: permissionMode.sandbox,
@@ -360,9 +359,25 @@ export class CodexChatRuntime implements ChatRuntime {
           baseInstructions: promptText,
           experimentalRawEvents: true,
           persistExtendedHistory: true,
-        });
-        threadId = resumeResult.thread.id;
-        threadTargetPath = resumeResult.thread.path ?? null;
+        };
+        try {
+          const resumeResult = await this.transport!.request<ThreadResumeResult>('thread/resume', {
+            threadId: existingThreadId,
+            ...resumeRequest,
+          });
+          threadId = resumeResult.thread.id;
+          threadTargetPath = resumeResult.thread.path ?? null;
+        } catch {
+          // The thread id may be stale or belong to another provider (after a
+          // mid-chat provider switch) — codex then reports "no rollout found for
+          // thread id …". Start a fresh codex thread instead of failing the turn.
+          const startResult = await this.transport!.request<ThreadStartResult>('thread/start', {
+            ...resumeRequest,
+            cwd: this.launchSpec?.targetCwd ?? getVaultPath(this.plugin.app) ?? undefined,
+          });
+          threadId = startResult.thread.id;
+          threadTargetPath = startResult.thread.path ?? null;
+        }
         threadPath = this.toHostSessionPath(threadTargetPath);
         this.loadedThreadId = threadId;
       } else if (existingThreadId && existingThreadId === this.loadedThreadId) {
