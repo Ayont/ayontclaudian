@@ -189,6 +189,18 @@ export class ClaudianSettingTab extends PluginSettingTab {
         renderCustomContextLimits: (target, providerId) => this.renderCustomContextLimits(target, providerId),
       });
     }
+
+    // Obsidian's settings window can retain the previous plugin's scroll
+    // position, so this panel may open already scrolled — hiding the first
+    // section (e.g. a provider's "Enable" toggle). Reset the scrolling ancestor
+    // to the top once layout has settled.
+    requestAnimationFrame(() => {
+      let node: HTMLElement | null = containerEl;
+      for (let depth = 0; node && depth < 8; depth += 1) {
+        node.scrollTop = 0;
+        node = node.parentElement;
+      }
+    });
   }
 
   private renderGeneralTab(container: HTMLElement): void {
