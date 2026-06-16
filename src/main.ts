@@ -214,6 +214,7 @@ export default class ClaudianPlugin extends Plugin {
       name: ProviderRegistry.getProviderDisplayName(providerId),
       ready,
       enabled,
+      streaming: tab.state.isStreaming === true,
       percentage: usage ? usage.percentage : null,
       estimated: usage ? usage.contextWindowIsAuthoritative === false : false,
     });

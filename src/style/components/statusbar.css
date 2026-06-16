@@ -44,3 +44,13 @@
 .claudian-statusbar-pct.is-warning {
   color: var(--color-red);
 }
+
+/* Live "generating" state: spin the loader (uses the global `spin` keyframe)
+   and accent the state word. */
+.claudian-statusbar-dot.spin svg {
+  animation: spin 1s linear infinite;
+}
+
+.claudian-statusbar-state.is-streaming {
+  color: var(--text-accent);
+}

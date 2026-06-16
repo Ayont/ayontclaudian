@@ -183,6 +183,7 @@ export class TabManager implements TabManagerInterface {
       defaultProviderId,
       onStreamingChanged: (isStreaming) => {
         this.callbacks.onTabStreamingChanged?.(tab.id, isStreaming);
+        this.plugin.updateProviderStatusBar();
       },
       onTitleChanged: (title) => {
         this.callbacks.onTabTitleChanged?.(tab.id, title);

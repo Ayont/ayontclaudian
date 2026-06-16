@@ -32,6 +32,8 @@ export interface ProviderStatus {
   ready: boolean;
   /** Enabled in settings (regardless of whether the CLI was found). */
   enabled: boolean;
+  /** True while the provider is actively generating a response this turn. */
+  streaming: boolean;
   /** Context-window usage percent (0–100), or null when unknown. */
   percentage: number | null;
   /** True when the percent is an estimate (Kimi/Antigravity). */
@@ -46,10 +48,15 @@ export function readyWord(status: Pick<ProviderStatus, 'ready' | 'enabled'>): st
   return status.ready ? 'bereit' : 'Setup nötig';
 }
 
+/** State word incl. the live "generating" state. Pure, for testing. */
+export function stateWord(status: Pick<ProviderStatus, 'ready' | 'enabled' | 'streaming'>): string {
+  return status.streaming ? 'generiert…' : readyWord(status);
+}
+
 /** Builds the tooltip detail string. Pure, for testing. */
 export function formatStatusTooltip(status: ProviderStatus): string {
-  const parts = [`${status.name}: ${readyWord(status)}`];
-  if (!status.ready && status.enabled) {
+  const parts = [`${status.name}: ${stateWord(status)}`];
+  if (!status.streaming && !status.ready && status.enabled) {
     parts.push('CLI nicht gefunden — Pfad/Login in den Einstellungen prüfen');
   }
   if (status.percentage !== null) {
@@ -87,20 +94,24 @@ export class ProviderStatusBar {
     }
     this.el.removeClass('claudian-hidden');
 
+    const brand = PROVIDER_COLOR[status.providerId] ?? 'var(--text-muted)';
+
     if (this.dotEl) {
-      const color = PROVIDER_COLOR[status.providerId] ?? 'var(--text-muted)';
-      // Dot uses the brand color when ready, dimmed otherwise.
-      this.dotEl.style.color = status.ready ? color : 'var(--text-faint)';
-      setIcon(this.dotEl, status.ready ? 'circle' : 'circle-off');
+      // While generating, spin a loader in the brand color; otherwise a solid
+      // (ready) or hollow (not set up) dot.
+      this.dotEl.style.color = status.streaming || status.ready ? brand : 'var(--text-faint)';
+      this.dotEl.toggleClass('spin', status.streaming);
+      setIcon(this.dotEl, status.streaming ? 'loader-2' : status.ready ? 'circle' : 'circle-off');
     }
 
     this.nameEl?.setText(status.name);
 
     if (this.stateEl) {
-      this.stateEl.setText(readyWord(status));
-      this.stateEl.toggleClass('is-ready', status.ready);
-      this.stateEl.toggleClass('is-setup', status.enabled && !status.ready);
-      this.stateEl.toggleClass('is-off', !status.enabled);
+      this.stateEl.setText(stateWord(status));
+      this.stateEl.toggleClass('is-streaming', status.streaming);
+      this.stateEl.toggleClass('is-ready', !status.streaming && status.ready);
+      this.stateEl.toggleClass('is-setup', !status.streaming && status.enabled && !status.ready);
+      this.stateEl.toggleClass('is-off', !status.streaming && !status.enabled);
     }
 
     if (this.pctEl) {
