@@ -18,6 +18,7 @@
 @import "./components/toolcalls.css";
 @import "./components/status-panel.css";
 @import "./components/statusbar.css";
+@import "./components/update-notice.css";
 @import "./components/subagent.css";
 @import "./components/swarm-panel.css";
 @import "./components/input.css";

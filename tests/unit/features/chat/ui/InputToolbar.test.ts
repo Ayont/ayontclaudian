@@ -222,16 +222,16 @@ describe('ModelSelector', () => {
     expect(label?.textContent).toBe('Haiku');
   });
 
-  it('should render model options in reverse order', () => {
+  it('should render model options in provider order', () => {
     const dropdown = parentEl.querySelector('.claudian-model-dropdown');
     expect(dropdown).not.toBeNull();
-    // DEFAULT_CLAUDE_MODELS is [haiku, sonnet, opus] -> reversed is [opus, sonnet, haiku]
+    // DEFAULT_CLAUDE_MODELS is [haiku, sonnet, opus] and should stay in that order
     const options = dropdown?.children || [];
     expect(options.length).toBe(3);
     // Text is in child span, check first child's textContent
-    expect(options[0]?.children[0]?.textContent).toBe('Opus');
+    expect(options[0]?.children[0]?.textContent).toBe('Haiku');
     expect(options[1]?.children[0]?.textContent).toBe('Sonnet');
-    expect(options[2]?.children[0]?.textContent).toBe('Haiku');
+    expect(options[2]?.children[0]?.textContent).toBe('Opus');
   });
 
   it('should mark current model as selected', () => {
@@ -355,11 +355,11 @@ describe('ModelSelector', () => {
 
     const dropdown = parentEl.querySelector('.claudian-model-dropdown');
     const children = dropdown?.children || [];
-    // Reversed: [Codex group, built-in Codex model, Claude group, Sonnet, Opus]
+    // Provider order is preserved: Claude group first, then Codex
     const groups = children.filter((c: any) => c.hasClass('claudian-model-group'));
     expect(groups.length).toBe(2);
-    expect(groups[0]?.textContent).toBe('Codex');
-    expect(groups[1]?.textContent).toBe('Claude');
+    expect(groups[0]?.textContent).toBe('Claude');
+    expect(groups[1]?.textContent).toBe('Codex');
   });
 
   it('should not render group separators when models have no group field', () => {

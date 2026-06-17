@@ -23,6 +23,8 @@ import type {
   SessionUpdateResult,
   SubagentRuntimeState,
 } from '../../../core/runtime/types';
+import type { TodoItem } from '../../../core/tools/todo';
+import { TOOL_TODO_WRITE } from '../../../core/tools/toolNames';
 import type {
   ChatMessage,
   Conversation,
@@ -74,6 +76,8 @@ export class KimiChatRuntime implements ChatRuntime {
   private readonly readyListeners = new Set<(ready: boolean) => void>();
   private activeProcess: ChildProcessWithoutNullStreams | null = null;
   private cancelled = false;
+  private currentTodos: TodoItem[] = [];
+  private askUserQuestionCallback: AskUserQuestionCallback | null = null;
 
   constructor(private readonly plugin: ClaudianPlugin) {}
 
@@ -137,6 +141,7 @@ export class KimiChatRuntime implements ChatRuntime {
   ): AsyncGenerator<StreamChunk> {
     this.currentTurnMetadata = {};
     this.cancelled = false;
+    this.currentTodos = [];
 
     const settingsBag = this.plugin.settings as unknown as Record<string, unknown>;
     const settings = getKimiProviderSettings(settingsBag);
@@ -299,6 +304,10 @@ export class KimiChatRuntime implements ChatRuntime {
           if ((chunk.type === 'text' || chunk.type === 'thinking') && typeof chunk.content === 'string') {
             responseText += chunk.content;
           }
+          const todoChunk = this.trackToolCallAsTodo(chunk);
+          if (todoChunk) {
+            yield todoChunk;
+          }
           yield chunk;
         }
         if (finished) {
@@ -354,6 +363,50 @@ export class KimiChatRuntime implements ChatRuntime {
     }
   }
 
+  /**
+   * Tracks live tool calls as a task list so Kimi shows a Codex-style todo
+   * panel. Each tool_use adds/updates a task; the matching tool_result marks
+   * it completed. The panel is updated via synthetic TodoWrite tool events.
+   */
+  private trackToolCallAsTodo(chunk: StreamChunk): StreamChunk | null {
+    if (chunk.type === 'tool_use' && chunk.name !== TOOL_TODO_WRITE) {
+      const description = describeToolName(chunk.name);
+      const existingIndex = this.currentTodos.findIndex((todo) => todo.content === description.content);
+      if (existingIndex >= 0) {
+        this.currentTodos[existingIndex] = {
+          ...this.currentTodos[existingIndex],
+          status: 'in_progress',
+          activeForm: description.activeForm,
+        };
+      } else {
+        this.currentTodos.push({ ...description, status: 'in_progress' });
+      }
+      return this.buildTodoWriteChunk();
+    }
+
+    if (chunk.type === 'tool_result') {
+      const description = describeToolNameForResult(chunk.content);
+      const matching = this.currentTodos.findIndex((todo) =>
+        todo.status === 'in_progress' && todo.content === description.content
+      );
+      if (matching >= 0) {
+        this.currentTodos[matching] = { ...this.currentTodos[matching], status: 'completed' };
+        return this.buildTodoWriteChunk();
+      }
+    }
+
+    return null;
+  }
+
+  private buildTodoWriteChunk(): StreamChunk {
+    return {
+      type: 'tool_use',
+      id: `kimi-todo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: TOOL_TODO_WRITE,
+      input: { todos: [...this.currentTodos] },
+    };
+  }
+
   cancel(): void {
     this.cancelled = true;
     const proc = this.activeProcess;
@@ -403,7 +456,9 @@ export class KimiChatRuntime implements ChatRuntime {
 
   setApprovalCallback(_callback: ApprovalCallback | null): void {}
   setApprovalDismisser(_dismisser: (() => void) | null): void {}
-  setAskUserQuestionCallback(_callback: AskUserQuestionCallback | null): void {}
+  setAskUserQuestionCallback(callback: AskUserQuestionCallback | null): void {
+    this.askUserQuestionCallback = callback;
+  }
   setExitPlanModeCallback(_callback: ExitPlanModeCallback | null): void {}
   setPermissionModeSyncCallback(_callback: ((sdkMode: string) => void) | null): void {}
   setSubagentHookProvider(_getState: () => SubagentRuntimeState): void {}
@@ -500,4 +555,44 @@ export class KimiChatRuntime implements ChatRuntime {
     const details = [stdout, trimmed].filter(Boolean).join('\n\n');
     return details ? `${message}\n\n${details}` : message;
   }
+}
+
+const TOOL_NAME_DESCRIPTIONS: Record<string, { content: string; activeForm: string }> = {
+  bash: { content: 'Run shell command', activeForm: 'Running shell command' },
+  read_file: { content: 'Read file', activeForm: 'Reading file' },
+  write_file: { content: 'Write file', activeForm: 'Writing file' },
+  edit_file: { content: 'Edit file', activeForm: 'Editing file' },
+  search: { content: 'Search files', activeForm: 'Searching files' },
+  glob: { content: 'List files', activeForm: 'Listing files' },
+  ls: { content: 'List directory', activeForm: 'Listing directory' },
+  cat: { content: 'Show file', activeForm: 'Showing file' },
+  grep: { content: 'Search content', activeForm: 'Searching content' },
+  web_search: { content: 'Search web', activeForm: 'Searching web' },
+  url_fetch: { content: 'Fetch URL', activeForm: 'Fetching URL' },
+};
+
+function describeToolName(name: string): { content: string; activeForm: string } {
+  const normalized = name.toLowerCase().trim();
+  return TOOL_NAME_DESCRIPTIONS[normalized] ?? {
+    content: humanizeToolName(normalized),
+    activeForm: humanizeToolName(normalized),
+  };
+}
+
+function describeToolNameForResult(content: string): { content: string; activeForm: string } {
+  // Some kimi tools report their name in the result content (e.g. the first
+  // line of a bash output block). Best-effort match against known tools.
+  const firstLine = content.split('\n')[0]?.toLowerCase() ?? '';
+  for (const [name, description] of Object.entries(TOOL_NAME_DESCRIPTIONS)) {
+    if (firstLine.includes(name.replace(/_/g, ' ')) || firstLine.includes(name)) {
+      return description;
+    }
+  }
+  return { content: 'Run tool', activeForm: 'Running tool' };
+}
+
+function humanizeToolName(name: string): string {
+  return name
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }

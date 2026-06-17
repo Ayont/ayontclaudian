@@ -9,6 +9,7 @@ import { MarkdownView, Notice, Plugin } from 'obsidian';
 
 import { DEFAULT_CLAUDIAN_SETTINGS } from './app/settings/defaultSettings';
 import { SharedStorageService } from './app/storage/SharedStorageService';
+import { PluginUpdater } from './app/update/PluginUpdater';
 import type { SharedAppStorage } from './core/bootstrap/storage';
 import {
   getEnvironmentVariablesForScope as getScopedEnvironmentVariables,
@@ -51,6 +52,7 @@ function isClaudianView(value: unknown): value is ClaudianView {
 export default class ClaudianPlugin extends Plugin {
   settings!: ClaudianSettings;
   private providerStatusBar: ProviderStatusBar | null = null;
+  private pluginUpdater: PluginUpdater | null = null;
   storage!: SharedAppStorage;
   private conversations: Conversation[] = [];
   private lastKnownTabManagerState: AppTabManagerState | null = null;
@@ -177,16 +179,38 @@ export default class ClaudianPlugin extends Plugin {
       },
     });
 
+    this.addCommand({
+      id: 'check-for-update',
+      name: 'Check for update',
+      callback: () => {
+        void this.pluginUpdater?.notifyIfUpdateAvailable().then(() => {
+          if (!this.pluginUpdater) return;
+          void this.pluginUpdater.checkForUpdate().then((update) => {
+            if (!update) {
+              new Notice('Ayontclaudian ist auf dem neuesten stand.');
+            }
+          });
+        });
+      },
+    });
+
     this.addSettingTab(new ClaudianSettingTab(this.app, this));
 
     // Status-bar item: active provider, set-up/auth state, and context usage %.
     this.providerStatusBar = new ProviderStatusBar(this.addStatusBarItem());
     this.updateProviderStatusBar();
+
+    // In-app updater: notify once shortly after load if a GitHub release is newer.
+    this.pluginUpdater = new PluginUpdater(this);
+    window.setTimeout(() => {
+      void this.pluginUpdater?.notifyIfUpdateAvailable();
+    }, 30_000);
   }
 
   onunload(): void {
     this.providerStatusBar?.destroy();
     this.providerStatusBar = null;
+    this.pluginUpdater = null;
     void this.persistOpenTabStates();
     void this.persistOpenConversations();
   }
