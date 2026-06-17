@@ -1,7 +1,7 @@
 {
   "name": "claudian",
   "version": "2.2.8",
-  "description": "Claudian - Claude Code embedded in Obsidian sidebar",
+  "description": "ayontclaudian — embeds Claude Code, Codex, Antigravity, Kimi, Vibe (Mistral), Grok (xAI) and other coding-agent CLIs as AI collaborators in your Obsidian vault, with a unified model picker, mid-chat provider switching, and one-click CLI installs.",
   "main": "main.js",
   "engines": {
     "node": ">=24 <25"
