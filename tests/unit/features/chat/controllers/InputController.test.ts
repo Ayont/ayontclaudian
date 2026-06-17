@@ -3119,7 +3119,7 @@ describe('InputController - Message Queue', () => {
       expect(mockAgentService.query).toHaveBeenCalledTimes(1);
     });
 
-    it('external dismissal while the approval UI is open bails out without save or restore', async () => {
+    it('external dismissal while the approval UI is open bails out without restore', async () => {
       const restoreFn = jest.fn();
       const parentEl = createMockEl();
       const inputContainerEl = createMockEl();
@@ -3152,7 +3152,8 @@ describe('InputController - Message Queue', () => {
       await sendPromise;
 
       expect(restoreFn).not.toHaveBeenCalled();
-      expect(deps.conversationController.save).not.toHaveBeenCalled();
+      // The user message is persisted eagerly so the chat survives a reload.
+      expect(deps.conversationController.save).toHaveBeenCalled();
       expect(mockAgentService.query).toHaveBeenCalledTimes(1);
     });
 

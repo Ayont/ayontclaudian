@@ -4,29 +4,31 @@
 }
 
 /* Portal that lifts the dropdown out of Obsidian's view/sidebar DOM so its
-   position: fixed coordinates are always relative to the viewport. This avoids
-   transformed ancestors (workspace panes, animated containers, etc.) breaking
-   the dropdown offset. The portal itself is pinned to the viewport origin and
-   only serves as a positioning root; the dropdown keeps all of its styling. */
+   coordinates are always relative to the viewport (or the nearest fixed
+   containing block when Obsidian applies transforms to its root). The portal
+   fills the viewport, the dropdown is positioned absolutely inside it, and
+   pointer-events pass through everywhere except the dropdown itself. */
 .claudian-model-dropdown-portal {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 0;
-  height: 0;
+  inset: 0;
   overflow: visible;
   pointer-events: none;
   z-index: 10000;
 }
 
 .claudian-model-dropdown-portal > .claudian-model-dropdown {
+  position: absolute;
   pointer-events: auto;
 }
 
-/* Override .claudian-container base styles when it is used as a portal root. */
+/* Override .claudian-container base styles when it is used as a portal root.
+   The portal must fill its fixed containing block, so flex layout and
+   overflow clipping from the chat container are neutralised. */
 .claudian-model-dropdown-portal.claudian-container {
   display: block;
+  flex-direction: row;
   height: auto;
+  min-height: 0;
   overflow: visible;
 }
 
@@ -78,7 +80,7 @@
 }
 
 .claudian-model-dropdown {
-  position: fixed;
+  position: absolute;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(205px, 1fr));
   grid-auto-flow: row dense;
@@ -115,6 +117,14 @@
 
 .claudian-model-dropdown--above {
   transform-origin: bottom left;
+}
+
+.claudian-model-dropdown--above.claudian-model-dropdown--right {
+  transform-origin: bottom right;
+}
+
+.claudian-model-dropdown--below.claudian-model-dropdown--right {
+  transform-origin: top right;
 }
 
 /* Click-to-open (pinned): the menu stays open regardless of cursor position so

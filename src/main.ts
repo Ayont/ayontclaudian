@@ -188,6 +188,7 @@ export default class ClaudianPlugin extends Plugin {
     this.providerStatusBar?.destroy();
     this.providerStatusBar = null;
     void this.persistOpenTabStates();
+    void this.persistOpenConversations();
   }
 
   /**
@@ -227,6 +228,25 @@ export default class ClaudianPlugin extends Plugin {
       if (tabManager) {
         const state = tabManager.getPersistedState();
         await this.persistTabManagerState(state);
+      }
+    }
+  }
+
+  private async persistOpenConversations(): Promise<void> {
+    // Flush any in-flight conversation metadata so chats survive an Obsidian
+    // reload or crash for every provider/model.
+    for (const view of this.getAllViews()) {
+      const tabManager = view.getTabManager();
+      if (!tabManager) {
+        continue;
+      }
+      for (const tab of tabManager.getAllTabs()) {
+        const controller = tab.controllers.conversationController;
+        if (controller) {
+          await controller.save(false).catch(() => {
+            // Best-effort: don't let one failing conversation block the rest.
+          });
+        }
       }
     }
   }

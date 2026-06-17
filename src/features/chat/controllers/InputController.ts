@@ -346,6 +346,11 @@ export class InputController {
     state.addMessage(assistantMsg);
     this.activeStreamingAssistantMessage = assistantMsg;
     this.activateStreamingAssistantMessage(assistantMsg);
+
+    // Persist the conversation immediately after the user message (and its
+    // placeholder assistant turn) so the chat survives plugin reloads, crashes,
+    // or mid-stream closures for every model and provider.
+    await this.deps.conversationController.save();
     this.pendingProviderUserMessages = [{
       displayContent,
       images: imagesForMessage,

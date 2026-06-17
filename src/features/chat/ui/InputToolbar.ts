@@ -316,43 +316,79 @@ export class ModelSelector {
       return;
     }
 
+    // The portal fills the viewport (or Obsidian's fixed containing block when
+    // transforms are applied to root elements). Measure both the portal and the
+    // button in the same coordinate system and position the dropdown relative to
+    // the portal so it never drifts because of transformed ancestors.
+    if (!this.portalEl) {
+      return;
+    }
+    const portalRect = this.portalEl.getBoundingClientRect();
     const rect = this.buttonEl.getBoundingClientRect();
-    const doc = this.container.ownerDocument;
-    const win = doc?.defaultView ?? (typeof window !== 'undefined' ? window : null);
-    const docEl = doc?.documentElement ?? (typeof document !== 'undefined' ? document : null)?.documentElement;
-    const viewportWidth = win?.innerWidth || docEl?.clientWidth || 1024;
-    const viewportHeight = win?.innerHeight || docEl?.clientHeight || 768;
     const margin = 12;
     const gap = 8;
-    const availableWidth = Math.max(280, viewportWidth - margin * 2);
-    const desiredWidth = Math.min(780, availableWidth);
-    const left = Math.min(
-      Math.max(margin, rect.left),
-      Math.max(margin, viewportWidth - margin - desiredWidth),
-    );
-    const spaceAbove = Math.max(220, rect.top - margin - gap);
-    const spaceBelow = Math.max(220, viewportHeight - rect.bottom - margin - gap);
-    const shouldAvoidBelowViewport = rect.bottom + 260 > viewportHeight - margin;
-    const openAbove = spaceAbove >= spaceBelow || rect.top > viewportHeight * 0.45 || shouldAvoidBelowViewport;
-    const maxHeight = Math.min(560, openAbove ? spaceAbove : spaceBelow);
+    const minMenuWidth = 280;
+    const maxMenuWidth = 780;
+    const maxMenuHeight = 560;
+    const minMenuHeight = 220;
 
-    this.dropdownEl.style.position = 'fixed';
-    this.dropdownEl.style.left = `${Math.round(left)}px`;
+    const portalWidth = portalRect.width;
+    const portalHeight = portalRect.height;
+    const availableWidth = Math.max(minMenuWidth, portalWidth - margin * 2);
+    const desiredWidth = Math.min(maxMenuWidth, availableWidth);
+
+    // Horizontal placement: prefer left-align with the button. When the button is
+    // in the right half of the viewport and left-align would overflow, flip to
+    // right-align so the menu opens toward the top-left ("links hoch").
+    const leftAlignLeft = rect.left - portalRect.left;
+    const rightAlignRight = portalRect.right - rect.right;
+    const leftAlignOverflow = leftAlignLeft + desiredWidth + margin - portalWidth;
+    const buttonInRightHalf = rect.left > portalRect.left + portalWidth * 0.5;
+    const rightAlignFits = rightAlignRight + desiredWidth + margin <= portalWidth;
+
+    let left: number | undefined;
+    let right: number | undefined;
+    let horizontalOrigin: 'left' | 'right' = 'left';
+    if (leftAlignOverflow <= 0) {
+      left = Math.max(margin, leftAlignLeft);
+    } else if (buttonInRightHalf && rightAlignFits) {
+      right = Math.max(margin, rightAlignRight);
+      horizontalOrigin = 'right';
+    } else {
+      // Fallback: clamp against the right edge of the viewport/containing block.
+      left = Math.max(margin, portalWidth - margin - desiredWidth);
+    }
+
+    // Vertical placement: prefer below. Open above when the button sits in the
+    // bottom half or when there is not enough room below.
+    const spaceAbove = rect.top - portalRect.top - gap - margin;
+    const spaceBelow = portalRect.bottom - rect.bottom - gap - margin;
+    const shouldAvoidBelow = rect.bottom + 260 > portalRect.bottom - margin
+      || rect.top > portalRect.top + portalHeight * 0.55;
+    const openAbove = spaceAbove >= spaceBelow || shouldAvoidBelow;
+    const verticalSpace = Math.max(minMenuHeight, openAbove ? spaceAbove : spaceBelow);
+    const maxHeight = Math.min(maxMenuHeight, verticalSpace);
+
+    this.dropdownEl.style.position = 'absolute';
+    this.dropdownEl.style.left = left !== undefined ? `${Math.round(left)}px` : '';
+    this.dropdownEl.style.right = right !== undefined ? `${Math.round(right)}px` : '';
     this.dropdownEl.style.width = `${Math.round(desiredWidth)}px`;
     this.dropdownEl.style.maxWidth = `${Math.round(availableWidth)}px`;
     this.dropdownEl.style.maxHeight = `${Math.round(maxHeight)}px`;
 
     if (openAbove) {
       this.dropdownEl.style.top = '';
-      this.dropdownEl.style.bottom = `${Math.round(viewportHeight - rect.top + gap)}px`;
+      this.dropdownEl.style.bottom = `${Math.round(portalRect.bottom - rect.top + gap)}px`;
       this.dropdownEl.toggleClass('claudian-model-dropdown--below', false);
       this.dropdownEl.toggleClass('claudian-model-dropdown--above', true);
     } else {
       this.dropdownEl.style.bottom = '';
-      this.dropdownEl.style.top = `${Math.round(rect.bottom + gap)}px`;
+      this.dropdownEl.style.top = `${Math.round(rect.bottom - portalRect.top + gap)}px`;
       this.dropdownEl.toggleClass('claudian-model-dropdown--above', false);
       this.dropdownEl.toggleClass('claudian-model-dropdown--below', true);
     }
+
+    this.dropdownEl.toggleClass('claudian-model-dropdown--right', horizontalOrigin === 'right');
   }
 
   private clearDropdownPosition(): void {
@@ -361,6 +397,7 @@ export class ModelSelector {
     }
     this.dropdownEl.style.position = '';
     this.dropdownEl.style.left = '';
+    this.dropdownEl.style.right = '';
     this.dropdownEl.style.top = '';
     this.dropdownEl.style.bottom = '';
     this.dropdownEl.style.width = '';
@@ -368,6 +405,7 @@ export class ModelSelector {
     this.dropdownEl.style.maxHeight = '';
     this.dropdownEl.removeClass('claudian-model-dropdown--above');
     this.dropdownEl.removeClass('claudian-model-dropdown--below');
+    this.dropdownEl.removeClass('claudian-model-dropdown--right');
   }
 }
 
