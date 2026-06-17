@@ -79,6 +79,15 @@ Or install directly from the [community plugin page](https://community.obsidian.
 3. Copy the three downloaded files into that folder
 4. Enable **ayontclaudian** in Obsidian under **Settings → Community plugins**
 
+### Via BRAT (beta plugin installer)
+
+1. Install and enable the [**BRAT**](https://github.com/TfTHacker/obsidian42-brat) plugin from Community Plugins
+2. Open **BRAT → Add Beta plugin**
+3. Enter `Ayont/ayontclaudian` and click **Add Plugin**
+4. Enable **ayontclaudian** in **Settings → Community plugins**
+
+BRAT checks the latest GitHub release automatically. Turn on **Auto-update all plugins** in BRAT's settings to get ayontclaudian updates right after each release.
+
 ### From source (development)
 
 ```bash
