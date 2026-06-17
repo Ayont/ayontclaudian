@@ -1,14 +1,35 @@
 /* Streaming "Thinking…" pulse line (shown while reasoning streams in). */
 .claudian-thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   color: var(--cl-accent);
   font-style: italic;
-  padding: var(--cl-space-1) 0;
+  padding: 6px 10px;
+  margin: var(--cl-space-2) 0;
+  border: 1px solid var(--cl-accent-line);
+  border-radius: var(--cl-radius-pill);
+  background:
+    linear-gradient(90deg, var(--cl-accent-soft), transparent 65%),
+    var(--cl-surface-raised);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   text-align: start;
   animation: thinking-pulse 1.5s ease-in-out infinite;
 }
 
+.claudian-thinking::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--cl-accent);
+  box-shadow: 0 0 0 4px var(--cl-accent-softer);
+  flex: 0 0 auto;
+}
+
 .claudian-thinking.claudian-thinking--compact {
   color: var(--claudian-compact);
+  border-color: color-mix(in srgb, var(--claudian-compact) 42%, transparent);
 }
 
 .claudian-thinking-hint {

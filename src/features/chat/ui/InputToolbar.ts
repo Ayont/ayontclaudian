@@ -68,6 +68,7 @@ export class ModelSelector {
   private readonly boundOutsidePointer = (event: Event) => this.handleOutsidePointer(event);
   private readonly boundKeydown = (event: Event) => this.handleKeydown(event);
   private readonly boundReposition = () => this.positionDropdown();
+  private suppressNextOptionClick = false;
   constructor(parentEl: HTMLElement, callbacks: ToolbarCallbacks) {
     this.callbacks = callbacks;
     this.container = parentEl.createDiv({ cls: 'claudian-model-selector' });
@@ -102,6 +103,7 @@ export class ModelSelector {
     this.updateDisplay();
 
     this.dropdownEl = this.container.createDiv({ cls: 'claudian-model-dropdown' });
+    this.dropdownEl.setAttribute('role', 'listbox');
     this.renderOptions();
   }
 
@@ -162,14 +164,36 @@ export class ModelSelector {
         option.setAttribute('title', model.description);
       }
 
+      option.setAttribute('role', 'option');
+      option.setAttribute('tabindex', '0');
+      option.setAttribute('aria-selected', model.value === currentModel ? 'true' : 'false');
+
+      option.addEventListener('pointerdown', (e) => {
+        // In Obsidian's bottom toolbar the menu can live inside transformed /
+        // focus-stealing panes. Selecting on pointerdown makes model changes
+        // reliable even when the following click would be swallowed by a pane
+        // blur or by the dropdown closing.
+        e.preventDefault();
+        e.stopPropagation();
+        this.suppressNextOptionClick = true;
+        this.selectModel(model.value);
+      });
+
       option.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.close();
-        runToolbarAction(async () => {
-          await this.callbacks.onModelChange(model.value);
-          this.updateDisplay();
-          this.renderOptions();
-        }, 'Failed to change model');
+        if (this.suppressNextOptionClick) {
+          this.suppressNextOptionClick = false;
+          return;
+        }
+        this.selectModel(model.value);
+      });
+
+      option.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          this.selectModel(model.value);
+        }
       });
     }
   }
@@ -190,6 +214,8 @@ export class ModelSelector {
     // Re-render so the option list and the current selection are fresh on open.
     this.renderOptions();
     this.dropdownEl.addClass('claudian-open');
+    this.buttonEl?.addClass('claudian-model-btn--open');
+    this.buttonEl?.setAttribute('aria-expanded', 'true');
     this.positionDropdown();
     const doc = this.container.ownerDocument;
     const win = doc?.defaultView ?? (typeof window !== 'undefined' ? window : null);
@@ -200,10 +226,20 @@ export class ModelSelector {
     }
     // Defer attaching the dismiss listeners so the click that opened the menu
     // does not immediately close it.
-    window.setTimeout(() => {
+    const defer = win?.setTimeout?.bind(win) ?? window.setTimeout.bind(window);
+    defer(() => {
       doc.addEventListener('pointerdown', this.boundOutsidePointer, true);
       doc.addEventListener('keydown', this.boundKeydown, true);
     }, 0);
+  }
+
+  private selectModel(modelValue: string): void {
+    this.close();
+    runToolbarAction(async () => {
+      await this.callbacks.onModelChange(modelValue);
+      this.updateDisplay();
+      this.renderOptions();
+    }, 'Failed to change model');
   }
 
   close(): void {
@@ -212,6 +248,8 @@ export class ModelSelector {
     }
     this.isOpen = false;
     this.dropdownEl?.removeClass('claudian-open');
+    this.buttonEl?.removeClass('claudian-model-btn--open');
+    this.buttonEl?.setAttribute('aria-expanded', 'false');
     const doc = this.container.ownerDocument;
     doc?.removeEventListener('pointerdown', this.boundOutsidePointer, true);
     doc?.removeEventListener('keydown', this.boundKeydown, true);
@@ -248,7 +286,7 @@ export class ModelSelector {
     const rect = this.buttonEl.getBoundingClientRect();
     const doc = this.container.ownerDocument;
     const win = doc?.defaultView ?? (typeof window !== 'undefined' ? window : null);
-    const docEl = (typeof document !== 'undefined' ? document : null)?.documentElement;
+    const docEl = doc?.documentElement ?? (typeof document !== 'undefined' ? document : null)?.documentElement;
     const viewportWidth = win?.innerWidth || docEl?.clientWidth || 1024;
     const viewportHeight = win?.innerHeight || docEl?.clientHeight || 768;
     const margin = 12;
@@ -261,7 +299,8 @@ export class ModelSelector {
     );
     const spaceAbove = Math.max(220, rect.top - margin - gap);
     const spaceBelow = Math.max(220, viewportHeight - rect.bottom - margin - gap);
-    const openAbove = spaceAbove >= spaceBelow || rect.top > viewportHeight * 0.45;
+    const shouldAvoidBelowViewport = rect.bottom + 260 > viewportHeight - margin;
+    const openAbove = spaceAbove >= spaceBelow || rect.top > viewportHeight * 0.45 || shouldAvoidBelowViewport;
     const maxHeight = Math.min(560, openAbove ? spaceAbove : spaceBelow);
 
     this.dropdownEl.style.position = 'fixed';

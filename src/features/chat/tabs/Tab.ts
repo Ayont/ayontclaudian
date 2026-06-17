@@ -1429,6 +1429,12 @@ export function initializeTabControllers(
     getFileContextManager: () => ui.fileContextManager,
     updateQueueIndicator: () => tab.controllers.inputController?.updateQueueIndicator(),
     getAgentService: () => tab.service,
+    updateLiveActivity: ({ primary, meta, phrase }) => {
+      if (phrase) {
+        tab.ui.streamStatusBar?.setPhrase(phrase);
+      }
+      tab.ui.streamStatusBar?.setActivity(primary, meta);
+    },
   });
 
   // Wire subagent callback now that StreamController exists

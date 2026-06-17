@@ -983,15 +983,21 @@ function renderBashContent(
   result: string,
   initialText?: string,
 ): void {
+  container.addClass('claudian-tool-bash-panel');
   const command = (input.command as string) || '';
   if (command) {
-    const cmdEl = container.createDiv({ cls: 'claudian-tool-bash-command' });
-    cmdEl.setText(`$ ${command}`);
+    const shellEl = container.createDiv({ cls: 'claudian-tool-bash-shell' });
+    shellEl.createSpan({ cls: 'claudian-tool-bash-prompt', text: '$' });
+    const cmdEl = shellEl.createDiv({ cls: 'claudian-tool-bash-command' });
+    cmdEl.setText(command);
   }
   if (initialText) {
-    contentFallback(container, initialText);
+    const runningEl = container.createDiv({ cls: 'claudian-tool-bash-running' });
+    runningEl.createSpan({ cls: 'claudian-tool-bash-running-dot' });
+    runningEl.createSpan({ text: initialText });
   } else if (result) {
-    renderLinesExpanded(container, result, 20);
+    const outputEl = container.createDiv({ cls: 'claudian-tool-bash-output' });
+    renderLinesExpanded(outputEl, result, 20);
   } else {
     container.createDiv({ cls: 'claudian-tool-empty', text: 'No result' });
   }

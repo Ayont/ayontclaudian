@@ -1,3 +1,5 @@
+import { setIcon } from 'obsidian';
+
 /**
  * Live "the assistant is working" status bar. Shown above the composer while a
  * turn is streaming, for every provider. Displays a pulsing dot, a label, and a
@@ -21,11 +23,21 @@ export function formatElapsed(ms: number): string {
 
 export class StreamStatusBar {
   private readonly el: HTMLElement;
+  private readonly toggleEl: HTMLButtonElement;
   private readonly labelEl: HTMLElement;
+  private readonly phraseEl: HTMLElement;
   private readonly timerEl: HTMLElement;
+  private readonly detailEl: HTMLElement;
+  private readonly detailPrimaryEl: HTMLElement;
+  private readonly detailMetaEl: HTMLElement;
   private intervalId: number | null = null;
   private startedAt = 0;
   private readonly now: () => number;
+  private currentLabel = 'Generiert…';
+  private currentPhrase = 'working';
+  private currentActivity = 'Waiting for provider events';
+  private currentMeta = 'No tool activity yet';
+  private isOpen = false;
 
   constructor(parentEl: HTMLElement, now: () => number = () => Date.now()) {
     this.now = now;
@@ -33,10 +45,28 @@ export class StreamStatusBar {
     // Sit at the top of the input area (just below the messages), above the
     // nav row and composer, so the "working" status is clearly visible.
     parentEl.prepend(this.el);
-    this.el.createSpan({ cls: 'claudian-stream-status-dot' });
-    this.labelEl = this.el.createSpan({ cls: 'claudian-stream-status-label' });
-    this.labelEl.setText('Generiert…');
-    this.timerEl = this.el.createSpan({ cls: 'claudian-stream-status-timer' });
+
+    this.toggleEl = this.el.createEl('button', { cls: 'claudian-stream-status-toggle' });
+    this.toggleEl.setAttribute('type', 'button');
+    this.toggleEl.setAttribute('aria-expanded', 'false');
+    this.toggleEl.setAttribute('aria-label', 'Show live activity details');
+
+    this.toggleEl.createSpan({ cls: 'claudian-stream-status-dot' });
+    const textEl = this.toggleEl.createSpan({ cls: 'claudian-stream-status-text' });
+    this.labelEl = textEl.createSpan({ cls: 'claudian-stream-status-label' });
+    this.labelEl.setText(this.currentLabel);
+    this.phraseEl = textEl.createSpan({ cls: 'claudian-stream-status-phrase' });
+    this.phraseEl.setText(this.currentPhrase);
+    this.timerEl = this.toggleEl.createSpan({ cls: 'claudian-stream-status-timer' });
+    const chevronEl = this.toggleEl.createSpan({ cls: 'claudian-stream-status-chevron' });
+    setIcon(chevronEl, 'chevron-up');
+
+    this.detailEl = this.el.createDiv({ cls: 'claudian-stream-status-detail' });
+    this.detailPrimaryEl = this.detailEl.createDiv({ cls: 'claudian-stream-status-detail-primary' });
+    this.detailMetaEl = this.detailEl.createDiv({ cls: 'claudian-stream-status-detail-meta' });
+    this.renderDetail();
+
+    this.toggleEl.addEventListener('click', () => this.toggleOpen());
   }
 
   /** Shows the bar with a fresh timer, or hides it, based on streaming state. */
@@ -50,11 +80,36 @@ export class StreamStatusBar {
 
   /** Updates the visible label (e.g. the current tool the provider is running). */
   setLabel(text: string): void {
+    this.currentLabel = text;
     this.labelEl.setText(text);
+    this.renderDetail();
+  }
+
+  /** Updates the moving flavor phrase shown next to the provider/model label. */
+  setPhrase(text: string): void {
+    this.currentPhrase = text;
+    this.phraseEl.setText(text);
+    this.renderDetail();
+  }
+
+  /** Updates the expandable live detail row with the latest provider activity. */
+  setActivity(primary: string, meta = ''): void {
+    this.currentActivity = primary || 'Working';
+    this.currentMeta = meta || this.currentLabel;
+    this.renderDetail();
+  }
+
+  private toggleOpen(): void {
+    this.isOpen = !this.isOpen;
+    this.el.toggleClass('is-open', this.isOpen);
+    this.toggleEl.setAttribute('aria-expanded', this.isOpen ? 'true' : 'false');
   }
 
   private start(): void {
     this.startedAt = this.now();
+    this.currentActivity = 'Starting provider turn';
+    this.currentMeta = this.currentLabel;
+    this.renderDetail();
     this.renderTimer();
     this.el.removeClass('claudian-hidden');
     this.clearTimer();
@@ -64,11 +119,23 @@ export class StreamStatusBar {
   private stop(): void {
     this.clearTimer();
     this.el.addClass('claudian-hidden');
-    this.labelEl.setText('Generiert…');
+    this.el.removeClass('is-open');
+    this.isOpen = false;
+    this.toggleEl.setAttribute('aria-expanded', 'false');
+    this.setLabel('Generiert…');
+    this.setPhrase('working');
+    this.currentActivity = 'Waiting for provider events';
+    this.currentMeta = 'No tool activity yet';
+    this.renderDetail();
   }
 
   private renderTimer(): void {
     this.timerEl.setText(formatElapsed(this.now() - this.startedAt));
+  }
+
+  private renderDetail(): void {
+    this.detailPrimaryEl.setText(this.currentActivity);
+    this.detailMetaEl.setText(`${this.currentLabel} · ${this.currentPhrase}${this.currentMeta ? ` · ${this.currentMeta}` : ''}`);
   }
 
   private clearTimer(): void {

@@ -72,6 +72,8 @@ export interface StreamControllerDeps {
   updateQueueIndicator: () => void;
   /** Get the agent service from the tab. */
   getAgentService?: () => ChatRuntime | null;
+  /** Update the compact live status bar with the latest visible activity. */
+  updateLiveActivity?: (activity: { primary: string; meta?: string; phrase?: string }) => void;
 }
 
 export class StreamController {
@@ -118,6 +120,11 @@ export class StreamController {
 
     switch (chunk.type) {
       case 'thinking':
+        this.deps.updateLiveActivity?.({
+          primary: 'Model is reasoning',
+          meta: 'Thinking stream',
+          phrase: 'reasoning',
+        });
         // Flush pending tools before rendering new content type
         this.flushPendingTools();
         if (state.currentTextEl) {
@@ -127,6 +134,11 @@ export class StreamController {
         break;
 
       case 'text':
+        this.deps.updateLiveActivity?.({
+          primary: 'Writing response',
+          meta: 'Assistant text stream',
+          phrase: 'writing',
+        });
         // Flush pending tools before rendering new content type
         this.flushPendingTools();
         if (state.currentThinkingState) {
@@ -137,6 +149,11 @@ export class StreamController {
         break;
 
       case 'tool_use': {
+        this.deps.updateLiveActivity?.({
+          primary: getToolName(chunk.name, chunk.input),
+          meta: getToolSummary(chunk.name, chunk.input) || 'Tool call started',
+          phrase: 'running tool',
+        });
         if (state.currentThinkingState) {
           await this.finalizeCurrentThinkingBlock(msg);
         }
@@ -169,12 +186,22 @@ export class StreamController {
       }
 
       case 'tool_result': {
+        this.deps.updateLiveActivity?.({
+          primary: 'Tool result received',
+          meta: chunk.isError ? 'Tool reported an error' : 'Tool completed',
+          phrase: chunk.isError ? 'checking error' : 'reading output',
+        });
         await this.handleToolResult(chunk, msg);
         break;
       }
 
       case 'subagent_tool_use':
       case 'subagent_tool_result':
+        this.deps.updateLiveActivity?.({
+          primary: chunk.type === 'subagent_tool_use' ? chunk.name : 'Subagent tool result',
+          meta: `Subagent ${chunk.subagentId}`,
+          phrase: 'agent swarm',
+        });
         await this.handleSubagentChunk(chunk, msg);
         break;
 
@@ -187,6 +214,11 @@ export class StreamController {
         break;
 
       case 'notice':
+        this.deps.updateLiveActivity?.({
+          primary: chunk.level === 'warning' ? 'Provider warning' : 'Provider notice',
+          meta: chunk.content,
+          phrase: 'needs attention',
+        });
         this.flushPendingTools();
         // Finalize the preceding text so the notice lands in its OWN block and
         // renders as a standalone status card (see MessageRenderer.renderContent).
@@ -195,6 +227,11 @@ export class StreamController {
         break;
 
       case 'error':
+        this.deps.updateLiveActivity?.({
+          primary: 'Provider error',
+          meta: chunk.content,
+          phrase: 'error',
+        });
         // Flush pending tools before rendering error message
         this.flushPendingTools();
         // Finalize the preceding text so the error lands in its OWN block and
@@ -1382,6 +1419,11 @@ export class StreamController {
         : 'claudian-thinking';
       state.thinkingEl = state.currentContentEl.createDiv({ cls });
       const text = overrideText || FLAVOR_TEXTS[Math.floor(Math.random() * FLAVOR_TEXTS.length)];
+      this.deps.updateLiveActivity?.({
+        primary: 'Waiting for next provider event',
+        meta: text,
+        phrase: text.replace(/\.\.\.$/, ''),
+      });
       state.thinkingEl.createSpan({ text });
 
       // Create timer span with initial value

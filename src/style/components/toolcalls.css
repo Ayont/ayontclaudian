@@ -59,6 +59,33 @@
   display: none;
 }
 
+.claudian-tool-call-bash {
+  position: relative;
+  margin-block: var(--cl-space-3);
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: var(--cl-radius-lg);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(var(--claudian-brand-rgb), 0.12), transparent 36%),
+    color-mix(in srgb, var(--cl-surface-raised) 94%, transparent);
+  box-shadow: var(--cl-shadow-sm);
+  overflow: hidden;
+}
+
+.claudian-tool-call-bash .claudian-tool-header {
+  padding: 9px 12px;
+  border-bottom: 1px solid transparent;
+}
+
+.claudian-tool-call-bash.expanded .claudian-tool-header {
+  border-bottom-color: var(--cl-border-subtle);
+}
+
+.claudian-tool-call-bash .claudian-tool-content {
+  margin-inline-start: 0;
+  padding: 0;
+  border-inline-start: none;
+}
+
 .claudian-tool-bash-command {
   font-family: var(--cl-font-mono);
   font-size: var(--cl-text-sm);
@@ -67,6 +94,67 @@
   white-space: pre-wrap;
   word-break: break-word;
   padding: var(--cl-space-1) 0 var(--cl-space-1);
+}
+
+.claudian-tool-bash-panel {
+  background: rgba(0, 0, 0, 0.10);
+}
+
+.claudian-tool-bash-shell {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--cl-border-subtle);
+}
+
+.claudian-tool-bash-prompt {
+  font-family: var(--cl-font-mono);
+  color: var(--cl-accent);
+  font-weight: 800;
+  user-select: none;
+}
+
+.claudian-tool-bash-shell .claudian-tool-bash-command {
+  padding: 0;
+  color: var(--text-normal);
+  font-weight: 550;
+}
+
+.claudian-tool-bash-output {
+  padding: 10px 13px 12px;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.claudian-tool-bash-output .claudian-tool-lines {
+  font-size: var(--cl-text-sm);
+}
+
+.claudian-tool-bash-output .claudian-tool-line {
+  color: var(--text-muted);
+}
+
+.claudian-tool-bash-running {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 13px 12px;
+  padding: 5px 9px;
+  border: 1px solid var(--cl-accent-line);
+  border-radius: var(--cl-radius-pill);
+  color: var(--text-muted);
+  background: var(--cl-accent-softer);
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-sm);
+}
+
+.claudian-tool-bash-running-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cl-accent);
+  animation: cl-tab-pulse 1.2s var(--cl-ease) infinite;
 }
 
 /* Legacy: StatusPanel bash entries still use claudian-tool-label */

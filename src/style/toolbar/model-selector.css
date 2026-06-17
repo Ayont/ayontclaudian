@@ -19,7 +19,8 @@
     transform var(--cl-dur-fast) var(--cl-ease);
 }
 
-.claudian-model-btn:hover {
+.claudian-model-btn:hover,
+.claudian-model-btn--open {
   background: var(--cl-accent-soft);
   border-color: var(--cl-accent-line);
 }
@@ -64,7 +65,8 @@
   border: 1px solid var(--cl-accent-line);
   border-radius: var(--cl-radius-lg);
   box-shadow: var(--cl-shadow-pop);
-  z-index: 1000;
+  z-index: 10000;
+  pointer-events: auto;
   width: min(780px, calc(100vw - 24px));
   max-width: calc(100vw - 24px);
   max-height: min(560px, calc(100vh - 24px));
@@ -82,6 +84,10 @@
 
 .claudian-model-dropdown--below {
   transform-origin: top left;
+}
+
+.claudian-model-dropdown--above {
+  transform-origin: bottom left;
 }
 
 /* Click-to-open (pinned): the menu stays open regardless of cursor position so
