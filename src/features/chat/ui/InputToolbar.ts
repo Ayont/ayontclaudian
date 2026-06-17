@@ -63,6 +63,7 @@ export class ModelSelector {
   private container: HTMLElement;
   private buttonEl: HTMLElement | null = null;
   private dropdownEl: HTMLElement | null = null;
+  private portalEl: HTMLElement | null = null;
   private isOpen = false;
   private callbacks: ToolbarCallbacks;
   private readonly boundOutsideClick = (event: Event) => this.handleOutsideClick(event);
@@ -72,6 +73,11 @@ export class ModelSelector {
     this.callbacks = callbacks;
     this.container = parentEl.createDiv({ cls: 'claudian-model-selector' });
     this.render();
+  }
+
+  /** Returns the dropdown element regardless of whether it is currently portaled. */
+  getDropdownEl(): HTMLElement | null {
+    return this.dropdownEl;
   }
 
   private getAvailableModels() {
@@ -201,6 +207,7 @@ export class ModelSelector {
     this.dropdownEl.addClass('claudian-open');
     this.buttonEl?.addClass('claudian-model-btn--open');
     this.buttonEl?.setAttribute('aria-expanded', 'true');
+    this.attachPortal();
     this.positionDropdown();
     const doc = this.container.ownerDocument;
     const win = doc?.defaultView ?? (typeof window !== 'undefined' ? window : null);
@@ -216,6 +223,43 @@ export class ModelSelector {
     // finished this interaction".
     doc.addEventListener('click', this.boundOutsideClick, true);
     doc.addEventListener('keydown', this.boundKeydown, true);
+  }
+
+  private attachPortal(): void {
+    if (!this.dropdownEl) {
+      return;
+    }
+    const doc = this.container.ownerDocument;
+    const body = doc?.body;
+    if (!body) {
+      return;
+    }
+    if (!this.portalEl) {
+      this.portalEl = doc.createDiv({ cls: 'claudian-model-dropdown-portal' });
+    }
+    // Inherit the active provider theme from the surrounding Claudian view so
+    // brand colors stay consistent while the dropdown lives outside .claudian-container.
+    const themeRoot = this.container.closest('.claudian-container');
+    if (themeRoot) {
+      this.portalEl.addClass('claudian-container');
+      const provider = themeRoot.getAttribute('data-provider');
+      if (provider) {
+        this.portalEl.setAttribute('data-provider', provider);
+      }
+    }
+    body.appendChild(this.portalEl);
+    this.portalEl.appendChild(this.dropdownEl);
+  }
+
+  private detachPortal(): void {
+    if (!this.dropdownEl || !this.portalEl) {
+      return;
+    }
+    this.container.appendChild(this.dropdownEl);
+    this.portalEl.removeClass('claudian-container');
+    this.portalEl.removeAttribute('data-provider');
+    this.portalEl.remove();
+    this.portalEl = null;
   }
 
   private selectModel(modelValue: string): void {
@@ -242,6 +286,7 @@ export class ModelSelector {
     win?.removeEventListener?.('resize', this.boundReposition);
     win?.removeEventListener?.('scroll', this.boundReposition, true);
     this.clearDropdownPosition();
+    this.detachPortal();
   }
 
   destroy(): void {
@@ -250,7 +295,10 @@ export class ModelSelector {
 
   private handleOutsideClick(event: Event): void {
     const target = event.target;
-    if (target instanceof Node && this.container.contains(target)) {
+    if (target instanceof Node && (
+      this.container.contains(target)
+      || (this.dropdownEl && this.dropdownEl.contains(target))
+    )) {
       return;
     }
     this.close();

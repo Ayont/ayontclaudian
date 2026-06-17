@@ -3,6 +3,33 @@
   position: relative;
 }
 
+/* Portal that lifts the dropdown out of Obsidian's view/sidebar DOM so its
+   position: fixed coordinates are always relative to the viewport. This avoids
+   transformed ancestors (workspace panes, animated containers, etc.) breaking
+   the dropdown offset. The portal itself is pinned to the viewport origin and
+   only serves as a positioning root; the dropdown keeps all of its styling. */
+.claudian-model-dropdown-portal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 10000;
+}
+
+.claudian-model-dropdown-portal > .claudian-model-dropdown {
+  pointer-events: auto;
+}
+
+/* Override .claudian-container base styles when it is used as a portal root. */
+.claudian-model-dropdown-portal.claudian-container {
+  display: block;
+  height: auto;
+  overflow: visible;
+}
+
 .claudian-model-btn {
   display: flex;
   align-items: center;

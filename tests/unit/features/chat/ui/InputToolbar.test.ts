@@ -286,6 +286,11 @@ describe('ModelSelector', () => {
     expect(opusOption?.getAttribute('data-model-value')).toBe('opus');
   });
 
+  it('exposes the dropdown element through getDropdownEl', () => {
+    expect(selector.getDropdownEl()).not.toBeNull();
+    expect(selector.getDropdownEl()?.hasClass('claudian-model-dropdown')).toBe(true);
+  });
+
   it('should always show brand color on model button', () => {
     const btn = parentEl.querySelector('.claudian-model-btn');
     expect(btn).toBeTruthy();

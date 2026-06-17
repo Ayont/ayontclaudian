@@ -250,6 +250,7 @@ export function createMockEl(tag = 'div'): any {
       const child = createMockEl('div');
       if (opts?.cls) child.addClass(opts.cls);
       if (opts?.text) child.textContent = opts.text;
+      (child as any)._parent = element;
       children.push(child);
       return child;
     },
@@ -257,6 +258,7 @@ export function createMockEl(tag = 'div'): any {
       const child = createMockEl('span');
       if (opts?.cls) child.addClass(opts.cls);
       if (opts?.text) child.textContent = opts.text;
+      (child as any)._parent = element;
       children.push(child);
       return child;
     },
@@ -269,15 +271,26 @@ export function createMockEl(tag = 'div'): any {
           child.setAttribute(name, value);
         }
       }
+      (child as any)._parent = element;
       children.push(child);
       return child;
     },
 
-    appendChild(child: any) { children.push(child); return child; },
-    insertBefore(el: MockElement, _ref: MockElement | null) { children.unshift(el); },
+    appendChild(child: any) {
+      if (child && typeof child === 'object') {
+        child._parent = element;
+      }
+      children.push(child);
+      return child;
+    },
+    insertBefore(el: MockElement, _ref: MockElement | null) {
+      (el as any)._parent = element;
+      children.unshift(el);
+    },
     prepend(el: MockElement) {
       const idx = children.indexOf(el);
       if (idx !== -1) children.splice(idx, 1);
+      (el as any)._parent = element;
       children.unshift(el);
     },
     get firstChild() { return children[0] || null; },
@@ -394,7 +407,16 @@ export function createMockEl(tag = 'div'): any {
       updateClass(cls, force);
     },
     value: '',
-    closest() { return { clientHeight: 600 }; },
+    closest(selector?: string) {
+      if (!selector) return null;
+      const cls = selector.replace('.', '');
+      let current: any = element;
+      while (current) {
+        if (typeof current.hasClass === 'function' && current.hasClass(cls)) return current;
+        current = current._parent ?? current.parentElement ?? null;
+      }
+      return null;
+    },
     getEventListeners() { return eventListeners; },
     ownerDocument,
 
