@@ -279,6 +279,13 @@ describe('ModelSelector', () => {
     expect(callbacks.onModelChange).toHaveBeenCalledWith('opus');
   });
 
+  it('exposes model value on option elements for delegation and debugging', () => {
+    const dropdown = parentEl.querySelector('.claudian-model-dropdown');
+    const options = dropdown?.children || [];
+    const opusOption = options.find((o: any) => o.children[0]?.textContent === 'Opus');
+    expect(opusOption?.getAttribute('data-model-value')).toBe('opus');
+  });
+
   it('should always show brand color on model button', () => {
     const btn = parentEl.querySelector('.claudian-model-btn');
     expect(btn).toBeTruthy();

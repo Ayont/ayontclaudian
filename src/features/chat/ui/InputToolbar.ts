@@ -65,10 +65,9 @@ export class ModelSelector {
   private dropdownEl: HTMLElement | null = null;
   private isOpen = false;
   private callbacks: ToolbarCallbacks;
-  private readonly boundOutsidePointer = (event: Event) => this.handleOutsidePointer(event);
+  private readonly boundOutsideClick = (event: Event) => this.handleOutsideClick(event);
   private readonly boundKeydown = (event: Event) => this.handleKeydown(event);
   private readonly boundReposition = () => this.positionDropdown();
-  private suppressNextOptionClick = false;
   constructor(parentEl: HTMLElement, callbacks: ToolbarCallbacks) {
     this.callbacks = callbacks;
     this.container = parentEl.createDiv({ cls: 'claudian-model-selector' });
@@ -167,24 +166,10 @@ export class ModelSelector {
       option.setAttribute('role', 'option');
       option.setAttribute('tabindex', '0');
       option.setAttribute('aria-selected', model.value === currentModel ? 'true' : 'false');
-
-      option.addEventListener('pointerdown', (e) => {
-        // In Obsidian's bottom toolbar the menu can live inside transformed /
-        // focus-stealing panes. Selecting on pointerdown makes model changes
-        // reliable even when the following click would be swallowed by a pane
-        // blur or by the dropdown closing.
-        e.preventDefault();
-        e.stopPropagation();
-        this.suppressNextOptionClick = true;
-        this.selectModel(model.value);
-      });
+      option.setAttribute('data-model-value', model.value);
 
       option.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (this.suppressNextOptionClick) {
-          this.suppressNextOptionClick = false;
-          return;
-        }
         this.selectModel(model.value);
       });
 
@@ -224,13 +209,13 @@ export class ModelSelector {
     if (!doc) {
       return;
     }
-    // Defer attaching the dismiss listeners so the click that opened the menu
-    // does not immediately close it.
-    const defer = win?.setTimeout?.bind(win) ?? window.setTimeout.bind(window);
-    defer(() => {
-      doc.addEventListener('pointerdown', this.boundOutsidePointer, true);
-      doc.addEventListener('keydown', this.boundKeydown, true);
-    }, 0);
+    // Use click (not pointerdown) for the outside dismiss listener. Pointerdown
+    // fired during the option click sequence could race with the dropdown's own
+    // close/reposition logic and swallow the model change in Obsidian's bottom
+    // toolbar / sidebar layout. Click is the natural boundary for "the user
+    // finished this interaction".
+    doc.addEventListener('click', this.boundOutsideClick, true);
+    doc.addEventListener('keydown', this.boundKeydown, true);
   }
 
   private selectModel(modelValue: string): void {
@@ -251,7 +236,7 @@ export class ModelSelector {
     this.buttonEl?.removeClass('claudian-model-btn--open');
     this.buttonEl?.setAttribute('aria-expanded', 'false');
     const doc = this.container.ownerDocument;
-    doc?.removeEventListener('pointerdown', this.boundOutsidePointer, true);
+    doc?.removeEventListener('click', this.boundOutsideClick, true);
     doc?.removeEventListener('keydown', this.boundKeydown, true);
     const win = doc?.defaultView ?? (typeof window !== 'undefined' ? window : null);
     win?.removeEventListener?.('resize', this.boundReposition);
@@ -263,7 +248,7 @@ export class ModelSelector {
     this.close();
   }
 
-  private handleOutsidePointer(event: Event): void {
+  private handleOutsideClick(event: Event): void {
     const target = event.target;
     if (target instanceof Node && this.container.contains(target)) {
       return;
