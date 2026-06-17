@@ -9,13 +9,13 @@ import { getHostnameKey } from '../../../utils/env';
 import { expandHomePath } from '../../../utils/path';
 import { maybeGetKimiWorkspaceServices } from '../app/KimiWorkspaceServices';
 import { getKimiModelOptions } from '../modelOptions';
-import { renderKimiFeatureShowcase } from './KimiFeatureShowcase';
 import {
   getKimiProviderSettings,
   KIMI_PROVIDER_ID,
   updateKimiProviderSettings,
 } from '../settings';
 import { DEFAULT_KIMI_PRIMARY_MODEL } from '../types/models';
+import { renderKimiFeatureShowcase } from './KimiFeatureShowcase';
 
 function validateFilePath(value: string): string | null {
   const trimmed = value.trim();
