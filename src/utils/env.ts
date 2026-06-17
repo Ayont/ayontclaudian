@@ -198,6 +198,7 @@ function getExtraBinaryPaths(): string[] {
     if (home) {
       paths.push(path.join(home, '.local', 'bin'));
       paths.push(path.join(home, '.bun', 'bin'));
+      paths.push(path.join(home, '.kimi-code', 'bin'));
       paths.push(path.join(home, '.opencode', 'bin'));
     }
 
@@ -236,6 +237,10 @@ function getExtraBinaryPaths(): string[] {
     }
 
     if (home) {
+      // Kimi Code installs its current single-binary CLI here. Keep this
+      // before the legacy uv `~/.local/bin/kimi-cli` path so provider
+      // discovery prefers the authenticated modern CLI when both exist.
+      paths.push(path.join(home, '.kimi-code', 'bin'));
       paths.push(path.join(home, '.local', 'bin'));
       paths.push(path.join(home, '.bun', 'bin'));
       paths.push(path.join(home, '.opencode', 'bin'));

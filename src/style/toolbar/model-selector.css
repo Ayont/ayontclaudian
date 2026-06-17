@@ -50,26 +50,38 @@
 }
 
 .claudian-model-dropdown {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  margin-bottom: var(--cl-space-1);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  background: var(--cl-surface-overlay);
-  border: 1px solid var(--cl-border-subtle);
-  border-radius: var(--cl-radius-md);
-  box-shadow: var(--cl-shadow-lg);
+  position: fixed;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(205px, 1fr));
+  grid-auto-flow: row dense;
+  align-content: start;
+  gap: 4px;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(var(--claudian-brand-rgb), 0.13), transparent 34%),
+    color-mix(in srgb, var(--cl-surface-overlay) 96%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.18);
+  backdrop-filter: blur(14px) saturate(1.18);
+  border: 1px solid var(--cl-accent-line);
+  border-radius: var(--cl-radius-lg);
+  box-shadow: var(--cl-shadow-pop);
   z-index: 1000;
-  width: max-content;
-  padding: var(--cl-space-1);
+  width: min(780px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  max-height: min(560px, calc(100vh - 24px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: var(--cl-space-2);
   opacity: 0;
   visibility: hidden;
-  transform: translateY(4px);
+  transform: translateY(6px) scale(0.985);
+  transform-origin: bottom left;
   transition: opacity var(--cl-dur-fast) var(--cl-ease-out),
     transform var(--cl-dur-fast) var(--cl-ease-out),
     visibility var(--cl-dur-fast) var(--cl-ease-out);
+}
+
+.claudian-model-dropdown--below {
+  transform-origin: top left;
 }
 
 /* Click-to-open (pinned): the menu stays open regardless of cursor position so
@@ -82,19 +94,20 @@
 }
 
 .claudian-model-group {
-  padding: var(--cl-space-1) var(--cl-space-2);
-  font-size: 8px;
-  font-weight: 600;
-  color: var(--text-faint);
+  align-self: stretch;
+  padding: var(--cl-space-2) var(--cl-space-2) var(--cl-space-1);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   pointer-events: none;
+  break-inside: avoid;
 }
 
 .claudian-model-group:not(:first-child) {
-  margin-top: var(--cl-space-1);
+  margin-top: 0;
   border-top: 1px solid var(--cl-border-subtle);
-  padding-top: var(--cl-space-2);
 }
 
 .claudian-model-provider-icon {
@@ -105,20 +118,29 @@
 .claudian-model-option {
   display: flex;
   align-items: center;
-  gap: var(--cl-space-1);
-  padding: var(--cl-space-1) var(--cl-space-2);
+  gap: var(--cl-space-2);
+  min-width: 0;
+  padding: 7px 10px;
   cursor: pointer;
   font-size: var(--cl-text-sm);
   color: var(--text-muted);
-  border-radius: var(--cl-radius-sm);
+  border: 1px solid transparent;
+  border-radius: var(--cl-radius-md);
   transition: background var(--cl-dur-fast) var(--cl-ease),
-    color var(--cl-dur-fast) var(--cl-ease);
+    border-color var(--cl-dur-fast) var(--cl-ease),
+    color var(--cl-dur-fast) var(--cl-ease),
+    transform var(--cl-dur-fast) var(--cl-ease);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  break-inside: avoid;
 }
 
 .claudian-model-option:hover {
   background: var(--cl-accent-soft);
+  border-color: var(--cl-accent-line);
   color: var(--text-normal);
+  transform: translateY(-1px);
 }
 
 .claudian-model-option:focus-visible {
@@ -129,7 +151,20 @@
 }
 
 .claudian-model-option.selected {
-  background: var(--cl-accent-soft);
+  background: linear-gradient(135deg, var(--cl-accent-soft), var(--cl-accent-softer));
+  border-color: var(--cl-accent-line);
   color: var(--cl-accent);
-  font-weight: 500;
+  font-weight: 600;
+}
+
+.claudian-model-option span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 520px) {
+  .claudian-model-dropdown {
+    grid-template-columns: 1fr;
+  }
 }

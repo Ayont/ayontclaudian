@@ -641,6 +641,10 @@ export function createTab(options: TabCreateOptions): TabData {
  * Builds the DOM structure for a tab.
  */
 function buildTabDOM(contentEl: HTMLElement): TabDOMElements {
+  // Host for the active-goal banner — kept as the first child so the goal
+  // indicator sits above the transcript.
+  const goalBannerHostEl = contentEl.createDiv({ cls: 'claudian-goal-banner-host' });
+  goalBannerHostEl.setAttribute('data-claudian-role', 'goal-banner-host');
   const messagesWrapperEl = contentEl.createDiv({ cls: 'claudian-messages-wrapper' });
   const messagesEl = messagesWrapperEl.createDiv({ cls: 'claudian-messages' });
   const welcomeEl = messagesEl.createDiv({ cls: 'claudian-welcome' });

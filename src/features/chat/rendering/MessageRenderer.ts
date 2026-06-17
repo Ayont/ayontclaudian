@@ -104,6 +104,16 @@ function addCodeBlockHeader(
   wrapperEl.insertBefore(headerEl, preEl);
 }
 
+function containsPotentialVaultLink(markdown: string): boolean {
+  if (markdown.includes('[[')) {
+    return true;
+  }
+  // Normal Markdown links that are not obviously external may point at vault
+  // files (Antigravity often emits `[note](/02-Projekte/...)`).
+  return /\[[^\]]+\]\((?!\s*(?:https?:|mailto:|tel:|obsidian:|app:|command:|javascript:|data:))[^)]+\)/i
+    .test(markdown);
+}
+
 export class MessageRenderer {
   private app: App;
   private plugin: ClaudianPlugin;
@@ -754,8 +764,11 @@ export class MessageRenderer {
         pre.querySelector('.copy-code-button')?.remove();
       });
 
-      // Process wikilinks only when the source can contain them; the DOM pass is expensive.
-      if (processedMarkdown.includes('[[')) {
+      // Normalize Obsidian wikilinks and rendered Markdown links that target
+      // vault files. Providers like Antigravity emit normal Markdown links
+      // (`/02-Projekte/...`) instead of `[[wikilinks]]`, so include both forms
+      // while still skipping the DOM pass for plain text.
+      if (containsPotentialVaultLink(processedMarkdown)) {
         processFileLinks(this.app, el);
       }
     } catch {

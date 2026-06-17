@@ -439,7 +439,7 @@ export class CodexChatRuntime implements ChatRuntime {
         const transcriptRootTarget = this.runtimeContext?.sessionsDirTarget
           ?? deriveCodexSessionsRootFromSessionPath(threadTargetPath)
           ?? this.resolveTranscriptRootTarget(sessionFilePathHint);
-        const sandboxPolicy = this.buildTurnSandboxPolicy(
+        let sandboxPolicy = this.buildTurnSandboxPolicy(
           externalContextPaths,
           permissionMode.sandbox,
           transcriptRootTarget,
@@ -462,7 +462,7 @@ export class CodexChatRuntime implements ChatRuntime {
         // that arrive before currentTurnId is set already see the correct state.
         this.notificationRouter?.beginTurn({ isPlanTurn: isPlanMode });
 
-        const turnResult = await this.transport!.request<TurnStartResult>('turn/start', {
+        const startTurn = async (): Promise<TurnStartResult> => this.transport!.request<TurnStartResult>('turn/start', {
           threadId,
           input: turnInputBundle.input,
           approvalPolicy: permissionMode.approvalPolicy,
@@ -473,6 +473,60 @@ export class CodexChatRuntime implements ChatRuntime {
           sandboxPolicy,
           collaborationMode,
         });
+
+        let turnResult: TurnStartResult;
+        try {
+          turnResult = await startTurn();
+        } catch (error) {
+          if (!isCodexContextWindowError(error)) {
+            throw error;
+          }
+
+          // Codex app-server can reject a long-running thread with:
+          // "ran out of room in the model's context window". Instead of making
+          // the user manually start a fresh chat, transparently drop only the
+          // Codex-native thread state for this provider and retry the current
+          // prompt in a fresh thread. The visible Claudian conversation remains.
+          enqueueChunk({
+            type: 'notice',
+            level: 'warning',
+            content: 'Codex context window was full, so Claudian started a fresh Codex thread and retried this message automatically.',
+          });
+          this.session.reset();
+          this.loadedThreadId = null;
+          this.currentThreadPath = null;
+
+          const restart = await this.transport!.request<ThreadStartResult>('thread/start', {
+            model: resolvedModel,
+            cwd: this.launchSpec?.targetCwd ?? getVaultPath(this.plugin.app) ?? undefined,
+            approvalPolicy: permissionMode.approvalPolicy,
+            sandbox: permissionMode.sandbox,
+            serviceTier,
+            baseInstructions: promptText,
+            experimentalRawEvents: true,
+            persistExtendedHistory: true,
+          });
+          threadId = restart.thread.id;
+          threadTargetPath = restart.thread.path ?? null;
+          threadPath = this.toHostSessionPath(threadTargetPath);
+          this.loadedThreadId = threadId;
+          this.session.setThread(threadId, threadPath ?? undefined);
+          if (threadPath) this.currentThreadPath = threadPath;
+          this.currentQueryThreadId = threadId;
+
+          const freshSessionFilePathHint = threadPath ?? this.session.getSessionFilePath() ?? null;
+          const freshTranscriptRootTarget = this.runtimeContext?.sessionsDirTarget
+            ?? deriveCodexSessionsRootFromSessionPath(threadTargetPath)
+            ?? this.resolveTranscriptRootTarget(freshSessionFilePathHint);
+          sandboxPolicy = this.buildTurnSandboxPolicy(
+            externalContextPaths,
+            permissionMode.sandbox,
+            freshTranscriptRootTarget,
+            freshSessionFilePathHint,
+          );
+
+          turnResult = await startTurn();
+        }
         this.currentTurnId = turnResult.turn.id;
         this.recordTurnMetadata({
           userMessageId: turnResult.turn.id,
@@ -1258,6 +1312,15 @@ export class CodexChatRuntime implements ChatRuntime {
       this.resolveTranscriptRootTarget(sessionFilePath),
     );
   }
+}
+
+function isCodexContextWindowError(error: unknown): boolean {
+  const message = error instanceof Error
+    ? error.message
+    : typeof error === 'string'
+      ? error
+      : JSON.stringify(error ?? '');
+  return /ran out of room|context window|clear earlier history|maximum context|context length/i.test(message);
 }
 
 // ---------------------------------------------------------------------------

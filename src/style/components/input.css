@@ -286,11 +286,34 @@
   display: flex;
   align-items: center;
   gap: var(--cl-space-2);
-  padding: var(--cl-space-1) var(--cl-space-2);
+  position: relative;
+  overflow: hidden;
+  padding: 6px 10px;
   margin-bottom: var(--cl-space-2);
   font-size: var(--cl-text-sm);
   color: var(--text-muted);
+  border: 1px solid var(--cl-accent-line);
+  border-radius: var(--cl-radius-md);
+  background:
+    linear-gradient(90deg, rgba(var(--claudian-brand-rgb), 0.12), transparent 46%),
+    var(--cl-surface-raised);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   animation: cl-rise var(--cl-dur) var(--cl-ease) both;
+}
+
+.claudian-stream-status::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    rgba(var(--claudian-brand-rgb), 0.18) 38%,
+    transparent 72%
+  );
+  transform: translateX(-100%);
+  animation: claudian-stream-scan 2.8s var(--cl-ease) infinite;
 }
 
 .claudian-stream-status-dot {
@@ -301,10 +324,14 @@
   background: var(--cl-accent);
   /* Pulses in the active provider's accent (cl-tab-pulse uses --claudian-brand-rgb). */
   animation: cl-tab-pulse 1.4s var(--cl-ease) infinite;
+  position: relative;
+  z-index: 1;
 }
 
 .claudian-stream-status-label {
   color: var(--text-muted);
+  position: relative;
+  z-index: 1;
 }
 
 .claudian-stream-status-timer {
@@ -312,4 +339,13 @@
   font-family: var(--cl-font-mono);
   font-variant-numeric: tabular-nums;
   color: var(--cl-accent);
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes claudian-stream-scan {
+  0% { transform: translateX(-100%); opacity: 0; }
+  18% { opacity: 1; }
+  72% { opacity: 1; }
+  100% { transform: translateX(100%); opacity: 0; }
 }

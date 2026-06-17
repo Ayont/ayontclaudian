@@ -229,6 +229,7 @@ export class KimiChatRuntime implements ChatRuntime {
     const streamState = createKimiStreamState();
     let stdoutBuffer = '';
     let stderr = '';
+    const unparsedStdoutLines: string[] = [];
     const pendingChunks: StreamChunk[] = [];
     let toolResultIndex = 0;
 
@@ -252,7 +253,12 @@ export class KimiChatRuntime implements ChatRuntime {
       while (newlineIndex !== -1) {
         const line = stdoutBuffer.slice(0, newlineIndex);
         stdoutBuffer = stdoutBuffer.slice(newlineIndex + 1);
-        this.consumeLine(line, streamState, pendingChunks, () => toolResultIndex++);
+        if (!this.consumeLine(line, streamState, pendingChunks, () => toolResultIndex++)) {
+          const trimmed = line.trim();
+          if (trimmed) {
+            unparsedStdoutLines.push(trimmed);
+          }
+        }
         newlineIndex = stdoutBuffer.indexOf('\n');
       }
       signal();
@@ -269,7 +275,9 @@ export class KimiChatRuntime implements ChatRuntime {
     const onExit = (info: { code: number | null; error?: Error }): void => {
       // Flush any trailing partial line that arrived without a newline.
       if (stdoutBuffer.trim()) {
-        this.consumeLine(stdoutBuffer, streamState, pendingChunks, () => toolResultIndex++);
+        if (!this.consumeLine(stdoutBuffer, streamState, pendingChunks, () => toolResultIndex++)) {
+          unparsedStdoutLines.push(stdoutBuffer.trim());
+        }
         stdoutBuffer = '';
       }
       exitInfo = info;
@@ -304,7 +312,10 @@ export class KimiChatRuntime implements ChatRuntime {
       this.recoverSessionId(stderr);
 
       if (exitInfo.error) {
-        yield { type: 'error', content: this.formatError(exitInfo.error.message, stderr) };
+        yield {
+          type: 'error',
+          content: this.formatError(exitInfo.error.message, stderr, unparsedStdoutLines),
+        };
         yield { type: 'done' };
         return;
       }
@@ -312,7 +323,7 @@ export class KimiChatRuntime implements ChatRuntime {
       if (exitInfo.code !== 0 && exitInfo.code !== null) {
         yield {
           type: 'error',
-          content: this.formatError(`kimi-cli exited with code ${exitInfo.code}`, stderr),
+          content: this.formatError(`Kimi CLI exited with code ${exitInfo.code}`, stderr, unparsedStdoutLines),
         };
         yield { type: 'done' };
         return;
@@ -447,10 +458,10 @@ export class KimiChatRuntime implements ChatRuntime {
     streamState: KimiStreamState,
     sink: StreamChunk[],
     nextIndex: () => number,
-  ): void {
+  ): boolean {
     const event = parseKimiStreamLine(line);
     if (!event) {
-      return;
+      return false;
     }
     const sessionFromEvent = event.raw.session_id;
     if (typeof sessionFromEvent === 'string' && sessionFromEvent.trim()) {
@@ -460,6 +471,7 @@ export class KimiChatRuntime implements ChatRuntime {
     for (const chunk of chunks) {
       sink.push(chunk);
     }
+    return true;
   }
 
   private recoverSessionId(stderr: string): void {
@@ -482,8 +494,10 @@ export class KimiChatRuntime implements ChatRuntime {
     }
   }
 
-  private formatError(message: string, stderr: string): string {
+  private formatError(message: string, stderr: string, stdoutLines: string[] = []): string {
     const trimmed = stderr.trim().slice(-2000);
-    return trimmed ? `${message}\n\n${trimmed}` : message;
+    const stdout = stdoutLines.join('\n').trim().slice(-2000);
+    const details = [stdout, trimmed].filter(Boolean).join('\n\n');
+    return details ? `${message}\n\n${details}` : message;
   }
 }

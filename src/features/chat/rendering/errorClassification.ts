@@ -131,6 +131,18 @@ const COPY: Record<string, Record<Lang, Strings>> = {
       hint: 'Try again. If it persists, check the CLI path and installation in settings.',
     },
   },
+  contextWindow: {
+    de: {
+      title: 'Kontextfenster voll',
+      explanation: 'Die native Provider-Sitzung ist zu groß geworden und passt nicht mehr in das Modell-Kontextfenster.',
+      hint: 'Claudian setzt diese Provider-Sitzung automatisch zurück, wenn möglich. Falls der Fehler bleibt, starte einen neuen Tab oder kürze die Eingabe.',
+    },
+    en: {
+      title: 'Context window full',
+      explanation: "The provider's native session grew too large for the model context window.",
+      hint: 'Claudian resets that provider session automatically when possible. If it persists, start a new tab or shorten the prompt.',
+    },
+  },
   unknown: {
     de: {
       title: 'Unerwarteter Fehler',
@@ -215,6 +227,13 @@ const RULES: Rule[] = [
     isLimit: false,
     retryable: false,
     patterns: ['could not find', 'not found', 'is disabled', 'set the cli path', 'binary'],
+  },
+  {
+    key: 'contextWindow',
+    severity: 'warning',
+    isLimit: false,
+    retryable: true,
+    patterns: ['ran out of room', 'context window', 'clear earlier history', 'maximum context', 'context length'],
   },
   {
     key: 'processExit',

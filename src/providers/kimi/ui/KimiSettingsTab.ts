@@ -49,7 +49,7 @@ export const kimiSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     new Setting(container)
       .setName('Enable Kimi')
-      .setDesc('Launch Kimi (`kimi-cli --print --output-format stream-json`) as a provider.')
+      .setDesc('Launch Kimi Code (`kimi --output-format stream-json`) or legacy `kimi-cli` as a provider.')
       .addToggle((toggle) =>
         toggle.setValue(settings.enabled).onChange(async (value) => {
           updateKimiProviderSettings(settingsBag, { enabled: value });

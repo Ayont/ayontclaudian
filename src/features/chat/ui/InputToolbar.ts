@@ -67,6 +67,7 @@ export class ModelSelector {
   private callbacks: ToolbarCallbacks;
   private readonly boundOutsidePointer = (event: Event) => this.handleOutsidePointer(event);
   private readonly boundKeydown = (event: Event) => this.handleKeydown(event);
+  private readonly boundReposition = () => this.positionDropdown();
   constructor(parentEl: HTMLElement, callbacks: ToolbarCallbacks) {
     this.callbacks = callbacks;
     this.container = parentEl.createDiv({ cls: 'claudian-model-selector' });
@@ -189,7 +190,11 @@ export class ModelSelector {
     // Re-render so the option list and the current selection are fresh on open.
     this.renderOptions();
     this.dropdownEl.addClass('claudian-open');
+    this.positionDropdown();
     const doc = this.container.ownerDocument;
+    const win = doc?.defaultView ?? (typeof window !== 'undefined' ? window : null);
+    win?.addEventListener?.('resize', this.boundReposition);
+    win?.addEventListener?.('scroll', this.boundReposition, true);
     if (!doc) {
       return;
     }
@@ -210,6 +215,10 @@ export class ModelSelector {
     const doc = this.container.ownerDocument;
     doc?.removeEventListener('pointerdown', this.boundOutsidePointer, true);
     doc?.removeEventListener('keydown', this.boundKeydown, true);
+    const win = doc?.defaultView ?? (typeof window !== 'undefined' ? window : null);
+    win?.removeEventListener?.('resize', this.boundReposition);
+    win?.removeEventListener?.('scroll', this.boundReposition, true);
+    this.clearDropdownPosition();
   }
 
   destroy(): void {
@@ -229,6 +238,64 @@ export class ModelSelector {
       event.stopPropagation();
       this.close();
     }
+  }
+
+  private positionDropdown(): void {
+    if (!this.dropdownEl || !this.buttonEl || !this.isOpen) {
+      return;
+    }
+
+    const rect = this.buttonEl.getBoundingClientRect();
+    const doc = this.container.ownerDocument;
+    const win = doc?.defaultView ?? (typeof window !== 'undefined' ? window : null);
+    const docEl = (typeof document !== 'undefined' ? document : null)?.documentElement;
+    const viewportWidth = win?.innerWidth || docEl?.clientWidth || 1024;
+    const viewportHeight = win?.innerHeight || docEl?.clientHeight || 768;
+    const margin = 12;
+    const gap = 8;
+    const availableWidth = Math.max(280, viewportWidth - margin * 2);
+    const desiredWidth = Math.min(780, availableWidth);
+    const left = Math.min(
+      Math.max(margin, rect.left),
+      Math.max(margin, viewportWidth - margin - desiredWidth),
+    );
+    const spaceAbove = Math.max(220, rect.top - margin - gap);
+    const spaceBelow = Math.max(220, viewportHeight - rect.bottom - margin - gap);
+    const openAbove = spaceAbove >= spaceBelow || rect.top > viewportHeight * 0.45;
+    const maxHeight = Math.min(560, openAbove ? spaceAbove : spaceBelow);
+
+    this.dropdownEl.style.position = 'fixed';
+    this.dropdownEl.style.left = `${Math.round(left)}px`;
+    this.dropdownEl.style.width = `${Math.round(desiredWidth)}px`;
+    this.dropdownEl.style.maxWidth = `${Math.round(availableWidth)}px`;
+    this.dropdownEl.style.maxHeight = `${Math.round(maxHeight)}px`;
+
+    if (openAbove) {
+      this.dropdownEl.style.top = '';
+      this.dropdownEl.style.bottom = `${Math.round(viewportHeight - rect.top + gap)}px`;
+      this.dropdownEl.toggleClass('claudian-model-dropdown--below', false);
+      this.dropdownEl.toggleClass('claudian-model-dropdown--above', true);
+    } else {
+      this.dropdownEl.style.bottom = '';
+      this.dropdownEl.style.top = `${Math.round(rect.bottom + gap)}px`;
+      this.dropdownEl.toggleClass('claudian-model-dropdown--above', false);
+      this.dropdownEl.toggleClass('claudian-model-dropdown--below', true);
+    }
+  }
+
+  private clearDropdownPosition(): void {
+    if (!this.dropdownEl) {
+      return;
+    }
+    this.dropdownEl.style.position = '';
+    this.dropdownEl.style.left = '';
+    this.dropdownEl.style.top = '';
+    this.dropdownEl.style.bottom = '';
+    this.dropdownEl.style.width = '';
+    this.dropdownEl.style.maxWidth = '';
+    this.dropdownEl.style.maxHeight = '';
+    this.dropdownEl.removeClass('claudian-model-dropdown--above');
+    this.dropdownEl.removeClass('claudian-model-dropdown--below');
   }
 }
 

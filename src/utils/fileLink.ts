@@ -8,6 +8,7 @@
 import type { App, Component } from 'obsidian';
 
 import { getVaultFileByPath } from './obsidianCompat';
+import { getVaultPath } from './path';
 
 /**
  * Regex pattern to match Obsidian wikilinks in text content.
@@ -105,6 +106,74 @@ function extractLinkPathFromTarget(linkTarget: string): string {
   return subpathIndex >= 0 ? linkTarget.slice(0, subpathIndex) : linkTarget;
 }
 
+function splitPathAndSubpath(linkTarget: string): { path: string; subpath: string } {
+  const subpathIndex = linkTarget.search(/[#^]/);
+  if (subpathIndex < 0) {
+    return { path: linkTarget, subpath: '' };
+  }
+  return {
+    path: linkTarget.slice(0, subpathIndex),
+    subpath: linkTarget.slice(subpathIndex),
+  };
+}
+
+function stripQuery(linkTarget: string): string {
+  const queryIndex = linkTarget.indexOf('?');
+  return queryIndex >= 0 ? linkTarget.slice(0, queryIndex) : linkTarget;
+}
+
+function isExternalHref(href: string): boolean {
+  return /^(?:https?:|mailto:|tel:|obsidian:|app:|command:|javascript:|data:)/i.test(href);
+}
+
+function stripFileProtocol(value: string): string {
+  if (!/^file:\/\//i.test(value)) {
+    return value;
+  }
+  try {
+    return decodeURIComponent(new URL(value).pathname);
+  } catch {
+    return value.replace(/^file:\/\//i, '');
+  }
+}
+
+function normalizeRenderedVaultHref(app: App, rawHref: string | null): string | null {
+  const raw = (rawHref ?? '').trim();
+  if (!raw || raw.startsWith('#') || isExternalHref(raw)) {
+    return null;
+  }
+
+  let decoded = stripQuery(raw);
+  try {
+    decoded = decodeURI(decoded);
+  } catch {
+    // Keep the raw value when it is not a valid URI-encoded string.
+  }
+
+  decoded = stripFileProtocol(decoded).replace(/\\/g, '/');
+  const { path: rawPath, subpath } = splitPathAndSubpath(decoded);
+  let candidatePath = rawPath.trim();
+  if (!candidatePath) {
+    return null;
+  }
+
+  const vaultPath = getVaultPath(app)?.replace(/\\/g, '/').replace(/\/+$/, '');
+  if (vaultPath && candidatePath.startsWith(`${vaultPath}/`)) {
+    candidatePath = candidatePath.slice(vaultPath.length + 1);
+  }
+
+  // Antigravity and other CLIs sometimes emit vault-relative links with a
+  // leading slash: (/02-Projekte/foo.md). Obsidian's openLinkText expects
+  // vault-relative paths without that slash.
+  candidatePath = candidatePath.replace(/^\.?\//, '');
+
+  if (!candidatePath || !fileExistsInVault(app, candidatePath)) {
+    return null;
+  }
+
+  return `${candidatePath}${subpath}`;
+}
+
 /**
  * Creates a link element for a wikilink.
  * Click handling is done via event delegation in registerFileLinkHandler.
@@ -136,6 +205,22 @@ function repairEmptyInternalLink(app: App, link: HTMLAnchorElement): void {
     link.setAttribute('data-href', linkTarget);
   }
   link.textContent = linkTarget;
+}
+
+function repairRenderedVaultLink(app: App, link: HTMLAnchorElement): void {
+  if (link.classList.contains('claudian-file-link') || link.classList.contains('internal-link')) {
+    repairEmptyInternalLink(app, link);
+    return;
+  }
+
+  const normalized = normalizeRenderedVaultHref(app, link.getAttribute('data-href') || link.getAttribute('href'));
+  if (!normalized) {
+    return;
+  }
+
+  link.classList.add('claudian-file-link', 'internal-link');
+  link.setAttribute('data-href', normalized);
+  link.setAttribute('href', normalized);
 }
 
 /**
@@ -209,9 +294,12 @@ function processTextNode(app: App, node: Text): boolean {
 export function processFileLinks(app: App, container: HTMLElement): void {
   if (!app || !container) return;
 
-  // Repair resolved internal links that rendered as empty anchors.
-  container.querySelectorAll('a.internal-link').forEach((linkEl) => {
-    repairEmptyInternalLink(app, linkEl as HTMLAnchorElement);
+  // Repair resolved internal links that rendered as empty anchors and normalize
+  // Markdown links that point back into the vault (including Antigravity-style
+  // `(/02-Projekte/...)` and absolute vault paths) so delegated Obsidian
+  // openLinkText handling can open them reliably.
+  container.querySelectorAll('a').forEach((linkEl) => {
+    repairRenderedVaultLink(app, linkEl as HTMLAnchorElement);
   });
 
   // Wikilinks in inline code aren't rendered by Obsidian's MarkdownRenderer

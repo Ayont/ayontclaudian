@@ -6,18 +6,21 @@ import {
 } from '../settings';
 
 /** Primary Kimi CLI binary name. */
-export const KIMI_CLI_BINARY = 'kimi-cli';
+export const KIMI_CODE_BINARY = 'kimi';
 
-/** Fallback binary name (legacy / alternate install). */
-export const KIMI_CLI_BINARY_FALLBACK = 'kimi';
+/** Legacy Python/uv Kimi CLI binary names. */
+export const KIMI_CLI_BINARY = 'kimi-cli';
+export const KIMI_CLI_BINARY_FALLBACK = 'kimi-legacy';
 
 /**
- * Locates the `kimi-cli` executable.
+ * Locates the Kimi executable.
  *
  * Resolution order:
  *   1. Host-keyed / explicit `cliPath` from settings (if the file exists).
- *   2. `kimi-cli` discovered on PATH (PATH enhanced with common bin dirs).
- *   3. `kimi` discovered on PATH (alternate binary name).
+ *   2. Modern Kimi Code `kimi` discovered on PATH (PATH includes
+ *      `~/.kimi-code/bin`, where the official installer puts the authenticated
+ *      single-binary CLI).
+ *   3. Legacy `kimi-cli` / `kimi-legacy` discovered on PATH.
  *
  * Returns the absolute path, or `null` when the binary cannot be found.
  */
@@ -28,7 +31,8 @@ export class KimiCliResolver {
       return configured;
     }
     return (
-      findCliBinaryPath(KIMI_CLI_BINARY, additionalPath)
+      findCliBinaryPath(KIMI_CODE_BINARY, additionalPath)
+      ?? findCliBinaryPath(KIMI_CLI_BINARY, additionalPath)
       ?? findCliBinaryPath(KIMI_CLI_BINARY_FALLBACK, additionalPath)
     );
   }

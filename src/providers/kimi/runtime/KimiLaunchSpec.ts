@@ -1,17 +1,21 @@
 import type { KimiAgent, KimiPermissionMode } from '../settings';
 
 /**
- * Builds the command/args/cwd for a single-turn `kimi-cli --print` run with
- * line-delimited JSON streaming.
+ * Builds the command/args/cwd for a single-turn Kimi run with line-delimited
+ * JSON streaming.
  *
- * Verified `kimi-cli` v1.47 invocation:
+ * Modern Kimi Code (`~/.kimi-code/bin/kimi`) prompt-mode invocation:
+ *   kimi -m <model> -S <session-id> -p <prompt> --output-format stream-json
+ *
+ * Verified legacy `kimi-cli` v1.47 invocation:
  *   kimi-cli --print --output-format stream-json -m <model> \
  *     [--thinking | --no-thinking] [--agent <a>] [--agent-file <f>] \
  *     [--mcp-config-file <f>] [--continue | --session <id>] \
- *     --add-dir <vaultPath> --work-dir <vaultPath> [--yolo | --plan] -p <prompt>
+ *     --add-dir <vaultPath> --work-dir <vaultPath> -p <prompt>
  *
- * `--print` is non-interactive (auto-dismisses questions). `--output-format
- * stream-json` emits one complete chat message per stdout line.
+ * `--print` / prompt mode is non-interactive, so we intentionally do not pass
+ * `--yolo` or `--plan`: modern Kimi Code rejects `--prompt` + `--yolo`, and
+ * legacy print mode already auto-dismisses questions for the invocation.
  */
 
 export interface BuildKimiLaunchSpecParams {
@@ -49,45 +53,68 @@ export interface KimiLaunchSpec {
   launchKey: string;
 }
 
+export type KimiCliFlavor = 'kimi-code' | 'legacy';
+
+function normalizedCommandPath(command: string): string {
+  return command.replace(/\\/g, '/').toLowerCase();
+}
+
+/**
+ * Best-effort CLI flavor detection.
+ *
+ * The modern product installs a binary named `kimi` under `~/.kimi-code/bin`
+ * and does NOT support legacy `--print`/`--agent` flags. The uv legacy tool
+ * exposes `kimi-cli` / `kimi-legacy` and still supports those flags.
+ */
+export function detectKimiCliFlavor(command: string): KimiCliFlavor {
+  const normalized = normalizedCommandPath(command);
+  const base = normalized.split('/').pop() ?? normalized;
+  if (base === 'kimi-cli' || base === 'kimi-legacy' || normalized.includes('/kimi-cli/')) {
+    return 'legacy';
+  }
+  return 'kimi-code';
+}
+
 export function buildKimiLaunchSpec(params: BuildKimiLaunchSpecParams): KimiLaunchSpec {
-  const args = ['--print', '--output-format', 'stream-json'];
+  const flavor = detectKimiCliFlavor(params.command);
+  const args = flavor === 'legacy'
+    ? ['--print', '--output-format', 'stream-json']
+    : ['--output-format', 'stream-json'];
 
   const model = params.model?.trim();
   if (model) {
     args.push('-m', model);
   }
 
-  if (params.forceNoThinking || !params.thinking) {
-    args.push('--no-thinking');
-  } else {
-    args.push('--thinking');
-  }
+  if (flavor === 'legacy') {
+    if (params.forceNoThinking || !params.thinking) {
+      args.push('--no-thinking');
+    } else {
+      args.push('--thinking');
+    }
 
-  args.push('--agent', params.agent);
+    args.push('--agent', params.agent);
 
-  const agentFile = params.agentFile?.trim();
-  if (agentFile) {
-    args.push('--agent-file', agentFile);
-  }
+    const agentFile = params.agentFile?.trim();
+    if (agentFile) {
+      args.push('--agent-file', agentFile);
+    }
 
-  const mcpConfigFile = params.mcpConfigFile?.trim();
-  if (mcpConfigFile) {
-    args.push('--mcp-config-file', mcpConfigFile);
+    const mcpConfigFile = params.mcpConfigFile?.trim();
+    if (mcpConfigFile) {
+      args.push('--mcp-config-file', mcpConfigFile);
+    }
   }
 
   const sessionId = params.sessionId?.trim();
   if (sessionId) {
-    args.push('--session', sessionId);
+    args.push(flavor === 'legacy' ? '--session' : '-S', sessionId);
   } else if (params.resume) {
     args.push('--continue');
   }
 
-  args.push('--add-dir', params.cwd, '--work-dir', params.cwd);
-
-  if (params.permissionMode === 'yolo') {
-    args.push('--yolo');
-  } else if (params.permissionMode === 'plan') {
-    args.push('--plan');
+  if (flavor === 'legacy') {
+    args.push('--add-dir', params.cwd, '--work-dir', params.cwd);
   }
 
   // `-p <prompt>` is the non-interactive prompt; passing it last keeps the
@@ -104,6 +131,7 @@ export function buildKimiLaunchSpec(params: BuildKimiLaunchSpecParams): KimiLaun
       command: params.command,
       cwd: params.cwd,
       envText: params.envText ?? '',
+      flavor,
       model: model ?? '',
       permissionMode: params.permissionMode,
       sessionId: sessionId ?? null,
