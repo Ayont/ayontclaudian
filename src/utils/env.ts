@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { parsePathEntries, resolveNvmDefaultBin } from './path';
+import { expandHomePath, parsePathEntries, resolveNvmDefaultBin } from './path';
 
 const isWindows = process.platform === 'win32';
 const PATH_SEPARATOR = isWindows ? ';' : ':';
@@ -30,6 +30,84 @@ function getAppProvidedCliPaths(): string[] {
   }
 
   return [];
+}
+
+function stripWrappingQuotes(value: string): string {
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+/**
+ * Reads the `prefix=` setting from the user's npmrc files. A custom prefix
+ * (e.g. `prefix=~/.npm-global`) relocates globally-installed CLI binaries away
+ * from the default `/usr/local` or Homebrew bin, so we honor it for detection.
+ */
+function readNpmrcPrefixes(home: string): string[] {
+  if (!home) {
+    return [];
+  }
+  const prefixes: string[] = [];
+  const candidates = [
+    path.join(home, '.npmrc'),
+    path.join(home, '.config', 'npm', 'npmrc'),
+  ];
+  for (const file of candidates) {
+    try {
+      const content = fs.readFileSync(file, 'utf8');
+      for (const line of content.split(/\r?\n/)) {
+        const match = line.match(/^\s*prefix\s*=\s*(.+?)\s*$/);
+        if (match) {
+          prefixes.push(stripWrappingQuotes(match[1].trim()));
+        }
+      }
+    } catch {
+      // npmrc absent or unreadable — ignore.
+    }
+  }
+  return prefixes;
+}
+
+/**
+ * Resolves the directories that hold globally-installed npm CLI binaries.
+ * Covers custom prefixes from env vars and npmrc, plus the well-known
+ * "global install without sudo" locations. On Windows npm places shims
+ * directly in the prefix dir; on Unix they live in `<prefix>/bin`.
+ */
+function getNpmGlobalBinDirs(home: string): string[] {
+  const dirs: string[] = [];
+
+  const addPrefix = (prefix: string | undefined | null): void => {
+    const trimmed = (prefix ?? '').trim();
+    if (!trimmed) {
+      return;
+    }
+    const expanded = expandHomePath(stripWrappingQuotes(trimmed));
+    dirs.push(isWindows ? expanded : path.join(expanded, 'bin'));
+  };
+
+  // Explicit overrides win.
+  addPrefix(process.env.npm_config_prefix);
+  addPrefix(process.env.NPM_CONFIG_PREFIX);
+  addPrefix(process.env.PREFIX);
+
+  // Prefix declared in the user's npmrc files.
+  for (const prefix of readNpmrcPrefixes(home)) {
+    addPrefix(prefix);
+  }
+
+  // Conventional sudo-free global prefixes from the npm docs.
+  if (home) {
+    addPrefix(path.join(home, '.npm-global'));
+    addPrefix(path.join(home, '.npm-packages'));
+    addPrefix(path.join(home, '.node'));
+  }
+
+  return dirs;
 }
 
 /** GUI apps like Obsidian have minimal PATH, so we add common binary locations. */
@@ -123,6 +201,7 @@ function getExtraBinaryPaths(): string[] {
       paths.push(path.join(home, '.opencode', 'bin'));
     }
 
+    paths.push(...getNpmGlobalBinDirs(home));
     paths.push(...getAppProvidedCliPaths());
 
     return paths;
@@ -178,6 +257,7 @@ function getExtraBinaryPaths(): string[] {
       }
     }
 
+    paths.push(...getNpmGlobalBinDirs(home));
     paths.push(...getAppProvidedCliPaths());
 
     return paths;

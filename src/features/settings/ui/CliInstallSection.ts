@@ -7,7 +7,26 @@ import {
   getPreferredInstallCommand,
 } from '../../../core/install/cliInstallCatalog';
 import { CliInstaller, type InstallProgress } from '../../../core/install/CliInstaller';
+import type { ProviderId } from '../../../core/types/provider';
 import type ClaudianPlugin from '../../../main';
+
+/**
+ * Authoritative "is this CLI usable" check for the install list. Prefers the
+ * provider's own runtime resolver (so detection matches what actually launches,
+ * including a user-configured `cliPath` and modern/legacy binary names), and
+ * falls back to PATH-based catalog detection when no resolver is registered
+ * (e.g. the provider is disabled).
+ */
+function isProviderCliPresent(plugin: ClaudianPlugin, providerId: string): boolean {
+  try {
+    if (plugin.getResolvedProviderCliPath(providerId as ProviderId)) {
+      return true;
+    }
+  } catch {
+    // Resolver not registered yet — fall through to catalog detection.
+  }
+  return isCliInstalled(providerId);
+}
 
 /**
  * Settings section that lists every coding-agent CLI: shows whether it is
@@ -40,7 +59,7 @@ function renderRow(
   spec: CliInstallSpec,
   rerender: () => void,
 ): void {
-  const installed = isCliInstalled(spec.id);
+  const installed = isProviderCliPresent(plugin, spec.id);
   const platform = process.platform;
   const preferred = getPreferredInstallCommand(spec.id, platform);
 

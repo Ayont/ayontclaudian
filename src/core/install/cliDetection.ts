@@ -11,5 +11,6 @@ export function isCliInstalled(providerId: string, additionalPath?: string): boo
   if (!spec) {
     return false;
   }
-  return findCliBinaryPath(spec.binary, additionalPath) !== null;
+  const candidates = [spec.binary, ...(spec.binaryAliases ?? [])];
+  return candidates.some((binary) => findCliBinaryPath(binary, additionalPath) !== null);
 }
