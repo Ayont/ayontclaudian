@@ -4,7 +4,7 @@ import { parse as parseToml } from 'smol-toml';
 
 import { getRuntimeEnvironmentVariables } from '../../core/providers/providerEnvironment';
 import type { ProviderUIOption } from '../../core/providers/types';
-import { getKimiConfigPath } from './history/KimiSessionStore';
+import { getKimiConfigPaths } from './history/KimiSessionStore';
 import { getKimiProviderSettings } from './settings';
 import {
   DEFAULT_KIMI_CONTEXT_WINDOW,
@@ -12,6 +12,7 @@ import {
   DEFAULT_KIMI_MODELS,
   DEFAULT_KIMI_PRIMARY_MODEL,
   formatKimiModelLabel,
+  KNOWN_KIMI_MODELS,
 } from './types/models';
 
 /** A model discovered from `~/.kimi/config.toml` `[models.*]`. */
@@ -43,43 +44,60 @@ export function readKimiConfiguredModels(): {
   models: KimiConfiguredModel[];
   defaultModel: string | null;
 } {
-  let raw: string;
-  try {
-    raw = fs.readFileSync(getKimiConfigPath(), 'utf-8');
-  } catch {
-    return { models: [], defaultModel: null };
-  }
-
-  let parsed: Record<string, unknown> | null;
-  try {
-    parsed = toRecord(parseToml(raw));
-  } catch {
-    return { models: [], defaultModel: null };
-  }
-  if (!parsed) {
-    return { models: [], defaultModel: null };
-  }
-
   const models: KimiConfiguredModel[] = [];
-  const modelsTable = toRecord(parsed.models);
-  if (modelsTable) {
-    for (const [id, entry] of Object.entries(modelsTable)) {
-      const record = toRecord(entry);
-      if (!record) {
-        continue;
+  const seen = new Set<string>();
+  let defaultModel: string | null = null;
+
+  // Scan every known config location (modern `~/.kimi-code/`, legacy `~/.kimi/`)
+  // and merge their `[models.*]` tables. The first file that names a
+  // `default_model` wins. Missing or malformed files are skipped silently.
+  for (const configPath of getKimiConfigPaths()) {
+    let raw: string;
+    try {
+      raw = fs.readFileSync(configPath, 'utf-8');
+    } catch {
+      continue;
+    }
+
+    let parsed: Record<string, unknown> | null;
+    try {
+      parsed = toRecord(parseToml(raw));
+    } catch {
+      continue;
+    }
+    if (!parsed) {
+      continue;
+    }
+
+    const modelsTable = toRecord(parsed.models);
+    if (modelsTable) {
+      for (const [id, entry] of Object.entries(modelsTable)) {
+        if (seen.has(id)) {
+          continue;
+        }
+        const record = toRecord(entry);
+        if (!record) {
+          continue;
+        }
+        const displayName = typeof record.display_name === 'string' ? record.display_name.trim() : '';
+        seen.add(id);
+        models.push({
+          id,
+          label: displayName ? `Kimi · ${displayName}` : formatKimiModelLabel(id),
+          contextWindow: toContextWindow(record.max_context_size),
+        });
       }
-      const displayName = typeof record.display_name === 'string' ? record.display_name.trim() : '';
-      models.push({
-        id,
-        label: displayName ? `Kimi · ${displayName}` : formatKimiModelLabel(id),
-        contextWindow: toContextWindow(record.max_context_size),
-      });
+    }
+
+    if (!defaultModel) {
+      const candidate = typeof parsed.default_model === 'string' && parsed.default_model.trim()
+        ? parsed.default_model.trim()
+        : null;
+      if (candidate) {
+        defaultModel = candidate;
+      }
     }
   }
-
-  const defaultModel = typeof parsed.default_model === 'string' && parsed.default_model.trim()
-    ? parsed.default_model.trim()
-    : null;
 
   return { models, defaultModel };
 }
@@ -135,6 +153,16 @@ export function getKimiModelOptions(settings: Record<string, unknown>): Provider
     }
     seen.add(configured.id);
     models.push({ value: configured.id, label: configured.label, description: 'Configured' });
+  }
+
+  // Seed the rest of the documented Kimi/Moonshot catalog so every selectable
+  // model is offered, not just the managed alias from config.toml.
+  for (const known of KNOWN_KIMI_MODELS) {
+    if (seen.has(known.value)) {
+      continue;
+    }
+    seen.add(known.value);
+    models.push(known);
   }
 
   const envModel = getConfiguredEnvCustomModel(settings);
