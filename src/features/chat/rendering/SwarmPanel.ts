@@ -84,8 +84,13 @@ export class SwarmPanel {
   private isOpen = true;
   private renderScheduled = false;
   private readonly flashTimers = new Set<number>();
+  /** Live duration spans for running agents, keyed by agent id, ticked every 1s. */
+  private readonly liveDurations = new Map<string, { el: HTMLElement; startedAt: number }>();
+  private tickId: number | null = null;
+  private readonly now: () => number;
 
-  constructor(private readonly options: SwarmPanelOptions) {
+  constructor(private readonly options: SwarmPanelOptions, now: () => number = () => Date.now()) {
+    this.now = now;
     this.rootEl = options.mountEl.createDiv({ cls: 'claudian-swarm-panel claudian-hidden' });
 
     this.toggleEl = this.rootEl.createEl('button', { cls: 'claudian-swarm-toggle' });
@@ -144,8 +149,29 @@ export class SwarmPanel {
     this.applyOpenState();
 
     this.listEl.empty();
+    this.liveDurations.clear();
     for (const info of agents) {
       this.renderAgentRow(info);
+    }
+    this.syncTicker();
+  }
+
+  /** Runs a 1s ticker only while at least one agent has a live duration. */
+  private syncTicker(): void {
+    if (this.liveDurations.size > 0) {
+      if (this.tickId === null) {
+        this.tickId = window.setInterval(() => this.tickDurations(), 1000);
+      }
+    } else if (this.tickId !== null) {
+      window.clearInterval(this.tickId);
+      this.tickId = null;
+    }
+  }
+
+  private tickDurations(): void {
+    const now = this.now();
+    for (const { el, startedAt } of this.liveDurations.values()) {
+      el.setText(formatDuration(now - startedAt));
     }
   }
 
@@ -196,19 +222,25 @@ export class SwarmPanel {
         text: `${toolCount} tool${toolCount === 1 ? '' : 's'}`,
       });
     }
-    const duration = this.formatAgentDuration(info);
-    if (duration) {
-      meta.createSpan({ cls: 'claudian-swarm-agent-duration', text: duration });
+
+    if (isRunning(info) && info.startedAt !== undefined) {
+      // Live, ticking elapsed time so a long-running agent never looks stuck.
+      const durationEl = meta.createSpan({
+        cls: 'claudian-swarm-agent-duration is-live',
+        text: formatDuration(this.now() - info.startedAt),
+      });
+      this.liveDurations.set(info.id, { el: durationEl, startedAt: info.startedAt });
+    } else {
+      const duration = this.formatAgentDuration(info);
+      if (duration) {
+        meta.createSpan({ cls: 'claudian-swarm-agent-duration', text: duration });
+      }
     }
 
     row.addEventListener('click', () => this.focusSubagent(info.id));
   }
 
-  /**
-   * Total runtime for finished agents. Running agents intentionally show no
-   * timer — their activity line conveys liveness and a frozen number reads as
-   * stale (the panel only re-renders on activity, not every second).
-   */
+  /** Total runtime for finished agents (running agents tick live instead). */
   private formatAgentDuration(info: SubagentInfo): string | null {
     if (info.startedAt === undefined || info.completedAt === undefined) return null;
     return formatDuration(info.completedAt - info.startedAt);
@@ -233,6 +265,11 @@ export class SwarmPanel {
 
   public destroy(): void {
     this.unsubscribe();
+    if (this.tickId !== null) {
+      window.clearInterval(this.tickId);
+      this.tickId = null;
+    }
+    this.liveDurations.clear();
     for (const timer of this.flashTimers) {
       window.clearTimeout(timer);
     }

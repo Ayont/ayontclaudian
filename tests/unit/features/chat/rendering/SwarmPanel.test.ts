@@ -127,6 +127,20 @@ describe('SwarmPanel', () => {
     expect(duration.textContent).toBe('5s');
   });
 
+  it('shows a live, ticking duration for running agents', () => {
+    const fake = fakeManager(() => [
+      makeAgent({ id: 'a', status: 'running', startedAt: 1000 }),
+    ]);
+    const panel = new SwarmPanel(
+      { manager: fake.manager as never, mountEl, getMessagesEl: () => createMockEl('div') },
+      () => 13_000, // now: 12s after startedAt
+    );
+    const duration = mountEl.querySelector('.claudian-swarm-agent-duration');
+    expect(duration.hasClass('is-live')).toBe(true);
+    expect(duration.textContent).toBe('12s');
+    panel.destroy();
+  });
+
   it('toggles the list open/closed', () => {
     build([makeAgent({ id: 'a' })]);
     const root = mountEl.querySelector('.claudian-swarm-panel');
