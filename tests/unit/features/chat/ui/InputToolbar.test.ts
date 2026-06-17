@@ -1063,6 +1063,24 @@ describe('ContextUsageMeter', () => {
     const container = parentEl.querySelector('.claudian-context-meter');
     expect(container?.getAttribute('data-tooltip')).toBe('160k / 200k');
   });
+
+  it('should format million-scale token counts as M', () => {
+    meter.update(makeUsage({ contextTokens: 1_500_000, contextWindow: 1_000_000, percentage: 75 }));
+    const container = parentEl.querySelector('.claudian-context-meter');
+    expect(container?.getAttribute('data-tooltip')).toBe('1.5M / 1M');
+  });
+
+  it('should format sub-thousand token counts as fractional k', () => {
+    meter.update(makeUsage({ contextTokens: 1_500, contextWindow: 200_000, percentage: 1 }));
+    const container = parentEl.querySelector('.claudian-context-meter');
+    expect(container?.getAttribute('data-tooltip')).toBe('1.5k / 200k');
+  });
+
+  it('should prefix estimated percentage with ≈', () => {
+    meter.update(makeUsage({ contextTokens: 50000, contextWindow: 200000, percentage: 25, contextWindowIsAuthoritative: false }));
+    const percent = parentEl.querySelector('.claudian-context-meter-percent');
+    expect(percent?.textContent).toBe('≈25%');
+  });
 });
 
 describe('McpServerSelector - toggle and badges', () => {

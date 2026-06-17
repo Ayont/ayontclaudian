@@ -1494,13 +1494,13 @@ export class ContextUsageMeter {
     }
 
     // Providers that report no token counts (Kimi, Antigravity) send an
-    // estimated usage; signal that with a leading "~" and a tooltip note so the
+    // estimated usage; signal that with a leading "≈" and a tooltip note so the
     // meter isn't mistaken for an exact provider-reported figure.
     const approximate = usage.contextWindowIsAuthoritative === false;
     this.container.toggleClass('estimated', approximate);
 
     if (this.percentEl) {
-      this.percentEl.setText(`${approximate ? '~' : ''}${usage.percentage}%`);
+      this.percentEl.setText(`${approximate ? '≈' : ''}${usage.percentage}%`);
     }
 
     // Toggle warning class for > 80%
@@ -1519,10 +1519,19 @@ export class ContextUsageMeter {
   }
 
   private formatTokens(tokens: number): string {
-    if (tokens >= 1000) {
-      return `${Math.round(tokens / 1000)}k`;
+    if (!Number.isFinite(tokens) || tokens < 0) {
+      return '0';
     }
-    return String(tokens);
+    if (tokens >= 1_000_000_000) {
+      return `${(tokens / 1_000_000_000).toFixed(1).replace(/\.0$/, '')}B`;
+    }
+    if (tokens >= 1_000_000) {
+      return `${(tokens / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+    }
+    if (tokens >= 1_000) {
+      return `${(tokens / 1_000).toFixed(1).replace(/\.0$/, '')}k`;
+    }
+    return String(Math.round(tokens));
   }
 }
 

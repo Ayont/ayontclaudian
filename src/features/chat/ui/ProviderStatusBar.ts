@@ -118,7 +118,7 @@ export class ProviderStatusBar {
 
     if (this.pctEl) {
       if (status.percentage !== null) {
-        this.pctEl.setText(`${status.estimated ? '~' : ''}${status.percentage}%`);
+        this.pctEl.setText(`${status.estimated ? '≈' : ''}${status.percentage}%`);
         this.pctEl.toggleClass('claudian-hidden', false);
         this.pctEl.toggleClass('is-warning', status.percentage > 80);
       } else {
