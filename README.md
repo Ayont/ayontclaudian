@@ -6,7 +6,7 @@
 ![GitHub release](https://img.shields.io/github/v/release/Ayont/ayontclaudian)
 ![License](https://img.shields.io/github/license/Ayont/ayontclaudian)
 
-![ayontclaudian Preview](assets/Preview.png)
+![ayontclaudian hero banner](assets/ayontclaudian-hero.png)
 
 **AI coding agents inside your Obsidian vault.**  
 Claude Code, Codex, Antigravity, Kimi, Vibe (Mistral), Grok (xAI), Opencode, Pi — unified behind one model picker, one chat sidebar, and one workflow.
