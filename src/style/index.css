@@ -19,6 +19,7 @@
 @import "./components/status-panel.css";
 @import "./components/statusbar.css";
 @import "./components/subagent.css";
+@import "./components/swarm-panel.css";
 @import "./components/input.css";
 @import "./components/context-footer.css";
 
@@ -43,6 +44,7 @@
 @import "./features/resume-session.css";
 @import "./features/ask-user-question.css";
 @import "./features/plan-mode.css";
+@import "./features/status-card.css";
 
 /* Modals */
 @import "./modals/instruction.css";
@@ -58,6 +60,7 @@
 @import "./settings/agent-settings.css";
 @import "./settings/provider-model-picker.css";
 @import "./settings/cli-install.css";
+@import "./settings/kimi-features.css";
 
 /* Accessibility */
 @import "./accessibility.css";

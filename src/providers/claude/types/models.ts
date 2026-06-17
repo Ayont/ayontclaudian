@@ -24,14 +24,17 @@ export const DEFAULT_CLAUDE_MODELS: { value: ClaudeModel; label: string; descrip
  */
 export type EffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultracode';
 
-export const EFFORT_LEVELS: { value: EffortLevel; label: string }[] = [
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Med' },
-  { value: 'high', label: 'High' },
-  { value: 'xhigh', label: 'XHigh' },
-  { value: 'max', label: 'Max' },
-  { value: 'ultracode', label: 'Ultracode' },
+export const EFFORT_LEVELS: { value: EffortLevel; label: string; description: string }[] = [
+  { value: 'low', label: 'Low', description: 'Effizient — Token-sparend, kurze Aufgaben' },
+  { value: 'medium', label: 'Med', description: 'Ausgewogen — moderate Einsparung' },
+  { value: 'high', label: 'High', description: 'Standard — komplexes Reasoning & Agentic' },
+  { value: 'xhigh', label: 'XHigh', description: 'Erweitert — lange Coding-Läufe (>30 Min)' },
+  { value: 'max', label: 'Max', description: 'Maximum — kein Token-Limit, tiefstes Reasoning' },
+  { value: 'ultracode', label: 'Ultracode', description: 'XHigh + automatische Multi-Agent-Workflows (Session)' },
 ];
+
+/** Effort levels that are session-only (not persisted) — surfaced in the UI. */
+export const SESSION_ONLY_EFFORT_LEVELS = new Set<EffortLevel>(['max', 'ultracode']);
 
 /** Default effort level per model tier. */
 export const DEFAULT_EFFORT_LEVEL: Record<string, EffortLevel> = {

@@ -44,7 +44,7 @@ export const claudeChatUIConfig: ProviderChatUIConfig = {
     const levels = supportsXHighEffort(model)
       ? EFFORT_LEVELS
       : EFFORT_LEVELS.filter(e => e.value !== 'xhigh' && e.value !== 'ultracode');
-    return levels.map(e => ({ value: e.value, label: e.label }));
+    return levels.map(e => ({ value: e.value, label: e.label, description: e.description }));
   },
 
   getDefaultReasoningValue(model: string, _settings: Record<string, unknown>): string {

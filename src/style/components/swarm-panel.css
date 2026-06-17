@@ -1,0 +1,322 @@
+/* Swarm panel: floating overview of all subagents in the conversation.
+   Rendered by src/features/chat/rendering/SwarmPanel.ts, mounted inside
+   .claudian-messages-wrapper. */
+
+.claudian-messages-wrapper {
+  position: relative;
+}
+
+.claudian-swarm-panel {
+  position: absolute;
+  top: var(--cl-space-2);
+  inset-inline-end: var(--cl-space-2);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  width: min(340px, calc(100% - var(--cl-space-4)));
+  background: color-mix(in srgb, var(--background-secondary) 92%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: var(--cl-radius-lg, 12px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32);
+  overflow: hidden;
+  font-family: var(--cl-font-mono);
+  transition: box-shadow var(--duration-fast, 150ms) ease, border-color var(--duration-fast, 150ms) ease;
+}
+
+/* A running swarm gets an accent-tinted border + glow to draw the eye. */
+.claudian-swarm-panel.has-running {
+  border-color: color-mix(in srgb, var(--cl-accent) 45%, var(--cl-border-subtle));
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32),
+    0 0 0 1px color-mix(in srgb, var(--cl-accent) 30%, transparent);
+}
+
+/* Toggle / header bar -------------------------------------------------- */
+
+.claudian-swarm-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--cl-space-2);
+  width: 100%;
+  padding: var(--cl-space-2) var(--cl-space-3);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  cursor: pointer;
+  color: var(--text-normal);
+  font-family: inherit;
+  font-size: var(--cl-text-sm);
+  text-align: start;
+}
+
+.claudian-swarm-toggle:hover {
+  background: var(--background-modifier-hover);
+}
+
+.claudian-swarm-toggle-icon {
+  display: flex;
+  align-items: center;
+  color: var(--cl-accent);
+  flex-shrink: 0;
+}
+
+.claudian-swarm-toggle-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.claudian-swarm-toggle-label {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.claudian-swarm-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: var(--cl-text-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition: background var(--duration-fast, 150ms) ease, color var(--duration-fast, 150ms) ease;
+}
+
+/* When something is running the count lights up in the accent. */
+.claudian-swarm-panel.has-running .claudian-swarm-count {
+  background: var(--cl-accent);
+  color: var(--text-on-accent, #fff);
+}
+
+.claudian-swarm-panel.has-running .claudian-swarm-toggle {
+  background: color-mix(in srgb, var(--cl-accent) 8%, transparent);
+}
+
+.claudian-swarm-chevron {
+  display: flex;
+  align-items: center;
+  margin-inline-start: auto;
+  color: var(--text-muted);
+  transform: rotate(-90deg);
+  transition: transform var(--duration-fast, 150ms) ease;
+}
+
+.claudian-swarm-chevron svg {
+  width: 14px;
+  height: 14px;
+}
+
+.claudian-swarm-panel.is-open .claudian-swarm-chevron {
+  transform: rotate(0deg);
+}
+
+/* A running swarm gently pulses the header icon so it draws the eye. */
+.claudian-swarm-panel.has-running .claudian-swarm-toggle-icon {
+  animation: claudian-swarm-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes claudian-swarm-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Agent list ----------------------------------------------------------- */
+
+.claudian-swarm-list {
+  display: none;
+  flex-direction: column;
+  max-height: 320px;
+  overflow-y: auto;
+  border-top: 1px solid var(--cl-border-subtle);
+}
+
+.claudian-swarm-panel.is-open .claudian-swarm-list {
+  display: flex;
+}
+
+.claudian-swarm-agent {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cl-space-2);
+  width: 100%;
+  padding: var(--cl-space-2) var(--cl-space-3);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--cl-border-subtle);
+  box-shadow: none;
+  cursor: pointer;
+  text-align: start;
+  color: var(--text-normal);
+  font-family: inherit;
+}
+
+.claudian-swarm-agent:last-child {
+  border-bottom: none;
+}
+
+.claudian-swarm-agent:hover {
+  background: var(--background-modifier-hover);
+}
+
+.claudian-swarm-agent-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--background-modifier-border);
+}
+
+.claudian-swarm-agent-status svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* Status pills: a tinted circle behind the icon reads as a clear state chip. */
+.claudian-swarm-agent.status-running .claudian-swarm-agent-status {
+  color: var(--cl-accent);
+  background: color-mix(in srgb, var(--cl-accent) 18%, transparent);
+}
+.claudian-swarm-agent.status-pending .claudian-swarm-agent-status { color: var(--text-muted); }
+.claudian-swarm-agent.status-completed .claudian-swarm-agent-status {
+  color: var(--color-green);
+  background: color-mix(in srgb, var(--color-green) 18%, transparent);
+}
+.claudian-swarm-agent.status-error .claudian-swarm-agent-status {
+  color: var(--color-red);
+  background: color-mix(in srgb, var(--color-red) 18%, transparent);
+}
+.claudian-swarm-agent.status-orphaned .claudian-swarm-agent-status {
+  color: var(--color-orange);
+  background: color-mix(in srgb, var(--color-orange) 18%, transparent);
+}
+
+.claudian-swarm-agent.status-running .claudian-swarm-agent-status svg {
+  animation: spin 1s linear infinite;
+}
+
+.claudian-swarm-agent-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.claudian-swarm-agent-name-row {
+  display: flex;
+  align-items: center;
+  gap: var(--cl-space-2);
+  min-width: 0;
+}
+
+.claudian-swarm-agent-name {
+  font-size: var(--cl-text-sm);
+  font-weight: 500;
+  color: var(--text-normal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.claudian-swarm-agent-mode {
+  flex-shrink: 0;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.claudian-swarm-agent-mode.mode-async {
+  background: color-mix(in srgb, var(--cl-accent) 22%, transparent);
+  color: var(--cl-accent);
+}
+
+.claudian-swarm-agent-activity {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--cl-text-xs);
+}
+
+.claudian-swarm-agent-activity-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.claudian-swarm-agent-activity-icon svg {
+  width: 11px;
+  height: 11px;
+}
+
+.claudian-swarm-agent-activity-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.claudian-swarm-agent-activity-text.is-muted {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.claudian-swarm-agent-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+  color: var(--text-faint);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.claudian-swarm-agent-tools {
+  padding: 0 5px;
+  border-radius: var(--cl-radius-sm, 4px);
+  background: var(--background-modifier-border);
+  color: var(--text-muted);
+}
+
+/* Live, ticking elapsed time for a running agent. */
+.claudian-swarm-agent-duration.is-live {
+  color: var(--cl-accent);
+  font-weight: 600;
+}
+
+.claudian-swarm-agent-duration.is-live::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-inline-end: 4px;
+  border-radius: 50%;
+  background: var(--cl-accent);
+  vertical-align: middle;
+  animation: claudian-swarm-pulse 1.4s ease-in-out infinite;
+}
+
+/* Flash highlight on the inline transcript block when an agent is focused. */
+.claudian-swarm-flash {
+  animation: claudian-swarm-flash 1.6s ease-out;
+  border-radius: var(--cl-radius-md, 8px);
+}
+
+@keyframes claudian-swarm-flash {
+  0% { box-shadow: 0 0 0 2px var(--cl-accent); background: color-mix(in srgb, var(--cl-accent) 14%, transparent); }
+  100% { box-shadow: 0 0 0 0 transparent; background: transparent; }
+}

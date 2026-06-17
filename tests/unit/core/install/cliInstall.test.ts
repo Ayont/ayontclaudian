@@ -18,6 +18,12 @@ describe('cliInstallCatalog', () => {
     expect(getCliInstallSpec('does-not-exist')).toBeNull();
   });
 
+  it('detects Kimi under its modern binary plus legacy aliases', () => {
+    const spec = getCliInstallSpec('kimi');
+    expect(spec?.binary).toBe('kimi-cli');
+    expect(spec?.binaryAliases).toEqual(expect.arrayContaining(['kimi', 'kimi-legacy']));
+  });
+
   it('offers the installer script first on macOS for Vibe, uv on Windows', () => {
     expect(getInstallMethods('vibe', 'darwin')[0].command).toBe(
       'curl -LsSf https://mistral.ai/vibe/install.sh | bash',

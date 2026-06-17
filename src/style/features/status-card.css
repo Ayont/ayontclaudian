@@ -1,0 +1,176 @@
+/* Status card: designed error / warning / info messages in the transcript.
+   Rendered by src/features/chat/rendering/StatusCardRenderer.ts. Replaces the
+   bare red "❌ Error: …" line. */
+
+.claudian-status-card {
+  --cl-status-accent: var(--color-red, #e93147);
+  --cl-status-rgb: var(--color-red-rgb, 233, 49, 71);
+  margin: var(--cl-space-3) 0;
+  padding: var(--cl-space-3) var(--cl-space-4);
+  border-radius: var(--cl-radius-md);
+  border: 1px solid rgba(var(--cl-status-rgb), 0.28);
+  border-inline-start: 3px solid var(--cl-status-accent);
+  background: rgba(var(--cl-status-rgb), 0.06);
+  animation: claudian-status-card-in var(--duration-normal, 300ms) var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+.claudian-status-card--error {
+  --cl-status-accent: var(--color-red, #e93147);
+  --cl-status-rgb: var(--color-red-rgb, 233, 49, 71);
+}
+
+.claudian-status-card--warning {
+  --cl-status-accent: var(--color-orange, #e08540);
+  --cl-status-rgb: var(--color-orange-rgb, 224, 133, 64);
+}
+
+.claudian-status-card--info {
+  --cl-status-accent: var(--cl-accent, var(--interactive-accent));
+  --cl-status-rgb: var(--cl-accent-rgb, 137, 87, 229);
+}
+
+@keyframes claudian-status-card-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-status-card { animation: none; }
+}
+
+/* Header ---------------------------------------------------------------- */
+
+.claudian-status-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--cl-space-2);
+}
+
+.claudian-status-card-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--cl-status-accent);
+}
+
+.claudian-status-card-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.claudian-status-card-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--cl-space-2);
+  min-width: 0;
+  flex: 1;
+}
+
+.claudian-status-card-title {
+  font-size: var(--cl-text-lg);
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.claudian-status-card-badge {
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: var(--cl-radius-pill);
+  font-size: var(--cl-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--cl-status-accent);
+  background: rgba(var(--cl-status-rgb), 0.16);
+}
+
+/* Body ------------------------------------------------------------------ */
+
+.claudian-status-card-explanation {
+  margin: var(--cl-space-2) 0 0;
+  font-size: var(--cl-text-md);
+  line-height: var(--cl-leading);
+  color: var(--text-normal);
+}
+
+.claudian-status-card-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: var(--cl-space-2);
+  font-size: var(--cl-text-sm);
+  color: var(--text-muted);
+}
+
+.claudian-status-card-hint-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--cl-status-accent);
+}
+
+.claudian-status-card-hint-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.claudian-status-card-hint-text {
+  min-width: 0;
+}
+
+/* Raw details disclosure ------------------------------------------------ */
+
+.claudian-status-card-raw {
+  margin-top: var(--cl-space-2);
+}
+
+.claudian-status-card-raw-summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--cl-text-xs);
+  color: var(--text-muted);
+  user-select: none;
+  padding: 2px 0;
+}
+
+.claudian-status-card-raw-summary::-webkit-details-marker {
+  display: none;
+}
+
+.claudian-status-card-raw-summary::before {
+  content: '›';
+  display: inline-block;
+  margin-inline-end: 6px;
+  transition: transform var(--duration-fast, 150ms) ease;
+}
+
+.claudian-status-card-raw[open] .claudian-status-card-raw-summary::before {
+  transform: rotate(90deg);
+}
+
+.claudian-status-card-raw-summary:hover {
+  color: var(--text-normal);
+}
+
+.claudian-status-card-raw-summary:focus-visible {
+  outline: 2px solid var(--cl-status-accent);
+  outline-offset: 2px;
+  border-radius: var(--cl-radius-xs);
+}
+
+.claudian-status-card-raw-body {
+  margin: var(--cl-space-2) 0 0;
+  padding: var(--cl-space-2) var(--cl-space-3);
+  border-radius: var(--cl-radius-sm);
+  background: var(--background-primary);
+  border: 1px solid var(--cl-border-subtle);
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-sm);
+  line-height: 1.5;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+}

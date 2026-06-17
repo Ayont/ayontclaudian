@@ -10,14 +10,19 @@ import {
 import { KIMI_PROVIDER_ID } from '@/providers/kimi/settings';
 import { DEFAULT_KIMI_PRIMARY_MODEL } from '@/providers/kimi/types/models';
 
-// Point KIMI_HOME at an empty temp dir so `~/.kimi/config.toml` is absent and
-// the tests are deterministic regardless of the developer's real config.
+// Point KIMI_HOME / KIMI_CODE_HOME at empty temp dirs so neither
+// `~/.kimi/config.toml` nor `~/.kimi-code/config.toml` is present and the tests
+// are deterministic regardless of the developer's real config.
 const ISOLATED_KIMI_HOME = path.join(os.tmpdir(), 'kimi-modeloptions-test-home-does-not-exist');
+const ISOLATED_KIMI_CODE_HOME = path.join(os.tmpdir(), 'kimi-code-modeloptions-test-home-does-not-exist');
 let originalKimiHome: string | undefined;
+let originalKimiCodeHome: string | undefined;
 
 beforeAll(() => {
   originalKimiHome = process.env.KIMI_HOME;
+  originalKimiCodeHome = process.env.KIMI_CODE_HOME;
   process.env.KIMI_HOME = ISOLATED_KIMI_HOME;
+  process.env.KIMI_CODE_HOME = ISOLATED_KIMI_CODE_HOME;
 });
 
 afterAll(() => {
@@ -25,6 +30,11 @@ afterAll(() => {
     delete process.env.KIMI_HOME;
   } else {
     process.env.KIMI_HOME = originalKimiHome;
+  }
+  if (originalKimiCodeHome === undefined) {
+    delete process.env.KIMI_CODE_HOME;
+  } else {
+    process.env.KIMI_CODE_HOME = originalKimiCodeHome;
   }
 });
 
@@ -59,6 +69,13 @@ describe('getKimiModelOptions', () => {
     expect(values).toContain('kimi-air');
     // The default appears exactly once even though customModels repeats it.
     expect(values.filter((value) => value === DEFAULT_KIMI_PRIMARY_MODEL)).toHaveLength(1);
+  });
+
+  it('seeds the documented Kimi/Moonshot model catalog', () => {
+    const values = getKimiModelOptions(settingsWith({})).map((option) => option.value);
+    expect(values).toContain('kimi-k2.6');
+    expect(values).toContain('kimi-k2-thinking');
+    expect(values).toContain('moonshot-v1-128k');
   });
 
   it('surfaces an env KIMI_MODEL as a custom option at the front', () => {

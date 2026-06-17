@@ -28,6 +28,9 @@
 
 /* Current selection (visible when collapsed) */
 .claudian-thinking-current {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 2px var(--cl-space-2);
   font-family: var(--cl-font-ui);
   font-size: var(--cl-text-xs);
@@ -40,6 +43,42 @@
   background: transparent;
   transition: background var(--cl-dur-fast) var(--cl-ease),
     border-color var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-thinking-current-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.claudian-thinking-current-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.claudian-thinking-current-badge {
+  padding: 0 5px;
+  border-radius: var(--cl-radius-pill);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: color-mix(in srgb, var(--cl-accent) 24%, transparent);
+  color: var(--cl-accent);
+}
+
+/* Ultracode active: a distinct purple-gradient pill with a soft glow so the
+   multi-agent workflow mode is unmistakable in the toolbar. */
+.claudian-thinking-gears.is-ultracode .claudian-thinking-current {
+  color: #fff;
+  background: linear-gradient(135deg, #B754F4, #FC00FF);
+  border-color: transparent;
+  box-shadow: 0 0 0 1px color-mix(in srgb, #B754F4 50%, transparent),
+    0 2px 10px color-mix(in srgb, #FC00FF 35%, transparent);
+}
+
+.claudian-thinking-gears.is-ultracode .claudian-thinking-current-badge {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
 }
 
 .claudian-thinking-gears:hover .claudian-thinking-current,
@@ -110,4 +149,65 @@
   background: var(--cl-accent-soft);
   color: var(--cl-accent);
   font-weight: 500;
+}
+
+/* Two-line gear: label row + muted description, so each effort level explains
+   itself in the dropdown. */
+.claudian-thinking-options .claudian-thinking-gear {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 168px;
+  max-width: 240px;
+  white-space: normal;
+}
+
+.claudian-thinking-gear-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.claudian-thinking-gear-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.claudian-thinking-gear-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.claudian-thinking-gear-label {
+  font-weight: 600;
+}
+
+.claudian-thinking-gear-desc {
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--text-faint);
+}
+
+.claudian-thinking-gear:hover .claudian-thinking-gear-desc,
+.claudian-thinking-gear.selected .claudian-thinking-gear-desc {
+  color: var(--text-muted);
+}
+
+/* Ultracode option stands out as the multi-agent mode. */
+.claudian-thinking-gear.is-ultracode .claudian-thinking-gear-icon {
+  color: #B754F4;
+}
+
+.claudian-thinking-gear.is-ultracode:hover {
+  background: linear-gradient(135deg,
+    color-mix(in srgb, #B754F4 18%, transparent),
+    color-mix(in srgb, #FC00FF 18%, transparent));
+  color: var(--text-normal);
+}
+
+.claudian-thinking-gear.is-ultracode.selected {
+  background: linear-gradient(135deg,
+    color-mix(in srgb, #B754F4 26%, transparent),
+    color-mix(in srgb, #FC00FF 26%, transparent));
+  color: var(--text-normal);
 }

@@ -107,7 +107,11 @@ export class KimiChatRuntime implements ChatRuntime {
       return;
     }
     const state = getKimiState(conversation.providerState);
-    this.sessionId = state.sessionId ?? conversation.sessionId ?? null;
+    // Only resume Kimi's OWN session (from providerState). Never fall back to
+    // the shared conversation.sessionId — after switching providers mid-chat it
+    // holds another provider's id, which kimi-cli would reject. No own session
+    // → start fresh.
+    this.sessionId = state.sessionId ?? null;
     this.sessionInvalidated = false;
   }
 
@@ -228,6 +232,21 @@ export class KimiChatRuntime implements ChatRuntime {
     const pendingChunks: StreamChunk[] = [];
     let toolResultIndex = 0;
 
+    // Live pump: stdout 'data' events parse complete JSON lines into chunks and
+    // wake the generator loop below, which yields each chunk to the chat UI the
+    // moment it arrives. Previously all chunks were buffered and only yielded
+    // after the process exited, so kimi output appeared all at once at the end.
+    let finished = false;
+    let exitInfo: { code: number | null; error?: Error } = { code: null };
+    let wake: (() => void) | null = null;
+    const signal = (): void => {
+      if (wake) {
+        const resume = wake;
+        wake = null;
+        resume();
+      }
+    };
+
     const drainCompleteLines = (): void => {
       let newlineIndex = stdoutBuffer.indexOf('\n');
       while (newlineIndex !== -1) {
@@ -236,6 +255,7 @@ export class KimiChatRuntime implements ChatRuntime {
         this.consumeLine(line, streamState, pendingChunks, () => toolResultIndex++);
         newlineIndex = stdoutBuffer.indexOf('\n');
       }
+      signal();
     };
 
     proc.stdout.on('data', (chunk: Buffer | string) => {
@@ -246,41 +266,53 @@ export class KimiChatRuntime implements ChatRuntime {
       stderr += typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
     });
 
-    const exitPromise = new Promise<{ code: number | null; error?: Error }>((resolve) => {
-      proc.on('error', (error) => resolve({ code: null, error }));
-      proc.on('close', (code) => resolve({ code }));
-    });
-
-    try {
-      const exited = await exitPromise;
-
+    const onExit = (info: { code: number | null; error?: Error }): void => {
       // Flush any trailing partial line that arrived without a newline.
       if (stdoutBuffer.trim()) {
         this.consumeLine(stdoutBuffer, streamState, pendingChunks, () => toolResultIndex++);
         stdoutBuffer = '';
       }
+      exitInfo = info;
+      finished = true;
+      signal();
+    };
+    proc.on('error', (error) => onExit({ code: null, error }));
+    proc.on('close', (code) => onExit({ code }));
 
-      let responseText = '';
-      for (const chunk of pendingChunks) {
-        if ((chunk.type === 'text' || chunk.type === 'thinking') && typeof chunk.content === 'string') {
-          responseText += chunk.content;
+    let responseText = '';
+    try {
+      // Drain all available chunks, then sleep until the next 'data'/'close'
+      // wakes us. The single-threaded model guarantees no lost wakeup: chunks
+      // are always fully drained before we install `wake`, and `close` always
+      // fires eventually to release a final wait.
+      while (true) {
+        while (pendingChunks.length > 0) {
+          const chunk = pendingChunks.shift() as StreamChunk;
+          if ((chunk.type === 'text' || chunk.type === 'thinking') && typeof chunk.content === 'string') {
+            responseText += chunk.content;
+          }
+          yield chunk;
         }
-        yield chunk;
+        if (finished) {
+          break;
+        }
+        await new Promise<void>((resolve) => {
+          wake = resolve;
+        });
       }
-      pendingChunks.length = 0;
 
       this.recoverSessionId(stderr);
 
-      if (exited.error) {
-        yield { type: 'error', content: this.formatError(exited.error.message, stderr) };
+      if (exitInfo.error) {
+        yield { type: 'error', content: this.formatError(exitInfo.error.message, stderr) };
         yield { type: 'done' };
         return;
       }
 
-      if (exited.code !== 0 && exited.code !== null) {
+      if (exitInfo.code !== 0 && exitInfo.code !== null) {
         yield {
           type: 'error',
-          content: this.formatError(`kimi-cli exited with code ${exited.code}`, stderr),
+          content: this.formatError(`kimi-cli exited with code ${exitInfo.code}`, stderr),
         };
         yield { type: 'done' };
         return;
@@ -394,7 +426,6 @@ export class KimiChatRuntime implements ChatRuntime {
     return (
       this.sessionId
       ?? getKimiState(conversation?.providerState).sessionId
-      ?? conversation?.sessionId
       ?? null
     );
   }

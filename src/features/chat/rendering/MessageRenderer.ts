@@ -20,6 +20,8 @@ import { processFileLinks, registerFileLinkHandler } from '../../../utils/fileLi
 import { replaceImageEmbedsWithHtml } from '../../../utils/imageEmbed';
 import { escapeMathDelimitersForStreaming } from '../../../utils/markdownMath';
 import { findRewindContext } from '../rewind';
+import { detectStatusCard } from './errorClassification';
+import { renderStatusCard } from './StatusCardRenderer';
 import { resolveSubagentLifecycleAdapter } from './subagentLifecycleResolution';
 import {
   renderStoredAsyncSubagent,
@@ -699,6 +701,15 @@ export class MessageRenderer {
     options?: RenderContentOptions
   ): Promise<void> {
     el.empty();
+
+    // Error/notice marker blocks render as a designed status card (clear title,
+    // explanation, actionable hint, collapsible raw details) instead of a bare
+    // red line. Same path serves live streaming and reloaded history.
+    const statusCard = detectStatusCard(markdown);
+    if (statusCard) {
+      renderStatusCard(el, statusCard);
+      return;
+    }
 
     try {
       const renderMarkdown = options?.deferMath

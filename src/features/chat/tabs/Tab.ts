@@ -36,6 +36,7 @@ import { NavigationController } from '../controllers/NavigationController';
 import { SelectionController } from '../controllers/SelectionController';
 import { StreamController } from '../controllers/StreamController';
 import { MessageRenderer } from '../rendering/MessageRenderer';
+import { SwarmPanel } from '../rendering/SwarmPanel';
 import { cleanupThinkingBlock } from '../rendering/ThinkingBlockRenderer';
 import { findRewindContext } from '../rewind';
 import { BangBashService } from '../services/BangBashService';
@@ -126,6 +127,26 @@ function getTabCapabilities(
   }
 
   return ProviderRegistry.getCapabilities(providerId);
+}
+
+/**
+ * Builds the "what is running right now" label shown in the live status bar
+ * while a turn streams — the in-Obsidian analog of the CLI status line that
+ * surfaces the active agent. Combines the provider display name with the
+ * selected model (e.g. "Kimi · K2.7 Code"). Never throws; returns null when
+ * nothing useful is known, so the bar keeps its default label.
+ */
+function buildRunContextLabel(tab: TabData, plugin: ClaudianPlugin): string | null {
+  try {
+    const providerName = ProviderRegistry.getProviderDisplayName(getTabProviderId(tab, plugin));
+    const modelLabel = tab.ui.modelSelector?.getCurrentModelLabel() ?? null;
+    if (providerName && modelLabel) {
+      return `${providerName} · ${modelLabel}`;
+    }
+    return providerName || modelLabel || null;
+  } catch {
+    return null;
+  }
 }
 
 function getTabChatUIConfig(
@@ -513,9 +534,18 @@ export function createTab(options: TabCreateOptions): TabData {
   // Live "working" status bar above the composer; driven by streaming state so
   // every provider shows continuous feedback (with an elapsed timer).
   let streamStatusBar: StreamStatusBar | null = null;
+  // Set once the tab object exists; lets the status bar show the active
+  // provider/model ("what is running") instead of a generic label.
+  let getRunContextLabel: (() => string | null) | null = null;
   const state = new ChatState({
     onStreamingStateChanged: (isStreaming: boolean) => {
       streamStatusBar?.setStreaming(isStreaming);
+      if (isStreaming && streamStatusBar && getRunContextLabel) {
+        const label = getRunContextLabel();
+        if (label) {
+          streamStatusBar.setLabel(label);
+        }
+      }
       onStreamingChanged?.(isStreaming);
     },
     onAttentionChanged: onAttentionChanged,
@@ -532,6 +562,15 @@ export function createTab(options: TabCreateOptions): TabData {
   state.queueIndicatorEl = dom.queueIndicatorEl;
 
   streamStatusBar = new StreamStatusBar(dom.inputContainerEl);
+
+  // Floating swarm overview: lists every subagent (sync + async) spawned this
+  // conversation, its live status / current tool, and jumps to its inline block
+  // on click. Hidden until the first subagent appears.
+  const swarmPanel = new SwarmPanel({
+    manager: subagentManager,
+    mountEl: dom.messagesEl.parentElement ?? dom.messagesEl,
+    getMessagesEl: () => dom.messagesEl,
+  });
 
   const isBound = !!conversation?.id;
   const restoredDraftModel = typeof options.draftModel === 'string'
@@ -585,10 +624,15 @@ export function createTab(options: TabCreateOptions): TabData {
       statusPanel: null,
       navigationSidebar: null,
       streamStatusBar,
+      swarmPanel,
     },
     dom,
     renderer: null,
   };
+
+  // Now that `tab` exists, let the live status bar report the active
+  // provider + model while a turn is streaming.
+  getRunContextLabel = () => buildRunContextLabel(tab, plugin);
 
   return tab;
 }
@@ -1758,6 +1802,8 @@ export async function destroyTab(tab: TabData): Promise<void> {
   tab.ui.statusPanel = null;
   tab.ui.navigationSidebar?.destroy();
   tab.ui.navigationSidebar = null;
+  tab.ui.swarmPanel?.destroy();
+  tab.ui.swarmPanel = null;
   // Closes the model dropdown and removes its document-level dismiss listeners
   // (pointerdown/keydown), preventing a leak if a tab is closed while open.
   tab.ui.modelSelector?.destroy();

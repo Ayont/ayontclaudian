@@ -11,6 +11,7 @@ import type { NavigationController } from '../controllers/NavigationController';
 import type { SelectionController } from '../controllers/SelectionController';
 import type { StreamController } from '../controllers/StreamController';
 import type { MessageRenderer } from '../rendering/MessageRenderer';
+import type { SwarmPanel } from '../rendering/SwarmPanel';
 import type { SubagentManager } from '../services/SubagentManager';
 import type { ChatState } from '../state/ChatState';
 import type { BangBashModeManager } from '../ui/BangBashModeManager';
@@ -128,6 +129,7 @@ export interface TabUIComponents {
   statusPanel: StatusPanel | null;
   navigationSidebar: NavigationSidebar | null;
   streamStatusBar: StreamStatusBar | null;
+  swarmPanel: SwarmPanel | null;
 }
 
 /**

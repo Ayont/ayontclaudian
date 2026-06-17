@@ -371,6 +371,9 @@ jest.mock('@/features/chat/services/SubagentManager', () => ({
     orphanAllActive: jest.fn(),
     setCallback: jest.fn(),
     clear: jest.fn(),
+    onSwarmChange: jest.fn().mockReturnValue(() => {}),
+    getAllSubagents: jest.fn().mockReturnValue([]),
+    getSubagentById: jest.fn(),
   })),
 }));
 

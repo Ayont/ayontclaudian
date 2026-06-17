@@ -26,6 +26,12 @@ export interface CliInstallSpec {
   displayName: string;
   /** Binary name to detect via PATH (findCliBinaryPath). */
   binary: string;
+  /**
+   * Alternate binary names to also probe during detection (e.g. a CLI that
+   * installs under both a modern and a legacy command name). The primary
+   * `binary` is checked first, then these in order.
+   */
+  binaryAliases?: string[];
   /** Official install / setup documentation. */
   docsUrl: string;
   /** Per-platform install methods (first is preferred). `default` is the fallback. */
@@ -107,7 +113,10 @@ export const CLI_INSTALL_CATALOG: Record<string, CliInstallSpec> = {
   kimi: {
     id: 'kimi',
     displayName: 'Kimi CLI',
-    binary: 'kimi',
+    // uv installs `kimi-cli` (+ `kimi-legacy`); the new kimi-code build and the
+    // npm package ship `kimi`. Probe all three so an existing install is found.
+    binary: 'kimi-cli',
+    binaryAliases: ['kimi', 'kimi-legacy'],
     docsUrl: 'https://github.com/MoonshotAI/kimi-cli',
     methods: { default: [{ label: 'uv tool', command: 'uv tool install kimi-cli' }] },
   },

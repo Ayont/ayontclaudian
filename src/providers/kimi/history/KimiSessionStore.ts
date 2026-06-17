@@ -17,6 +17,7 @@ import * as path from 'node:path';
  */
 
 const KIMI_DATA_SUBDIR = '.kimi';
+const KIMI_CODE_DATA_SUBDIR = '.kimi-code';
 const SESSIONS_SUBDIR = 'sessions';
 const CONFIG_FILENAME = 'config.toml';
 const SESSION_LOG_EXTENSIONS = ['.jsonl', '.ndjson', '.json'];
@@ -33,6 +34,31 @@ export function getKimiDataDir(): string {
 /** Absolute path to `~/.kimi/config.toml`. */
 export function getKimiConfigPath(): string {
   return path.join(getKimiDataDir(), CONFIG_FILENAME);
+}
+
+/**
+ * Data directory for the next-gen `kimi-code` build (honors `KIMI_CODE_HOME`).
+ * The modern CLI relocated its config from `~/.kimi/` to `~/.kimi-code/`.
+ */
+export function getKimiCodeDataDir(): string {
+  const override = process.env.KIMI_CODE_HOME?.trim();
+  if (override) {
+    return override;
+  }
+  return path.join(os.homedir(), KIMI_CODE_DATA_SUBDIR);
+}
+
+/**
+ * Every `config.toml` worth scanning for models/defaults, newest layout first.
+ * Both the legacy `~/.kimi/` and the modern `~/.kimi-code/` directories are
+ * returned so model discovery works regardless of which CLI build is installed.
+ */
+export function getKimiConfigPaths(): string[] {
+  const paths = [
+    path.join(getKimiCodeDataDir(), CONFIG_FILENAME),
+    path.join(getKimiDataDir(), CONFIG_FILENAME),
+  ];
+  return Array.from(new Set(paths));
 }
 
 /** The `sessions/` directory that contains one subdirectory per session. */

@@ -73,6 +73,13 @@ export class SubagentManager {
   private outputToolIdToAgentId: Map<string, string> = new Map();
   private asyncDomStates: Map<string, AsyncSubagentState> = new Map();
 
+  // Persistent registry of every subagent seen this conversation (sync + async,
+  // keyed by SubagentInfo.id), kept so the swarm panel can show finished agents
+  // that have already been removed from the live sync/async maps. Holds the same
+  // object references that the lifecycle methods mutate in place.
+  private allSubagents: Map<string, SubagentInfo> = new Map();
+  private swarmListeners: Set<() => void> = new Set();
+
   private onStateChange: SubagentStateChangeCallback;
   private taskResultInterpreter: ProviderTaskResultInterpreter;
 
@@ -90,6 +97,49 @@ export class SubagentManager {
 
   public setTaskResultInterpreter(interpreter: ProviderTaskResultInterpreter): void {
     this.taskResultInterpreter = interpreter;
+  }
+
+  // ============================================
+  // Swarm Overview (cross-subagent view)
+  // ============================================
+
+  /**
+   * Subscribe to ANY subagent mutation (sync create/tool/finalize + async
+   * lifecycle). Returns an unsubscribe fn. Used by the swarm panel to re-read
+   * `getAllSubagents()` and re-render on every change.
+   */
+  public onSwarmChange(listener: () => void): () => void {
+    this.swarmListeners.add(listener);
+    return () => {
+      this.swarmListeners.delete(listener);
+    };
+  }
+
+  /**
+   * Every subagent seen this conversation (running + finished + orphaned),
+   * ordered by start time. Same object references the lifecycle mutates, so
+   * callers always read current status/toolCalls/result.
+   */
+  public getAllSubagents(): SubagentInfo[] {
+    return [...this.allSubagents.values()].sort(
+      (a, b) => (a.startedAt ?? 0) - (b.startedAt ?? 0),
+    );
+  }
+
+  public getSubagentById(id: string): SubagentInfo | undefined {
+    return this.allSubagents.get(id);
+  }
+
+  private notifySwarm(): void {
+    for (const listener of this.swarmListeners) {
+      listener();
+    }
+  }
+
+  /** Fire the async state-change callback AND wake swarm listeners. */
+  private emitChange(subagent: SubagentInfo): void {
+    this.onStateChange(subagent);
+    this.notifySwarm();
   }
 
   // ============================================
@@ -288,6 +338,7 @@ export class SubagentManager {
     const subagentState = this.syncSubagents.get(parentToolUseId);
     if (!subagentState) return;
     addSubagentToolCall(subagentState, toolCall);
+    this.notifySwarm();
   }
 
   public updateSyncToolResult(
@@ -298,6 +349,7 @@ export class SubagentManager {
     const subagentState = this.syncSubagents.get(parentToolUseId);
     if (!subagentState) return;
     updateSubagentToolResult(subagentState, toolId, toolCall);
+    this.notifySwarm();
   }
 
   public finalizeSyncSubagent(
@@ -312,7 +364,13 @@ export class SubagentManager {
     const resultText = extractToolResultContent(result, { fallbackIndent: 2 });
     const extractedResult = this.extractAgentResult(resultText, '', toolUseResult);
     finalizeSubagentBlock(subagentState, extractedResult, isError);
+    // Stamp canonical state explicitly so the swarm panel reflects completion
+    // independent of renderer internals (the info object stays in allSubagents).
+    subagentState.info.status = isError ? 'error' : 'completed';
+    subagentState.info.result = extractedResult;
+    subagentState.info.completedAt = Date.now();
     this.syncSubagents.delete(toolId);
+    this.notifySwarm();
 
     return subagentState.info;
   }
@@ -353,7 +411,7 @@ export class SubagentManager {
     this.taskIdToAgentId.set(taskToolId, agentId);
 
     this.updateAsyncDomState(subagent);
-    this.onStateChange(subagent);
+    this.emitChange(subagent);
   }
 
   public handleAgentOutputToolUse(toolCall: ToolCallInfo): void {
@@ -421,7 +479,7 @@ export class SubagentManager {
     this.outputToolIdToAgentId.delete(toolId);
 
     this.updateAsyncDomState(subagent);
-    this.onStateChange(subagent);
+    this.emitChange(subagent);
     return subagent;
   }
 
@@ -449,7 +507,7 @@ export class SubagentManager {
     }
 
     this.updateAsyncDomState(subagent);
-    this.onStateChange(subagent);
+    this.emitChange(subagent);
     return subagent;
   }
 
@@ -479,7 +537,7 @@ export class SubagentManager {
    */
   public refreshAsyncSubagent(subagent: SubagentInfo): void {
     this.updateAsyncDomState(subagent);
-    this.onStateChange(subagent);
+    this.emitChange(subagent);
   }
 
   // ============================================
@@ -539,6 +597,8 @@ export class SubagentManager {
     this.taskIdToAgentId.clear();
     this.outputToolIdToAgentId.clear();
     this.asyncDomStates.clear();
+    this.allSubagents.clear();
+    this.notifySwarm();
   }
 
   // ============================================
@@ -551,7 +611,7 @@ export class SubagentManager {
     subagent.result = 'Conversation ended before task completed';
     subagent.completedAt = Date.now();
     this.updateAsyncDomState(subagent);
-    this.onStateChange(subagent);
+    this.emitChange(subagent);
   }
 
   private transitionToError(subagent: SubagentInfo, taskToolId: string, errorResult: string): void {
@@ -561,7 +621,7 @@ export class SubagentManager {
     subagent.completedAt = Date.now();
     this.pendingAsyncSubagents.delete(taskToolId);
     this.updateAsyncDomState(subagent);
-    this.onStateChange(subagent);
+    this.emitChange(subagent);
   }
 
   // ============================================
@@ -574,7 +634,10 @@ export class SubagentManager {
     parentEl: HTMLElement
   ): HandleTaskResult {
     const subagentState = createSubagentBlock(parentEl, taskToolId, taskInput);
+    subagentState.info.startedAt = subagentState.info.startedAt ?? Date.now();
     this.syncSubagents.set(taskToolId, subagentState);
+    this.allSubagents.set(taskToolId, subagentState.info);
+    this.notifySwarm();
     return { action: 'created_sync', subagentState };
   }
 
@@ -595,12 +658,15 @@ export class SubagentManager {
       status: 'running',
       toolCalls: [],
       asyncStatus: 'pending',
+      startedAt: Date.now(),
     };
 
     this.pendingAsyncSubagents.set(taskToolId, info);
+    this.allSubagents.set(taskToolId, info);
 
     const domState = createAsyncSubagentBlock(parentEl, taskToolId, taskInput);
     this.asyncDomStates.set(taskToolId, domState);
+    this.notifySwarm();
 
     return { action: 'created_async', info, domState };
   }

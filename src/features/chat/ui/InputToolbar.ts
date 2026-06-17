@@ -118,6 +118,14 @@ export class ModelSelector {
     labelEl.setText(displayModel?.label || 'Unknown');
   }
 
+  /** Human label of the currently selected model, or null when unknown. */
+  getCurrentModelLabel(): string | null {
+    const currentModel = this.callbacks.getSettings().model;
+    const models = this.getAvailableModels();
+    const displayModel = models.find(m => m.value === currentModel) || models[0];
+    return displayModel?.label ?? null;
+  }
+
   renderOptions() {
     if (!this.dropdownEl) return;
     this.dropdownEl.empty();
@@ -356,15 +364,41 @@ export class ThinkingBudgetSelector {
     const model = settings.model;
     const options = uiConfig.getReasoningOptions(model, settings);
     const currentInfo = options.find(e => e.value === currentEffort);
+    const isUltracode = currentEffort === 'ultracode';
 
+    // The collapsed pill reflects the active effort; ultracode gets a distinct
+    // gradient + workflow icon so its multi-agent mode reads at a glance.
+    this.effortGearsEl.toggleClass('is-ultracode', isUltracode);
     const currentEl = this.effortGearsEl.createDiv({ cls: 'claudian-thinking-current' });
-    currentEl.setText(currentInfo?.label || options[0]?.label || 'High');
+    const currentLabel = currentInfo?.label || options[0]?.label || 'High';
+    if (isUltracode) {
+      // Ultracode pill: workflow icon + label + a "Workflows" badge.
+      const iconEl = currentEl.createSpan({ cls: 'claudian-thinking-current-icon' });
+      setIcon(iconEl, 'workflow');
+      currentEl.createSpan({ cls: 'claudian-thinking-current-text', text: currentLabel });
+      currentEl.createSpan({ cls: 'claudian-thinking-current-badge', text: 'Workflows' });
+    } else {
+      currentEl.setText(currentLabel);
+    }
 
     const optionsEl = this.effortGearsEl.createDiv({ cls: 'claudian-thinking-options' });
 
     for (const effort of [...options].reverse()) {
+      const optIsUltracode = effort.value === 'ultracode';
       const gearEl = optionsEl.createDiv({ cls: 'claudian-thinking-gear' });
-      gearEl.setText(effort.label);
+      gearEl.toggleClass('is-ultracode', optIsUltracode);
+
+      const headEl = gearEl.createDiv({ cls: 'claudian-thinking-gear-head' });
+      if (optIsUltracode) {
+        const gearIconEl = headEl.createSpan({ cls: 'claudian-thinking-gear-icon' });
+        setIcon(gearIconEl, 'workflow');
+      }
+      headEl.createSpan({ cls: 'claudian-thinking-gear-label', text: effort.label });
+
+      if (effort.description) {
+        gearEl.createDiv({ cls: 'claudian-thinking-gear-desc', text: effort.description });
+        gearEl.setAttribute('title', effort.description);
+      }
 
       if (effort.value === currentEffort) {
         gearEl.addClass('selected');

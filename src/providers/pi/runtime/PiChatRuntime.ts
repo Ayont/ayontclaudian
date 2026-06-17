@@ -206,6 +206,10 @@ export class PiChatRuntime implements ChatRuntime {
       return;
     }
 
+    // Pi reads the shared conversation.sessionId as a fallback for legacy/bare
+    // saved session ids (pre-providerState). A foreign id from a mid-chat
+    // provider switch is safe here: Pi restarts rather than switch_session when
+    // the id isn't one of its own structured sessions (see resume path).
     this.sessionId = state.sessionId ?? conversation.sessionId ?? null;
     this.sessionFile = state.sessionFile ?? null;
     this.leafEntryId = state.leafEntryId ?? null;

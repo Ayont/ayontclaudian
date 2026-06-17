@@ -255,6 +255,43 @@ describe('getEnhancedPath', () => {
     });
   });
 
+  describe('npm global bin discovery', () => {
+    const os = jest.requireActual<typeof import('os')>('os');
+
+    it('includes the conventional ~/.npm-global/bin prefix from HOME', () => {
+      if (isWindows) return;
+      process.env.HOME = '/mock/home';
+      delete process.env.npm_config_prefix;
+      delete process.env.NPM_CONFIG_PREFIX;
+      const segments = getEnhancedPath().split(SEP);
+      expect(segments).toContain(path.join('/mock/home', '.npm-global', 'bin'));
+    });
+
+    it('honors npm_config_prefix from the environment', () => {
+      if (isWindows) return;
+      process.env.npm_config_prefix = '/opt/custom-npm';
+      const segments = getEnhancedPath().split(SEP);
+      expect(segments).toContain(path.join('/opt/custom-npm', 'bin'));
+      delete process.env.npm_config_prefix;
+    });
+
+    it('reads a custom prefix from ~/.npmrc', () => {
+      if (isWindows) return;
+      const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'claudian-npmrc-'));
+      const customPrefix = path.join(tmpHome, 'my-npm-global');
+      try {
+        fs.writeFileSync(path.join(tmpHome, '.npmrc'), `prefix=${customPrefix}\nregistry=https://x\n`);
+        process.env.HOME = tmpHome;
+        delete process.env.npm_config_prefix;
+        delete process.env.NPM_CONFIG_PREFIX;
+        const segments = getEnhancedPath().split(SEP);
+        expect(segments).toContain(path.join(customPrefix, 'bin'));
+      } finally {
+        fs.rmSync(tmpHome, { recursive: true, force: true });
+      }
+    });
+  });
+
   describe('Unix environment variable paths', () => {
     if (isWindows) return;
 

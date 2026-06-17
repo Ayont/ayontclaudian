@@ -274,6 +274,14 @@ const KIMI_CANONICAL_TOOL_NAMES: Readonly<Record<string, string>> = Object.freez
   List: 'LS',
   WebSearch: 'WebSearch',
   WebFetch: 'WebFetch',
+  // Subagent tooling MUST keep its exact name so the chat layer recognizes it:
+  // kimi-cli's `Agent` tool (and legacy `Task`) drive the subagent/swarm view
+  // via isSubagentToolName(), and `TaskOutput` links async subagent results via
+  // TOOL_AGENT_OUTPUT. Without pinning, the humanizer would mangle `TaskOutput`
+  // into "Task output" and break that match.
+  Agent: 'Agent',
+  Task: 'Task',
+  TaskOutput: 'TaskOutput',
 });
 
 /**

@@ -1,0 +1,61 @@
+/* Kimi Code feature showcase (Settings → Kimi). Lives outside .claudian-container,
+   so it uses Obsidian theme vars. Kimi accent: #7C6CF2. */
+
+.claudian-kimi-feature-hint {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  margin: 0 0 12px;
+}
+
+.claudian-kimi-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 0 0 18px;
+}
+
+.claudian-kimi-feature-group {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: var(--background-secondary);
+}
+
+.claudian-kimi-feature-group-title {
+  font-weight: var(--font-semibold);
+  font-size: var(--font-ui-small);
+  margin-bottom: 2px;
+}
+
+.claudian-kimi-feature-group-desc {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  margin-bottom: 10px;
+}
+
+.claudian-kimi-feature-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.claudian-kimi-feature-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: var(--font-ui-smaller);
+  line-height: 1.6;
+  color: var(--text-muted);
+  background: var(--background-modifier-hover);
+  border: 1px solid transparent;
+  transition: color var(--anim-duration-fast) ease, border-color var(--anim-duration-fast) ease;
+}
+
+/* Active modes (e.g. Thinking, YOLO) glow in the Kimi accent. */
+.claudian-kimi-feature-chip.is-active {
+  color: #fff;
+  background: rgba(124, 108, 242, 0.22);
+  border-color: #7c6cf2;
+  font-weight: var(--font-semibold);
+}

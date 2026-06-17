@@ -9,6 +9,7 @@ import { getHostnameKey } from '../../../utils/env';
 import { expandHomePath } from '../../../utils/path';
 import { maybeGetKimiWorkspaceServices } from '../app/KimiWorkspaceServices';
 import { getKimiModelOptions } from '../modelOptions';
+import { renderKimiFeatureShowcase } from './KimiFeatureShowcase';
 import {
   getKimiProviderSettings,
   KIMI_PROVIDER_ID,
@@ -37,6 +38,10 @@ export const kimiSettingsTabRenderer: ProviderSettingsTabRenderer = {
     const settings = getKimiProviderSettings(settingsBag);
     const hostnameKey = getHostnameKey();
     const workspace = maybeGetKimiWorkspaceServices();
+
+    // --- Features (read-only overview of the full Kimi Code surface) ---
+
+    renderKimiFeatureShowcase(container, settings);
 
     // --- Setup ---
 
