@@ -222,22 +222,22 @@ describe('ModelSelector', () => {
     expect(label?.textContent).toBe('Haiku');
   });
 
-  it('should render model options in provider order', () => {
+  it('should render model options sorted by label', () => {
     const dropdown = parentEl.querySelector('.claudian-model-dropdown');
     expect(dropdown).not.toBeNull();
-    // DEFAULT_CLAUDE_MODELS is [haiku, sonnet, opus] and should stay in that order
+    // Models are sorted alphabetically within the provider group
     const options = dropdown?.children || [];
     expect(options.length).toBe(3);
     // Text is in child span, check first child's textContent
     expect(options[0]?.children[0]?.textContent).toBe('Haiku');
-    expect(options[1]?.children[0]?.textContent).toBe('Sonnet');
-    expect(options[2]?.children[0]?.textContent).toBe('Opus');
+    expect(options[1]?.children[0]?.textContent).toBe('Opus');
+    expect(options[2]?.children[0]?.textContent).toBe('Sonnet');
   });
 
   it('should mark current model as selected', () => {
     const dropdown = parentEl.querySelector('.claudian-model-dropdown');
     const options = dropdown?.children || [];
-    // Sonnet is current (index 1 in reversed order)
+    // Sonnet is current
     const sonnetOption = options.find((o: any) => o.children[0]?.textContent === 'Sonnet');
     expect(sonnetOption?.hasClass('selected')).toBe(true);
   });

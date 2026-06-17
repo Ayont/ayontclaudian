@@ -210,6 +210,7 @@ export class ProviderRegistry {
         ...model,
         group,
         providerIcon,
+        ...(uiConfig.isDefaultModel?.(model.value) ? { isDefault: true } : {}),
       }));
     });
   }

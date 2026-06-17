@@ -175,6 +175,10 @@ export interface ProviderUIOption {
   group?: string;
   /** Per-option icon override (e.g. when mixing providers in a single dropdown). */
   providerIcon?: ProviderIconSvg;
+  /** Provider id this option belongs to (set by aggregated model lists). */
+  providerId?: string;
+  /** Whether this is a default model of its provider (set by aggregated model lists). */
+  isDefault?: boolean;
 }
 
 export interface ProviderPathIconSvg {

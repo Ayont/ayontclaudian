@@ -139,7 +139,7 @@ export class ModelSelector {
     this.dropdownEl.empty();
 
     const currentModel = this.callbacks.getSettings().model;
-    const models = this.getAvailableModels();
+    const models = sortModelOptions(this.getAvailableModels(), currentModel);
 
     let lastGroup: string | undefined;
     for (const model of models) {
@@ -333,60 +333,60 @@ export class ModelSelector {
 
     const portalWidth = portalRect.width;
     const portalHeight = portalRect.height;
-    const availableWidth = Math.max(minMenuWidth, portalWidth - margin * 2);
-    const desiredWidth = Math.min(maxMenuWidth, availableWidth);
 
-    // Horizontal placement: prefer left-align with the button. When the button is
-    // in the right half of the viewport and left-align would overflow, flip to
-    // right-align so the menu opens toward the top-left ("links hoch").
-    const leftAlignLeft = rect.left - portalRect.left;
-    const rightAlignRight = portalRect.right - rect.right;
-    const leftAlignOverflow = leftAlignLeft + desiredWidth + margin - portalWidth;
-    const buttonInRightHalf = rect.left > portalRect.left + portalWidth * 0.5;
-    const rightAlignFits = rightAlignRight + desiredWidth + margin <= portalWidth;
+    // Available space around the button, measured from the portal edges.
+    const spaceLeft = rect.left - portalRect.left - gap - margin;
+    const spaceRight = portalRect.right - rect.right - gap - margin;
+    const spaceAbove = rect.top - portalRect.top - gap - margin;
+    const spaceBelow = portalRect.bottom - rect.bottom - gap - margin;
+
+    // The button lives in the input toolbar, which is normally at the bottom of
+    // the view. Pop the menu to the TOP-LEFT of the button so it is always
+    // visible and never clipped by the bottom of the window.
+    const openLeft = rect.left > portalRect.left + portalWidth * 0.45 || spaceLeft >= spaceRight;
+    const openAbove = rect.top > portalRect.top + portalHeight * 0.45 || spaceAbove >= spaceBelow;
 
     let left: number | undefined;
     let right: number | undefined;
+    let top: number | undefined;
+    let bottom: number | undefined;
     let horizontalOrigin: 'left' | 'right' = 'left';
-    if (leftAlignOverflow <= 0) {
-      left = Math.max(margin, leftAlignLeft);
-    } else if (buttonInRightHalf && rightAlignFits) {
-      right = Math.max(margin, rightAlignRight);
+
+    if (openLeft) {
+      const desiredWidth = Math.min(maxMenuWidth, Math.max(minMenuWidth, spaceLeft));
+      right = portalRect.right - rect.left + gap;
+      // Clamp so the left edge does not run past the left margin.
+      right = Math.max(margin, Math.min(right, portalWidth - margin - desiredWidth));
+      this.dropdownEl.style.width = `${Math.round(desiredWidth)}px`;
       horizontalOrigin = 'right';
     } else {
-      // Fallback: clamp against the right edge of the viewport/containing block.
-      left = Math.max(margin, portalWidth - margin - desiredWidth);
+      const desiredWidth = Math.min(maxMenuWidth, Math.max(minMenuWidth, spaceRight));
+      left = rect.left - portalRect.left + gap;
+      left = Math.max(margin, Math.min(left, portalWidth - margin - desiredWidth));
+      this.dropdownEl.style.width = `${Math.round(desiredWidth)}px`;
     }
 
-    // Vertical placement: prefer below. Open above when the button sits in the
-    // bottom half or when there is not enough room below.
-    const spaceAbove = rect.top - portalRect.top - gap - margin;
-    const spaceBelow = portalRect.bottom - rect.bottom - gap - margin;
-    const shouldAvoidBelow = rect.bottom + 260 > portalRect.bottom - margin
-      || rect.top > portalRect.top + portalHeight * 0.55;
-    const openAbove = spaceAbove >= spaceBelow || shouldAvoidBelow;
-    const verticalSpace = Math.max(minMenuHeight, openAbove ? spaceAbove : spaceBelow);
-    const maxHeight = Math.min(maxMenuHeight, verticalSpace);
+    if (openAbove) {
+      const desiredMaxHeight = Math.min(maxMenuHeight, Math.max(minMenuHeight, spaceAbove));
+      bottom = portalRect.bottom - rect.top + gap;
+      // Clamp so the top edge does not run past the top margin.
+      bottom = Math.max(margin, Math.min(bottom, portalHeight - margin - desiredMaxHeight));
+      this.dropdownEl.style.maxHeight = `${Math.round(desiredMaxHeight)}px`;
+    } else {
+      const desiredMaxHeight = Math.min(maxMenuHeight, Math.max(minMenuHeight, spaceBelow));
+      top = rect.bottom - portalRect.top + gap;
+      top = Math.max(margin, Math.min(top, portalHeight - margin - desiredMaxHeight));
+      this.dropdownEl.style.maxHeight = `${Math.round(desiredMaxHeight)}px`;
+    }
 
     this.dropdownEl.style.position = 'absolute';
     this.dropdownEl.style.left = left !== undefined ? `${Math.round(left)}px` : '';
     this.dropdownEl.style.right = right !== undefined ? `${Math.round(right)}px` : '';
-    this.dropdownEl.style.width = `${Math.round(desiredWidth)}px`;
-    this.dropdownEl.style.maxWidth = `${Math.round(availableWidth)}px`;
-    this.dropdownEl.style.maxHeight = `${Math.round(maxHeight)}px`;
+    this.dropdownEl.style.top = top !== undefined ? `${Math.round(top)}px` : '';
+    this.dropdownEl.style.bottom = bottom !== undefined ? `${Math.round(bottom)}px` : '';
 
-    if (openAbove) {
-      this.dropdownEl.style.top = '';
-      this.dropdownEl.style.bottom = `${Math.round(portalRect.bottom - rect.top + gap)}px`;
-      this.dropdownEl.toggleClass('claudian-model-dropdown--below', false);
-      this.dropdownEl.toggleClass('claudian-model-dropdown--above', true);
-    } else {
-      this.dropdownEl.style.bottom = '';
-      this.dropdownEl.style.top = `${Math.round(rect.bottom - portalRect.top + gap)}px`;
-      this.dropdownEl.toggleClass('claudian-model-dropdown--above', false);
-      this.dropdownEl.toggleClass('claudian-model-dropdown--below', true);
-    }
-
+    this.dropdownEl.toggleClass('claudian-model-dropdown--below', !openAbove);
+    this.dropdownEl.toggleClass('claudian-model-dropdown--above', openAbove);
     this.dropdownEl.toggleClass('claudian-model-dropdown--right', horizontalOrigin === 'right');
   }
 
@@ -406,6 +406,33 @@ export class ModelSelector {
     this.dropdownEl.removeClass('claudian-model-dropdown--below');
     this.dropdownEl.removeClass('claudian-model-dropdown--right');
   }
+}
+
+/**
+ * Sort model options deterministically:
+ * 1. Current provider's group first.
+ * 2. Remaining groups alphabetically.
+ * 3. Default models before custom/env models.
+ * 4. Alphabetically by label.
+ */
+function sortModelOptions(models: ProviderUIOption[], currentModelValue: string): ProviderUIOption[] {
+  const currentGroup = models.find((model) => model.value === currentModelValue)?.group;
+  return [...models].sort((a, b) => {
+    const aIsCurrent = a.group === currentGroup;
+    const bIsCurrent = b.group === currentGroup;
+    if (aIsCurrent && !bIsCurrent) return -1;
+    if (!aIsCurrent && bIsCurrent) return 1;
+
+    const groupA = a.group ?? '';
+    const groupB = b.group ?? '';
+    if (groupA !== groupB) return groupA.localeCompare(groupB);
+
+    if (a.isDefault !== b.isDefault) {
+      return a.isDefault ? -1 : 1;
+    }
+
+    return a.label.localeCompare(b.label);
+  });
 }
 
 export class ModeSelector {
