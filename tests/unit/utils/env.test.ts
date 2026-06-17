@@ -1,4 +1,5 @@
 import type * as fsType from 'fs';
+import type * as osType from 'os';
 import type * as pathType from 'path';
 
 const fs = jest.requireActual<typeof fsType>('fs');
@@ -256,7 +257,7 @@ describe('getEnhancedPath', () => {
   });
 
   describe('npm global bin discovery', () => {
-    const os = jest.requireActual<typeof import('os')>('os');
+    const os = jest.requireActual<typeof osType>('os');
 
     it('includes the conventional ~/.npm-global/bin prefix from HOME', () => {
       if (isWindows) return;
