@@ -446,6 +446,92 @@ export class ClaudianSettingTab extends PluginSettingTab {
         });
       });
 
+    // --- Memory & Budget ---
+
+    new Setting(container).setName(t('settings.memoryAndBudget')).setHeading();
+
+    new Setting(container)
+      .setName(t('settings.memoryEnabled.name'))
+      .setDesc(t('settings.memoryEnabled.desc'))
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.memoryEnabled ?? true)
+          .onChange(async (value) => {
+            this.plugin.settings.memoryEnabled = value;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(container)
+      .setName(t('settings.memoryFolder.name'))
+      .setDesc(t('settings.memoryFolder.desc'))
+      .addText((text) => {
+        text
+          .setPlaceholder('.claudian/memory')
+          .setValue(this.plugin.settings.memoryFolder ?? '.claudian/memory')
+          .onChange(async (value) => {
+            this.plugin.settings.memoryFolder = value.trim();
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(container)
+      .setName(t('settings.memoryMaxNotes.name'))
+      .setDesc(t('settings.memoryMaxNotes.desc'))
+      .addText((text) => {
+        text
+          .setPlaceholder('5')
+          .setValue(String(this.plugin.settings.memoryMaxNotes ?? 5))
+          .onChange(async (value) => {
+            const parsed = parseInt(value, 10);
+            this.plugin.settings.memoryMaxNotes = Number.isFinite(parsed) && parsed > 0 ? parsed : 5;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(container)
+      .setName(t('settings.tokenBudgetEnabled.name'))
+      .setDesc(t('settings.tokenBudgetEnabled.desc'))
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.tokenBudgetEnabled ?? false)
+          .onChange(async (value) => {
+            this.plugin.settings.tokenBudgetEnabled = value;
+            await this.plugin.saveSettings();
+            this.display();
+          });
+      });
+
+    if (this.plugin.settings.tokenBudgetEnabled) {
+      new Setting(container)
+        .setName(t('settings.dailyTokenBudget.name'))
+        .setDesc(t('settings.dailyTokenBudget.desc'))
+        .addText((text) => {
+          text
+            .setPlaceholder('0')
+            .setValue(String(this.plugin.settings.dailyTokenBudget ?? 0))
+            .onChange(async (value) => {
+              const parsed = parseInt(value, 10);
+              this.plugin.settings.dailyTokenBudget = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+              await this.plugin.saveSettings();
+            });
+        });
+
+      new Setting(container)
+        .setName(t('settings.sessionTokenBudget.name'))
+        .setDesc(t('settings.sessionTokenBudget.desc'))
+        .addText((text) => {
+          text
+            .setPlaceholder('0')
+            .setValue(String(this.plugin.settings.sessionTokenBudget ?? 0))
+            .onChange(async (value) => {
+              const parsed = parseInt(value, 10);
+              this.plugin.settings.sessionTokenBudget = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+              await this.plugin.saveSettings();
+            });
+        });
+    }
+
     // --- Input ---
 
     new Setting(container).setName(t('settings.input')).setHeading();

@@ -247,6 +247,21 @@ export type TranslationKey =
   | 'settings.cliPath.validation.notExist'
   | 'settings.cliPath.validation.isDirectory'
 
+  // Settings - Memory & Budget
+  | 'settings.memoryAndBudget'
+  | 'settings.memoryEnabled.name'
+  | 'settings.memoryEnabled.desc'
+  | 'settings.memoryFolder.name'
+  | 'settings.memoryFolder.desc'
+  | 'settings.memoryMaxNotes.name'
+  | 'settings.memoryMaxNotes.desc'
+  | 'settings.tokenBudgetEnabled.name'
+  | 'settings.tokenBudgetEnabled.desc'
+  | 'settings.dailyTokenBudget.name'
+  | 'settings.dailyTokenBudget.desc'
+  | 'settings.sessionTokenBudget.name'
+  | 'settings.sessionTokenBudget.desc'
+
   // Settings - Language
   | 'settings.language.name'
   | 'settings.language.desc';

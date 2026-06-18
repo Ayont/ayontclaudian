@@ -68,7 +68,7 @@ export function probeCli(options: ProbeOptions): Promise<ProbeResult> {
     const finish = (result: ProbeResult): void => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
+      window.clearTimeout(timer);
       try {
         proc.kill('SIGKILL');
       } catch {
@@ -77,7 +77,7 @@ export function probeCli(options: ProbeOptions): Promise<ProbeResult> {
       resolve(result);
     };
 
-    const timer = setTimeout(() => finish({ ok: false, output: stdout, detail: 'timed out' }), timeoutMs);
+    const timer = window.setTimeout(() => finish({ ok: false, output: stdout, detail: 'timed out' }), timeoutMs);
 
     proc.stdout.on('data', (chunk: Buffer | string) => {
       stdout += typeof chunk === 'string' ? chunk : chunk.toString('utf-8');

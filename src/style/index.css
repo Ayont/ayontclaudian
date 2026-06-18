@@ -71,3 +71,5 @@
 
 /* Utilities imported last to preserve cascade priority without importance flags */
 @import "./base/visibility.css";
+
+@import "features/approval-diff-preview.css";

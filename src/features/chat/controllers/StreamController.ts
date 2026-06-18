@@ -278,6 +278,7 @@ export class StreamController {
           state.usage = activeModel && !chunk.usage.model
             ? { ...chunk.usage, model: activeModel }
             : chunk.usage;
+          this.deps.plugin.tokenBudgetTracker?.trackUsage(state.usage);
         }
         break;
       }

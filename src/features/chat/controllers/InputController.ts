@@ -6,6 +6,12 @@ import {
   isBuiltInCommandSupported,
 } from '../../../core/commands/builtInCommands';
 import { applyGoalPrefix, parseGoalArgs } from '../../../core/conversation/goalPrompt';
+import { buildDiffPreview } from '../../../core/diff/diffPreview';
+import {
+  formatMemoryContext,
+  loadMemoryNotes,
+  rankMemoryNotes,
+} from '../../../core/memory/memoryService';
 import { ProviderRegistry } from '../../../core/providers/ProviderRegistry';
 import {
   DEFAULT_CHAT_PROVIDER_ID,
@@ -25,6 +31,7 @@ import type {
   ApprovalDecisionOption,
   ChatTurnRequest,
 } from '../../../core/runtime/types';
+import { finishRunTimeline, recordRunTimelineChunk, startRunTimeline } from '../../../core/timeline/runTimeline';
 import { TOOL_EXIT_PLAN_MODE } from '../../../core/tools/toolNames';
 import type { ApprovalDecision, ChatMessage, ExitPlanModeDecision, StreamChunk } from '../../../core/types';
 import type ClaudianPlugin from '../../../main';
@@ -38,6 +45,7 @@ import type { EditorSelectionContext } from '../../../utils/editor';
 import { appendMarkdownSnippet } from '../../../utils/markdown';
 import { COMPLETION_FLAVOR_WORDS } from '../constants';
 import { resolveAutoQuestionAnswers, summarizeAutoAnswers } from '../rendering/autoQuestionAnswer';
+import { renderDiffContent, renderDiffStats } from '../rendering/DiffRenderer';
 import { type InlineAskQuestionConfig, InlineAskUserQuestion } from '../rendering/InlineAskUserQuestion';
 import { InlineExitPlanMode } from '../rendering/InlineExitPlanMode';
 import { InlinePlanApproval,type PlanApprovalDecision } from '../rendering/InlinePlanApproval';
@@ -101,6 +109,7 @@ export interface InputControllerDeps {
   generateId: () => string;
   resetInputHeight: () => void;
   getAuxiliaryModel?: () => string | null;
+  getActiveModel?: () => string | null;
   getAgentService?: () => ChatRuntime | null;
   getSubagentManager: () => SubagentManager;
   /** Tab-level provider fallback for blank tabs (derived from draft model). */
@@ -268,6 +277,15 @@ export class InputController {
       return;
     }
 
+    // Token-budget guard: block new turns when the daily/session budget is spent.
+    if (plugin.settings.tokenBudgetEnabled !== false && plugin.tokenBudgetTracker) {
+      const budgetCheck = plugin.tokenBudgetTracker.checkBudget(plugin.settings);
+      if (budgetCheck?.ok === false) {
+        new Notice(budgetCheck.reason ?? 'Token budget reached.');
+        return;
+      }
+    }
+
     // If agent is working, queue the message instead of dropping it
     if (state.isStreaming) {
       const images = hasImages
@@ -345,6 +363,20 @@ export class InputController {
     // `turnRequest` may be reassigned below to prepend a one-shot cross-provider bootstrap.
     let turnRequest = turnSubmission.turnRequest;
 
+    if (!options?.turnRequestOverride && plugin.settings.memoryEnabled !== false && plugin.app?.vault) {
+      const memoryNotes = await loadMemoryNotes(
+        plugin.app.vault,
+        plugin.settings.memoryFolder ?? '.claudian/memory',
+      );
+      const memoryCandidates = rankMemoryNotes(displayContent, memoryNotes, {
+        limit: plugin.settings.memoryMaxNotes ?? 5,
+      });
+      const memoryContext = formatMemoryContext(memoryCandidates);
+      if (memoryContext) {
+        turnRequest.text = `${memoryContext}\n\n${turnRequest.text}`;
+      }
+    }
+
     fileContextManager?.markCurrentNoteSent();
 
     const userMsg: ChatMessage = {
@@ -416,6 +448,15 @@ export class InputController {
       return;
     }
 
+    const runTimeline = startRunTimeline({
+      conversationId: state.currentConversationId,
+      providerId: agentService.providerId,
+      model: this.deps.getActiveModel?.() ?? this.getAuxiliaryModel(),
+      prompt: displayContent,
+      currentNote: turnRequest.currentNotePath ?? null,
+      externalContextPaths: turnRequest.externalContextPaths,
+    });
+
     // Restore pendingResumeAt from persisted conversation state (survives plugin reload)
     const conversationIdForSend = state.currentConversationId;
     if (conversationIdForSend) {
@@ -477,6 +518,8 @@ export class InputController {
           break;
         }
 
+        recordRunTimelineChunk(runTimeline, chunk);
+
         if (await this.handleProviderMessageBoundaryChunk(chunk)) {
           continue;
         }
@@ -488,6 +531,7 @@ export class InputController {
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      recordRunTimelineChunk(runTimeline, { type: 'error', content: errorMsg });
       await streamController.appendText(`\n\n**Error:** ${errorMsg}`);
     } finally {
       const finalAssistantMsg = this.activeStreamingAssistantMessage ?? assistantMsg;
@@ -619,6 +663,10 @@ export class InputController {
         this.updateQueueIndicator();
       }
 
+      finishRunTimeline(
+        runTimeline,
+        wasInvalidated ? 'invalidated' : wasInterrupted || state.cancelRequested ? 'interrupted' : 'success',
+      );
       this.activeStreamingAssistantMessage = null;
       this.resetProviderMessageBoundaryState();
     }
@@ -1421,6 +1469,10 @@ export class InputController {
 
     headerEl.createDiv({ text: description, cls: 'claudian-ask-approval-desc' });
 
+    if (this.deps.plugin.settings.diffPreviewBeforeWrites !== false) {
+      this.renderApprovalDiffPreview(headerEl, toolName, _input);
+    }
+
     const decisionOptions = approvalOptions?.decisionOptions ?? DEFAULT_APPROVAL_DECISION_OPTIONS;
     const optionDecisionMap = new Map<string, ApprovalDecision>();
     const questionOptions = decisionOptions.map((option, index) => {
@@ -1469,6 +1521,29 @@ export class InputController {
       type: 'select-option',
       value: selectedValue,
     };
+  }
+
+
+  private renderApprovalDiffPreview(headerEl: HTMLElement, toolName: string, input: Record<string, unknown>): void {
+    const preview = buildDiffPreview(toolName, input);
+    if (!preview) return;
+
+    const wrapperEl = headerEl.createDiv({ cls: 'claudian-approval-diff-preview' });
+    const titleEl = wrapperEl.createDiv({ cls: 'claudian-approval-diff-title' });
+    titleEl.setText(preview.title);
+
+    for (const diff of preview.diffs.slice(0, 3)) {
+      const fileEl = wrapperEl.createDiv({ cls: 'claudian-approval-diff-file' });
+      fileEl.createSpan({ text: diff.filePath, cls: 'claudian-approval-diff-path' });
+      const statsEl = fileEl.createSpan({ cls: 'claudian-approval-diff-stats' });
+      renderDiffStats(statsEl, diff.stats);
+      const diffEl = wrapperEl.createDiv({ cls: 'claudian-approval-diff-content' });
+      renderDiffContent(diffEl, diff.diffLines, 2);
+    }
+
+    if (preview.diffs.length > 3) {
+      wrapperEl.createDiv({ text: `… ${preview.diffs.length - 3} more file(s)`, cls: 'claudian-approval-diff-more' });
+    }
   }
 
   async handleAskUserQuestion(
@@ -1744,6 +1819,24 @@ export class InputController {
         const nextGoal = parseGoalArgs(args);
         this.deps.setActiveGoal?.(nextGoal);
         new Notice(nextGoal ? `Goal gesetzt: ${nextGoal}` : 'Goal gelöscht.');
+        break;
+      }
+      case 'workflow': {
+        const inputEl = this.deps.getInputEl();
+        const [name, ...rest] = args.split(/\s+/).filter(Boolean);
+        if (!name) {
+          new Notice('Usage: /workflow <name> [args]');
+          return;
+        }
+        const expanded = await this.deps.plugin.expandWorkflow(name, inputEl.value, rest.join(' '));
+        if (!expanded) {
+          new Notice(`Workflow nicht gefunden: ${name}`);
+          return;
+        }
+        inputEl.value = expanded;
+        inputEl.focus();
+        this.deps.resetInputHeight();
+        new Notice(`Workflow eingefügt: ${name}`);
         break;
       }
       default: {

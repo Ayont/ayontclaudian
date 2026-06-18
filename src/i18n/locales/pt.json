@@ -325,6 +325,31 @@
     "language": {
       "name": "Idioma",
       "desc": "Alterar o idioma de exibição da interface do plugin"
+    },
+    "memoryAndBudget": "Memory & budget",
+    "memoryEnabled": {
+      "name": "Enable agentic memory",
+      "desc": "Automatically recall relevant notes from .claudian/memory/ and prepend them to the prompt."
+    },
+    "memoryFolder": {
+      "name": "Memory folder",
+      "desc": "Folder where memory notes are stored."
+    },
+    "memoryMaxNotes": {
+      "name": "Max recalled memories",
+      "desc": "Maximum number of memory notes injected per turn."
+    },
+    "tokenBudgetEnabled": {
+      "name": "Enable token budget",
+      "desc": "Block new turns when the daily or session token budget is reached."
+    },
+    "dailyTokenBudget": {
+      "name": "Daily token budget",
+      "desc": "0 = unlimited."
+    },
+    "sessionTokenBudget": {
+      "name": "Session token budget",
+      "desc": "0 = unlimited."
     }
   }
 }

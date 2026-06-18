@@ -114,6 +114,12 @@ export class ModelSelector {
     this.openModal();
   }
 
+  /** Programmatically selects a model via the same path as the modal. */
+  async selectModel(modelValue: string): Promise<void> {
+    await this.callbacks.onModelChange(modelValue);
+    this.updateDisplay();
+  }
+
   private openModal(): void {
     const currentModel = this.callbacks.getSettings().model;
     const models = sortModelOptions(this.getAvailableModels(), currentModel);

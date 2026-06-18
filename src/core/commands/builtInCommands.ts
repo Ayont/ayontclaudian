@@ -8,7 +8,7 @@
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import type { ProviderCapabilities, ProviderId } from '../providers/types';
 
-export type BuiltInCommandAction = 'clear' | 'add-dir' | 'resume' | 'fork' | 'goal';
+export type BuiltInCommandAction = 'clear' | 'add-dir' | 'resume' | 'fork' | 'goal' | 'workflow';
 type BuiltInCommandCapability = 'supportsNativeHistory' | 'supportsFork';
 type BuiltInCommandSupportContext = ProviderId | Pick<ProviderCapabilities, BuiltInCommandCapability>;
 
@@ -63,6 +63,14 @@ export const BUILT_IN_COMMANDS: BuiltInCommand[] = [
     action: 'goal',
     hasArgs: true,
     argumentHint: '[goal text]',
+  },
+  {
+    name: 'workflow',
+    aliases: ['wf'],
+    description: 'Insert a saved prompt workflow',
+    action: 'workflow',
+    hasArgs: true,
+    argumentHint: '[name] [args]',
   },
 ];
 

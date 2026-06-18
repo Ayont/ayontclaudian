@@ -1,0 +1,51 @@
+.claudian-approval-diff-preview {
+  margin-top: 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-secondary);
+  overflow: hidden;
+}
+
+.claudian-approval-diff-title {
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.claudian-approval-diff-file {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px 0;
+  font-size: 12px;
+}
+
+.claudian-approval-diff-path {
+  font-family: var(--font-monospace);
+  color: var(--text-normal);
+}
+
+.claudian-approval-diff-stats .added,
+.claudian-write-edit-stats .added {
+  color: var(--text-success);
+}
+
+.claudian-approval-diff-stats .removed,
+.claudian-write-edit-stats .removed {
+  color: var(--text-error);
+}
+
+.claudian-approval-diff-content {
+  margin: 6px 8px 8px;
+  max-height: 220px;
+  overflow: auto;
+  border-radius: 6px;
+}
+
+.claudian-approval-diff-more {
+  padding: 0 8px 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}

@@ -79,6 +79,14 @@ export type PermissionMode = 'yolo' | 'plan' | 'normal';
 /** Scope for environment variable storage and snippets. */
 export type EnvironmentScope = 'shared' | `provider:${string}`;
 
+export interface ModelRouterRuleSetting {
+  task: string;
+  model: string;
+  providerId?: string;
+  enabled?: boolean;
+  keywords?: string[];
+}
+
 /** Opaque device-keyed CLI paths for per-device configuration. */
 export type HostnameCliPaths = Record<string, string>;
 
@@ -111,6 +119,23 @@ export interface ClaudianSettings {
    * auto-resolved prompts (questions + plan approvals). Defaults to 25.
    */
   autoModePauseAfter?: number;
+
+  /** Optional prompt-based model routing. When enabled, first send can switch to the matching rule's model. */
+  modelRouterEnabled?: boolean;
+  modelRouterRules?: ModelRouterRuleSetting[];
+
+  /** Show an inline diff preview inside write/edit approval prompts. */
+  diffPreviewBeforeWrites?: boolean;
+
+  /** Agentic memory: automatically recall relevant facts from .claudian/memory/*.md. */
+  memoryEnabled?: boolean;
+  memoryFolder?: string;
+  memoryMaxNotes?: number;
+
+  /** Token budget safety net. */
+  tokenBudgetEnabled?: boolean;
+  dailyTokenBudget?: number;
+  sessionTokenBudget?: number;
 
   // Model & thinking (provider interprets values)
   model: string;
