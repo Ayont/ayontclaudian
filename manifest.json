@@ -1,7 +1,7 @@
 {
   "id": "realclaudian",
   "name": "ayontclaudian",
-  "version": "2.7.0",
+  "version": "3.0.0",
   "minAppVersion": "1.7.2",
   "description": "ayontclaudian — embeds Claude Code, Codex, Antigravity, Kimi, Vibe (Mistral), Grok (xAI) and other coding-agent CLIs as AI collaborators in your vault, with a unified model picker, intelligent mid-chat provider switching, and one-click CLI installs. Your vault is their working directory: file read/write, search, bash, and multi-step agentic workflows.",
   "author": "Ayont",
