@@ -2,7 +2,6 @@ import type { KimiProviderState } from '../types';
 
 export interface KimiSlashCommandUI {
   openSessionList(): void;
-  openModelPicker(): void;
   openHelp(): void;
   closeTab(): void;
 }
@@ -10,6 +9,7 @@ export interface KimiSlashCommandUI {
 export interface KimiSlashCommandResult {
   consumed: boolean;
   followUpPrompt?: string;
+  authAction?: 'login' | 'logout';
 }
 
 const SLASH_RE = /^\/([a-zA-Z0-9_-]+)(?::(\S+))?(?:\s+(.*))?$/;
@@ -19,7 +19,6 @@ export class KimiSlashCommandHandler {
     private readonly getState: () => KimiProviderState,
     private readonly updateState: (state: KimiProviderState) => void,
     private readonly ui: KimiSlashCommandUI,
-    private readonly followUp: (prompt: string) => void,
   ) {}
 
   async execute(input: string): Promise<KimiSlashCommandResult> {
@@ -32,27 +31,30 @@ export class KimiSlashCommandHandler {
     switch (name.toLowerCase()) {
       case 'new':
         this.updateState({ sessionId: undefined, goal: undefined, forkParentId: undefined });
-        this.followUp('Starting a new Kimi session.');
-        return { consumed: true };
+        return { consumed: true, followUpPrompt: 'Starting a new Kimi session.' };
 
       case 'fork': {
         const parentId = this.getState().sessionId;
         if (!parentId) {
-          this.followUp('No active session to fork. Start a session first.');
-          return { consumed: true };
+          return { consumed: true, followUpPrompt: 'No active session to fork. Start a session first.' };
         }
         this.updateState({ sessionId: undefined, forkParentId: parentId });
-        this.followUp(`Forked from session ${parentId}. Starting a fresh branch.`);
-        return { consumed: true };
+        return { consumed: true, followUpPrompt: `Forked from session ${parentId}. Starting a fresh branch.` };
       }
 
       case 'sessions':
         this.ui.openSessionList();
         return { consumed: true };
 
+      case 'login':
+        return { consumed: true, authAction: 'login' };
+
+      case 'logout':
+        return { consumed: true, authAction: 'logout' };
+
       case 'model':
-        this.ui.openModelPicker();
-        return { consumed: true };
+        // Native model picker lives in the chat toolbar; let Kimi handle /model in print mode.
+        return { consumed: false };
 
       case 'help':
         this.ui.openHelp();
@@ -65,6 +67,8 @@ export class KimiSlashCommandHandler {
       case 'goal':
       case 'skill':
       case 'plan':
+      case 'yolo':
+      case 'auto':
       case 'swarm':
       case 'tasks':
       case 'compact':

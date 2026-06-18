@@ -58,10 +58,59 @@ export const kimiSettingsTabRenderer: ProviderSettingsTabRenderer = {
         }),
       );
 
+    new Setting(container)
+      .setName('Use ACP mode')
+      .setDesc('Run `kimi acp` for a persistent interactive session with native plan mode, approvals, subagents and background tasks. Requires the modern `kimi` binary.')
+      .addToggle((toggle) =>
+        toggle.setValue(settings.useAcp).onChange(async (value) => {
+          updateKimiProviderSettings(settingsBag, { useAcp: value });
+          await context.plugin.saveSettings();
+        }),
+      );
+
     const validationEl = container.createDiv({
       cls: 'claudian-cli-path-validation claudian-setting-validation claudian-setting-validation-error claudian-hidden',
     });
     const cliPathsByHost = { ...settings.cliPathsByHost };
+
+    const envScope: `provider:${typeof KIMI_PROVIDER_ID}` = `provider:${KIMI_PROVIDER_ID}`;
+
+    const readApiKeyFromEnv = (): string => {
+      const envText = context.plugin.getEnvironmentVariablesForScope(envScope);
+      const match = envText.match(/^MOONSHOT_API_KEY=(.*)$/m);
+      return match?.[1]?.trim() ?? '';
+    };
+
+    const buildEnvWithoutApiKey = (): string => {
+      const envText = context.plugin.getEnvironmentVariablesForScope(envScope);
+      return envText
+        .split('\n')
+        .filter((line) => !line.trim().startsWith('MOONSHOT_API_KEY='))
+        .join('\n');
+    };
+
+    const syncApiKeyToEnv = async (apiKey: string): Promise<void> => {
+      const baseEnv = buildEnvWithoutApiKey();
+      const nextEnv = apiKey.trim()
+        ? `${baseEnv}${baseEnv.trim() ? '\n' : ''}MOONSHOT_API_KEY=${apiKey.trim()}`
+        : baseEnv;
+      await context.plugin.applyEnvironmentVariables(envScope, nextEnv);
+    };
+
+    new Setting(container)
+      .setName('API key')
+      .setDesc('Moonshot API key for Kimi. Stored locally and injected as MOONSHOT_API_KEY.')
+      .addText((text) => {
+        text.inputEl.type = 'password';
+        text
+          .setPlaceholder('sk-...')
+          .setValue(settings.apiKey || readApiKeyFromEnv())
+          .onChange(async (value) => {
+            updateKimiProviderSettings(settingsBag, { apiKey: value });
+            await syncApiKeyToEnv(value);
+            await context.plugin.saveSettings();
+          });
+      });
     let cliPathInputEl: HTMLInputElement | null = null;
 
     const updateValidation = (value: string, inputEl?: HTMLInputElement): boolean => {

@@ -2,6 +2,7 @@ import type { Component } from 'obsidian';
 import { Notice, Platform } from 'obsidian';
 
 import { buildConversationContextBootstrap } from '../../../core/conversation/ConversationContextBootstrap';
+import { computeProviderSessionHandoff } from '../../../core/conversation/providerSessionHandoff';
 import { GitService } from '../../../core/git/GitService';
 import { getHiddenProviderCommandSet } from '../../../core/providers/commands/hiddenCommands';
 import type { ProviderCommandDropdownConfig } from '../../../core/providers/commands/ProviderCommandCatalog';
@@ -416,11 +417,25 @@ async function switchBoundTabProvider(
   getProviderCatalogConfig?: () => ProviderCatalogInfo,
   onProviderChanged?: (providerId: ProviderId) => void | Promise<void>,
 ): Promise<void> {
+  const oldProvider = tab.providerId;
   const newProvider = getEnabledProviderForModel(model, plugin.settings);
 
   // Arm the one-shot context carry from the messages present BEFORE this switch.
   const bootstrap = buildConversationContextBootstrap(tab.state.messages);
   tab.pendingContextBootstrap = bootstrap || null;
+
+  // Per-provider session isolation: stash the OUTGOING provider's native session and
+  // restore the INCOMING provider's own (or start clean). Without this the shared
+  // conversation.sessionId still holds the previous provider's id, and a provider that
+  // falls back to it (Claude/Codex/Pi) resumes a foreign session → "session not found".
+  const conversation = tab.conversationId ? plugin.getConversationSync(tab.conversationId) : null;
+  const handoff = computeProviderSessionHandoff({
+    oldProviderId: oldProvider,
+    newProviderId: newProvider,
+    currentSessionId: conversation?.sessionId ?? null,
+    currentProviderState: conversation?.providerState,
+    providerSessions: conversation?.providerSessions,
+  });
 
   // Drop the stale runtime so the next send reinitializes against the new provider.
   if (tab.service) {
@@ -437,10 +452,16 @@ async function switchBoundTabProvider(
   });
   await uiConfig.prepareModelMetadata?.(model, plugin.settings, { plugin });
 
-  // Persist the conversation's active provider so a reload before the next send keeps it.
+  // Persist the active provider + session handoff so a reload (or the next
+  // initializeTabService) reads the correct, provider-isolated session.
   if (tab.conversationId) {
     try {
-      await plugin.updateConversation(tab.conversationId, { providerId: newProvider });
+      await plugin.updateConversation(tab.conversationId, {
+        providerId: newProvider,
+        sessionId: handoff.sessionId,
+        providerState: handoff.providerState,
+        providerSessions: handoff.providerSessions,
+      });
     } catch {
       // Best-effort — the in-memory provider + next-turn save() still carry the switch.
     }
@@ -1073,6 +1094,12 @@ function initializeInputToolbar(
         'claudian-input-plan-mode',
         mode === 'plan' && getTabCapabilities(tab, plugin).supportsPlanMode,
       );
+    },
+    getAutoMode: () => plugin.settings.autoMode === true,
+    onAutoModeChange: async (value: boolean) => {
+      plugin.settings.autoMode = value;
+      await plugin.saveSettings();
+      tab.ui.permissionToggle?.updateDisplay();
     },
   });
 

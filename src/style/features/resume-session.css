@@ -5,30 +5,38 @@
   bottom: 100%;
   left: 0;
   right: 0;
-  margin-bottom: 4px;
-  background: var(--background-secondary);
+  margin-bottom: var(--cl-space-2);
+  background: var(--cl-surface-overlay);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 6px;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: var(--cl-radius-lg);
+  box-shadow: var(--cl-shadow-pop);
   z-index: 1000;
   max-height: 400px;
   overflow: hidden;
+  animation: cl-resume-rise var(--cl-dur-fast) var(--cl-ease-out) both;
 }
 
 .claudian-resume-dropdown.visible {
   display: block;
 }
 
+@keyframes cl-resume-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .claudian-resume-header {
-  padding: 8px 12px;
-  font-size: 12px;
-  font-weight: 600;
+  padding: var(--cl-space-2) var(--cl-space-3);
+  font-family: var(--cl-font-ui);
+  font-size: var(--cl-text-xs);
+  font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  border-bottom: 1px solid var(--background-modifier-border);
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid var(--cl-border-subtle);
+  background: rgba(var(--cl-accent-rgb), 0.05);
 }
 
 .claudian-resume-list {
@@ -47,10 +55,12 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
+  padding: var(--cl-space-2) var(--cl-space-3);
   cursor: pointer;
-  border-bottom: 1px solid var(--background-modifier-border);
-  transition: background 0.1s ease;
+  border-bottom: 1px solid var(--cl-border-subtle);
+  transition:
+    background var(--cl-dur-fast) var(--cl-ease),
+    box-shadow var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-resume-item:last-child {
@@ -59,12 +69,13 @@
 
 .claudian-resume-item:hover,
 .claudian-resume-item.selected {
-  background: var(--background-modifier-hover);
+  background: var(--cl-accent-soft);
+  box-shadow: inset 2px 0 0 var(--cl-accent-line);
 }
 
 .claudian-resume-item.current {
-  background: var(--background-secondary);
-  border-inline-start: 2px solid var(--interactive-accent);
+  background: var(--cl-accent-softer);
+  border-inline-start: 2px solid var(--cl-accent);
   padding-inline-start: 10px;
 }
 
@@ -81,7 +92,7 @@
 }
 
 .claudian-resume-item.current .claudian-resume-item-icon {
-  color: var(--interactive-accent);
+  color: var(--cl-accent);
 }
 
 .claudian-resume-item-content {

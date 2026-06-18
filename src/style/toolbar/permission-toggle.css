@@ -20,6 +20,15 @@
   font-weight: 600;
 }
 
+/* AUTO ("double YOLO"): a louder, accent-charged label so it never reads like
+   plain YOLO. The active provider accent drives the color + glow. */
+.claudian-permission-label.auto-active {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--cl-accent);
+  text-shadow: 0 0 10px rgba(var(--cl-accent-rgb), 0.55);
+}
+
 .claudian-toggle-switch {
   width: 32px;
   height: 18px;
@@ -76,4 +85,17 @@
 
 .claudian-toggle-switch.active:active::after {
   transform: translateX(14px) scale(0.92);
+}
+
+/* AUTO knob: brighter fill + accent halo to signal the stronger, unattended mode. */
+.claudian-toggle-switch.active.auto {
+  background: rgba(var(--cl-accent-rgb), 0.22);
+  border-color: var(--cl-accent);
+  box-shadow: 0 0 0 1px rgba(var(--cl-accent-rgb), 0.30),
+    0 0 8px rgba(var(--cl-accent-rgb), 0.40);
+}
+
+.claudian-toggle-switch.active.auto::after {
+  background: var(--cl-accent);
+  box-shadow: 0 0 6px rgba(var(--cl-accent-rgb), 0.85);
 }

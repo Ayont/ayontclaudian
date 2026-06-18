@@ -99,6 +99,13 @@ export interface ClaudianSettings {
   // Security
   permissionMode: PermissionMode;
 
+  /**
+   * Auto mode ("double YOLO"): on top of YOLO tool permissions, the agent is never
+   * blocked by clarifying prompts — AskUserQuestion auto-selects the recommended
+   * option and ExitPlanMode auto-approves, so long-running goals run unattended.
+   */
+  autoMode?: boolean;
+
   // Model & thinking (provider interprets values)
   model: string;
   thinkingBudget: string;

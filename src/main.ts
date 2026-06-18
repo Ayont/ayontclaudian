@@ -409,6 +409,7 @@ export default class ClaudianPlugin extends Plugin {
         lastResponseAt: meta.lastResponseAt,
         sessionId: resumeSessionId,
         providerState: meta.providerState,
+        providerSessions: meta.providerSessions,
         messages: meta.messages ?? [],
         currentNote: meta.currentNote,
         externalContextPaths: meta.externalContextPaths,

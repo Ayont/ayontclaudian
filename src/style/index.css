@@ -17,6 +17,7 @@
 @import "./components/thinking.css";
 @import "./components/toolcalls.css";
 @import "./components/status-panel.css";
+@import "./components/goal-banner.css";
 @import "./components/statusbar.css";
 @import "./components/update-notice.css";
 @import "./components/subagent.css";

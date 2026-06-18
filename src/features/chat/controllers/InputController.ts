@@ -37,6 +37,7 @@ import { formatDurationMmSs } from '../../../utils/date';
 import type { EditorSelectionContext } from '../../../utils/editor';
 import { appendMarkdownSnippet } from '../../../utils/markdown';
 import { COMPLETION_FLAVOR_WORDS } from '../constants';
+import { resolveAutoQuestionAnswers } from '../rendering/autoQuestionAnswer';
 import { type InlineAskQuestionConfig, InlineAskUserQuestion } from '../rendering/InlineAskUserQuestion';
 import { InlineExitPlanMode } from '../rendering/InlineExitPlanMode';
 import { InlinePlanApproval,type PlanApprovalDecision } from '../rendering/InlinePlanApproval';
@@ -1442,6 +1443,15 @@ export class InputController {
     input: Record<string, unknown>,
     signal?: AbortSignal,
   ): Promise<Record<string, string | string[]> | null> {
+    // Auto mode ("double YOLO"): never block on a clarifying prompt — answer with
+    // the recommended (first) option for each question so goals run unattended.
+    if (this.deps.plugin.settings.autoMode) {
+      const auto = resolveAutoQuestionAnswers(input);
+      if (auto) {
+        return auto;
+      }
+    }
+
     const inputContainerEl = this.deps.getInputContainerEl();
     const parentEl = inputContainerEl.parentElement;
     if (!parentEl) {
@@ -1495,6 +1505,11 @@ export class InputController {
     input: Record<string, unknown>,
     signal?: AbortSignal,
   ): Promise<ExitPlanModeDecision | null> {
+    // Auto mode: approve the plan immediately and keep executing — no manual gate.
+    if (this.deps.plugin.settings.autoMode) {
+      return { type: 'approve' };
+    }
+
     const { state, streamController } = this.deps;
     const inputContainerEl = this.deps.getInputContainerEl();
     const parentEl = inputContainerEl.parentElement;

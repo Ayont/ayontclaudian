@@ -6,6 +6,7 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
   userName: '',
 
   permissionMode: 'yolo',
+  autoMode: false,
 
   model: 'haiku',
   thinkingBudget: 'off',

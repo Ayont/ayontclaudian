@@ -55,6 +55,10 @@ export interface ToolbarCallbacks {
   onEffortLevelChange: (effort: string) => Promise<void>;
   onServiceTierChange: (serviceTier: string) => Promise<void>;
   onPermissionModeChange: (mode: string) => Promise<void>;
+  /** Reads the global auto mode ("double YOLO") flag, if wired. */
+  getAutoMode?: () => boolean;
+  /** Persists the global auto mode flag, if wired. */
+  onAutoModeChange?: (value: boolean) => Promise<void>;
   getSettings: () => ToolbarSettings;
   getEnvironmentVariables?: () => string;
   getUIConfig: () => ProviderChatUIConfig;
@@ -486,18 +490,34 @@ export class PermissionToggle {
     const planLabel = toggleConfig.planLabel ?? 'PLAN';
     const canShowPlan = Boolean(planValue) && capabilities.supportsPlanMode;
 
+    const autoSupported = Boolean(this.callbacks.onAutoModeChange);
+    const autoActive = autoSupported
+      && this.callbacks.getAutoMode?.() === true
+      && mode === toggleConfig.activeValue;
+
     if (canShowPlan && planValue && mode === planValue) {
       this.toggleEl.addClass('claudian-hidden');
       this.labelEl.setText(planLabel);
       this.labelEl.addClass('plan-active');
+      this.labelEl.removeClass('auto-active');
     } else {
       this.toggleEl.removeClass('claudian-hidden');
       this.labelEl.removeClass('plan-active');
-      if (mode === toggleConfig.activeValue) {
+      if (autoActive) {
+        // Third state: "double YOLO" — YOLO permissions + auto-answered prompts.
         this.toggleEl.addClass('active');
+        this.toggleEl.addClass('auto');
+        this.labelEl.addClass('auto-active');
+        this.labelEl.setText('AUTO');
+      } else if (mode === toggleConfig.activeValue) {
+        this.toggleEl.addClass('active');
+        this.toggleEl.removeClass('auto');
+        this.labelEl.removeClass('auto-active');
         this.labelEl.setText(toggleConfig.activeLabel);
       } else {
         this.toggleEl.removeClass('active');
+        this.toggleEl.removeClass('auto');
+        this.labelEl.removeClass('auto-active');
         this.labelEl.setText(toggleConfig.inactiveLabel);
       }
     }
@@ -508,10 +528,32 @@ export class PermissionToggle {
     if (!toggleConfig) return;
 
     const current = this.callbacks.getSettings().permissionMode;
-    const newMode = current === toggleConfig.activeValue
-      ? toggleConfig.inactiveValue
-      : toggleConfig.activeValue;
-    await this.callbacks.onPermissionModeChange(newMode);
+    const autoSupported = Boolean(this.callbacks.onAutoModeChange);
+    const autoOn = autoSupported && this.callbacks.getAutoMode?.() === true;
+    const isActive = current === toggleConfig.activeValue;
+
+    // Without auto support, keep the classic 2-state Safe ⇄ YOLO toggle.
+    if (!autoSupported) {
+      await this.callbacks.onPermissionModeChange(
+        isActive ? toggleConfig.inactiveValue : toggleConfig.activeValue,
+      );
+      this.updateDisplay();
+      return;
+    }
+
+    // 3-state cycle: Safe → YOLO → AUTO → Safe.
+    if (!isActive) {
+      // Safe → YOLO
+      if (autoOn) await this.callbacks.onAutoModeChange?.(false);
+      await this.callbacks.onPermissionModeChange(toggleConfig.activeValue);
+    } else if (!autoOn) {
+      // YOLO → AUTO
+      await this.callbacks.onAutoModeChange?.(true);
+    } else {
+      // AUTO → Safe
+      await this.callbacks.onAutoModeChange?.(false);
+      await this.callbacks.onPermissionModeChange(toggleConfig.inactiveValue);
+    }
     this.updateDisplay();
   }
 }

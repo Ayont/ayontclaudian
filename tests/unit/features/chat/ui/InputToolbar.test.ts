@@ -612,6 +612,56 @@ describe('PermissionToggle', () => {
     const container = parentEl2.querySelector('.claudian-permission-toggle');
     expect(container?.style.display).toBe('none');
   });
+
+  describe('auto mode ("double YOLO") 3-state cycle', () => {
+    function autoCallbacks(permissionMode: string, autoMode: boolean) {
+      let auto = autoMode;
+      return createMockCallbacks({
+        getAutoMode: jest.fn(() => auto),
+        onAutoModeChange: jest.fn(async (v: boolean) => { auto = v; }),
+        getSettings: jest.fn().mockReturnValue({
+          model: 'sonnet', thinkingBudget: 'low', serviceTier: 'default', permissionMode,
+        }),
+      });
+    }
+
+    it('shows the AUTO label when yolo + autoMode are both active', () => {
+      const cb = autoCallbacks('yolo', true);
+      const el = createMockEl();
+      new PermissionToggle(el, cb);
+      const label = el.querySelector('.claudian-permission-label');
+      expect(label?.textContent).toBe('AUTO');
+      expect(label?.hasClass('auto-active')).toBe(true);
+      expect(el.querySelector('.claudian-toggle-switch')?.hasClass('auto')).toBe(true);
+    });
+
+    it('cycles Safe → YOLO (enables yolo, leaves auto off)', async () => {
+      const cb = autoCallbacks('normal', false);
+      const el = createMockEl();
+      new PermissionToggle(el, cb);
+      await el.querySelector('.claudian-toggle-switch')?.dispatchEvent('click');
+      expect(cb.onPermissionModeChange).toHaveBeenCalledWith('yolo');
+      expect(cb.onAutoModeChange).not.toHaveBeenCalledWith(true);
+    });
+
+    it('cycles YOLO → AUTO (enables autoMode, keeps yolo)', async () => {
+      const cb = autoCallbacks('yolo', false);
+      const el = createMockEl();
+      new PermissionToggle(el, cb);
+      await el.querySelector('.claudian-toggle-switch')?.dispatchEvent('click');
+      expect(cb.onAutoModeChange).toHaveBeenCalledWith(true);
+      expect(cb.onPermissionModeChange).not.toHaveBeenCalled();
+    });
+
+    it('cycles AUTO → Safe (disables both auto and yolo)', async () => {
+      const cb = autoCallbacks('yolo', true);
+      const el = createMockEl();
+      new PermissionToggle(el, cb);
+      await el.querySelector('.claudian-toggle-switch')?.dispatchEvent('click');
+      expect(cb.onAutoModeChange).toHaveBeenCalledWith(false);
+      expect(cb.onPermissionModeChange).toHaveBeenCalledWith('normal');
+    });
+  });
 });
 
 describe('ServiceTierToggle', () => {

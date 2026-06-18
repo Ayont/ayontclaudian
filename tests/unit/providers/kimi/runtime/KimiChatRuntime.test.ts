@@ -1,5 +1,5 @@
-import { KimiChatRuntime } from '@/providers/kimi/runtime/KimiChatRuntime';
 import type ClaudianPlugin from '@/main';
+import { KimiChatRuntime } from '@/providers/kimi/runtime/KimiChatRuntime';
 
 function makePlugin(): ClaudianPlugin {
   return {

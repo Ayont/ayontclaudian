@@ -3567,7 +3567,14 @@ describe('Tab - Cross-Provider Model Switch (bound tab)', () => {
     // Provider switched to codex, settings saved, conversation provider persisted.
     expect(tab.providerId).toBe('codex');
     expect(plugin.saveSettings).toHaveBeenCalled();
-    expect(updateConversation).toHaveBeenCalledWith('conv-1', { providerId: 'codex' });
+    // Provider rebinding persists alongside a per-provider session handoff: the
+    // incoming provider starts with a clean shared session (never a foreign id),
+    // and the outgoing Claude session is stashed under its own key.
+    expect(updateConversation).toHaveBeenCalledWith('conv-1', expect.objectContaining({
+      providerId: 'codex',
+      sessionId: null,
+      providerSessions: expect.objectContaining({ claude: expect.anything() }),
+    }));
     // A one-shot context bootstrap was armed for the next turn.
     expect(typeof tab.pendingContextBootstrap).toBe('string');
     expect(tab.pendingContextBootstrap).toContain('<conversation_context>');

@@ -6,7 +6,6 @@ function makeHandler(initial: KimiProviderState = { sessionId: 's1', goal: 'test
   const updates: KimiProviderState[] = [];
   const opened: string[] = [];
   const closed: boolean[] = [];
-  const followUps: (string | undefined)[] = [];
 
   const handler = new KimiSlashCommandHandler(
     () => state,
@@ -16,39 +15,37 @@ function makeHandler(initial: KimiProviderState = { sessionId: 's1', goal: 'test
     },
     {
       openSessionList: () => opened.push('sessions'),
-      openModelPicker: () => opened.push('model'),
       openHelp: () => opened.push('help'),
       closeTab: () => closed.push(true),
     },
-    (p) => followUps.push(p),
   );
 
-  return { handler, getState: () => state, updates, opened, closed, followUps };
+  return { handler, getState: () => state, updates, opened, closed };
 }
 
 describe('KimiSlashCommandHandler', () => {
   it('consumes /new and clears state', async () => {
-    const { handler, updates, followUps } = makeHandler();
+    const { handler, updates } = makeHandler();
     const result = await handler.execute('/new');
     expect(result.consumed).toBe(true);
+    expect(result.followUpPrompt).toBe('Starting a new Kimi session.');
     expect(updates).toEqual([{ sessionId: undefined, goal: undefined, forkParentId: undefined }]);
-    expect(followUps).toEqual(['Starting a new Kimi session.']);
   });
 
   it('consumes /fork and stores parent id', async () => {
-    const { handler, getState, followUps } = makeHandler({ sessionId: 'parent-123' });
+    const { handler, getState } = makeHandler({ sessionId: 'parent-123' });
     const result = await handler.execute('/fork');
     expect(result.consumed).toBe(true);
+    expect(result.followUpPrompt).toBe('Forked from session parent-123. Starting a fresh branch.');
     expect(getState().forkParentId).toBe('parent-123');
     expect(getState().sessionId).toBeUndefined();
-    expect(followUps).toEqual(['Forked from session parent-123. Starting a fresh branch.']);
   });
 
   it('/fork warns when there is no active session', async () => {
-    const { handler, followUps } = makeHandler({});
+    const { handler } = makeHandler({});
     const result = await handler.execute('/fork');
     expect(result.consumed).toBe(true);
-    expect(followUps).toEqual(['No active session to fork. Start a session first.']);
+    expect(result.followUpPrompt).toBe('No active session to fork. Start a session first.');
   });
 
   it('consumes /exit', async () => {
@@ -65,11 +62,11 @@ describe('KimiSlashCommandHandler', () => {
     expect(opened).toEqual(['sessions']);
   });
 
-  it('consumes /model and opens picker', async () => {
+  it('passes through /model to Kimi', async () => {
     const { handler, opened } = makeHandler();
     const result = await handler.execute('/model');
-    expect(result.consumed).toBe(true);
-    expect(opened).toEqual(['model']);
+    expect(result.consumed).toBe(false);
+    expect(opened).toHaveLength(0);
   });
 
   it('consumes /help and opens help', async () => {
@@ -79,7 +76,23 @@ describe('KimiSlashCommandHandler', () => {
     expect(opened).toEqual(['help']);
   });
 
-  it.each(['/compact', '/undo', '/usage', '/status', '/plan', '/swarm test', '/tasks'])('passes through %s', async (input) => {
+  it('consumes /login and returns auth action', async () => {
+    const { handler, updates } = makeHandler();
+    const result = await handler.execute('/login');
+    expect(result.consumed).toBe(true);
+    expect(result.authAction).toBe('login');
+    expect(updates).toHaveLength(0);
+  });
+
+  it('consumes /logout and returns auth action', async () => {
+    const { handler, updates } = makeHandler();
+    const result = await handler.execute('/logout');
+    expect(result.consumed).toBe(true);
+    expect(result.authAction).toBe('logout');
+    expect(updates).toHaveLength(0);
+  });
+
+  it.each(['/compact', '/undo', '/usage', '/status', '/plan', '/yolo', '/auto', '/swarm test', '/tasks', '/model'])('passes through %s', async (input) => {
     const { handler, updates } = makeHandler();
     const result = await handler.execute(input);
     expect(result.consumed).toBe(false);

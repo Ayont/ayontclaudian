@@ -1,0 +1,198 @@
+/* ============================================================
+ * Goal banner — the standing-objective indicator (set via /goal)
+ *
+ * Designed, not default: an accent-tinted surface with a layered glow, a left
+ * accent rail, clear label/provider/goal hierarchy, and a quiet entrance. The
+ * provider accent (--cl-accent) is whatever the active provider sets, so the
+ * banner re-tints itself per provider (Claude orange, Kimi violet, Vibe orange…).
+ * ============================================================ */
+
+.claudian-goal-banner-host {
+  padding: 0 var(--cl-space-3);
+}
+
+.claudian-goal-banner {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cl-space-3);
+  margin: var(--cl-space-2) 0;
+  padding: var(--cl-space-3) var(--cl-space-3) var(--cl-space-3) var(--cl-space-4);
+  border-radius: var(--cl-radius-lg);
+  border: 1px solid var(--cl-accent-line);
+  color: var(--text-normal);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--cl-accent-rgb), 0.16) 0%,
+      rgba(var(--cl-accent-rgb), 0.07) 100%
+    ),
+    var(--cl-surface-raised);
+  box-shadow:
+    var(--cl-shadow-md),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+  animation: cl-goal-rise var(--cl-dur) var(--cl-ease-out) both;
+}
+
+/* Left accent rail. */
+.claudian-goal-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(
+    180deg,
+    var(--cl-accent),
+    rgba(var(--cl-accent-rgb), 0.35)
+  );
+}
+
+@keyframes cl-goal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---- Icon: a glowing target ---- */
+.claudian-goal-banner-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  margin-top: 1px;
+  border-radius: var(--cl-radius-pill);
+  color: var(--cl-accent);
+  background: rgba(var(--cl-accent-rgb), 0.14);
+  box-shadow: 0 0 0 1px rgba(var(--cl-accent-rgb), 0.22) inset;
+}
+
+.claudian-goal-banner-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Slow ambient pulse so an active goal reads as "running" at a glance. */
+.claudian-goal-banner-icon::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--cl-radius-pill);
+  box-shadow: 0 0 0 0 rgba(var(--cl-accent-rgb), 0.45);
+  animation: cl-goal-pulse 2.8s var(--cl-ease) infinite;
+}
+
+@keyframes cl-goal-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(var(--cl-accent-rgb), 0.40); }
+  70% { box-shadow: 0 0 0 7px rgba(var(--cl-accent-rgb), 0); }
+  100% { box-shadow: 0 0 0 0 rgba(var(--cl-accent-rgb), 0); }
+}
+
+/* ---- Body ---- */
+.claudian-goal-banner-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.claudian-goal-banner-head {
+  display: flex;
+  align-items: center;
+  gap: var(--cl-space-2);
+}
+
+.claudian-goal-banner-label {
+  font-family: var(--cl-font-ui);
+  font-size: var(--cl-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cl-accent);
+}
+
+.claudian-goal-banner-provider {
+  font-family: var(--cl-font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  padding: 1px 7px;
+  border-radius: var(--cl-radius-pill);
+  background: rgba(var(--cl-accent-rgb), 0.10);
+  border: 1px solid var(--cl-accent-line);
+  white-space: nowrap;
+}
+
+.claudian-goal-banner-text {
+  font-family: var(--cl-font-ui);
+  font-size: var(--cl-text-md);
+  line-height: 1.45;
+  color: var(--text-normal);
+  /* Keep long goals from dominating the chat: clamp with a soft fade. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ---- Clear button ---- */
+.claudian-goal-banner-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--cl-radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    background var(--cl-dur-fast) var(--cl-ease),
+    color var(--cl-dur-fast) var(--cl-ease),
+    transform var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-goal-banner-clear svg {
+  width: 14px;
+  height: 14px;
+}
+
+.claudian-goal-banner-clear:hover {
+  background: rgba(var(--cl-accent-rgb), 0.14);
+  color: var(--cl-accent);
+}
+
+.claudian-goal-banner-clear:active {
+  transform: scale(0.9);
+}
+
+.claudian-goal-banner-clear:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--cl-accent-line);
+}
+
+/* Respect reduced-motion: drop the pulse + entrance. */
+@media (prefers-reduced-motion: reduce) {
+  .claudian-goal-banner {
+    animation: none;
+  }
+  .claudian-goal-banner-icon::after {
+    animation: none;
+  }
+}

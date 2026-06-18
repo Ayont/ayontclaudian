@@ -6,6 +6,7 @@ import { KimiTitleGenerationService } from './auxiliary/KimiTitleGenerationServi
 import { KIMI_PROVIDER_CAPABILITIES } from './capabilities';
 import { kimiSettingsReconciler } from './env/KimiSettingsReconciler';
 import { KimiConversationHistoryService } from './history/KimiConversationHistoryService';
+import { KimiAcpChatRuntime } from './runtime/KimiAcpChatRuntime';
 import { KimiChatRuntime } from './runtime/KimiChatRuntime';
 import { getKimiProviderSettings } from './settings';
 import { kimiChatUIConfig } from './ui/KimiChatUIConfig';
@@ -16,7 +17,10 @@ export const kimiProviderRegistration: ProviderRegistration = {
   chatUIConfig: kimiChatUIConfig,
   createInlineEditService: (plugin) => new KimiInlineEditService(plugin),
   createInstructionRefineService: (plugin) => new KimiInstructionRefineService(plugin),
-  createRuntime: ({ plugin }) => new KimiChatRuntime(plugin),
+  createRuntime: ({ plugin }) => {
+    const settings = getKimiProviderSettings(plugin.settings as unknown as Record<string, unknown>);
+    return settings.useAcp ? new KimiAcpChatRuntime(plugin) : new KimiChatRuntime(plugin);
+  },
   createTitleGenerationService: (plugin) => new KimiTitleGenerationService(plugin),
   displayName: 'Kimi',
   environmentKeyPatterns: [/^KIMI_/i, /^MOONSHOT_/i],

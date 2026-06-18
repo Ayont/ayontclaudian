@@ -1,6 +1,8 @@
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 import * as path from 'node:path';
 
+import { Notice } from 'obsidian';
+
 import { expandProviderCommandInput } from '../../../core/providers/commands/expandProviderCommandInput';
 import { getRuntimeEnvironmentText } from '../../../core/providers/providerEnvironment';
 import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorkspaceRegistry';
@@ -41,6 +43,9 @@ import {
   type WindowsCmdShimSpawnSpec,
 } from '../../../utils/windowsCmdShim';
 import { KIMI_PROVIDER_CAPABILITIES } from '../capabilities';
+import { KimiHelpModal } from '../commands/KimiHelpModal';
+import { KimiSessionListModal } from '../commands/KimiSessionListModal';
+import { KimiSlashCommandHandler } from '../commands/KimiSlashCommandHandler';
 import { getKimiModelContextWindow, resolveKimiModelSelection } from '../modelOptions';
 import { parseKimiStreamLine } from '../normalization/streamEvents';
 import {
@@ -51,11 +56,7 @@ import {
 import { getKimiProviderSettings, KIMI_PROVIDER_ID } from '../settings';
 import { buildPersistedKimiState, getKimiState, type KimiProviderState } from '../types';
 import { prepareKimiPromptWithGoal } from './KimiGoalPrompt';
-import { Notice } from 'obsidian';
-import { KimiHelpModal } from '../commands/KimiHelpModal';
-import { KimiSessionListModal } from '../commands/KimiSessionListModal';
-import { KimiSlashCommandHandler } from '../commands/KimiSlashCommandHandler';
-import { buildKimiLaunchSpec } from './KimiLaunchSpec';
+import { buildKimiLaunchSpec, detectKimiCliFlavor } from './KimiLaunchSpec';
 import { buildKimiRuntimeEnv } from './KimiRuntimeEnvironment';
 
 // stderr prints a resume hint after each run, e.g. `kimi -r <session-id>`.
@@ -98,13 +99,17 @@ export class KimiChatRuntime implements ChatRuntime {
       },
       {
         openSessionList: () => {
-          new KimiSessionListModal(this.plugin.app, (id) => {
-            this.sessionId = id;
-            this.sessionInvalidated = false;
-            new Notice(`Resumed Kimi session ${id}`);
-          }).open();
+          new KimiSessionListModal(
+            this.plugin.app,
+            (id) => {
+              this.sessionId = id;
+              this.sessionInvalidated = false;
+              new Notice(`Resumed Kimi session ${id}`);
+            },
+            this.goal ?? undefined,
+          ).open();
         },
-        openHelp: () => new KimiHelpModal(this.plugin.app).open(),
+        openHelp: () => new KimiHelpModal(this.plugin.app, this.goal ?? undefined).open(),
         closeTab: () => {
           const view = this.plugin.getView();
           const tabManager = view?.getTabManager();
@@ -173,6 +178,88 @@ export class KimiChatRuntime implements ChatRuntime {
     return Boolean(resolved);
   }
 
+  private async *runAuthCommand(
+    action: 'login' | 'logout',
+    command: string,
+    env: NodeJS.ProcessEnv,
+    cwd: string,
+  ): AsyncGenerator<StreamChunk> {
+    if (detectKimiCliFlavor(command) === 'legacy') {
+      yield {
+        type: 'error',
+        content: `/${action} requires the modern \`kimi\` binary. The legacy \`kimi-cli\` does not support authentication commands.`,
+      };
+      yield { type: 'done' };
+      return;
+    }
+
+    yield { type: 'user_message_start', content: `/${action}` };
+    yield { type: 'text', content: `Running \`kimi ${action}\`...` };
+
+    let proc: ChildProcessWithoutNullStreams;
+    let resolvedSpawnSpec: WindowsCmdShimSpawnSpec;
+    try {
+      resolvedSpawnSpec = resolveWindowsCmdShimSpawnSpec({
+        command,
+        args: [action],
+      });
+      proc = spawn(resolvedSpawnSpec.command, resolvedSpawnSpec.args, {
+        cwd,
+        env: {
+          ...env,
+          PATH: getEnhancedPath(env.PATH, path.isAbsolute(command) ? command : undefined),
+        },
+        stdio: 'pipe',
+        windowsHide: true,
+        ...(resolvedSpawnSpec.windowsVerbatimArguments ? { windowsVerbatimArguments: true } : {}),
+      });
+    } catch (error) {
+      yield {
+        type: 'error',
+        content: error instanceof Error ? error.message : `Failed to run \`kimi ${action}\`.`,
+      };
+      yield { type: 'done' };
+      return;
+    }
+
+    this.activeProcess = proc;
+    proc.stdin.end();
+
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString('utf-8');
+    });
+    proc.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString('utf-8');
+    });
+
+    const exitCode = await new Promise<number | null>((resolve) => {
+      proc.on('error', (error) => {
+        stderr += error instanceof Error ? error.message : String(error);
+        resolve(null);
+      });
+      proc.on('close', (code) => resolve(code));
+    });
+
+    this.activeProcess = null;
+
+    const output = stdout.trim() || stderr.trim();
+    if (output) {
+      yield { type: 'text', content: output };
+    }
+
+    if (exitCode !== 0) {
+      yield {
+        type: 'error',
+        content: `\`kimi ${action}\` exited with code ${exitCode ?? 'unknown'}.${stderr ? `\n\n${stderr.trim()}` : ''}`,
+      };
+    }
+
+    yield { type: 'done' };
+  }
+
   async *query(
     turn: PreparedChatTurn,
     conversationHistory?: ChatMessage[],
@@ -232,6 +319,10 @@ export class KimiChatRuntime implements ChatRuntime {
     // than being sent to the CLI (e.g. /new, /fork, /sessions, /help, /exit).
     const slashResult = await this.slashHandler.execute(promptText);
     if (slashResult.consumed) {
+      if (slashResult.authAction) {
+        yield* this.runAuthCommand(slashResult.authAction, command, env, cwd);
+        return;
+      }
       if (slashResult.followUpPrompt) {
         yield { type: 'text', content: slashResult.followUpPrompt };
       }

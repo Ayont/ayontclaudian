@@ -1,3 +1,4 @@
+import type { ProviderSessionSnapshot } from '../conversation/providerSessionHandoff';
 import type { SDKToolUseResult } from './diff';
 import type { ProviderId } from './provider';
 import type { SubagentMode, ToolCallInfo } from './tools';
@@ -73,6 +74,12 @@ export interface Conversation {
   sessionId: string | null;
   /** Opaque provider-owned state bag (session tracking, fork metadata, etc.). */
   providerState?: Record<string, unknown>;
+  /**
+   * Per-provider native session snapshots, keyed by provider id. Populated when a
+   * bound conversation switches model/provider mid-chat so each provider keeps its
+   * OWN session and never resumes another provider's id ("session not found").
+   */
+  providerSessions?: Record<string, ProviderSessionSnapshot>;
   messages: ChatMessage[];
   currentNote?: string;
   /** Session-specific external context paths (directories with full access). Resets on new session. */
@@ -118,6 +125,8 @@ export interface SessionMetadata {
   sessionId?: string | null;
   /** Opaque provider-owned state bag. */
   providerState?: Record<string, unknown>;
+  /** Per-provider native session snapshots (see {@link Conversation.providerSessions}). */
+  providerSessions?: Record<string, ProviderSessionSnapshot>;
   /** Fallback messages for providers without SDK-native message storage. */
   messages?: ChatMessage[];
   currentNote?: string;

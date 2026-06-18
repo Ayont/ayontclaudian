@@ -32,6 +32,10 @@ export interface PersistedKimiProviderSettings {
   mcpConfigFile: string;
   /** Permission posture mapped onto `--yolo` / `--plan`. */
   permissionMode: KimiPermissionMode;
+  /** Optional Moonshot API key stored locally and synced into the provider env as `MOONSHOT_API_KEY`. */
+  apiKey: string;
+  /** Use `kimi acp` (Agent Client Protocol) for persistent interactive sessions instead of one-shot `-p` mode. */
+  useAcp: boolean;
 }
 
 export const DEFAULT_KIMI_PROVIDER_SETTINGS: Readonly<PersistedKimiProviderSettings> = Object.freeze({
@@ -45,6 +49,8 @@ export const DEFAULT_KIMI_PROVIDER_SETTINGS: Readonly<PersistedKimiProviderSetti
   agentFile: '',
   mcpConfigFile: '',
   permissionMode: 'normal',
+  apiKey: '',
+  useAcp: false,
 });
 
 function normalizeHostnameCliPaths(value: unknown): HostnameCliPaths {
@@ -94,6 +100,8 @@ export function getKimiProviderSettings(
     agentFile: asString(config.agentFile, DEFAULT_KIMI_PROVIDER_SETTINGS.agentFile).trim(),
     mcpConfigFile: asString(config.mcpConfigFile, DEFAULT_KIMI_PROVIDER_SETTINGS.mcpConfigFile).trim(),
     permissionMode: normalizePermissionMode(config.permissionMode),
+    apiKey: asString(config.apiKey, DEFAULT_KIMI_PROVIDER_SETTINGS.apiKey),
+    useAcp: config.useAcp === true,
   };
 }
 
@@ -113,6 +121,8 @@ export function updateKimiProviderSettings(
     permissionMode: updates.permissionMode
       ? normalizePermissionMode(updates.permissionMode)
       : current.permissionMode,
+    apiKey: updates.apiKey !== undefined ? updates.apiKey : current.apiKey,
+    useAcp: updates.useAcp !== undefined ? updates.useAcp === true : current.useAcp,
   };
   setProviderConfig(settings, KIMI_PROVIDER_ID, { ...next });
   return next;

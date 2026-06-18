@@ -1,34 +1,185 @@
+/* ---------------------------------------------------------------------------
+ * Kimi Code CLI modal styles
+ * ---------------------------------------------------------------------------
+ * Shared by KimiHelpModal and KimiSessionListModal. Uses Obsidian theme
+ * variables so the modals feel native in light and dark themes.
+ * --------------------------------------------------------------------------- */
+
+.kimi-help-modal .modal-content,
+.kimi-session-list-modal .modal-content {
+  padding: var(--size-4-3, 16px);
+}
+
+.kimi-help-header,
+.kimi-session-list-header {
+  margin-bottom: var(--size-4-4, 20px);
+}
+
+.kimi-help-title,
+.kimi-session-list-title {
+  margin: 0 0 var(--size-4-1, 6px);
+  font-size: var(--h2-size, 1.25rem);
+  font-weight: var(--h2-weight, 600);
+  line-height: 1.25;
+  color: var(--text-normal);
+}
+
+.kimi-help-subtitle,
+.kimi-session-list-subtitle {
+  margin: 0;
+  font-size: var(--font-ui-smaller, 0.85rem);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Goal card shown in both modals when a standing goal is set. */
+.kimi-goal-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-1, 6px);
+  margin-bottom: var(--size-4-4, 20px);
+  padding: var(--size-4-3, 14px);
+  border-radius: var(--radius-m, 8px);
+  background: var(--background-modifier-form-field);
+  border: 1px solid var(--background-modifier-border);
+}
+
+.kimi-goal-label {
+  font-size: var(--font-ui-smaller, 0.75rem);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-accent);
+}
+
+.kimi-goal-text {
+  font-size: var(--font-ui-small, 0.9rem);
+  line-height: 1.45;
+  color: var(--text-normal);
+}
+
+/* Help modal sections */
+.kimi-help-section {
+  margin-bottom: var(--size-4-4, 20px);
+}
+
+.kimi-help-section-title {
+  margin: 0 0 var(--size-4-2, 10px);
+  font-size: var(--font-ui-small, 0.8rem);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
 .kimi-help-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 12px;
+  gap: var(--size-2-2, 4px);
 }
 
 .kimi-help-row {
   display: flex;
-  gap: 12px;
-  align-items: baseline;
+  align-items: center;
+  gap: var(--size-4-3, 12px);
+  padding: var(--size-4-1, 6px) var(--size-4-2, 10px);
+  border-radius: var(--radius-s, 6px);
+  transition: background-color 150ms ease-out;
 }
 
-.kimi-help-row code {
+.kimi-help-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.kimi-help-command {
+  flex: 0 0 auto;
   min-width: 120px;
+  padding: 2px var(--size-4-1, 6px);
+  border-radius: var(--radius-s, 6px);
+  background: var(--background-modifier-form-field);
+  border: 1px solid var(--background-modifier-border);
   font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller, 0.8rem);
+  color: var(--text-accent);
+  text-align: left;
 }
 
+.kimi-help-description {
+  font-size: var(--font-ui-small, 0.9rem);
+  color: var(--text-normal);
+  line-height: 1.4;
+}
+
+/* Session list modal */
 .kimi-session-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 12px;
+  gap: var(--size-2-2, 4px);
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: var(--size-2-2, 4px);
 }
 
 .kimi-session-list-item {
-  padding: 8px;
-  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-2, 10px);
+  padding: var(--size-4-2, 10px) var(--size-4-3, 14px);
+  border-radius: var(--radius-m, 8px);
   cursor: pointer;
+  outline: none;
+  border: 1px solid transparent;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out;
 }
 
-.kimi-session-list-item:hover {
+.kimi-session-list-item:hover,
+.kimi-session-list-item-focused {
   background: var(--background-modifier-hover);
+  border-color: var(--background-modifier-border-hover);
+}
+
+.kimi-session-list-item:focus-visible {
+  box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+}
+
+.kimi-session-list-item-meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-2-1, 2px);
+  min-width: 0;
+}
+
+.kimi-session-list-item-id {
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small, 0.9rem);
+  color: var(--text-normal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kimi-session-list-item-kind {
+  font-size: var(--font-ui-smaller, 0.75rem);
+  color: var(--text-muted);
+}
+
+.kimi-session-list-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--size-4-1, 6px);
+  padding: var(--size-4-8, 40px) var(--size-4-3, 16px);
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.kimi-session-list-empty p {
+  margin: 0;
+}
+
+.kimi-session-list-empty-hint {
+  font-size: var(--font-ui-smaller, 0.8rem);
+  color: var(--text-faint);
 }
