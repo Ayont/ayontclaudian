@@ -95,6 +95,7 @@ import { ModelSelectModal } from './features/chat/ui/ModelSelectModal';
 import { ProviderStatusBar } from './features/chat/ui/ProviderStatusBar';
 import { ClaudianDashboardView, VIEW_TYPE_CLAUDIAN_DASHBOARD } from './features/dashboard/ClaudianDashboardView';
 import { type InlineEditContext, InlineEditModal } from './features/inline-edit/ui/InlineEditModal';
+import { MultiAgentModal } from './features/multiAgent/MultiAgentModal';
 import { ClaudianSettingTab } from './features/settings/ClaudianSettings';
 import { setLocale } from './i18n/i18n';
 import type { Locale } from './i18n/types';
@@ -956,14 +957,7 @@ export default class ClaudianPlugin extends Plugin {
 
   async runMultiAgentTask(): Promise<void> {
     const prompt = 'Analyze the current vault structure and suggest improvements.';
-    const results = await this.multiAgentService.runTask(
-      { id: 'ma-1', prompt, agents: ['coder', 'writer', 'researcher'] },
-      async (agent) => `${agent.name} processed the task.`,
-    );
-    const content = `# Multi-Agent Results\n\n${results.map(r => `## ${r.agentId}\n\n${r.output}`).join('\n\n')}`;
-    const filePath = `.claudian/multi-agent-${Date.now()}.md`;
-    await this.app.vault.create(filePath, content);
-    new Notice(`Multi-agent results written to ${filePath}`);
+    await MultiAgentModal.runTask(this, prompt);
   }
 
   updateProviderStatusBar(): void {
@@ -1123,9 +1117,9 @@ export default class ClaudianPlugin extends Plugin {
     this.multiAgentService = new MultiAgentService();
     this.visionService = new VisionService(this.app.vault);
 
-    this.multiAgentService.registerAgent({ id: 'coder', name: 'Coder', role: 'code', systemPrompt: 'You are an expert software engineer.' });
-    this.multiAgentService.registerAgent({ id: 'writer', name: 'Writer', role: 'writing', systemPrompt: 'You are an expert technical writer.' });
-    this.multiAgentService.registerAgent({ id: 'researcher', name: 'Researcher', role: 'research', systemPrompt: 'You are a thorough researcher.' });
+    this.multiAgentService.registerAgent({ id: 'coder', name: 'Coder', role: 'code', systemPrompt: 'You are an expert software engineer.', icon: 'code-2', color: '#60a5fa' });
+    this.multiAgentService.registerAgent({ id: 'writer', name: 'Writer', role: 'writing', systemPrompt: 'You are an expert technical writer.', icon: 'pen-tool', color: '#f472b6' });
+    this.multiAgentService.registerAgent({ id: 'researcher', name: 'Researcher', role: 'research', systemPrompt: 'You are a thorough researcher.', icon: 'microscope', color: '#a78bfa' });
 
     this.vectorStore = new VectorStore();
     this.embeddingService = new KeywordEmbeddingProvider();
