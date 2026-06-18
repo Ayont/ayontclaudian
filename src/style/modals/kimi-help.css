@@ -1,0 +1,34 @@
+.kimi-help-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.kimi-help-row {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.kimi-help-row code {
+  min-width: 120px;
+  font-family: var(--font-monospace);
+}
+
+.kimi-session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.kimi-session-list-item {
+  padding: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.kimi-session-list-item:hover {
+  background: var(--background-modifier-hover);
+}

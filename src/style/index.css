@@ -52,6 +52,7 @@
 @import "./modals/mcp-modal.css";
 @import "./modals/fork-target.css";
 @import "./modals/model-select.css";
+@import "./modals/kimi-help.css";
 
 /* Settings */
 @import "./settings/base.css";
