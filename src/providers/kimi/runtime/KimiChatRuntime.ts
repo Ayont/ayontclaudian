@@ -50,6 +50,7 @@ import {
 } from '../normalization/streamMapping';
 import { getKimiProviderSettings, KIMI_PROVIDER_ID } from '../settings';
 import { buildPersistedKimiState, getKimiState, type KimiProviderState } from '../types';
+import { prepareKimiPromptWithGoal } from './KimiGoalPrompt';
 import { buildKimiLaunchSpec } from './KimiLaunchSpec';
 import { buildKimiRuntimeEnv } from './KimiRuntimeEnvironment';
 
@@ -70,6 +71,7 @@ export class KimiChatRuntime implements ChatRuntime {
   readonly providerId = KIMI_PROVIDER_ID;
 
   private sessionId: string | null = null;
+  private goal: string | null = null;
   private sessionInvalidated = false;
   private ready = false;
   private currentTurnMetadata: ChatTurnMetadata = {};
@@ -107,6 +109,7 @@ export class KimiChatRuntime implements ChatRuntime {
   syncConversationState(conversation: ChatRuntimeConversationState | null): void {
     if (!conversation) {
       this.sessionId = null;
+      this.goal = null;
       this.sessionInvalidated = false;
       return;
     }
@@ -116,6 +119,7 @@ export class KimiChatRuntime implements ChatRuntime {
     // holds another provider's id, which kimi-cli would reject. No own session
     // → start fresh.
     this.sessionId = state.sessionId ?? null;
+    this.goal = state.goal ?? null;
     this.sessionInvalidated = false;
   }
 
@@ -182,6 +186,12 @@ export class KimiChatRuntime implements ChatRuntime {
     } catch {
       promptText = turn.request.text;
     }
+
+    // Mirror "/goal" locally so the standing objective survives across turns in
+    // print mode. The raw `/goal` command is still sent to Kimi for confirmation.
+    const goalResult = prepareKimiPromptWithGoal(promptText, this.goal);
+    this.goal = goalResult.nextGoal;
+    promptText = goalResult.promptToSend;
 
     const launchSpec = buildKimiLaunchSpec({
       agent: settings.agent,
@@ -479,6 +489,7 @@ export class KimiChatRuntime implements ChatRuntime {
     }
     const state: KimiProviderState = {
       ...(this.sessionId ? { sessionId: this.sessionId } : {}),
+      ...(this.goal ? { goal: this.goal } : {}),
     };
     return {
       updates: {
@@ -558,7 +569,7 @@ export class KimiChatRuntime implements ChatRuntime {
 }
 
 const TOOL_NAME_DESCRIPTIONS: Record<string, { content: string; activeForm: string }> = {
-  bash: { content: 'Run shell command', activeForm: 'Running shell command' },
+  bash: { content: 'Run command', activeForm: 'Running command' },
   read_file: { content: 'Read file', activeForm: 'Reading file' },
   write_file: { content: 'Write file', activeForm: 'Writing file' },
   edit_file: { content: 'Edit file', activeForm: 'Editing file' },
@@ -569,6 +580,12 @@ const TOOL_NAME_DESCRIPTIONS: Record<string, { content: string; activeForm: stri
   grep: { content: 'Search content', activeForm: 'Searching content' },
   web_search: { content: 'Search web', activeForm: 'Searching web' },
   url_fetch: { content: 'Fetch URL', activeForm: 'Fetching URL' },
+  // Kimi Code uses PascalCase tool names (Read, Write, Edit, Bash, …).
+  read: { content: 'Read file', activeForm: 'Reading file' },
+  view: { content: 'View file', activeForm: 'Viewing file' },
+  write: { content: 'Write file', activeForm: 'Writing file' },
+  edit: { content: 'Edit file', activeForm: 'Editing file' },
+  multiedit: { content: 'Edit files', activeForm: 'Editing files' },
 };
 
 function describeToolUse(

@@ -79,4 +79,50 @@ describe('SharedVaultCommandCatalog', () => {
       commandPrefix: '/',
     });
   });
+
+  it('can expose skills with a custom insert prefix (e.g. "/" for Kimi)', async () => {
+    const commandStore = makeStore([cmd('review')]);
+    const skillStore = makeStore([cmd('pirate')]);
+    const catalog = new SharedVaultCommandCatalog('kimi', commandStore, skillStore, {
+      skillInsertPrefix: '/',
+    });
+
+    const entries = await catalog.listDropdownEntries({ includeBuiltIns: false });
+
+    const skill = entries.find((e) => e.name === 'pirate');
+    expect(skill).toMatchObject({
+      kind: 'skill',
+      displayPrefix: '/',
+      insertPrefix: '/',
+      providerId: 'kimi',
+    });
+    expect(catalog.getDropdownConfig()).toMatchObject({
+      skillPrefix: '/',
+      triggerChars: ['/', '$'],
+    });
+  });
+
+  it('merges provider-static entries with vault entries', async () => {
+    const catalog = new SharedVaultCommandCatalog('kimi', makeStore(), makeStore(), {
+      staticEntries: [
+        {
+          id: 'kimi:goal',
+          providerId: 'kimi',
+          kind: 'command',
+          name: 'goal',
+          description: 'Set a standing goal',
+          content: '/goal $ARGUMENTS',
+          scope: 'builtin',
+          source: 'builtin',
+          isEditable: false,
+          isDeletable: false,
+          displayPrefix: '/',
+          insertPrefix: '/',
+        },
+      ],
+    });
+
+    const entries = await catalog.listDropdownEntries({ includeBuiltIns: false });
+    expect(entries.some((e) => e.name === 'goal' && e.scope === 'builtin')).toBe(true);
+  });
 });

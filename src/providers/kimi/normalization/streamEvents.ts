@@ -108,6 +108,23 @@ function parseContentParts(content: unknown): KimiContentPart[] {
   return parts;
 }
 
+/** Tools that address files via Kimi's `path` argument (the plugin expects `file_path`). */
+const KIMI_PATH_AS_FILE_PATH = new Set<string>(['Read', 'View', 'Write', 'Edit', 'MultiEdit']);
+
+function normalizeKimiToolInput(name: string, input: Record<string, unknown>): Record<string, unknown> {
+  if (!KIMI_PATH_AS_FILE_PATH.has(name)) {
+    return input;
+  }
+  const path = input.path;
+  if (typeof path !== 'string' || !path.trim()) {
+    return input;
+  }
+  const next: Record<string, unknown> = { ...input };
+  delete next.path;
+  next.file_path = path;
+  return next;
+}
+
 function parseToolCalls(value: unknown): KimiToolCall[] {
   if (!Array.isArray(value)) {
     return [];
@@ -128,7 +145,7 @@ function parseToolCalls(value: unknown): KimiToolCall[] {
       continue;
     }
     const id = toStr(record.id) ?? `kimi-tool-${calls.length}`;
-    calls.push({ id, name, input: parseToolArguments(fnRecord.arguments) });
+    calls.push({ id, name, input: normalizeKimiToolInput(name, parseToolArguments(fnRecord.arguments)) });
   }
   return calls;
 }

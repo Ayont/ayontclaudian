@@ -1,64 +1,178 @@
-.claudian-model-select-modal .modal-content {
-  padding: 0;
+/* Premium, centered model picker modal
+   Vibe: Ethereal Glass / AI island
+   Layout: Floating vertical list with double-bezel enclosure
+   Motion: Custom spring cubic-bezier, transform-only micro-interactions */
+
+.claudian-model-select-modal {
+  --cl-select-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --cl-select-radius-outer: 22px;
+  --cl-select-radius-inner: 16px;
+  --cl-select-accent: var(--interactive-accent);
+  --cl-select-accent-10: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
+  --cl-select-accent-12: color-mix(in srgb, var(--interactive-accent) 12%, transparent);
+  --cl-select-accent-28: color-mix(in srgb, var(--interactive-accent) 28%, transparent);
+  --cl-select-accent-40: color-mix(in srgb, var(--interactive-accent) 40%, transparent);
+
+  max-width: 480px;
+  width: 90vw;
+  border-radius: var(--cl-select-radius-outer);
+  background: var(--background-primary);
+  box-shadow:
+    0 0 0 1px var(--background-modifier-border),
+    0 24px 60px -12px rgba(0, 0, 0, 0.16),
+    0 10px 28px -8px rgba(0, 0, 0, 0.08);
+  animation: claudian-modal-pop 420ms var(--cl-select-ease) both;
+  overflow: hidden;
+  font-family: var(--font-interface), system-ui, sans-serif;
 }
 
+@keyframes claudian-modal-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.claudian-model-select-modal .modal-title {
+  padding: 20px 24px 8px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-normal);
+  text-align: center;
+}
+
+.claudian-model-select-modal .modal-content {
+  padding: 0 24px 24px;
+}
+
+/* Double-bezel outer shell */
+.claudian-model-select-frame {
+  background: var(--background-secondary);
+  padding: 5px;
+  border-radius: var(--cl-select-radius-inner);
+  box-shadow:
+    0 0 0 1px var(--background-modifier-border),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Search island */
 .claudian-model-select-search {
-  padding: var(--cl-space-2) var(--cl-space-3);
-  border-bottom: 1px solid var(--background-modifier-border);
+  padding: 5px 5px 10px;
 }
 
 .claudian-model-select-search-input {
   width: 100%;
-  padding: var(--cl-space-2) var(--cl-space-3);
-  font-size: var(--cl-font-size-sm);
+  padding: 10px 15px;
+  font-size: 13px;
+  line-height: 1.4;
   color: var(--text-normal);
   background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--cl-radius-md);
+  border: none;
+  border-radius: 999px;
   outline: none;
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.05),
+    0 0 0 1px var(--background-modifier-border);
+  transition: box-shadow 200ms var(--cl-select-ease),
+    background-color 200ms var(--cl-select-ease);
+}
+
+.claudian-model-select-search-input::placeholder {
+  color: var(--text-faint);
 }
 
 .claudian-model-select-search-input:focus {
-  border-color: var(--claudian-brand);
+  background: var(--background-primary);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.05),
+    0 0 0 2px var(--cl-select-accent-40);
 }
 
+/* Inner core list */
 .claudian-model-select-list {
-  max-height: 60vh;
+  max-height: 52vh;
   overflow-y: auto;
-  padding: var(--cl-space-1) 0;
+  padding: 5px;
+  border-radius: calc(var(--cl-select-radius-inner) - 5px);
+  background: var(--background-primary);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
+/* Sticky provider group labels */
 .claudian-model-select-group {
-  padding: var(--cl-space-2) var(--cl-space-3);
-  font-size: var(--cl-font-size-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--text-muted);
-  background: var(--background-secondary);
   position: sticky;
   top: 0;
   z-index: 1;
+  padding: 7px 10px;
+  margin: 4px 0 2px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--text-muted);
+  background: var(--background-primary);
+  border-bottom: 1px solid var(--background-modifier-border);
 }
 
+.claudian-model-select-group:first-child {
+  margin-top: 0;
+}
+
+/* Model option rows */
 .claudian-model-select-option {
   display: flex;
   align-items: center;
-  gap: var(--cl-space-2);
-  padding: var(--cl-space-2) var(--cl-space-3);
+  gap: 10px;
+  padding: 9px 11px;
+  margin: 2px 0;
+  border-radius: 12px;
   cursor: pointer;
   color: var(--text-normal);
-  transition: background-color 0.1s ease;
+  background: transparent;
+  transform: translateZ(0);
+  transition: background-color 160ms var(--cl-select-ease),
+    transform 160ms var(--cl-select-ease);
+  will-change: transform;
 }
 
-.claudian-model-select-option:hover,
-.claudian-model-select-option.is-selected {
+.claudian-model-select-option:first-child {
+  margin-top: 0;
+}
+
+.claudian-model-select-option:last-child {
+  margin-bottom: 0;
+}
+
+.claudian-model-select-option:hover {
   background: var(--background-modifier-hover);
+  transform: translateX(3px) scale(1.005);
+}
+
+.claudian-model-select-option.is-selected {
+  background: var(--cl-select-accent-10);
+  box-shadow: inset 0 0 0 1px var(--cl-select-accent-28);
 }
 
 .claudian-model-select-option.is-selected .claudian-model-select-option-label {
   font-weight: 600;
-  color: var(--claudian-brand);
+  color: var(--cl-select-accent);
+}
+
+.claudian-model-select-option-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--background-secondary);
+  color: var(--text-muted);
 }
 
 .claudian-model-select-option-icon svg {
@@ -68,12 +182,32 @@
 }
 
 .claudian-model-select-option-label {
-  font-size: var(--cl-font-size-sm);
+  flex: 1 1 auto;
+  font-size: 13px;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+.claudian-model-select-option-check {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--cl-select-accent);
+  background: var(--cl-select-accent-12);
+}
+
+/* Empty state */
 .claudian-model-select-empty {
-  padding: var(--cl-space-4) var(--cl-space-3);
+  padding: 36px 16px;
   text-align: center;
   color: var(--text-muted);
-  font-size: var(--cl-font-size-sm);
+  font-size: 13px;
 }

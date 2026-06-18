@@ -24,15 +24,29 @@ export interface VaultCommandEntryStore {
  * skills in the `/` + `$` dropdown; the runtimes expand a chosen entry
  * client-side via {@link expandProviderCommandInput} before sending the prompt.
  */
+export interface SharedVaultCommandCatalogOptions {
+  /** Prefix used when inserting a skill (default "$"). Set to "/" for providers like Kimi whose users expect slash-triggered skills. */
+  skillInsertPrefix?: string;
+  /** Provider-owned commands merged into the dropdown but not persisted in the vault (e.g. Kimi's native slash-commands). */
+  staticEntries?: ProviderCommandEntry[];
+}
+
 export class SharedVaultCommandCatalog implements ProviderCommandCatalog {
+  private readonly skillInsertPrefix: string;
+  private readonly staticEntries: ProviderCommandEntry[];
+
   constructor(
     private readonly providerId: ProviderId,
     private readonly commandStorage: VaultCommandEntryStore,
     private readonly skillStorage: VaultCommandEntryStore,
-  ) {}
+    options: SharedVaultCommandCatalogOptions = {},
+  ) {
+    this.skillInsertPrefix = options.skillInsertPrefix ?? '$';
+    this.staticEntries = options.staticEntries ?? [];
+  }
 
   private commandToEntry(command: SlashCommand, kind: 'command' | 'skill'): ProviderCommandEntry {
-    const prefix = kind === 'skill' ? '$' : '/';
+    const prefix = kind === 'skill' ? this.skillInsertPrefix : '/';
     return {
       id: command.id,
       providerId: this.providerId,
@@ -90,6 +104,7 @@ export class SharedVaultCommandCatalog implements ProviderCommandCatalog {
       this.skillStorage.loadAll(),
     ]);
     return [
+      ...this.staticEntries,
       ...commands.map((command) => this.commandToEntry(command, 'command')),
       ...skills.map((skill) => this.commandToEntry(skill, 'skill')),
     ];
@@ -117,7 +132,7 @@ export class SharedVaultCommandCatalog implements ProviderCommandCatalog {
       providerId: this.providerId,
       triggerChars: ['/', '$'],
       builtInPrefix: '/',
-      skillPrefix: '$',
+      skillPrefix: this.skillInsertPrefix,
       commandPrefix: '/',
     };
   }

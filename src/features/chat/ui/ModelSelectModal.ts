@@ -20,8 +20,11 @@ export class ModelSelectModal extends Modal {
   onOpen(): void {
     this.titleEl.setText('Select model');
     this.modalEl.addClass('claudian-model-select-modal');
+    this.contentEl.addClass('claudian-model-select-content');
 
-    const searchContainer = this.contentEl.createDiv({ cls: 'claudian-model-select-search' });
+    const frame = this.contentEl.createDiv({ cls: 'claudian-model-select-frame' });
+
+    const searchContainer = frame.createDiv({ cls: 'claudian-model-select-search' });
     this.searchInput = searchContainer.createEl('input', {
       type: 'text',
       placeholder: 'Search models…',
@@ -32,7 +35,7 @@ export class ModelSelectModal extends Modal {
       this.renderList();
     });
 
-    this.listEl = this.contentEl.createDiv({ cls: 'claudian-model-select-list' });
+    this.listEl = frame.createDiv({ cls: 'claudian-model-select-list' });
     this.renderList();
 
     // Focus the search field after the modal is visible.
@@ -73,16 +76,21 @@ export class ModelSelectModal extends Modal {
       }
 
       if (model.providerIcon) {
-        optionEl.appendChild(createProviderIconSvg(model.providerIcon, {
-          className: 'claudian-model-select-option-icon',
+        const iconWrap = optionEl.createSpan({ cls: 'claudian-model-select-option-icon' });
+        iconWrap.appendChild(createProviderIconSvg(model.providerIcon, {
           height: 14,
-          ownerDocument: optionEl.ownerDocument,
+          ownerDocument: iconWrap.ownerDocument,
           width: 14,
         }));
       }
 
       const labelEl = optionEl.createSpan({ cls: 'claudian-model-select-option-label' });
       labelEl.setText(model.label);
+
+      if (model.value === this.currentModel) {
+        const checkEl = optionEl.createSpan({ cls: 'claudian-model-select-option-check' });
+        checkEl.setText('✓');
+      }
 
       if (model.description) {
         optionEl.setAttribute('title', model.description);

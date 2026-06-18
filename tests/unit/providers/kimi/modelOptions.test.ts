@@ -71,11 +71,14 @@ describe('getKimiModelOptions', () => {
     expect(values.filter((value) => value === DEFAULT_KIMI_PRIMARY_MODEL)).toHaveLength(1);
   });
 
-  it('seeds the documented Kimi/Moonshot model catalog', () => {
+  it('seeds the Kimi coding model catalog (3 models)', () => {
     const values = getKimiModelOptions(settingsWith({})).map((option) => option.value);
-    expect(values).toContain('kimi-k2.6');
-    expect(values).toContain('kimi-k2-thinking');
-    expect(values).toContain('moonshot-v1-128k');
+    expect(values).toContain('kimi-code/kimi-for-coding');
+    expect(values).toContain('kimi-k2.7-code');
+    expect(values).toContain('kimi-k2.7-code-highspeed');
+    // Non-coding platform / legacy models are intentionally hidden.
+    expect(values).not.toContain('kimi-k2.6');
+    expect(values).not.toContain('moonshot-v1-128k');
   });
 
   it('surfaces an env KIMI_MODEL as a custom option at the front', () => {

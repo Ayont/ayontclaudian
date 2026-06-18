@@ -140,6 +140,36 @@ describe('kimi stream-json parser', () => {
     // Unknown tools fall back to a humanized label.
     expect(humanizeKimiTool('CustomTool')).toBe('Custom tool');
   });
+
+  it('normalizes "path" to "file_path" for file tools', () => {
+    const readEvent = parseKimiStreamLine(JSON.stringify({
+      role: 'assistant',
+      tool_calls: [{ type: 'function', function: { name: 'Read', arguments: '{"path":"src/app.tsx"}' } }],
+    }))!;
+    expect(readEvent.toolCalls[0]?.input).toMatchObject({ file_path: 'src/app.tsx' });
+    expect(readEvent.toolCalls[0]?.input).not.toHaveProperty('path');
+
+    const writeEvent = parseKimiStreamLine(JSON.stringify({
+      role: 'assistant',
+      tool_calls: [{ type: 'function', function: { name: 'Write', arguments: '{"path":"src/main.ts","content":"x"}' } }],
+    }))!;
+    expect(writeEvent.toolCalls[0]?.input).toMatchObject({ file_path: 'src/main.ts', content: 'x' });
+
+    const editEvent = parseKimiStreamLine(JSON.stringify({
+      role: 'assistant',
+      tool_calls: [{ type: 'function', function: { name: 'Edit', arguments: '{"path":"src/styles.css"}' } }],
+    }))!;
+    expect(editEvent.toolCalls[0]?.input).toMatchObject({ file_path: 'src/styles.css' });
+  });
+
+  it('keeps "path" for non-file tools like LS', () => {
+    const lsEvent = parseKimiStreamLine(JSON.stringify({
+      role: 'assistant',
+      tool_calls: [{ type: 'function', function: { name: 'LS', arguments: '{"path":"src"}' } }],
+    }))!;
+    expect(lsEvent.toolCalls[0]?.input).toMatchObject({ path: 'src' });
+    expect(lsEvent.toolCalls[0]?.input).not.toHaveProperty('file_path');
+  });
 });
 
 describe('kimi stream mapping (live)', () => {
