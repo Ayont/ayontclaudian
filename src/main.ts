@@ -638,6 +638,51 @@ export default class ClaudianPlugin extends Plugin {
     }
   }
 
+  /**
+   * Runs a single agent prompt against the active chat provider. Streams
+   * partial output via `onChunk` and returns the final assembled text.
+   */
+  async runAgentPrompt(
+    agent: { systemPrompt: string; name: string; model?: string },
+    prompt: string,
+    onChunk?: (chunk: string) => void,
+  ): Promise<string> {
+    const tab = this.getView()?.getActiveTab();
+    const providerId = tab?.providerId ?? ProviderRegistry.resolveSettingsProviderId(this.settings);
+    const model = agent.model ?? tab?.ui.modelSelector?.getCurrentModelLabel() ?? this.getTabModel(providerId);
+
+    const runtime = ProviderRegistry.createChatRuntime({ plugin: this, providerId });
+    try {
+      const ready = await runtime.ensureReady();
+      if (!ready) {
+        throw new Error(`Provider ${ProviderRegistry.getProviderDisplayName(providerId)} is not ready.`);
+      }
+      const fullPrompt = `${agent.systemPrompt}\n\nUser request: ${prompt}\n\nRespond as ${agent.name}.`;
+      const prepared = runtime.prepareTurn({ text: fullPrompt });
+      let text = '';
+      for await (const chunk of runtime.query(prepared, [], { model })) {
+        if (chunk.type === 'text') {
+          text += chunk.content;
+          onChunk?.(chunk.content);
+        } else if (chunk.type === 'error') {
+          throw new Error(chunk.content);
+        }
+      }
+      return text;
+    } finally {
+      try {
+        runtime.cleanup();
+      } catch {
+        // best-effort cleanup
+      }
+    }
+  }
+
+  private getTabModel(providerId: ProviderId): string {
+    const snapshot = ProviderSettingsCoordinator.getProviderSettingsSnapshot(this.settings, providerId);
+    return snapshot.model as string;
+  }
+
   /** Flips the global auto mode, persists it, and refreshes the toolbar + status bar. */
   async toggleAutoMode(): Promise<void> {
     this.settings.autoMode = !this.settings.autoMode;

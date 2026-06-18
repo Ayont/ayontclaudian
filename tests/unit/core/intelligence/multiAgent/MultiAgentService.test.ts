@@ -14,7 +14,9 @@ describe('MultiAgentService', () => {
 
     const results = await service.runTask(
       { id: 't1', prompt: 'hello', agents: ['a', 'b'] },
-      async (agent) => `${agent.name}: ${agent.systemPrompt}`,
+      {
+        execute: async (agent) => `${agent.name}: ${agent.systemPrompt}`,
+      },
     );
 
     expect(results).toHaveLength(2);

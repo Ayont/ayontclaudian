@@ -195,9 +195,10 @@ export class MultiAgentModal extends Modal {
       const agents = plugin.multiAgentService.listAgents().map((a) => a.id);
       const results = await plugin.multiAgentService.runTask(
         { id: `ma-${Date.now()}`, prompt, agents },
-        async (agent: SpecialistAgent) => {
-          await new Promise((resolve) => window.setTimeout(resolve, 600));
-          return `${agent.name} analyzed the vault and produced recommendations.`;
+        {
+          execute: async (agent: SpecialistAgent, taskPrompt: string, onChunk) => {
+            return plugin.runAgentPrompt(agent, taskPrompt, (chunk) => onChunk(agent.id, chunk));
+          },
         },
         (progress) => modal.updateProgress(progress),
       );

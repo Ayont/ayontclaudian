@@ -36,6 +36,11 @@ export interface MultiAgentProgress {
 }
 
 export type ProgressCallback = (progress: MultiAgentProgress) => void;
+export type AgentChunkCallback = (agentId: string, chunk: string) => void;
+
+export interface AgentExecutor {
+  execute: (agent: SpecialistAgent, prompt: string, onChunk: AgentChunkCallback) => Promise<string>;
+}
 
 export class MultiAgentService {
   private agents = new Map<string, SpecialistAgent>();
@@ -54,7 +59,7 @@ export class MultiAgentService {
 
   async runTask(
     task: MultiAgentTask,
-    executor: (agent: SpecialistAgent, prompt: string) => Promise<string>,
+    executor: AgentExecutor,
     onProgress?: ProgressCallback,
   ): Promise<AgentResult[]> {
     const progress: MultiAgentProgress = {
@@ -74,55 +79,58 @@ export class MultiAgentService {
 
     emit();
 
-    const results: AgentResult[] = [];
-    for (let i = 0; i < task.agents.length; i++) {
-      const agentId = task.agents[i];
+    const agentPromises = task.agents.map(async (agentId, index) => {
       const agent = this.agents.get(agentId);
-      if (!agent) {
-        const p = progress.agents.find((a) => a.agentId === agentId);
-        if (p) {
-          p.status = 'error';
-          p.progress = 100;
-        }
-        emit();
-        continue;
-      }
-
-      const agentProgress = progress.agents.find((a) => a.agentId === agentId);
-      if (agentProgress) {
-        agentProgress.status = 'running';
-        agentProgress.progress = 25;
-      }
-      emit();
-
-      try {
-        if (agentProgress) {
-          agentProgress.progress = 60;
-          emit();
-        }
-
-        const output = await executor(agent, task.prompt);
-        results.push({ agentId, output });
-
-        if (agentProgress) {
-          agentProgress.status = 'done';
-          agentProgress.progress = 100;
-          agentProgress.output = output.slice(0, 240);
-        }
-      } catch (error) {
+      const agentProgress = progress.agents[index];
+      if (!agent || !agentProgress) {
         if (agentProgress) {
           agentProgress.status = 'error';
           agentProgress.progress = 100;
-          agentProgress.output = error instanceof Error ? error.message : String(error);
+          emit();
         }
+        return { agentId, output: '' };
       }
 
-      progress.overall = Math.round(((i + 1) / task.agents.length) * 100);
+      agentProgress.status = 'running';
+      agentProgress.progress = 10;
       emit();
+
+      try {
+        const output = await executor.execute(agent, task.prompt, (id, chunk) => {
+          if (id !== agentId) return;
+          agentProgress.output = (agentProgress.output ?? '') + chunk;
+          // Slowly advance progress while streaming; cap at 90 until done.
+          agentProgress.progress = Math.min(90, agentProgress.progress + 2);
+          emit();
+        });
+
+        agentProgress.status = 'done';
+        agentProgress.progress = 100;
+        agentProgress.output = output.slice(0, 300);
+        emit();
+
+        return { agentId, output };
+      } catch (error) {
+        agentProgress.status = 'error';
+        agentProgress.progress = 100;
+        agentProgress.output = error instanceof Error ? error.message : String(error);
+        emit();
+        return { agentId, output: agentProgress.output };
+      }
+    });
+
+    const settled = await Promise.allSettled(agentPromises);
+    const results: AgentResult[] = [];
+    for (const result of settled) {
+      if (result.status === 'fulfilled') {
+        results.push(result.value);
+      }
     }
 
-    progress.status = progress.agents.some((a) => a.status === 'error') ? 'error' : 'completed';
+    const doneCount = progress.agents.filter((a) => a.status === 'done').length;
+    const errorCount = progress.agents.filter((a) => a.status === 'error').length;
     progress.overall = 100;
+    progress.status = errorCount > 0 && doneCount === 0 ? 'error' : 'completed';
     emit();
 
     return results;
