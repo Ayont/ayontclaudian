@@ -614,7 +614,7 @@ describe('PermissionToggle', () => {
   });
 
   describe('auto mode ("double YOLO") 3-state cycle', () => {
-    function autoCallbacks(permissionMode: string, autoMode: boolean) {
+    function autoCallbacks(permissionMode: string, autoMode: boolean): any {
       let auto = autoMode;
       return createMockCallbacks({
         getAutoMode: jest.fn(() => auto),
