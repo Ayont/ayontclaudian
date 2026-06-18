@@ -142,7 +142,7 @@ export default class ClaudianPlugin extends Plugin {
 
     this.registerView(
       VIEW_TYPE_CLAUDIAN_DASHBOARD,
-      (leaf) => new ClaudianDashboardView(leaf)
+      (leaf) => new ClaudianDashboardView(leaf, this)
     );
 
     this.addRibbonIcon('bot', 'Open Claudian', () => {

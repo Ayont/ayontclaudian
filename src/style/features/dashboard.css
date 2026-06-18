@@ -30,3 +30,26 @@
   color: var(--text-muted);
   font-size: 0.9em;
 }
+
+.claudian-os-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: auto;
+  padding-left: 8px;
+}
+
+.claudian-os-action-button {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.8em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.claudian-os-action-button:hover {
+  background: var(--interactive-accent-hover);
+}

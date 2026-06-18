@@ -1,9 +1,11 @@
 import { ItemView, type WorkspaceLeaf } from 'obsidian';
 
+import type ClaudianPlugin from '../../main';
+
 export const VIEW_TYPE_CLAUDIAN_DASHBOARD = 'claudian-dashboard';
 
 export class ClaudianDashboardView extends ItemView {
-  constructor(leaf: WorkspaceLeaf) {
+  constructor(leaf: WorkspaceLeaf, private readonly plugin: ClaudianPlugin) {
     super(leaf);
   }
 
@@ -24,12 +26,18 @@ export class ClaudianDashboardView extends ItemView {
 
     const grid = container.createDiv({ cls: 'claudian-dashboard-grid' });
 
-    this.createCard(grid, 'Projects', 'Manage project contexts, memory and skills.');
-    this.createCard(grid, 'Memory', 'Review and edit agentic memory facts.');
-    this.createCard(grid, 'Workflows', 'Scheduled and event-driven automations.');
-    this.createCard(grid, 'Audit Log', 'Recent agent and user actions.');
-    this.createCard(grid, 'Usage', 'Token and cost tracking across providers.');
-    this.createCard(grid, 'RAG Index', 'Vault knowledge base index status.');
+    const projects = await this.plugin.projectService.listProjects();
+    this.createCard(grid, 'Projects', `${projects.length} project(s) configured. Latest: ${projects[0]?.name ?? 'none'}.`);
+
+    const memories = await this.plugin.agenticMemoryService.recall({ limit: 1 });
+    this.createCard(grid, 'Memory', `${memories.length}+ fact(s) stored. Latest: ${memories[0]?.topic ?? 'none'}.`);
+
+    const usage = this.plugin.tokenBudgetTracker.getState();
+    this.createCard(grid, 'Usage', `Today: ${usage.dailyTotal.toLocaleString()} tokens. Session: ${usage.sessionTotal.toLocaleString()} tokens.`);
+
+    this.createCard(grid, 'RAG Index', `${this.plugin.vectorStore.size()} chunk(s) indexed.`);
+    this.createCard(grid, 'Workflows', `${this.plugin.workflowEngine.list().length} workflow(s) registered.`);
+    this.createCard(grid, 'Agents', `${this.plugin.multiAgentService.listAgents().length} specialist agent(s) available.`);
   }
 
   private createCard(parent: HTMLElement, title: string, description: string): void {

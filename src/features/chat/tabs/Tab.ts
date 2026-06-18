@@ -1195,6 +1195,35 @@ function initializeInputToolbar(
 
   // Gate provider-specific UI elements
   applyProviderUIGating(tab, plugin);
+
+  // Claudian OS action buttons: dashboard, multi-agent, RAG index.
+  const osActionsEl = inputToolbar.createDiv({ cls: 'claudian-os-actions' });
+  const dashboardBtn = osActionsEl.createEl('button', {
+    cls: 'claudian-os-action-button',
+    attr: { 'aria-label': 'Open Claudian OS dashboard', title: 'Open Claudian OS dashboard' },
+  });
+  dashboardBtn.textContent = 'Dashboard';
+  dashboardBtn.addEventListener('click', () => {
+    void plugin.openDashboard();
+  });
+
+  const multiAgentBtn = osActionsEl.createEl('button', {
+    cls: 'claudian-os-action-button',
+    attr: { 'aria-label': 'Run multi-agent task', title: 'Run multi-agent task' },
+  });
+  multiAgentBtn.textContent = 'Multi-Agent';
+  multiAgentBtn.addEventListener('click', () => {
+    void plugin.runMultiAgentTask();
+  });
+
+  const indexRagBtn = osActionsEl.createEl('button', {
+    cls: 'claudian-os-action-button',
+    attr: { 'aria-label': 'Index vault for RAG', title: 'Index vault for RAG' },
+  });
+  indexRagBtn.textContent = 'Index RAG';
+  indexRagBtn.addEventListener('click', () => {
+    void plugin.indexVaultRAG();
+  });
 }
 
 export interface InitializeTabUIOptions {

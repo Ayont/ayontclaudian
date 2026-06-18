@@ -120,6 +120,8 @@ describe('OpencodeChatRuntime', () => {
   });
 
   it('clears a stale database path when switching to a saved session without persisted provider state', async () => {
+    const originalOpencodeDb = process.env.OPENCODE_DB;
+    delete process.env.OPENCODE_DB;
     const plugin = createMockPlugin({
       settings: {
         providerConfigs: {
@@ -155,6 +157,9 @@ describe('OpencodeChatRuntime', () => {
     (runtime as any).loadSession = jest.fn().mockResolvedValue(true);
 
     await expect(runtime.ensureReady()).resolves.toBe(true);
+    if (originalOpencodeDb !== undefined) {
+      process.env.OPENCODE_DB = originalOpencodeDb;
+    }
   });
 
   it('honors a metadata-only database override before any session exists', async () => {
