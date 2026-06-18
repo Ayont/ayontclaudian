@@ -7,6 +7,7 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
 
   permissionMode: 'yolo',
   autoMode: false,
+  autoModePauseAfter: 25,
 
   model: 'haiku',
   thinkingBudget: 'off',

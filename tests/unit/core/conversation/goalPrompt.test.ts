@@ -1,4 +1,4 @@
-import { applyGoalPrefix, parseGoalArgs } from '@/core/conversation/goalPrompt';
+import { applyGoalPrefix, parseGoalArgs, stripGoalBlocks } from '@/core/conversation/goalPrompt';
 
 describe('parseGoalArgs', () => {
   it('returns trimmed text as the goal', () => {
@@ -8,6 +8,32 @@ describe('parseGoalArgs', () => {
   it('returns null for empty/whitespace (clear)', () => {
     expect(parseGoalArgs('')).toBeNull();
     expect(parseGoalArgs('   ')).toBeNull();
+  });
+
+  it('treats clear keywords as a clear (case-insensitive)', () => {
+    for (const kw of ['done', 'clear', 'Done', 'FERTIG', 'erledigt', 'reset']) {
+      expect(parseGoalArgs(kw)).toBeNull();
+    }
+  });
+
+  it('keeps multi-word text that merely contains a keyword', () => {
+    expect(parseGoalArgs('done with the migration')).toBe('done with the migration');
+  });
+});
+
+describe('stripGoalBlocks', () => {
+  it('removes a framed goal block and trims leading space', () => {
+    const text = '<standing_goal>\nfinish v2\n</standing_goal>\n\nUser: hi';
+    expect(stripGoalBlocks(text)).toBe('User: hi');
+  });
+
+  it('removes multiple blocks', () => {
+    const text = '<standing_goal>\na\n</standing_goal>\n\nmid <standing_goal>\nb\n</standing_goal>\n\nend';
+    expect(stripGoalBlocks(text)).toBe('mid end');
+  });
+
+  it('returns text unchanged when there is no block', () => {
+    expect(stripGoalBlocks('plain text')).toBe('plain text');
   });
 });
 

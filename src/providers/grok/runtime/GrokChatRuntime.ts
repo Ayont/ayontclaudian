@@ -7,7 +7,7 @@ import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorks
 import type { ProviderCapabilities } from '../../../core/providers/types';
 import { buildEstimatedUsageInfo, estimateTokensForTexts } from '../../../core/providers/usage/estimateUsage';
 import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
-import { isStaleResumeFailure } from '../../../core/runtime/printSessionRecovery';
+import { isStaleResumeFailure, staleSessionRetryNotice } from '../../../core/runtime/printSessionRecovery';
 import type {
   ApprovalCallback,
   AskUserQuestionCallback,
@@ -322,7 +322,7 @@ export class GrokChatRuntime implements ChatRuntime {
       ) {
         this.resetSession();
         this.isResumeRetry = true;
-        yield { type: 'notice', content: 'Grok-Sitzung war abgelaufen — neu gestartet.', level: 'info' };
+        yield { type: 'notice', content: staleSessionRetryNotice('Grok'), level: 'info' };
         if (this.activeProcess === proc) {
           this.activeProcess = null;
         }

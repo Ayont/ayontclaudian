@@ -24,6 +24,12 @@ export interface DiagnosticsConversation {
   providerSessionIds?: Record<string, string | null | undefined>;
 }
 
+export interface DiagnosticsErrorRecord {
+  timestamp: number;
+  providerId: string;
+  message: string;
+}
+
 export interface DiagnosticsInput {
   pluginVersion: string;
   generatedAt: string;
@@ -31,6 +37,7 @@ export interface DiagnosticsInput {
   autoMode: boolean;
   providers: DiagnosticsProviderStatus[];
   activeConversation?: DiagnosticsConversation | null;
+  recentErrors?: DiagnosticsErrorRecord[];
 }
 
 function yesNo(value: boolean): string {
@@ -83,6 +90,19 @@ export function buildDiagnosticsMarkdown(input: DiagnosticsInput): string {
     lines.push('- _No active conversation._');
     lines.push('');
   }
+
+  const errors = input.recentErrors ?? [];
+  lines.push('#### Recent errors');
+  lines.push('');
+  if (errors.length === 0) {
+    lines.push('- _None recorded this session._');
+  } else {
+    for (const error of errors) {
+      const time = new Date(error.timestamp).toISOString();
+      lines.push(`- \`${time}\` **${error.providerId}** — ${error.message}`);
+    }
+  }
+  lines.push('');
 
   return lines.join('\n').trimEnd();
 }

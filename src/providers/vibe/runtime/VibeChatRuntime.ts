@@ -7,7 +7,7 @@ import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorks
 import type { ProviderCapabilities } from '../../../core/providers/types';
 import { buildEstimatedUsageInfo, estimateTokensForTexts } from '../../../core/providers/usage/estimateUsage';
 import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
-import { isStaleResumeFailure } from '../../../core/runtime/printSessionRecovery';
+import { isStaleResumeFailure, staleSessionRetryNotice } from '../../../core/runtime/printSessionRecovery';
 import type {
   ApprovalCallback,
   AskUserQuestionCallback,
@@ -323,7 +323,7 @@ export class VibeChatRuntime implements ChatRuntime {
       ) {
         this.resetSession();
         this.isResumeRetry = true;
-        yield { type: 'notice', content: 'Vibe-Sitzung war abgelaufen — neu gestartet.', level: 'info' };
+        yield { type: 'notice', content: staleSessionRetryNotice('Vibe'), level: 'info' };
         if (this.activeProcess === proc) {
           this.activeProcess = null;
         }

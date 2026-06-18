@@ -82,6 +82,31 @@ describe('computeProviderSessionHandoff', () => {
     expect(c.providerSessions.grok?.sessionId).toBe('grok-1');
   });
 
+  it('isolates the FULL providerState per provider across a round-trip', () => {
+    // Claude active with rich provider state, then Claude → Kimi.
+    const a = computeProviderSessionHandoff({
+      oldProviderId: 'claude',
+      newProviderId: 'kimi',
+      currentSessionId: 'claude-1',
+      currentProviderState: { providerSessionId: 'claude-1', subagentData: { x: 1 } },
+    });
+    expect(a.providerState).toBeUndefined(); // Kimi starts clean
+
+    // Kimi runs and writes its own state, then Kimi → Claude.
+    const b = computeProviderSessionHandoff({
+      oldProviderId: 'kimi',
+      newProviderId: 'claude',
+      currentSessionId: 'kimi-1',
+      currentProviderState: { sessionId: 'kimi-1', goal: 'finish' },
+      providerSessions: a.providerSessions,
+    });
+
+    // Claude's FULL provider state (not just the session id) is restored intact.
+    expect(b.providerState).toEqual({ providerSessionId: 'claude-1', subagentData: { x: 1 } });
+    // And Kimi's own state is now stashed for its next turn.
+    expect(b.providerSessions.kimi?.providerState).toEqual({ sessionId: 'kimi-1', goal: 'finish' });
+  });
+
   it('does not mutate the provided providerSessions map (immutability)', () => {
     const providerSessions: Record<string, ProviderSessionSnapshot> = {
       claude: { sessionId: 'claude-1' },

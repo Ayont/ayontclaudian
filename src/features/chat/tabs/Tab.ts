@@ -1220,6 +1220,12 @@ export function initializeTabUI(
   tab.ui.goalBanner = new GoalBanner({
     mountEl: dom.goalBannerHostEl,
     onClear: () => applyTabGoal(tab, plugin, null),
+    onEdit: (currentGoal) => {
+      dom.inputEl.value = `/goal ${currentGoal}`;
+      autoResizeTextarea(dom.inputEl);
+      dom.inputEl.focus();
+      dom.inputEl.setSelectionRange(dom.inputEl.value.length, dom.inputEl.value.length);
+    },
   });
   syncTabGoalBanner(tab, plugin);
 

@@ -57,7 +57,7 @@ const stagedObsidianRules = {
 
 export default defineConfig([
   {
-    ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'main.js'],
+    ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'main.js', 'tests/visual/**', 'playwright.config.ts'],
   },
   js.configs.recommended,
   {

@@ -4,6 +4,7 @@
  * Session recovery and history reconstruction.
  */
 
+import { stripGoalBlocks } from '../core/conversation/goalPrompt';
 import type { ChatMessage, ToolCallInfo } from '../core/types';
 import { extractUserQuery, formatCurrentNote } from './context';
 
@@ -178,7 +179,9 @@ export function buildContextFromHistory(messages: ChatMessage[]): string {
 
     const role = message.role === 'user' ? 'User' : 'Assistant';
     const lines: string[] = [];
-    const content = message.content?.trim();
+    // Strip framed standing-goal blocks from prior turns: the goal is re-injected
+    // fresh into the current turn, so keeping it per-turn here just wastes tokens.
+    const content = stripGoalBlocks(message.content ?? '').trim();
     const contextLine = formatContextLine(message);
 
     const userPayload = contextLine

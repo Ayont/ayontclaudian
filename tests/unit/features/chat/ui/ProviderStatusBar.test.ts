@@ -46,6 +46,15 @@ describe('formatStatusTooltip', () => {
     ).toBe('Claude: generiert… · Kontext 12% belegt');
   });
 
+  it('appends the auto-mode marker when active', () => {
+    expect(
+      formatStatusTooltip({
+        providerId: 'claude', name: 'Claude', ready: true, enabled: true, streaming: false,
+        percentage: null, estimated: false, autoMode: true,
+      }),
+    ).toBe('Claude: bereit · Auto-Mode aktiv');
+  });
+
   it('hints at CLI setup when enabled but not ready', () => {
     expect(
       formatStatusTooltip({

@@ -40,6 +40,8 @@ export interface ProviderStatus {
   percentage: number | null;
   /** True when the percent is an estimate (Kimi/Antigravity). */
   estimated: boolean;
+  /** True when the global auto mode ("double YOLO") is active. */
+  autoMode?: boolean;
 }
 
 /** Short status word for the ready/enabled state. Pure, for testing. */
@@ -64,6 +66,9 @@ export function formatStatusTooltip(status: ProviderStatus): string {
   if (status.percentage !== null) {
     parts.push(`Kontext ${status.estimated ? '≈' : ''}${status.percentage}% belegt`);
   }
+  if (status.autoMode) {
+    parts.push('Auto-Mode aktiv');
+  }
   return parts.join(' · ');
 }
 
@@ -73,6 +78,7 @@ export class ProviderStatusBar {
   private nameEl: HTMLElement | null = null;
   private stateEl: HTMLElement | null = null;
   private pctEl: HTMLElement | null = null;
+  private autoEl: HTMLElement | null = null;
 
   constructor(statusBarEl: HTMLElement) {
     this.el = statusBarEl;
@@ -86,6 +92,7 @@ export class ProviderStatusBar {
     this.nameEl = this.el.createSpan({ cls: 'claudian-statusbar-name' });
     this.stateEl = this.el.createSpan({ cls: 'claudian-statusbar-state' });
     this.pctEl = this.el.createSpan({ cls: 'claudian-statusbar-pct' });
+    this.autoEl = this.el.createSpan({ cls: 'claudian-statusbar-auto claudian-hidden', text: 'AUTO' });
   }
 
   /** Renders the active provider's status, or hides the bar when none. */
@@ -125,6 +132,8 @@ export class ProviderStatusBar {
         this.pctEl.toggleClass('claudian-hidden', true);
       }
     }
+
+    this.autoEl?.toggleClass('claudian-hidden', status.autoMode !== true);
 
     this.el.setAttribute('aria-label', formatStatusTooltip(status));
     this.el.setAttribute('data-tooltip', formatStatusTooltip(status));

@@ -1,5 +1,6 @@
 import { TFile } from 'obsidian';
 
+import { recordProviderError } from '../../../core/diagnostics/errorHistory';
 import { ProviderSettingsCoordinator } from '../../../core/providers/ProviderSettingsCoordinator';
 import {
   DEFAULT_CHAT_PROVIDER_ID,
@@ -232,6 +233,7 @@ export class StreamController {
           meta: chunk.content,
           phrase: 'error',
         });
+        recordProviderError(this.getActiveProviderId(), chunk.content);
         // Flush pending tools before rendering error message
         this.flushPendingTools();
         // Finalize the preceding text so the error lands in its OWN block and

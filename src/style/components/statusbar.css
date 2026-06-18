@@ -45,6 +45,19 @@
   color: var(--color-red);
 }
 
+/* AUTO ("double YOLO") badge — small, accented pill so the global mode is never
+   silently on. The status bar is outside the token scope, so use theme vars. */
+.claudian-statusbar-auto {
+  margin-inline-start: 6px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--background-primary);
+  background: var(--interactive-accent);
+}
+
 /* Live "generating" state: spin the loader (uses the global `spin` keyframe)
    and accent the state word. */
 .claudian-statusbar-dot.spin svg {

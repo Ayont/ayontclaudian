@@ -11,14 +11,24 @@
 const GOAL_OPEN_TAG = '<standing_goal>';
 const GOAL_CLOSE_TAG = '</standing_goal>';
 
+/** Matches a framed standing-goal block (and any trailing blank line) for stripping. */
+const GOAL_BLOCK_RE = /<standing_goal>[\s\S]*?<\/standing_goal>\n*/g;
+
+/** Single-word arguments that explicitly clear/complete the goal. */
+const GOAL_CLEAR_KEYWORDS = new Set([
+  'done', 'clear', 'reset', 'complete', 'fertig', 'erledigt', 'löschen',
+]);
+
 /**
  * Parses the argument of a `/goal` command into the next goal value.
- * - non-empty text → that text (trimmed) becomes the goal
- * - empty/whitespace → `null` (clears the goal)
+ * - empty/whitespace, or a clear keyword (`done`, `clear`, `fertig`, …) → `null` (clears)
+ * - any other text → that text (trimmed) becomes the goal
  */
 export function parseGoalArgs(args: string): string | null {
   const trimmed = (args ?? '').trim();
-  return trimmed.length > 0 ? trimmed : null;
+  if (!trimmed) return null;
+  if (GOAL_CLEAR_KEYWORDS.has(trimmed.toLowerCase())) return null;
+  return trimmed;
 }
 
 /**
@@ -33,4 +43,14 @@ export function applyGoalPrefix(prompt: string, goal: string | null | undefined)
 
   const block = `${GOAL_OPEN_TAG}\n${trimmedGoal}\n${GOAL_CLOSE_TAG}`;
   return prompt ? `${block}\n\n${prompt}` : block;
+}
+
+/**
+ * Removes framed standing-goal blocks from text. Used when rebuilding context from
+ * history so the goal — which is re-injected fresh into the current turn — is not
+ * duplicated once per prior turn, saving tokens in long goal-driven sessions.
+ */
+export function stripGoalBlocks(text: string): string {
+  if (!text || !text.includes(GOAL_OPEN_TAG)) return text;
+  return text.replace(GOAL_BLOCK_RE, '').trimStart();
 }

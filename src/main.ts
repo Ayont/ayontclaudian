@@ -4,6 +4,8 @@ patchSetMaxListenersForElectron();
 
 import './providers';
 
+import * as path from 'node:path';
+
 import type { Editor, WorkspaceLeaf } from 'obsidian';
 import { MarkdownView, Notice, Plugin } from 'obsidian';
 
@@ -11,7 +13,21 @@ import { DEFAULT_CLAUDIAN_SETTINGS } from './app/settings/defaultSettings';
 import { SharedStorageService } from './app/storage/SharedStorageService';
 import { PluginUpdater } from './app/update/PluginUpdater';
 import type { SharedAppStorage } from './core/bootstrap/storage';
+import {
+  type ComparisonEntry,
+  type ComparisonOutcome,
+  formatComparisonMarkdown,
+  runModelComparison,
+} from './core/compare/modelComparison';
 import { buildDiagnosticsMarkdown } from './core/diagnostics/buildDiagnostics';
+import { getErrorHistory } from './core/diagnostics/errorHistory';
+import {
+  firstOutputLine,
+  formatHealthReportMarkdown,
+  type HealthCheckResult,
+  probeCli,
+} from './core/diagnostics/providerHealthCheck';
+import { getProviderForModel } from './core/providers/modelRouting';
 import {
   getEnvironmentVariablesForScope as getScopedEnvironmentVariables,
   getRuntimeEnvironmentText,
@@ -33,6 +49,7 @@ import {
 } from './core/types';
 import type { ChatViewPlacement, EnvironmentScope } from './core/types/settings';
 import { ClaudianView } from './features/chat/ClaudianView';
+import { ModelSelectModal } from './features/chat/ui/ModelSelectModal';
 import { ProviderStatusBar } from './features/chat/ui/ProviderStatusBar';
 import { type InlineEditContext, InlineEditModal } from './features/inline-edit/ui/InlineEditModal';
 import { ClaudianSettingTab } from './features/settings/ClaudianSettings';
@@ -41,6 +58,7 @@ import type { Locale } from './i18n/types';
 import { OPENCODE_PLAN_MODE_ID, OPENCODE_SAFE_MODE_ID } from './providers/opencode/modes';
 import { extractUserDisplayContent } from './utils/context';
 import { buildCursorContext } from './utils/editor';
+import { getEnhancedPath } from './utils/env';
 import { revealWorkspaceLeaf } from './utils/obsidianCompat';
 import { getVaultPath } from './utils/path';
 
@@ -196,6 +214,30 @@ export default class ClaudianPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: 'toggle-auto-mode',
+      name: 'Toggle auto mode (double YOLO)',
+      callback: () => {
+        void this.toggleAutoMode();
+      },
+    });
+
+    this.addCommand({
+      id: 'check-provider-health',
+      name: 'Check provider health',
+      callback: () => {
+        void this.checkProvidersHealth();
+      },
+    });
+
+    this.addCommand({
+      id: 'compare-models',
+      name: 'Compare models (current input)',
+      callback: () => {
+        void this.compareModels();
+      },
+    });
+
+    this.addCommand({
       id: 'copy-diagnostics',
       name: 'Copy diagnostics',
       callback: () => {
@@ -229,6 +271,158 @@ export default class ClaudianPlugin extends Plugin {
    * active, whether it is set up/ready (enabled + CLI resolves), and the current
    * context-window usage percent. No-op until the status bar exists.
    */
+  /**
+   * Probes each configured provider's CLI with `--version` in parallel, copies a
+   * Markdown health report to the clipboard, and shows a reachable/total summary.
+   */
+  async checkProvidersHealth(): Promise<void> {
+    const settingsBag = this.settings as unknown as Record<string, unknown>;
+    const cwd = getVaultPath(this.app) ?? process.cwd();
+    new Notice('Prüfe Provider-Erreichbarkeit …');
+
+    const results: HealthCheckResult[] = await Promise.all(
+      ProviderRegistry.getRegisteredProviderIds().map(async (providerId): Promise<HealthCheckResult> => {
+        const name = ProviderRegistry.getProviderDisplayName(providerId);
+        const enabled = ProviderRegistry.isEnabled(providerId, settingsBag);
+        const command = this.getResolvedProviderCliPath(providerId);
+        if (!enabled || !command) {
+          return {
+            providerId,
+            name,
+            configured: false,
+            reachable: false,
+            detail: enabled ? 'CLI not found' : 'disabled',
+          };
+        }
+        const env = {
+          ...process.env,
+          PATH: getEnhancedPath(process.env.PATH, path.isAbsolute(command) ? command : undefined),
+        };
+        const probe = await probeCli({ command, env, cwd });
+        return {
+          providerId,
+          name,
+          configured: true,
+          reachable: probe.ok,
+          version: probe.ok ? firstOutputLine(probe.output) : undefined,
+          detail: probe.ok ? undefined : probe.detail,
+        };
+      }),
+    );
+
+    const markdown = formatHealthReportMarkdown(results);
+    const reachable = results.filter((r) => r.reachable).length;
+    const configured = results.filter((r) => r.configured).length;
+    try {
+      await navigator.clipboard.writeText(markdown);
+      new Notice(`Provider-Health: ${reachable}/${configured} erreichbar (Report kopiert).`);
+    } catch {
+      new Notice(`Provider-Health: ${reachable}/${configured} erreichbar.`);
+    }
+  }
+
+  /**
+   * Runs the active tab's input prompt across the active model and a second model
+   * the user picks, then writes the side-by-side answers to a new note.
+   */
+  async compareModels(): Promise<void> {
+    const tab = this.getView()?.getActiveTab();
+    if (!tab) {
+      new Notice('Kein aktiver Chat-Tab.');
+      return;
+    }
+    const prompt = tab.dom.inputEl.value.trim();
+    if (!prompt) {
+      new Notice('Gib zuerst einen Prompt ins Eingabefeld ein.');
+      return;
+    }
+
+    const activeProviderId = tab.providerId;
+    const snapshot = ProviderSettingsCoordinator.getProviderSettingsSnapshot(this.settings, activeProviderId);
+    const activeModel = String(snapshot.model ?? this.settings.model);
+
+    const models = ProviderRegistry.getAggregatedModelOptions(this.settings as unknown as Record<string, unknown>);
+    new ModelSelectModal(this.app, models, activeModel, (secondModel) => {
+      void this.runComparisonForModels(prompt, activeProviderId, activeModel, secondModel);
+    }).open();
+  }
+
+  private async runComparisonForModels(
+    prompt: string,
+    activeProviderId: ProviderId,
+    activeModel: string,
+    secondModel: string,
+  ): Promise<void> {
+    const settingsBag = this.settings as unknown as Record<string, unknown>;
+    const secondProviderId = getProviderForModel(secondModel, settingsBag);
+    const label = (providerId: ProviderId, model: string): string =>
+      `${ProviderRegistry.getProviderDisplayName(providerId)} · ${model}`;
+
+    const entries: ComparisonEntry[] = [
+      { providerId: activeProviderId, model: activeModel, label: label(activeProviderId, activeModel) },
+      { providerId: secondProviderId, model: secondModel, label: label(secondProviderId, secondModel) },
+    ];
+
+    new Notice('Vergleiche Modelle … (läuft im Hintergrund)');
+    const results = await runModelComparison(entries, (entry) =>
+      this.collectModelResponse(entry.providerId, entry.model, prompt),
+    );
+    const markdown = formatComparisonMarkdown(prompt, results);
+
+    const folder = 'Claudian Comparisons';
+    try {
+      if (!this.app.vault.getAbstractFileByPath(folder)) {
+        await this.app.vault.createFolder(folder).catch(() => { /* exists / race */ });
+      }
+      const filePath = `${folder}/compare-${Date.now()}.md`;
+      const file = await this.app.vault.create(filePath, markdown);
+      await this.app.workspace.getLeaf(true).openFile(file);
+      new Notice('Modell-Vergleich erstellt.');
+    } catch {
+      new Notice('Vergleich konnte nicht gespeichert werden.');
+    }
+  }
+
+  /** Runs one provider/model to completion for a prompt, collecting the response text. */
+  private async collectModelResponse(
+    providerId: ProviderId,
+    model: string,
+    prompt: string,
+  ): Promise<ComparisonOutcome> {
+    const runtime = ProviderRegistry.createChatRuntime({ plugin: this, providerId });
+    try {
+      const ready = await runtime.ensureReady();
+      if (!ready) {
+        return { text: '', error: 'Provider nicht bereit (CLI/Setup prüfen).' };
+      }
+      const prepared = runtime.prepareTurn({ text: prompt });
+      let text = '';
+      for await (const chunk of runtime.query(prepared, [], { model })) {
+        if (chunk.type === 'text') {
+          text += chunk.content;
+        } else if (chunk.type === 'error') {
+          return { text, error: chunk.content };
+        }
+      }
+      return { text };
+    } finally {
+      try {
+        runtime.cleanup();
+      } catch {
+        // best-effort cleanup
+      }
+    }
+  }
+
+  /** Flips the global auto mode, persists it, and refreshes the toolbar + status bar. */
+  async toggleAutoMode(): Promise<void> {
+    this.settings.autoMode = !this.settings.autoMode;
+    await this.saveSettings();
+    this.getView()?.getActiveTab()?.ui.permissionToggle?.updateDisplay();
+    this.updateProviderStatusBar();
+    new Notice(this.settings.autoMode ? 'Auto-Mode aktiviert (Doppel-YOLO).' : 'Auto-Mode deaktiviert.');
+  }
+
   /**
    * Gathers a Markdown diagnostics snapshot (version, settings, provider
    * availability, active conversation session map) and copies it to the clipboard.
@@ -270,6 +464,7 @@ export default class ClaudianPlugin extends Plugin {
       autoMode: this.settings.autoMode === true,
       providers,
       activeConversation,
+      recentErrors: getErrorHistory(),
     });
 
     try {
@@ -302,6 +497,7 @@ export default class ClaudianPlugin extends Plugin {
       streaming: tab.state.isStreaming === true,
       percentage: usage ? usage.percentage : null,
       estimated: usage ? usage.contextWindowIsAuthoritative === false : false,
+      autoMode: this.settings.autoMode === true,
     });
   }
 

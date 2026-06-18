@@ -108,6 +108,16 @@
   gap: 3px;
 }
 
+.claudian-goal-banner-body.claudian-goal-banner-editable {
+  cursor: text;
+  border-radius: var(--cl-radius-sm);
+  transition: background var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-goal-banner-body.claudian-goal-banner-editable:hover {
+  background: rgba(var(--cl-accent-rgb), 0.08);
+}
+
 .claudian-goal-banner-head {
   display: flex;
   align-items: center;

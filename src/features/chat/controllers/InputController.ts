@@ -123,11 +123,12 @@ export interface InputControllerDeps {
 }
 
 /**
- * Auto mode loop guard: after this many consecutive auto-answered questions
- * without a manual user turn, pause once and surface the next prompt for a human
- * — a safety valve against runaway question/answer loops in unattended goals.
+ * Default auto-mode loop guard: after this many consecutive auto-resolved prompts
+ * (questions + plan approvals) without a manual user turn, pause once and surface
+ * the next prompt for a human — a safety valve against runaway loops. Overridable
+ * via `settings.autoModePauseAfter`.
  */
-const MAX_AUTO_ANSWERS_BEFORE_PAUSE = 25;
+const DEFAULT_AUTO_MODE_PAUSE_AFTER = 25;
 
 export class InputController {
   private deps: InputControllerDeps;
@@ -158,6 +159,14 @@ export class InputController {
 
   private getAgentService(): ChatRuntime | null {
     return this.deps.getAgentService?.() ?? null;
+  }
+
+  /** Consecutive auto-resolutions allowed before auto mode pauses for a human. */
+  private autoModePauseThreshold(): number {
+    const configured = this.deps.plugin.settings.autoModePauseAfter;
+    return typeof configured === 'number' && configured >= 1
+      ? Math.floor(configured)
+      : DEFAULT_AUTO_MODE_PAUSE_AFTER;
   }
 
   private getAuxiliaryModel(): string | null {
@@ -1472,11 +1481,12 @@ export class InputController {
     if (this.deps.plugin.settings.autoMode) {
       const auto = resolveAutoQuestionAnswers(input);
       if (auto) {
-        if (this.autoAnswerStreak >= MAX_AUTO_ANSWERS_BEFORE_PAUSE) {
+        const threshold = this.autoModePauseThreshold();
+        if (this.autoAnswerStreak >= threshold) {
           // Pause once: reset the budget and fall through to the manual prompt.
           this.autoAnswerStreak = 0;
           await this.deps.streamController.appendText(
-            `\n\n⏸️ *Auto-Mode pausiert nach ${MAX_AUTO_ANSWERS_BEFORE_PAUSE} automatischen Antworten — bitte einmal bestätigen.*`,
+            `\n\n⏸️ *Auto-Mode pausiert nach ${threshold} automatischen Antworten — bitte einmal bestätigen.*`,
           );
         } else {
           this.autoAnswerStreak++;
@@ -1541,9 +1551,18 @@ export class InputController {
     input: Record<string, unknown>,
     signal?: AbortSignal,
   ): Promise<ExitPlanModeDecision | null> {
-    // Auto mode: approve the plan immediately and keep executing — no manual gate.
+    // Auto mode: approve the plan immediately and keep executing — no manual gate,
+    // unless the loop guard has tripped (then pause once for a human).
     if (this.deps.plugin.settings.autoMode) {
-      return { type: 'approve' };
+      if (this.autoAnswerStreak < this.autoModePauseThreshold()) {
+        this.autoAnswerStreak++;
+        await this.deps.streamController.appendText('\n\n⚡ *Auto-Mode: Plan automatisch bestätigt.*');
+        return { type: 'approve' };
+      }
+      this.autoAnswerStreak = 0;
+      await this.deps.streamController.appendText(
+        '\n\n⏸️ *Auto-Mode pausiert — bitte den Plan einmal bestätigen.*',
+      );
     }
 
     const { state, streamController } = this.deps;

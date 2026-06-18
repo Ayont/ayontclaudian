@@ -106,6 +106,12 @@ export interface ClaudianSettings {
    */
   autoMode?: boolean;
 
+  /**
+   * Auto-mode loop guard: pause for a human after this many consecutive
+   * auto-resolved prompts (questions + plan approvals). Defaults to 25.
+   */
+  autoModePauseAfter?: number;
+
   // Model & thinking (provider interprets values)
   model: string;
   thinkingBudget: string;

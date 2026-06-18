@@ -11,6 +11,19 @@
  * the dead session and retry the turn fresh — no scary error, context preserved.
  */
 
+import { getLocale } from '../../i18n/i18n';
+
+/**
+ * Locale-aware notice shown when a dead session is auto-cleared and the turn is
+ * retried fresh. Bilingual inline (de/en) to match errorClassification's
+ * self-contained string convention without touching every locale file.
+ */
+export function staleSessionRetryNotice(providerLabel: string): string {
+  return getLocale() === 'de'
+    ? `${providerLabel}-Sitzung war abgelaufen — neu gestartet.`
+    : `${providerLabel} session had expired — restarted.`;
+}
+
 const STALE_SESSION_MARKERS = [
   'session not found',
   'session expired',
