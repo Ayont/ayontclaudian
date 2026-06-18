@@ -5,7 +5,7 @@ import {
   detectBuiltInCommand,
   isBuiltInCommandSupported,
 } from '../../../core/commands/builtInCommands';
-import { buildConversationContextBootstrap } from '../../../core/conversation/ConversationContextBootstrap';
+import { applyGoalPrefix, parseGoalArgs } from '../../../core/conversation/goalPrompt';
 import { ProviderRegistry } from '../../../core/providers/ProviderRegistry';
 import {
   DEFAULT_CHAT_PROVIDER_ID,
@@ -37,7 +37,7 @@ import { formatDurationMmSs } from '../../../utils/date';
 import type { EditorSelectionContext } from '../../../utils/editor';
 import { appendMarkdownSnippet } from '../../../utils/markdown';
 import { COMPLETION_FLAVOR_WORDS } from '../constants';
-import { resolveAutoQuestionAnswers } from '../rendering/autoQuestionAnswer';
+import { resolveAutoQuestionAnswers, summarizeAutoAnswers } from '../rendering/autoQuestionAnswer';
 import { type InlineAskQuestionConfig, InlineAskUserQuestion } from '../rendering/InlineAskUserQuestion';
 import { InlineExitPlanMode } from '../rendering/InlineExitPlanMode';
 import { InlinePlanApproval,type PlanApprovalDecision } from '../rendering/InlinePlanApproval';
@@ -111,6 +111,10 @@ export interface InputControllerDeps {
    * is no pending bootstrap (the normal same-provider case).
    */
   consumePendingContextBootstrap?: () => string | null | undefined;
+  /** Reads the tab's active standing goal (provider-agnostic), if any. */
+  getActiveGoal?: () => string | null;
+  /** Sets (or clears, on null) the tab's standing goal. */
+  setActiveGoal?: (goal: string | null) => void;
   /** Returns true if ready. */
   ensureServiceInitialized?: () => Promise<boolean>;
   openConversation?: (conversationId: string) => Promise<void>;
@@ -118,8 +122,17 @@ export interface InputControllerDeps {
   restorePrePlanPermissionModeIfNeeded?: () => void;
 }
 
+/**
+ * Auto mode loop guard: after this many consecutive auto-answered questions
+ * without a manual user turn, pause once and surface the next prompt for a human
+ * — a safety valve against runaway question/answer loops in unattended goals.
+ */
+const MAX_AUTO_ANSWERS_BEFORE_PAUSE = 25;
+
 export class InputController {
   private deps: InputControllerDeps;
+  /** Consecutive auto-answered questions since the last manual user send. */
+  private autoAnswerStreak = 0;
   private pendingApprovalInline: InlineAskUserQuestion | null = null;
   private pendingAskInline: InlineAskUserQuestion | null = null;
   private pendingExitPlanModeInline: InlineExitPlanMode | null = null;
@@ -218,6 +231,9 @@ export class InputController {
 
     // During conversation creation/switching, don't send - input is preserved so user can retry
     if (state.isCreatingConversation || state.isSwitchingConversation) return;
+
+    // A manual user turn restarts the auto-mode answer budget (see loop guard).
+    this.autoAnswerStreak = 0;
 
     const inputEl = this.deps.getInputEl();
     const imageContextManager = this.deps.getImageContextManager();
@@ -416,18 +432,25 @@ export class InputController {
       // One-shot cross-provider context carry: when this conversation was just switched
       // to a different provider, prepend a BOUNDED, framed snapshot of prior turns to the
       // FIRST turn only so the freshly-started provider session has minimal context.
-      // Consumed exactly once; no-op on normal same-provider turns.
+      // The snapshot was already built + stashed at switch time (switchBoundTabProvider),
+      // so we reuse it verbatim instead of rebuilding. Consumed exactly once; no-op on
+      // normal same-provider turns.
       const pendingBootstrap = this.deps.consumePendingContextBootstrap?.();
       if (pendingBootstrap) {
-        const bootstrap = buildConversationContextBootstrap(previousMessages);
-        if (bootstrap) {
-          turnRequest = {
-            ...turnRequest,
-            text: turnRequest.text
-              ? `${bootstrap}\n\n${turnRequest.text}`
-              : bootstrap,
-          };
-        }
+        turnRequest = {
+          ...turnRequest,
+          text: turnRequest.text
+            ? `${pendingBootstrap}\n\n${turnRequest.text}`
+            : pendingBootstrap,
+        };
+      }
+
+      // Standing goal: re-inject the framed objective into the sent prompt for ANY
+      // provider so it stays in view each turn. Only the sent/persisted text carries
+      // it — the displayed user bubble keeps the raw `displayContent`.
+      const activeGoal = this.deps.getActiveGoal?.() ?? null;
+      if (activeGoal) {
+        turnRequest = { ...turnRequest, text: applyGoalPrefix(turnRequest.text, activeGoal) };
       }
 
       const preparedTurn = agentService.prepareTurn(turnRequest);
@@ -1445,10 +1468,23 @@ export class InputController {
   ): Promise<Record<string, string | string[]> | null> {
     // Auto mode ("double YOLO"): never block on a clarifying prompt — answer with
     // the recommended (first) option for each question so goals run unattended.
+    // A loop guard pauses for a human after MAX_AUTO_ANSWERS_BEFORE_PAUSE answers.
     if (this.deps.plugin.settings.autoMode) {
       const auto = resolveAutoQuestionAnswers(input);
       if (auto) {
-        return auto;
+        if (this.autoAnswerStreak >= MAX_AUTO_ANSWERS_BEFORE_PAUSE) {
+          // Pause once: reset the budget and fall through to the manual prompt.
+          this.autoAnswerStreak = 0;
+          await this.deps.streamController.appendText(
+            `\n\n⏸️ *Auto-Mode pausiert nach ${MAX_AUTO_ANSWERS_BEFORE_PAUSE} automatischen Antworten — bitte einmal bestätigen.*`,
+          );
+        } else {
+          this.autoAnswerStreak++;
+          await this.deps.streamController.appendText(
+            `\n\n⚡ *Auto-Mode: ${summarizeAutoAnswers(auto)}*`,
+          );
+          return auto;
+        }
       }
     }
 
@@ -1683,6 +1719,12 @@ export class InputController {
           return;
         }
         await this.deps.onForkAll();
+        break;
+      }
+      case 'goal': {
+        const nextGoal = parseGoalArgs(args);
+        this.deps.setActiveGoal?.(nextGoal);
+        new Notice(nextGoal ? `Goal gesetzt: ${nextGoal}` : 'Goal gelöscht.');
         break;
       }
       default: {

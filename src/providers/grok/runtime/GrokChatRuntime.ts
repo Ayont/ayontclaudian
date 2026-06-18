@@ -7,6 +7,7 @@ import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorks
 import type { ProviderCapabilities } from '../../../core/providers/types';
 import { buildEstimatedUsageInfo, estimateTokensForTexts } from '../../../core/providers/usage/estimateUsage';
 import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
+import { isStaleResumeFailure } from '../../../core/runtime/printSessionRecovery';
 import type {
   ApprovalCallback,
   AskUserQuestionCallback,
@@ -69,6 +70,8 @@ export class GrokChatRuntime implements ChatRuntime {
 
   private sessionId: string | null = null;
   private sessionInvalidated = false;
+  /** Set while re-running a turn after clearing a dead session (see query()). */
+  private isResumeRetry = false;
   private ready = false;
   private currentTurnMetadata: ChatTurnMetadata = {};
   private readonly readyListeners = new Set<(ready: boolean) => void>();
@@ -137,6 +140,11 @@ export class GrokChatRuntime implements ChatRuntime {
     this.currentTurnMetadata = {};
     this.cancelled = false;
 
+    // See VibeChatRuntime: a single fresh re-run after a dead-session recovery.
+    const isRetry = this.isResumeRetry;
+    this.isResumeRetry = false;
+    const hadSession = this.sessionId !== null;
+
     const settingsBag = this.plugin.settings as unknown as Record<string, unknown>;
     const settings = getGrokProviderSettings(settingsBag);
     if (!settings.enabled) {
@@ -195,7 +203,9 @@ export class GrokChatRuntime implements ChatRuntime {
       sessionId: this.sessionId,
     });
 
-    yield { type: 'user_message_start', content: turn.request.text };
+    if (!isRetry) {
+      yield { type: 'user_message_start', content: turn.request.text };
+    }
 
     let proc: ChildProcessWithoutNullStreams;
     let resolvedSpawnSpec: WindowsCmdShimSpawnSpec;
@@ -299,6 +309,26 @@ export class GrokChatRuntime implements ChatRuntime {
       }
 
       this.recoverSessionId(stderr);
+
+      // Dead OWN session → clear it and retry the turn fresh (no error card).
+      if (
+        !isRetry &&
+        isStaleResumeFailure({
+          hadSession,
+          exitCode: exitInfo.code,
+          stderr,
+          producedOutput: responseText.trim().length > 0,
+        })
+      ) {
+        this.resetSession();
+        this.isResumeRetry = true;
+        yield { type: 'notice', content: 'Grok-Sitzung war abgelaufen — neu gestartet.', level: 'info' };
+        if (this.activeProcess === proc) {
+          this.activeProcess = null;
+        }
+        yield* this.query(turn, conversationHistory, queryOptions);
+        return;
+      }
 
       if (exitInfo.error) {
         yield { type: 'error', content: this.formatError(exitInfo.error.message, stderr) };

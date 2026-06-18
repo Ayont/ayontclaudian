@@ -11,6 +11,7 @@ import { DEFAULT_CLAUDIAN_SETTINGS } from './app/settings/defaultSettings';
 import { SharedStorageService } from './app/storage/SharedStorageService';
 import { PluginUpdater } from './app/update/PluginUpdater';
 import type { SharedAppStorage } from './core/bootstrap/storage';
+import { buildDiagnosticsMarkdown } from './core/diagnostics/buildDiagnostics';
 import {
   getEnvironmentVariablesForScope as getScopedEnvironmentVariables,
   getRuntimeEnvironmentText,
@@ -194,6 +195,14 @@ export default class ClaudianPlugin extends Plugin {
       },
     });
 
+    this.addCommand({
+      id: 'copy-diagnostics',
+      name: 'Copy diagnostics',
+      callback: () => {
+        void this.copyDiagnostics();
+      },
+    });
+
     this.addSettingTab(new ClaudianSettingTab(this.app, this));
 
     // Status-bar item: active provider, set-up/auth state, and context usage %.
@@ -220,6 +229,57 @@ export default class ClaudianPlugin extends Plugin {
    * active, whether it is set up/ready (enabled + CLI resolves), and the current
    * context-window usage percent. No-op until the status bar exists.
    */
+  /**
+   * Gathers a Markdown diagnostics snapshot (version, settings, provider
+   * availability, active conversation session map) and copies it to the clipboard.
+   */
+  async copyDiagnostics(): Promise<void> {
+    const settingsBag = this.settings as unknown as Record<string, unknown>;
+    const providers = ProviderRegistry.getRegisteredProviderIds().map((providerId) => {
+      const enabled = ProviderRegistry.isEnabled(providerId, settingsBag);
+      const cliPath = this.getResolvedProviderCliPath(providerId);
+      return {
+        id: providerId,
+        name: ProviderRegistry.getProviderDisplayName(providerId),
+        enabled,
+        cliResolved: Boolean(cliPath),
+        cliPath,
+      };
+    });
+
+    const tab = this.getView()?.getActiveTab() ?? null;
+    const conversation = tab?.conversationId ? this.getConversationSync(tab.conversationId) : null;
+    const activeConversation = conversation
+      ? {
+          id: conversation.id,
+          providerId: conversation.providerId,
+          sessionId: conversation.sessionId,
+          goal: conversation.goal,
+          providerSessionIds: Object.fromEntries(
+            Object.entries(conversation.providerSessions ?? {}).map(
+              ([providerId, snapshot]) => [providerId, snapshot?.sessionId ?? null],
+            ),
+          ),
+        }
+      : null;
+
+    const markdown = buildDiagnosticsMarkdown({
+      pluginVersion: this.manifest.version,
+      generatedAt: new Date().toISOString(),
+      permissionMode: String(this.settings.permissionMode ?? 'normal'),
+      autoMode: this.settings.autoMode === true,
+      providers,
+      activeConversation,
+    });
+
+    try {
+      await navigator.clipboard.writeText(markdown);
+      new Notice('Claudian-Diagnose in die Zwischenablage kopiert.');
+    } catch {
+      new Notice('Diagnose konnte nicht kopiert werden.');
+    }
+  }
+
   updateProviderStatusBar(): void {
     if (!this.providerStatusBar) {
       return;
@@ -410,6 +470,7 @@ export default class ClaudianPlugin extends Plugin {
         sessionId: resumeSessionId,
         providerState: meta.providerState,
         providerSessions: meta.providerSessions,
+        goal: meta.goal,
         messages: meta.messages ?? [],
         currentNote: meta.currentNote,
         externalContextPaths: meta.externalContextPaths,

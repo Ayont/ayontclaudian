@@ -122,6 +122,7 @@ export class MessageRenderer {
   private rewindCallback?: (messageId: string, mode?: ChatRewindMode) => Promise<void>;
   private getCapabilities: () => ProviderCapabilities;
   private forkCallback?: (messageId: string) => Promise<void>;
+  private switchModelCallback?: () => void;
   private liveMessageEls = new Map<string, HTMLElement>();
 
   constructor(
@@ -131,6 +132,7 @@ export class MessageRenderer {
     rewindCallback?: (messageId: string, mode?: ChatRewindMode) => Promise<void>,
     forkCallback?: (messageId: string) => Promise<void>,
     getCapabilities?: () => ProviderCapabilities,
+    switchModelCallback?: () => void,
   ) {
     this.app = plugin.app;
     this.plugin = plugin;
@@ -138,6 +140,7 @@ export class MessageRenderer {
     this.messagesEl = messagesEl;
     this.rewindCallback = rewindCallback;
     this.forkCallback = forkCallback;
+    this.switchModelCallback = switchModelCallback;
     this.getCapabilities = getCapabilities ?? (() => ({
       providerId: DEFAULT_CHAT_PROVIDER_ID,
       supportsPersistentRuntime: false,
@@ -468,14 +471,37 @@ export class MessageRenderer {
 
     // Render response duration footer (skip when message contains a compaction boundary)
     const hasCompactBoundary = msg.contentBlocks?.some(b => b.type === 'context_compacted');
-    if (msg.durationSeconds && msg.durationSeconds > 0 && !hasCompactBoundary) {
-      const flavorWord = msg.durationFlavorWord || 'Baked';
+    const hasDuration = Boolean(msg.durationSeconds && msg.durationSeconds > 0);
+    if (!hasCompactBoundary && (hasDuration || this.switchModelCallback)) {
       const footerEl = contentEl.createDiv({ cls: 'claudian-response-footer' });
-      footerEl.createSpan({
-        text: `* ${flavorWord} for ${formatDurationMmSs(msg.durationSeconds)}`,
-        cls: 'claudian-baked-duration',
-      });
+      if (hasDuration) {
+        const flavorWord = msg.durationFlavorWord || 'Baked';
+        footerEl.createSpan({
+          text: `* ${flavorWord} for ${formatDurationMmSs(msg.durationSeconds as number)}`,
+          cls: 'claudian-baked-duration',
+        });
+      }
+      this.addSwitchModelButton(footerEl);
     }
+  }
+
+  /**
+   * "Continue with another model": a one-click affordance on a completed assistant
+   * message that opens the model picker and switches the conversation's provider in
+   * place (recent context carries over via the one-shot bootstrap).
+   */
+  private addSwitchModelButton(footerEl: HTMLElement): void {
+    if (!this.switchModelCallback) return;
+    const btn = footerEl.createSpan({ cls: 'claudian-switch-model-btn' });
+    setIcon(btn, 'arrow-left-right');
+    btn.setAttribute('role', 'button');
+    btn.setAttribute('tabindex', '0');
+    btn.setAttribute('aria-label', 'Mit anderem Modell weiter');
+    btn.createSpan({ text: 'Modell wechseln', cls: 'claudian-switch-model-label' });
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.switchModelCallback?.();
+    });
   }
 
   /**

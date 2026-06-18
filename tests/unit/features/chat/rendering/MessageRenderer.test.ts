@@ -365,6 +365,49 @@ describe('MessageRenderer', () => {
     expect(messagesEl.querySelector('.claudian-message-rewind-btn')).toBeNull();
   });
 
+  it('renders a "switch model" button on a completed assistant message and invokes the callback', () => {
+    const messagesEl = createMockEl();
+    const switchModel = jest.fn();
+    const renderer = new MessageRenderer(
+      { app: {}, settings: { mediaFolder: '' } } as any,
+      createMockComponent() as any,
+      messagesEl,
+      undefined,
+      undefined,
+      mockCapabilities(),
+      switchModel,
+    );
+    jest.spyOn(renderer, 'renderContent').mockResolvedValue(undefined);
+
+    const msg: ChatMessage = {
+      id: 'a1',
+      role: 'assistant',
+      content: 'done',
+      timestamp: 1,
+      durationSeconds: 3,
+    };
+    renderer.renderStoredMessage(msg);
+
+    const btn = messagesEl.querySelector('.claudian-switch-model-btn');
+    expect(btn).not.toBeNull();
+    btn?.dispatchEvent({ type: 'click', stopPropagation: () => {} });
+    expect(switchModel).toHaveBeenCalledTimes(1);
+  });
+
+  it('omits the "switch model" button when no callback is provided', () => {
+    const messagesEl = createMockEl();
+    const renderer = new MessageRenderer(
+      { app: {}, settings: { mediaFolder: '' } } as any,
+      createMockComponent() as any,
+      messagesEl,
+    );
+    jest.spyOn(renderer, 'renderContent').mockResolvedValue(undefined);
+
+    renderer.renderStoredMessage({ id: 'a1', role: 'assistant', content: 'done', timestamp: 1, durationSeconds: 3 });
+
+    expect(messagesEl.querySelector('.claudian-switch-model-btn')).toBeNull();
+  });
+
   it('shows rewind mode menu for eligible streamed user messages', async () => {
     const messagesEl = createMockEl();
     const rewindCallback = jest.fn().mockResolvedValue(undefined);

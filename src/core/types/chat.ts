@@ -80,6 +80,8 @@ export interface Conversation {
    * OWN session and never resumes another provider's id ("session not found").
    */
   providerSessions?: Record<string, ProviderSessionSnapshot>;
+  /** Standing objective set via `/goal`; re-injected into every turn for any provider. */
+  goal?: string | null;
   messages: ChatMessage[];
   currentNote?: string;
   /** Session-specific external context paths (directories with full access). Resets on new session. */
@@ -127,6 +129,8 @@ export interface SessionMetadata {
   providerState?: Record<string, unknown>;
   /** Per-provider native session snapshots (see {@link Conversation.providerSessions}). */
   providerSessions?: Record<string, ProviderSessionSnapshot>;
+  /** Standing objective set via `/goal` (see {@link Conversation.goal}). */
+  goal?: string | null;
   /** Fallback messages for providers without SDK-native message storage. */
   messages?: ChatMessage[];
   currentNote?: string;

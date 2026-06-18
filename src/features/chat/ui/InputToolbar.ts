@@ -109,6 +109,11 @@ export class ModelSelector {
     this.updateDisplay();
   }
 
+  /** Opens the model picker programmatically (e.g. from a per-message "switch model" action). */
+  openPicker(): void {
+    this.openModal();
+  }
+
   private openModal(): void {
     const currentModel = this.callbacks.getSettings().model;
     const models = sortModelOptions(this.getAvailableModels(), currentModel);

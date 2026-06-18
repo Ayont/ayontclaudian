@@ -237,6 +237,9 @@
 /* Response duration footer - styled as another line of content */
 .claudian-response-footer {
   margin-top: var(--cl-space-2);
+  display: flex;
+  align-items: center;
+  gap: var(--cl-space-3);
 }
 
 .claudian-baked-duration {
@@ -244,6 +247,45 @@
   font-size: var(--cl-text-sm);
   font-weight: 500;
   font-style: italic;
+}
+
+/* "Continue with another model" — a quiet action that lights up on hover. */
+.claudian-switch-model-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cl-space-1);
+  margin-inline-start: auto;
+  padding: 2px 8px;
+  border-radius: var(--cl-radius-pill);
+  color: var(--text-muted);
+  font-size: var(--cl-text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity var(--cl-dur) var(--cl-ease),
+    background var(--cl-dur-fast) var(--cl-ease),
+    color var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-message:hover .claudian-switch-model-btn,
+.claudian-switch-model-btn:focus-visible {
+  opacity: 1;
+}
+
+.claudian-switch-model-btn:hover {
+  background: rgba(var(--cl-accent-rgb), 0.12);
+  color: var(--cl-accent);
+}
+
+.claudian-switch-model-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.claudian-switch-model-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--cl-accent-line);
 }
 
 /* Action buttons toolbar below user messages */

@@ -155,6 +155,14 @@ describe('builtInCommands', () => {
       expect(forkCmd?.hasArgs).toBeUndefined();
     });
 
+    it('has goal command that accepts args and is universal', () => {
+      const goalCmd = BUILT_IN_COMMANDS.find((c) => c.name === 'goal');
+      expect(goalCmd).toBeDefined();
+      expect(goalCmd?.action).toBe('goal');
+      expect(goalCmd?.hasArgs).toBe(true);
+      expect(goalCmd?.requiredCapability).toBeUndefined();
+    });
+
     it('clear has no provider restriction', () => {
       const clearCmd = BUILT_IN_COMMANDS.find((c) => c.name === 'clear');
       expect(clearCmd?.requiredCapability).toBeUndefined();
@@ -202,8 +210,9 @@ describe('builtInCommands', () => {
 
     it('returns only commands supported by codex capabilities', () => {
       const commands = getBuiltInCommandsForDropdown('codex');
-      expect(commands.length).toBe(4);
-      expect(commands.map(c => c.name)).toEqual(['clear', 'add-dir', 'resume', 'fork']);
+      // `goal` is universal (no required capability), so it joins the supported set.
+      expect(commands.length).toBe(5);
+      expect(commands.map(c => c.name)).toEqual(['clear', 'add-dir', 'resume', 'fork', 'goal']);
     });
   });
 

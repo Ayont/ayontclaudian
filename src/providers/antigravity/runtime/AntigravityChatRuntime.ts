@@ -8,6 +8,7 @@ import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorks
 import type { ProviderCapabilities } from '../../../core/providers/types';
 import { buildEstimatedUsageInfo, estimateTokensForTexts } from '../../../core/providers/usage/estimateUsage';
 import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
+import { isStaleResumeFailure } from '../../../core/runtime/printSessionRecovery';
 import type {
   ApprovalCallback,
   AskUserQuestionCallback,
@@ -84,6 +85,8 @@ export class AntigravityChatRuntime implements ChatRuntime {
   readonly providerId = ANTIGRAVITY_PROVIDER_ID;
 
   private conversationId: string | null = null;
+  /** Set while re-running a turn after clearing a dead conversation (see query()). */
+  private isResumeRetry = false;
   private transcriptPath: string | null = null;
   private sessionInvalidated = false;
   private ready = false;
@@ -164,6 +167,11 @@ export class AntigravityChatRuntime implements ChatRuntime {
     this.currentTurnMetadata = {};
     this.cancelled = false;
 
+    // See VibeChatRuntime: a single fresh re-run after a dead-conversation recovery.
+    const isRetry = this.isResumeRetry;
+    this.isResumeRetry = false;
+    const hadSession = this.conversationId !== null;
+
     const settingsBag = this.plugin.settings as unknown as Record<string, unknown>;
     const settings = getAntigravityProviderSettings(settingsBag);
     if (!settings.enabled) {
@@ -220,7 +228,9 @@ export class AntigravityChatRuntime implements ChatRuntime {
       homeDir: os.homedir(),
     });
 
-    yield { type: 'user_message_start', content: turn.request.text };
+    if (!isRetry) {
+      yield { type: 'user_message_start', content: turn.request.text };
+    }
 
     let proc: ChildProcessWithoutNullStreams;
     let resolvedSpawnSpec: WindowsCmdShimSpawnSpec;
@@ -362,6 +372,26 @@ export class AntigravityChatRuntime implements ChatRuntime {
       }
 
       this.persistDiscoveredConversation();
+
+      // Dead OWN conversation → clear it and retry the turn fresh (no error card).
+      if (
+        !isRetry &&
+        isStaleResumeFailure({
+          hadSession,
+          exitCode: exited?.code ?? null,
+          stderr,
+          producedOutput: responseText.trim().length > 0,
+        })
+      ) {
+        this.resetSession();
+        this.isResumeRetry = true;
+        yield { type: 'notice', content: 'Antigravity-Sitzung war abgelaufen — neu gestartet.', level: 'info' };
+        if (this.activeProcess === proc) {
+          this.activeProcess = null;
+        }
+        yield* this.query(turn, conversationHistory, _queryOptions);
+        return;
+      }
 
       if (exited?.error) {
         yield { type: 'error', content: this.formatError(exited.error.message, stderr) };

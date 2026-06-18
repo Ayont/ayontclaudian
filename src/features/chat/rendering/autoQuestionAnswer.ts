@@ -75,3 +75,17 @@ export function resolveAutoQuestionAnswers(
 
   return answered > 0 ? answers : null;
 }
+
+/**
+ * One-line, human-readable summary of what auto mode picked, for an inline
+ * transparency note in the chat (e.g. "Which database? → postgres · Theme → dark").
+ */
+export function summarizeAutoAnswers(answers: AskUserAnswers): string {
+  const parts: string[] = [];
+  for (const [key, value] of Object.entries(answers)) {
+    const rendered = Array.isArray(value) ? value.join(', ') : value;
+    const shortKey = key.length > 48 ? `${key.slice(0, 48)}…` : key;
+    parts.push(rendered ? `${shortKey} → ${rendered}` : shortKey);
+  }
+  return parts.join(' · ');
+}

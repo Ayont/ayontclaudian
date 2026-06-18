@@ -16,6 +16,7 @@ import type { SubagentManager } from '../services/SubagentManager';
 import type { ChatState } from '../state/ChatState';
 import type { BangBashModeManager } from '../ui/BangBashModeManager';
 import type { FileContextManager } from '../ui/FileContext';
+import type { GoalBanner } from '../ui/GoalBanner';
 import type { ImageContextManager } from '../ui/ImageContext';
 import type {
   ContextUsageMeter,
@@ -122,6 +123,7 @@ export interface TabUIComponents {
   mcpServerSelector: McpServerSelector | null;
   permissionToggle: PermissionToggle | null;
   serviceTierToggle: ServiceTierToggle | null;
+  goalBanner: GoalBanner | null;
   slashCommandDropdown: SlashCommandDropdown | null;
   instructionModeManager: InstructionModeManager | null;
   bangBashModeManager: BangBashModeManager | null;
@@ -137,6 +139,8 @@ export interface TabUIComponents {
  */
 export interface TabDOMElements {
   contentEl: HTMLElement;
+  /** Host element (above the transcript) the active-goal banner mounts into. */
+  goalBannerHostEl: HTMLElement;
   messagesEl: HTMLElement;
   welcomeEl: HTMLElement | null;
 
@@ -202,6 +206,9 @@ export interface TabData {
    * not persisted.
    */
   pendingContextBootstrap?: string | null;
+
+  /** Standing goal for this tab (mirrors the bound conversation's `goal`). */
+  goal?: string | null;
 
   /** Per-tab chat runtime instance for independent streaming. */
   service: ChatRuntime | null;

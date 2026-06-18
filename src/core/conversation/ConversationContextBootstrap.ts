@@ -14,8 +14,32 @@
 import { buildContextFromHistory } from '../../utils/session';
 import type { ChatMessage } from '../types';
 
-/** Hard cap on the framed bootstrap payload (characters). Keep small + bounded. */
+/** Floor for the framed bootstrap payload (characters). Keep small + bounded. */
 export const CONTEXT_BOOTSTRAP_CHAR_CAP = 6000;
+
+/** Ceiling for the adaptive bootstrap cap (≈6k tokens), so even huge windows stay bounded. */
+export const CONTEXT_BOOTSTRAP_CHAR_CAP_MAX = 24000;
+
+/** Rough chars-per-token used to translate a token window into a character budget. */
+const CHARS_PER_TOKEN = 4;
+
+/** Fraction of the target model's context window devoted to carried-over context. */
+const BOOTSTRAP_WINDOW_FRACTION = 0.03;
+
+/**
+ * Computes an adaptive character cap from the TARGET model's context window: a
+ * small model keeps the conservative {@link CONTEXT_BOOTSTRAP_CHAR_CAP} floor,
+ * while a large window (e.g. 200k+) may carry proportionally more prior context,
+ * clamped at {@link CONTEXT_BOOTSTRAP_CHAR_CAP_MAX}. Unknown/invalid windows fall
+ * back to the floor.
+ */
+export function computeBootstrapCharCap(contextWindowTokens?: number): number {
+  if (!contextWindowTokens || contextWindowTokens <= 0 || !Number.isFinite(contextWindowTokens)) {
+    return CONTEXT_BOOTSTRAP_CHAR_CAP;
+  }
+  const budget = Math.round(contextWindowTokens * CHARS_PER_TOKEN * BOOTSTRAP_WINDOW_FRACTION);
+  return Math.min(CONTEXT_BOOTSTRAP_CHAR_CAP_MAX, Math.max(CONTEXT_BOOTSTRAP_CHAR_CAP, budget));
+}
 
 /** Note prepended when older turns are dropped to satisfy the char cap. */
 const EARLIER_TURNS_OMITTED_NOTE = '[earlier turns omitted]';

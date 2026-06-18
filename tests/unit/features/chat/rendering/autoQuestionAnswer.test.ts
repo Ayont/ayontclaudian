@@ -1,4 +1,4 @@
-import { resolveAutoQuestionAnswers } from '@/features/chat/rendering/autoQuestionAnswer';
+import { resolveAutoQuestionAnswers, summarizeAutoAnswers } from '@/features/chat/rendering/autoQuestionAnswer';
 
 describe('resolveAutoQuestionAnswers', () => {
   it('returns null when there are no questions', () => {
@@ -88,5 +88,29 @@ describe('resolveAutoQuestionAnswers', () => {
       ],
     });
     expect(result).toEqual({ 'Valid?': 'yes' });
+  });
+});
+
+describe('summarizeAutoAnswers', () => {
+  it('renders a single answer as "question → value"', () => {
+    expect(summarizeAutoAnswers({ 'Which database?': 'postgres' })).toBe('Which database? → postgres');
+  });
+
+  it('joins multiple answers with a middot', () => {
+    expect(summarizeAutoAnswers({ DB: 'postgres', Theme: 'dark' })).toBe('DB → postgres · Theme → dark');
+  });
+
+  it('joins multiSelect arrays with commas', () => {
+    expect(summarizeAutoAnswers({ Features: ['a', 'b'] })).toBe('Features → a, b');
+  });
+
+  it('truncates very long question keys', () => {
+    const longKey = 'x'.repeat(60);
+    const out = summarizeAutoAnswers({ [longKey]: 'v' });
+    expect(out).toBe(`${'x'.repeat(48)}… → v`);
+  });
+
+  it('shows just the key when the value is empty', () => {
+    expect(summarizeAutoAnswers({ 'Custom name?': '' })).toBe('Custom name?');
   });
 });

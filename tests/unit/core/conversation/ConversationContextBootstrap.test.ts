@@ -1,8 +1,36 @@
 import {
   buildConversationContextBootstrap,
+  computeBootstrapCharCap,
   CONTEXT_BOOTSTRAP_CHAR_CAP,
+  CONTEXT_BOOTSTRAP_CHAR_CAP_MAX,
 } from '@/core/conversation/ConversationContextBootstrap';
 import type { ChatMessage } from '@/core/types';
+
+describe('computeBootstrapCharCap', () => {
+  it('falls back to the floor for unknown/invalid windows', () => {
+    expect(computeBootstrapCharCap(undefined)).toBe(CONTEXT_BOOTSTRAP_CHAR_CAP);
+    expect(computeBootstrapCharCap(0)).toBe(CONTEXT_BOOTSTRAP_CHAR_CAP);
+    expect(computeBootstrapCharCap(-5)).toBe(CONTEXT_BOOTSTRAP_CHAR_CAP);
+    expect(computeBootstrapCharCap(Number.NaN)).toBe(CONTEXT_BOOTSTRAP_CHAR_CAP);
+  });
+
+  it('keeps the floor for small windows', () => {
+    // 32k tokens → 32000*4*0.03 = 3840 < floor → floor.
+    expect(computeBootstrapCharCap(32000)).toBe(CONTEXT_BOOTSTRAP_CHAR_CAP);
+  });
+
+  it('scales up for large windows and clamps at the ceiling', () => {
+    // 200k tokens → 200000*4*0.03 = 24000 = ceiling.
+    expect(computeBootstrapCharCap(200000)).toBe(CONTEXT_BOOTSTRAP_CHAR_CAP_MAX);
+    // 1M tokens → far over ceiling → clamped.
+    expect(computeBootstrapCharCap(1_000_000)).toBe(CONTEXT_BOOTSTRAP_CHAR_CAP_MAX);
+  });
+
+  it('returns an intermediate value between floor and ceiling', () => {
+    // 100k tokens → 100000*4*0.03 = 12000, between 6000 and 24000.
+    expect(computeBootstrapCharCap(100000)).toBe(12000);
+  });
+});
 
 function userMsg(content: string, id = `u-${content.length}-${Math.random()}`): ChatMessage {
   return { id, role: 'user', content, timestamp: 1 };

@@ -118,6 +118,7 @@ export class SessionStorage {
       providerSessions: conversation.providerSessions && Object.keys(conversation.providerSessions).length > 0
         ? conversation.providerSessions
         : undefined,
+      goal: conversation.goal ?? undefined,
       messages: conversation.messages.length > 0
         ? conversation.messages.map((message) => ({
           ...message,
