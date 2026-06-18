@@ -11,6 +11,8 @@ export interface KimiProviderState {
   sessionId?: string;
   /** Active standing goal set via `/goal <text>`; mirrored locally because print-mode goals do not persist reliably. */
   goal?: string;
+  /** Parent session id when this conversation was forked via `/fork`. */
+  forkParentId?: string;
 }
 
 export function getKimiState(providerState?: Record<string, unknown>): KimiProviderState {
@@ -25,6 +27,9 @@ export function getKimiState(providerState?: Record<string, unknown>): KimiProvi
   if (typeof record.goal === 'string' && record.goal.trim()) {
     state.goal = record.goal.trim();
   }
+  if (typeof record.forkParentId === 'string' && record.forkParentId.trim()) {
+    state.forkParentId = record.forkParentId.trim();
+  }
   return state;
 }
 
@@ -37,6 +42,9 @@ export function buildPersistedKimiState(
   }
   if (state.goal) {
     entries.goal = state.goal;
+  }
+  if (state.forkParentId) {
+    entries.forkParentId = state.forkParentId;
   }
   return Object.keys(entries).length > 0 ? entries : undefined;
 }
