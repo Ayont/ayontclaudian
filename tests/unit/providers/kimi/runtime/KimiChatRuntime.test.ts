@@ -26,7 +26,7 @@ describe('KimiChatRuntime slash command interception', () => {
   it('yields acknowledgement and done for /new without spawning', async () => {
     const plugin = makePlugin();
     const runtime = new KimiChatRuntime(plugin);
-    runtime.syncConversationState({ providerId: 'kimi', providerState: {} });
+    runtime.syncConversationState({ sessionId: null, providerState: {} });
 
     const turn = {
       request: { text: '/new' },
@@ -50,7 +50,7 @@ describe('KimiChatRuntime slash command interception', () => {
   it('passes through /compact to CLI spawn path', async () => {
     const plugin = makePlugin();
     const runtime = new KimiChatRuntime(plugin);
-    runtime.syncConversationState({ providerId: 'kimi', providerState: {} });
+    runtime.syncConversationState({ sessionId: null, providerState: {} });
 
     const turn = {
       request: { text: '/compact' },

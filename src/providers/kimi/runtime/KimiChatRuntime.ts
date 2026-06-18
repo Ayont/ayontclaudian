@@ -51,6 +51,7 @@ import {
 import { getKimiProviderSettings, KIMI_PROVIDER_ID } from '../settings';
 import { buildPersistedKimiState, getKimiState, type KimiProviderState } from '../types';
 import { prepareKimiPromptWithGoal } from './KimiGoalPrompt';
+import { Notice } from 'obsidian';
 import { KimiHelpModal } from '../commands/KimiHelpModal';
 import { KimiSessionListModal } from '../commands/KimiSessionListModal';
 import { KimiSlashCommandHandler } from '../commands/KimiSlashCommandHandler';
@@ -100,6 +101,7 @@ export class KimiChatRuntime implements ChatRuntime {
           new KimiSessionListModal(this.plugin.app, (id) => {
             this.sessionId = id;
             this.sessionInvalidated = false;
+            new Notice(`Resumed Kimi session ${id}`);
           }).open();
         },
         openHelp: () => new KimiHelpModal(this.plugin.app).open(),
