@@ -51,6 +51,9 @@ import {
 import { getKimiProviderSettings, KIMI_PROVIDER_ID } from '../settings';
 import { buildPersistedKimiState, getKimiState, type KimiProviderState } from '../types';
 import { prepareKimiPromptWithGoal } from './KimiGoalPrompt';
+import { KimiHelpModal } from '../commands/KimiHelpModal';
+import { KimiSessionListModal } from '../commands/KimiSessionListModal';
+import { KimiSlashCommandHandler } from '../commands/KimiSlashCommandHandler';
 import { buildKimiLaunchSpec } from './KimiLaunchSpec';
 import { buildKimiRuntimeEnv } from './KimiRuntimeEnvironment';
 
@@ -72,6 +75,7 @@ export class KimiChatRuntime implements ChatRuntime {
 
   private sessionId: string | null = null;
   private goal: string | null = null;
+  private forkParentId: string | null = null;
   private sessionInvalidated = false;
   private ready = false;
   private currentTurnMetadata: ChatTurnMetadata = {};
@@ -80,8 +84,36 @@ export class KimiChatRuntime implements ChatRuntime {
   private cancelled = false;
   private currentTodos: TodoItem[] = [];
   private askUserQuestionCallback: AskUserQuestionCallback | null = null;
+  private slashHandler: KimiSlashCommandHandler;
 
-  constructor(private readonly plugin: ClaudianPlugin) {}
+  constructor(private readonly plugin: ClaudianPlugin) {
+    this.slashHandler = new KimiSlashCommandHandler(
+      () => ({ sessionId: this.sessionId ?? undefined, goal: this.goal ?? undefined }),
+      (state) => {
+        this.sessionId = state.sessionId ?? null;
+        this.goal = state.goal ?? null;
+        this.forkParentId = state.forkParentId ?? null;
+        this.sessionInvalidated = false;
+      },
+      {
+        openSessionList: () => {
+          new KimiSessionListModal(this.plugin.app, (id) => {
+            this.sessionId = id;
+            this.sessionInvalidated = false;
+          }).open();
+        },
+        openHelp: () => new KimiHelpModal(this.plugin.app).open(),
+        closeTab: () => {
+          const view = this.plugin.getView();
+          const tabManager = view?.getTabManager();
+          const activeTabId = tabManager?.getActiveTabId();
+          if (tabManager && activeTabId) {
+            void tabManager.closeTab(activeTabId);
+          }
+        },
+      },
+    );
+  }
 
   getCapabilities(): Readonly<ProviderCapabilities> {
     return KIMI_PROVIDER_CAPABILITIES;
@@ -120,6 +152,7 @@ export class KimiChatRuntime implements ChatRuntime {
     // → start fresh.
     this.sessionId = state.sessionId ?? null;
     this.goal = state.goal ?? null;
+    this.forkParentId = state.forkParentId ?? null;
     this.sessionInvalidated = false;
   }
 
@@ -192,6 +225,17 @@ export class KimiChatRuntime implements ChatRuntime {
     const goalResult = prepareKimiPromptWithGoal(promptText, this.goal);
     this.goal = goalResult.nextGoal;
     promptText = goalResult.promptToSend;
+
+    // Handle Kimi-native slash commands that should trigger UI actions rather
+    // than being sent to the CLI (e.g. /new, /fork, /sessions, /help, /exit).
+    const slashResult = await this.slashHandler.execute(promptText);
+    if (slashResult.consumed) {
+      if (slashResult.followUpPrompt) {
+        yield { type: 'text', content: slashResult.followUpPrompt };
+      }
+      yield { type: 'done' };
+      return;
+    }
 
     const launchSpec = buildKimiLaunchSpec({
       agent: settings.agent,
@@ -490,6 +534,7 @@ export class KimiChatRuntime implements ChatRuntime {
     const state: KimiProviderState = {
       ...(this.sessionId ? { sessionId: this.sessionId } : {}),
       ...(this.goal ? { goal: this.goal } : {}),
+      ...(this.forkParentId ? { forkParentId: this.forkParentId } : {}),
     };
     return {
       updates: {
