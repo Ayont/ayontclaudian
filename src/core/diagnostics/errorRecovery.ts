@@ -95,3 +95,6 @@ export class ProviderErrorRecoveryService {
     }
   }
 }
+
+/** Shared singleton for the plugin runtime. */
+export const providerErrorRecoveryService = new ProviderErrorRecoveryService();

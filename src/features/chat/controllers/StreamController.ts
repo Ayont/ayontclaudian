@@ -1,6 +1,7 @@
 import { TFile } from 'obsidian';
 
 import { recordProviderError } from '../../../core/diagnostics/errorHistory';
+import { providerErrorRecoveryService } from '../../../core/diagnostics/errorRecovery';
 import { ProviderSettingsCoordinator } from '../../../core/providers/ProviderSettingsCoordinator';
 import {
   DEFAULT_CHAT_PROVIDER_ID,
@@ -227,13 +228,15 @@ export class StreamController {
         await this.appendText(`⚠️ **${chunk.level === 'warning' ? 'Blocked' : 'Notice'}:** ${chunk.content}`);
         break;
 
-      case 'error':
+      case 'error': {
+        const providerId = this.getActiveProviderId();
         this.deps.updateLiveActivity?.({
           primary: 'Provider error',
           meta: chunk.content,
           phrase: 'error',
         });
-        recordProviderError(this.getActiveProviderId(), chunk.content);
+        recordProviderError(providerId, chunk.content);
+        providerErrorRecoveryService.recordError(providerId, new Error(chunk.content));
         // Flush pending tools before rendering error message
         this.flushPendingTools();
         // Finalize the preceding text so the error lands in its OWN block and
@@ -241,6 +244,7 @@ export class StreamController {
         await this.finalizeCurrentTextBlock(msg);
         await this.appendText(`❌ **Error:** ${chunk.content}`);
         break;
+      }
 
       case 'done':
         // Flush any remaining pending tools

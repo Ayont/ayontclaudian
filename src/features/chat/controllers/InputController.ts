@@ -6,6 +6,7 @@ import {
   isBuiltInCommandSupported,
 } from '../../../core/commands/builtInCommands';
 import { applyGoalPrefix, parseGoalArgs } from '../../../core/conversation/goalPrompt';
+import { providerErrorRecoveryService } from '../../../core/diagnostics/errorRecovery';
 import { buildDiffPreview } from '../../../core/diff/diffPreview';
 import type { VaultRAGService } from '../../../core/intelligence/rag/VaultRAGService';
 import {
@@ -541,9 +542,16 @@ export class InputController {
         );
       }
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      const normalizedError = error instanceof Error ? error : new Error(String(error));
+      const errorMsg = normalizedError.message;
       recordRunTimelineChunk(runTimeline, { type: 'error', content: errorMsg });
-      await streamController.appendText(`\n\n**Error:** ${errorMsg}`);
+      if (agentService) {
+        providerErrorRecoveryService.recordError(agentService.providerId, normalizedError);
+      }
+      await streamController.handleStreamChunk(
+        { type: 'error', content: errorMsg },
+        this.activeStreamingAssistantMessage ?? assistantMsg,
+      );
     } finally {
       const finalAssistantMsg = this.activeStreamingAssistantMessage ?? assistantMsg;
       const turnMetadata = agentService.consumeTurnMetadata();
