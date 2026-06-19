@@ -122,6 +122,8 @@ export interface ClaudianSettings {
 
   /** Optional prompt-based model routing. When enabled, first send can switch to the matching rule's model. */
   modelRouterEnabled?: boolean;
+  /** Automatically apply model routing on every user send. */
+  modelRouterAutoMode?: boolean;
   modelRouterRules?: ModelRouterRuleSetting[];
 
   /** Show an inline diff preview inside write/edit approval prompts. */
