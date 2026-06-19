@@ -1975,6 +1975,41 @@ export class InputController {
         new Notice(`Workflow eingefügt: ${name}`);
         break;
       }
+      case 'team': {
+        const task = args.trim();
+        if (!task) {
+          new Notice('Usage: /team <task description>');
+          return;
+        }
+        new Notice('🚀 Multi-Agent Team gestartet — siehe Chat für Live-Updates.');
+        try {
+          const { streamController } = this.deps;
+          const plugin = this.deps.plugin;
+
+          // Show a header in the chat stream
+          await streamController.appendText(
+            `\n\n---\n## 🚀 Multi-Agent Team\n**Task:** ${task}\n\nSpecialists arbeiten parallel — Live-Updates unten...\n---\n`,
+          );
+
+          const result = await plugin.runInlineTeamTask(task);
+
+          // Show failover log if any
+          const failoverNote = result.results.some((r) => r.output.includes('failed over'))
+            ? '\n\n*Rate-limit failover war aktiv — siehe Mission Log für Details.*'
+            : '';
+
+          await streamController.appendText(
+            `\n\n## 🎯 Synthesized Answer\n${result.synthesis || '_No synthesis produced._'}${failoverNote}\n`,
+          );
+
+          new Notice('Multi-Agent Team abgeschlossen.');
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          new Notice(`Team fehlgeschlagen: ${message}`);
+          await this.deps.streamController.appendText(`\n\n**Team Error:** ${message}\n`);
+        }
+        break;
+      }
       default: {
         // Unknown command - notify user
         const unknownAction = typeof (command as { action?: unknown }).action === 'string'

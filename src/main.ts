@@ -41,10 +41,20 @@ import { KeywordEmbeddingProvider } from './core/intelligence/embeddings/Keyword
 import { OllamaEmbeddingProvider } from './core/intelligence/embeddings/OllamaEmbeddingProvider';
 import { AgenticMemoryService } from './core/intelligence/memory/AgenticMemoryService';
 import {
+  BUILT_IN_SPECIALIST_AGENTS,
+  DEFAULT_INLINE_TEAM_AGENT_IDS,
+} from './core/intelligence/multiAgent/agentRegistry';
+import {
+  multiAgentAvailabilityService,
+} from './core/intelligence/multiAgent/MultiAgentAvailabilityService';
+import {
+  type AgentExecutor,
   buildSynthesisPrompt,
+  isRateLimitErrorMessage,
   type MissionStateStorage as IMissionStateStorage,
   MissionStateStorage,
   MultiAgentService,
+  type SpecialistAgent,
 } from './core/intelligence/multiAgent/MultiAgentService';
 import { ProjectService } from './core/intelligence/projects/ProjectService';
 import { VaultRAGService } from './core/intelligence/rag/VaultRAGService';
@@ -680,14 +690,96 @@ export default class ClaudianPlugin extends Plugin {
     return this.runRawPrompt(buildSynthesisPrompt(prompt, contributions), onChunk);
   }
 
+  /**
+   * Runs a single agent prompt on a specific provider, streaming partial output
+   * via `onChunk`. Used by the multi-agent team engine so each specialist can
+   * run on its preferred provider. When the resolved provider is unavailable,
+   * callers fall back to the active provider before invoking this method.
+   */
+  async runAgentPromptWithProvider(
+    agent: { systemPrompt: string; name: string; model?: string },
+    prompt: string,
+    providerId: ProviderId,
+    model: string | undefined,
+    onChunk?: (chunk: string) => void,
+  ): Promise<string> {
+    const fullPrompt = `${agent.systemPrompt}\n\nUser request: ${prompt}\n\nRespond as ${agent.name}.`;
+    return this.runRawPrompt(fullPrompt, onChunk, model, providerId);
+  }
+
+  /**
+   * Resolves the effective provider for a specialist: its preferred provider
+   * when that provider is enabled and multi-agent-capable, otherwise the
+   * active chat provider. Passed to `runMission` as `resolveAgentProviderId`.
+   */
+  resolveMultiAgentProviderId(agent: SpecialistAgent): ProviderId {
+    const activeProviderId = this.getActiveMultiAgentProviderId();
+    const preferred = agent.providerId;
+    if (preferred && this.isProviderMultiAgentAvailable(preferred)) {
+      return preferred;
+    }
+    return activeProviderId;
+  }
+
+  /** True when the provider is registered, enabled, and supports multi-agent. */
+  isProviderMultiAgentAvailable(providerId: ProviderId): boolean {
+    const settingsBag = this.settings as unknown as Record<string, unknown>;
+    return ProviderRegistry.isEnabled(providerId, settingsBag)
+      && multiAgentAvailabilityService.isAvailable(providerId);
+  }
+
+  /** The active chat provider id, used as the multi-agent fallback. */
+  getActiveMultiAgentProviderId(): ProviderId {
+    const tab = this.getView()?.getActiveTab();
+    return tab?.providerId ?? ProviderRegistry.resolveSettingsProviderId(this.settings);
+  }
+
+  /**
+   * Builds a provider-aware executor for the multi-agent service. Each agent
+   * runs on its resolved provider, falling back to the active provider when the
+   * preferred one is unavailable (a setup error, not a rate limit).
+   */
+  buildMultiAgentExecutor(): AgentExecutor {
+    const activeProviderId = this.getActiveMultiAgentProviderId();
+    return {
+      execute: (agent, prompt, onChunk) => this.runAgentPrompt(agent, prompt, onChunk ? (chunk) => onChunk(agent.id, chunk) : undefined),
+      executeWithProvider: async (agent, prompt, providerId, model, onChunk) => {
+        try {
+          const resolved = providerId && this.isProviderMultiAgentAvailable(providerId)
+            ? providerId
+            : activeProviderId;
+          return await this.runAgentPromptWithProvider(agent, prompt, resolved, model, onChunk ? (chunk) => onChunk(agent.id, chunk) : undefined);
+        } catch (error) {
+          // If the resolved preferred provider fails for a non-rate-limit
+          // reason (e.g. not ready), retry once on the active provider before
+          // surfacing the error to the service's failover logic.
+          const message = error instanceof Error ? error.message : String(error);
+          if (
+            providerId
+            && providerId !== activeProviderId
+            && !isRateLimitErrorMessage(message)
+          ) {
+            return this.runAgentPromptWithProvider(agent, prompt, activeProviderId, undefined, onChunk ? (chunk) => onChunk(agent.id, chunk) : undefined);
+          }
+          throw error;
+        }
+      },
+      isRateLimitError: (error) => isRateLimitErrorMessage(
+        error instanceof Error ? error.message : String(error),
+      ),
+    };
+  }
+
   /** Runs a raw prompt on the active provider runtime, streaming text via onChunk. */
   private async runRawPrompt(
     fullPrompt: string,
     onChunk?: (chunk: string) => void,
     modelOverride?: string,
+    providerIdOverride?: ProviderId,
   ): Promise<string> {
     const tab = this.getView()?.getActiveTab();
-    const providerId = tab?.providerId ?? ProviderRegistry.resolveSettingsProviderId(this.settings);
+    const activeProviderId = tab?.providerId ?? ProviderRegistry.resolveSettingsProviderId(this.settings);
+    const providerId = providerIdOverride ?? activeProviderId;
     // Use the real model VALUE (not the selector's display label) so query() routes correctly.
     const model = modelOverride ?? this.getTabModel(providerId);
 
@@ -1057,6 +1149,47 @@ export default class ClaudianPlugin extends Plugin {
     MultiAgentModal.open(this, initialPrompt);
   }
 
+  /**
+   * Runs an inline multi-agent team directly in the chat stream. The default
+   * cross-provider roster runs in parallel, the lead synthesizer combines their
+   * outputs, and the final answer appears as a normal chat message. Failovers
+   * and per-agent progress surface via the global event bus (dashboard feed).
+   */
+  async runInlineTeamTask(
+    taskPrompt: string,
+    agentIds: string[] = DEFAULT_INLINE_TEAM_AGENT_IDS,
+  ): Promise<{ synthesis: string; results: { agentId: string; output: string }[] }> {
+    const executor = this.buildMultiAgentExecutor();
+    const synthesizer = this.buildInlineTeamSynthesizer();
+    const taskId = `inline-team-${Date.now()}`;
+
+    const activeProviderId = this.getActiveMultiAgentProviderId();
+    const result = await this.multiAgentService.runMission(
+      { id: taskId, prompt: taskPrompt, agents: agentIds },
+      executor,
+      synthesizer,
+      undefined,
+      () => Date.now(),
+      {
+        defaultProviderId: activeProviderId,
+        resolveAgentProviderId: (agent) => this.resolveMultiAgentProviderId(agent),
+        maxFailovers: 3,
+      },
+    );
+    return result;
+  }
+
+  /** Synthesizer that runs on the active provider and streams into the chat. */
+  private buildInlineTeamSynthesizer(): { synthesize: (prompt: string, contributions: { agent: { name: string; role: string }; output: string }[], onChunk: (chunk: string) => void) => Promise<string> } {
+    return {
+      synthesize: async (taskPrompt, contributions, onChunk) => {
+        const { buildSynthesisPrompt } = await import('./core/intelligence/multiAgent/MultiAgentService');
+        const fullPrompt = buildSynthesisPrompt(taskPrompt, contributions);
+        return this.runRawPrompt(fullPrompt, onChunk);
+      },
+    };
+  }
+
   updateProviderStatusBar(): void {
     if (!this.providerStatusBar) {
       return;
@@ -1215,9 +1348,13 @@ export default class ClaudianPlugin extends Plugin {
     this.missionStateStorage = new MissionStateStorage(this.storage.getAdapter());
     this.visionService = new VisionService(this.app.vault);
 
-    this.multiAgentService.registerAgent({ id: 'coder', name: 'Coder', role: 'code', systemPrompt: 'You are an expert software engineer.', icon: 'code-2', color: '#60a5fa' });
-    this.multiAgentService.registerAgent({ id: 'writer', name: 'Writer', role: 'writing', systemPrompt: 'You are an expert technical writer.', icon: 'pen-tool', color: '#f472b6' });
-    this.multiAgentService.registerAgent({ id: 'researcher', name: 'Researcher', role: 'research', systemPrompt: 'You are a thorough researcher.', icon: 'microscope', color: '#a78bfa' });
+    // Register the full specialist pool (20 cross-provider agents). Each agent
+    // may declare a preferred provider; the mission executor falls back to the
+    // active provider when a preferred provider is unavailable, and the service
+    // transfers context to a teammate on a different provider on rate limits.
+    for (const agent of BUILT_IN_SPECIALIST_AGENTS) {
+      this.multiAgentService.registerAgent(agent);
+    }
 
     this.vectorStore = new VectorStore();
     this.embeddingService = new KeywordEmbeddingProvider();

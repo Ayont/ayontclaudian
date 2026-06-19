@@ -210,9 +210,9 @@ describe('builtInCommands', () => {
 
     it('returns only commands supported by codex capabilities', () => {
       const commands = getBuiltInCommandsForDropdown('codex');
-      // `goal` and `workflow` are universal (no required capability), so they join the supported set.
-      expect(commands.length).toBe(6);
-      expect(commands.map(c => c.name)).toEqual(['clear', 'add-dir', 'resume', 'fork', 'goal', 'workflow']);
+      // `goal`, `workflow`, and `team` are universal (no required capability), so they join the supported set.
+      expect(commands.length).toBe(7);
+      expect(commands.map(c => c.name)).toEqual(['clear', 'add-dir', 'resume', 'fork', 'goal', 'workflow', 'team']);
     });
   });
 

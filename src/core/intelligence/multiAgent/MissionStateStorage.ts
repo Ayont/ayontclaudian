@@ -33,7 +33,7 @@ export interface MissionState {
 
 export interface MissionEvent {
   ts: number;
-  type: 'started' | 'agent-started' | 'agent-done' | 'agent-error' | 'synthesis-started' | 'synthesis-done' | 'synthesis-error' | 'completed' | 'error' | 'resumed';
+  type: 'started' | 'agent-started' | 'agent-done' | 'agent-error' | 'synthesis-started' | 'synthesis-done' | 'synthesis-error' | 'completed' | 'error' | 'resumed' | 'failover';
   agentId?: string;
   message: string;
 }
