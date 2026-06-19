@@ -1,6 +1,8 @@
+import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
+import { getKimiConfigPath } from '@/providers/kimi/history/KimiSessionStore';
 import {
   getConfiguredEnvCustomModel,
   getKimiModelOptions,
@@ -71,14 +73,35 @@ describe('getKimiModelOptions', () => {
     expect(values.filter((value) => value === DEFAULT_KIMI_PRIMARY_MODEL)).toHaveLength(1);
   });
 
-  it('seeds the Kimi coding model catalog (3 models)', () => {
+  it('only surfaces catalog models when they are configured in config.toml', () => {
+    // Without config entries, only the built-in default is offered.
     const values = getKimiModelOptions(settingsWith({})).map((option) => option.value);
     expect(values).toContain('kimi-code/kimi-for-coding');
-    expect(values).toContain('kimi-k2.7-code');
-    expect(values).toContain('kimi-k2.7-code-highspeed');
+    expect(values).not.toContain('kimi-k2.7-code');
+    expect(values).not.toContain('kimi-k2.7-code-highspeed');
     // Non-coding platform / legacy models are intentionally hidden.
     expect(values).not.toContain('kimi-k2.6');
     expect(values).not.toContain('moonshot-v1-128k');
+  });
+
+  it('includes configured catalog models from config.toml', () => {
+    const configDir = path.dirname(getKimiConfigPath());
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(
+      getKimiConfigPath(),
+      '[models."kimi-k2.7-code-highspeed"]\ndisplay_name = "K2.7 HS"\nmax_context_size = 262144\n',
+      'utf-8',
+    );
+
+    const values = getKimiModelOptions(settingsWith({})).map((option) => option.value);
+    expect(values).toContain('kimi-code/kimi-for-coding');
+    expect(values).toContain('kimi-k2.7-code-highspeed');
+
+    try {
+      fs.unlinkSync(getKimiConfigPath());
+    } catch {
+      // best-effort cleanup
+    }
   });
 
   it('surfaces an env KIMI_MODEL as a custom option at the front', () => {

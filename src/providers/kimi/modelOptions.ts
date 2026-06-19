@@ -4,7 +4,7 @@ import { parse as parseToml } from 'smol-toml';
 
 import { getRuntimeEnvironmentVariables } from '../../core/providers/providerEnvironment';
 import type { ProviderUIOption } from '../../core/providers/types';
-import { getKimiConfigPaths } from './history/KimiSessionStore';
+import { getKimiConfigPath, getKimiConfigPaths } from './history/KimiSessionStore';
 import { getKimiProviderSettings } from './settings';
 import {
   DEFAULT_KIMI_CONTEXT_WINDOW,
@@ -109,6 +109,58 @@ export function getKimiModelContextWindow(model: string): number {
   return match?.contextWindow ?? DEFAULT_KIMI_CONTEXT_WINDOW;
 }
 
+/**
+ * Best-effort human display name for a known or configured Kimi model id.
+ */
+function getKimiModelDisplayName(modelId: string): string {
+  const known = KNOWN_KIMI_MODELS.find((m) => m.value === modelId);
+  if (known) {
+    return known.label.replace(/^Kimi · /, '');
+  }
+  const tail = modelId.includes('/') ? modelId.slice(modelId.lastIndexOf('/') + 1) : modelId;
+  return tail
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+/**
+ * Ensures a model id exists in `~/.kimi/config.toml` `[models.*]`.
+ * Kimi CLI requires every `-m` value to be declared in config.toml with
+ * `max_context_size`. If the model is missing, append a minimal section.
+ * Returns true when the config was modified.
+ */
+export function ensureKimiModelConfigured(modelId: string): boolean {
+  if (!modelId || DEFAULT_KIMI_MODEL_SET.has(modelId)) {
+    return false;
+  }
+
+  const configPath = getKimiConfigPath();
+  let raw: string;
+  try {
+    raw = fs.readFileSync(configPath, 'utf-8');
+  } catch {
+    raw = '';
+  }
+
+  const escapedId = modelId.replace(/"/g, '\\"');
+  const quotedPattern = new RegExp(`\\[models\\."${escapedId}"\\]`, 'i');
+  const barePattern = new RegExp(`\\[models\\.${escapedId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]`, 'i');
+  if (quotedPattern.test(raw) || barePattern.test(raw)) {
+    return false;
+  }
+
+  const section = `\n[models."${escapedId}"]\ndisplay_name = "${getKimiModelDisplayName(modelId)}"\nmax_context_size = ${DEFAULT_KIMI_CONTEXT_WINDOW}\n`;
+  const updated = raw.trimEnd() + section;
+  try {
+    fs.writeFileSync(configPath, updated, 'utf-8');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function getConfiguredEnvModel(settings: Record<string, unknown>): string | null {
   const modelId = getRuntimeEnvironmentVariables(settings, 'kimi').KIMI_MODEL?.trim();
   return modelId ? modelId : null;
@@ -155,10 +207,12 @@ export function getKimiModelOptions(settings: Record<string, unknown>): Provider
     models.push({ value: configured.id, label: configured.label, description: 'Configured' });
   }
 
-  // Seed the rest of the documented Kimi/Moonshot catalog so every selectable
-  // model is offered, not just the managed alias from config.toml.
+  // Only offer documented catalog models when they are actually configured in
+  // ~/.kimi/config.toml. Kimi CLI rejects `-m <model>` if the model is missing
+  // from config.toml, so surfacing unconfigured ids leads to runtime errors.
+  const configuredIds = new Set(readKimiConfiguredModels().models.map((m) => m.id));
   for (const known of KNOWN_KIMI_MODELS) {
-    if (seen.has(known.value)) {
+    if (seen.has(known.value) || !configuredIds.has(known.value)) {
       continue;
     }
     seen.add(known.value);

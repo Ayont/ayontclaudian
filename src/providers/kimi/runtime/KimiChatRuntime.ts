@@ -46,7 +46,7 @@ import { KIMI_PROVIDER_CAPABILITIES } from '../capabilities';
 import { KimiHelpModal } from '../commands/KimiHelpModal';
 import { KimiSessionListModal } from '../commands/KimiSessionListModal';
 import { KimiSlashCommandHandler } from '../commands/KimiSlashCommandHandler';
-import { getKimiModelContextWindow, resolveKimiModelSelection } from '../modelOptions';
+import { ensureKimiModelConfigured, getKimiModelContextWindow, resolveKimiModelSelection } from '../modelOptions';
 import { parseKimiStreamLine } from '../normalization/streamEvents';
 import {
   createKimiStreamState,
@@ -293,6 +293,13 @@ export class KimiChatRuntime implements ChatRuntime {
     const model = queryOptions?.model?.trim()
       || resolveKimiModelSelection(settingsBag, typeof settingsBag.model === 'string' ? settingsBag.model : '')
       || '';
+
+    // Kimi CLI requires the `-m` model to be declared in ~/.kimi/config.toml.
+    // If the user selected a catalog model that is not yet configured, add it
+    // on-the-fly before spawning the CLI.
+    if (model && ensureKimiModelConfigured(model)) {
+      new Notice(`Added Kimi model ${model} to ~/.kimi/config.toml`);
+    }
 
     // Expand a chosen vault command/skill client-side — kimi-cli print mode
     // can't expand `/command` or `$skill` tokens itself. Unknown input and
