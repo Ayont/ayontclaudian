@@ -1,8 +1,7 @@
 import { ItemView, Notice, setIcon, type WorkspaceLeaf } from 'obsidian';
 
 import { type ClaudianEvent, type ClaudianEventType, globalEventBus } from '../../core/events/EventBus';
-import { formatMissionLogMarkdown } from '../../core/intelligence/multiAgent/formatMissionLogMarkdown';
-import type { MissionEvent } from '../../core/intelligence/multiAgent/MissionStateStorage';
+import { MemoryBrowserModal, MissionLogBrowserModal, TokenUsageModal, WorkflowBrowserModal } from './DashboardModals';
 import type ClaudianPlugin from '../../main';
 
 export const VIEW_TYPE_CLAUDIAN_DASHBOARD = 'claudian-dashboard';
@@ -226,6 +225,11 @@ export class ClaudianDashboardView extends ItemView {
     missionLogBtn.createSpan({ text: 'Mission Log' });
     missionLogBtn.addEventListener('click', () => void this.openMissionLogBrowser());
 
+    const usageBtn = actions.createEl('button', { cls: 'claudian-dashboard-action-btn' });
+    setIcon(usageBtn.createSpan(), 'gauge');
+    usageBtn.createSpan({ text: 'Token Usage' });
+    usageBtn.addEventListener('click', () => this.openTokenUsageModal());
+
     const refreshBtn = actions.createEl('button', { cls: 'claudian-dashboard-action-btn' });
     setIcon(refreshBtn.createSpan(), 'refresh-cw');
     refreshBtn.createSpan({ text: 'Refresh' });
@@ -332,42 +336,21 @@ export class ClaudianDashboardView extends ItemView {
     }
   }
 
-  // ── Browsers (unchanged) ─────────────────────────────────────────────────────
+  // ── Browsers (interactive modals) ───────────────────────────────────────────
 
   private async openMissionLogBrowser(): Promise<void> {
-    const missions = await this.plugin.missionStateStorage.listMissions();
-    if (missions.length === 0) {
-      new Notice('No mission history yet.');
-      return;
-    }
-
-    const eventsByMission = new Map<string, MissionEvent[]>();
-    for (const mission of missions) {
-      eventsByMission.set(mission.taskId, await this.plugin.missionStateStorage.loadEvents(mission.taskId));
-    }
-
-    const content = formatMissionLogMarkdown(missions, eventsByMission);
-    const path = `.claudian/mission-log-${Date.now()}.md`;
-    await this.plugin.app.vault.create(path, content);
-    new Notice(`Mission log written to ${path}`);
+    new MissionLogBrowserModal(this.app, this.plugin).open();
   }
 
   private openMemoryBrowser(): void {
-    void this.plugin.agenticMemoryService.recall({ limit: 20 }).then((facts) => {
-      const lines = facts.map(f => `- **${f.topic}** (${(f.confidence * 100).toFixed(0)}% confidence)\n  ${f.content.slice(0, 200)}`);
-      const content = `# Memory Browser\n\n${lines.join('\n\n') || '_No memories yet._'}`;
-      const path = `.claudian/memory-browser-${Date.now()}.md`;
-      void this.plugin.app.vault.create(path, content);
-      new Notice(`Memory browser written to ${path}`);
-    });
+    new MemoryBrowserModal(this.app, this.plugin).open();
   }
 
   private openWorkflowBrowser(): void {
-    const workflows = this.plugin.workflowEngine.list();
-    const lines = workflows.map(w => `- **${w.name}** (${w.enabled ? 'enabled' : 'disabled'})\n  Trigger: ${w.trigger.type}`);
-    const content = `# Workflow Browser\n\n${lines.join('\n\n') || '_No workflows yet._'}`;
-    const path = `.claudian/workflow-browser-${Date.now()}.md`;
-    void this.plugin.app.vault.create(path, content);
-    new Notice(`Workflow browser written to ${path}`);
+    new WorkflowBrowserModal(this.app, this.plugin).open();
+  }
+
+  private openTokenUsageModal(): void {
+    new TokenUsageModal(this.app, this.plugin).open();
   }
 }
