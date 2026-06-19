@@ -1,3 +1,4 @@
+import type { App } from 'obsidian';
 import { Modal, Notice, setIcon } from 'obsidian';
 
 import type { MissionEvent, MissionState } from '../../core/intelligence/multiAgent/MissionStateStorage';
@@ -16,7 +17,7 @@ export class MemoryBrowserModal extends Modal {
   private listEl: HTMLElement | null = null;
   private searchEl: HTMLInputElement | null = null;
 
-  constructor(app: import('obsidian').App, private readonly plugin: ClaudianPlugin) {
+  constructor(app: App, private readonly plugin: ClaudianPlugin) {
     super(app);
     this.modalEl.addClass('claudian-dashboard-browser-modal');
   }
@@ -83,7 +84,7 @@ export class MissionLogBrowserModal extends Modal {
   private eventsByMission = new Map<string, MissionEvent[]>();
   private listEl: HTMLElement | null = null;
 
-  constructor(app: import('obsidian').App, private readonly plugin: ClaudianPlugin) {
+  constructor(app: App, private readonly plugin: ClaudianPlugin) {
     super(app);
     this.modalEl.addClass('claudian-dashboard-browser-modal');
   }
@@ -151,7 +152,7 @@ export class MissionLogBrowserModal extends Modal {
 // ── Workflow Browser Modal ────────────────────────────────────────────────────
 
 export class WorkflowBrowserModal extends Modal {
-  constructor(app: import('obsidian').App, private readonly plugin: ClaudianPlugin) {
+  constructor(app: App, private readonly plugin: ClaudianPlugin) {
     super(app);
     this.modalEl.addClass('claudian-dashboard-browser-modal');
   }
@@ -187,7 +188,7 @@ export class WorkflowBrowserModal extends Modal {
 // ── Token Usage Chart Modal ───────────────────────────────────────────────────
 
 export class TokenUsageModal extends Modal {
-  constructor(app: import('obsidian').App, private readonly plugin: ClaudianPlugin) {
+  constructor(app: App, private readonly plugin: ClaudianPlugin) {
     super(app);
     this.modalEl.addClass('claudian-dashboard-browser-modal');
   }

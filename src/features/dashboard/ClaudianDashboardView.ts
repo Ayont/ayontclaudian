@@ -1,8 +1,8 @@
 import { ItemView, Notice, setIcon, type WorkspaceLeaf } from 'obsidian';
 
 import { type ClaudianEvent, type ClaudianEventType, globalEventBus } from '../../core/events/EventBus';
-import { MemoryBrowserModal, MissionLogBrowserModal, TokenUsageModal, WorkflowBrowserModal } from './DashboardModals';
 import type ClaudianPlugin from '../../main';
+import { MemoryBrowserModal, MissionLogBrowserModal, TokenUsageModal, WorkflowBrowserModal } from './DashboardModals';
 
 export const VIEW_TYPE_CLAUDIAN_DASHBOARD = 'claudian-dashboard';
 
