@@ -1926,7 +1926,7 @@ describe('InputController - Message Queue', () => {
   });
 
   describe('Streaming error handling', () => {
-    it('should catch errors and display via appendText', async () => {
+    it('should catch errors and forward them to the stream controller', async () => {
       deps = createSendableDeps();
 
       ((deps as any).mockAgentService.query as jest.Mock).mockImplementation(() => {
@@ -1939,7 +1939,10 @@ describe('InputController - Message Queue', () => {
 
       await controller.sendMessage();
 
-      expect(deps.streamController.appendText).toHaveBeenCalledWith('\n\n**Error:** Network timeout');
+      expect(deps.streamController.handleStreamChunk).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'error', content: 'Network timeout' }),
+        expect.anything(),
+      );
       expect(deps.state.isStreaming).toBe(false);
     });
 
@@ -1956,7 +1959,10 @@ describe('InputController - Message Queue', () => {
 
       await controller.sendMessage();
 
-      expect(deps.streamController.appendText).toHaveBeenCalledWith('\n\n**Error:** Unknown error');
+      expect(deps.streamController.handleStreamChunk).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'error', content: 'string error' }),
+        expect.anything(),
+      );
     });
   });
 
