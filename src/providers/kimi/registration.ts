@@ -6,10 +6,17 @@ import { KimiTitleGenerationService } from './auxiliary/KimiTitleGenerationServi
 import { KIMI_PROVIDER_CAPABILITIES } from './capabilities';
 import { kimiSettingsReconciler } from './env/KimiSettingsReconciler';
 import { KimiConversationHistoryService } from './history/KimiConversationHistoryService';
+import { ensureKimiModelConfigured } from './modelOptions';
 import { KimiAcpChatRuntime } from './runtime/KimiAcpChatRuntime';
 import { KimiChatRuntime } from './runtime/KimiChatRuntime';
 import { getKimiProviderSettings } from './settings';
 import { kimiChatUIConfig } from './ui/KimiChatUIConfig';
+
+export const kimiModelConfigSync = {
+  syncModelConfig(model: string): boolean {
+    return ensureKimiModelConfigured(model);
+  },
+};
 
 export const kimiProviderRegistration: ProviderRegistration = {
   blankTabOrder: 16,
@@ -28,4 +35,5 @@ export const kimiProviderRegistration: ProviderRegistration = {
   isEnabled: (settings) => getKimiProviderSettings(settings).enabled,
   settingsReconciler: kimiSettingsReconciler,
   taskResultInterpreter: new KimiTaskResultInterpreter(),
+  modelConfigSync: kimiModelConfigSync,
 };

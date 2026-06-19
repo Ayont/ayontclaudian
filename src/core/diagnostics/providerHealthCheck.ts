@@ -8,6 +8,13 @@
  */
 
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
+import * as path from 'node:path';
+
+import { getEnhancedPath } from '../../utils/env';
+import { resolveProviderCliPath } from '../install/cliDetection';
+import { getRuntimeEnvironmentVariables } from '../providers/providerEnvironment';
+import { ProviderRegistry } from '../providers/ProviderRegistry';
+import type { ProviderId } from '../providers/types';
 
 export interface HealthCheckResult {
   providerId: string;
@@ -129,4 +136,152 @@ export function formatHealthReportMarkdown(results: HealthCheckResult[]): string
     lines.push(`| ${result.name} | ${statusIcon(result)} | ${detail} |`);
   }
   return lines.join('\n');
+}
+
+export interface ProviderHealthCheckOptions {
+  cwd?: string;
+  timeoutMs?: number;
+  args?: string[];
+  /** Use a fresh probe even when a cached result is still valid. */
+  force?: boolean;
+}
+
+export interface ProviderHealthCheckResult {
+  ok: boolean;
+  providerId: ProviderId;
+  command: string | null;
+  version?: string;
+  detail?: string;
+}
+
+interface CachedHealthResult {
+  result: ProviderHealthCheckResult;
+  expiresAt: number;
+}
+
+const HEALTH_CHECK_CACHE_TTL_MS = 10_000;
+const healthCheckCache = new Map<ProviderId, CachedHealthResult>();
+
+export function clearHealthCheckCache(): void {
+  healthCheckCache.clear();
+}
+
+function getCachedResult(providerId: ProviderId): ProviderHealthCheckResult | null {
+  const cached = healthCheckCache.get(providerId);
+  if (!cached) {
+    return null;
+  }
+  if (Date.now() > cached.expiresAt) {
+    healthCheckCache.delete(providerId);
+    return null;
+  }
+  return cached.result;
+}
+
+function setCachedResult(providerId: ProviderId, result: ProviderHealthCheckResult): void {
+  healthCheckCache.set(providerId, {
+    result,
+    expiresAt: Date.now() + HEALTH_CHECK_CACHE_TTL_MS,
+  });
+}
+
+/**
+ * Probe a single provider's CLI with `--version`. Caches the result for
+ * 10 seconds so rapid UI calls do not spawn repeatedly.
+ */
+export async function checkProviderHealth(
+  providerId: ProviderId,
+  settings: Record<string, unknown>,
+  options: ProviderHealthCheckOptions = {},
+): Promise<ProviderHealthCheckResult> {
+  if (!options.force) {
+    const cached = getCachedResult(providerId);
+    if (cached) {
+      return cached;
+    }
+  }
+
+  if (!ProviderRegistry.getRegisteredProviderIds().includes(providerId)) {
+    const result: ProviderHealthCheckResult = {
+      ok: false,
+      providerId,
+      command: null,
+      detail: 'unknown provider',
+    };
+    setCachedResult(providerId, result);
+    return result;
+  }
+
+  const enabled = ProviderRegistry.isEnabled(providerId, settings);
+  const command = resolveProviderCliPath(providerId, settings);
+
+  if (!enabled || !command) {
+    const result: ProviderHealthCheckResult = {
+      ok: false,
+      providerId,
+      command,
+      detail: enabled ? 'CLI not found' : 'disabled',
+    };
+    setCachedResult(providerId, result);
+    return result;
+  }
+
+  const env = {
+    ...process.env,
+    ...getRuntimeEnvironmentVariables(settings, providerId),
+    PATH: getEnhancedPath(process.env.PATH, path.isAbsolute(command) ? command : undefined),
+  };
+
+  const probe = await probeCli({
+    command,
+    args: options.args,
+    env,
+    cwd: options.cwd,
+    timeoutMs: options.timeoutMs,
+  });
+
+  const result: ProviderHealthCheckResult = {
+    ok: probe.ok,
+    providerId,
+    command,
+    version: probe.ok ? firstOutputLine(probe.output) : undefined,
+    detail: probe.ok ? undefined : probe.detail,
+  };
+  setCachedResult(providerId, result);
+  return result;
+}
+
+export interface EnsureProviderHealthyResult {
+  ok: boolean;
+  error?: string;
+  providerId: ProviderId;
+}
+
+/**
+ * Pre-flight check used before starting a chat turn. Returns a structured
+ * error result instead of throwing so callers can surface it inline.
+ */
+export async function ensureProviderHealthy(
+  providerId: ProviderId,
+  settings: Record<string, unknown>,
+  options?: ProviderHealthCheckOptions,
+): Promise<EnsureProviderHealthyResult> {
+  if (!ProviderRegistry.getRegisteredProviderIds().includes(providerId)) {
+    // Defensive: unregistered provider ids only occur in tests/mocks. Treat as
+    // healthy so mock runtimes continue to work.
+    return { ok: true, providerId };
+  }
+
+  const health = await checkProviderHealth(providerId, settings, options);
+  if (health.ok) {
+    return { ok: true, providerId };
+  }
+
+  const displayName = ProviderRegistry.getProviderDisplayName(providerId);
+  const reason = health.detail ?? 'unreachable';
+  const error = health.command
+    ? `${displayName} is not reachable (${reason}). Check the CLI path and try again.`
+    : `${displayName} CLI not found. Install or configure the CLI path.`;
+
+  return { ok: false, error, providerId };
 }

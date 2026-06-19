@@ -1,4 +1,5 @@
 import { findCliBinaryPath } from '../../utils/cliBinaryLocator';
+import { ProviderWorkspaceRegistry } from '../providers/ProviderWorkspaceRegistry';
 import { getCliInstallSpec } from './cliInstallCatalog';
 
 /**
@@ -13,4 +14,42 @@ export function isCliInstalled(providerId: string, additionalPath?: string): boo
   }
   const candidates = [spec.binary, ...(spec.binaryAliases ?? [])];
   return candidates.some((binary) => findCliBinaryPath(binary, additionalPath) !== null);
+}
+
+/**
+ * Resolve the absolute path to a provider's CLI, preferring the provider's own
+ * resolver (which honors explicit `cliPath` / host-keyed paths) and falling back
+ * to PATH discovery via the install catalog.
+ */
+export function resolveProviderCliPath(
+  providerId: string,
+  settings: Record<string, unknown>,
+): string | null {
+  const resolver = ProviderWorkspaceRegistry.getCliResolver(providerId);
+  if (resolver) {
+    return resolver.resolveFromSettings(settings);
+  }
+
+  const spec = getCliInstallSpec(providerId);
+  if (!spec) {
+    return null;
+  }
+
+  const candidates = [spec.binary, ...(spec.binaryAliases ?? [])];
+  for (const binary of candidates) {
+    const found = findCliBinaryPath(binary);
+    if (found) {
+      return found;
+    }
+  }
+
+  return null;
+}
+
+/** True when a provider's CLI can be resolved from settings or PATH. */
+export function isProviderCliInstalled(
+  providerId: string,
+  settings: Record<string, unknown>,
+): boolean {
+  return resolveProviderCliPath(providerId, settings) !== null;
 }
