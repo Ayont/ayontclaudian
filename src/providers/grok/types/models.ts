@@ -12,10 +12,10 @@ import type { ProviderUIOption } from '../../../core/providers/types';
 export type GrokModel = string;
 
 /** Default `-m` value (the model that powers the Grok Build CLI). */
-export const DEFAULT_GROK_PRIMARY_MODEL: GrokModel = 'grok-build';
+export const DEFAULT_GROK_PRIMARY_MODEL: GrokModel = 'grok-build-0.1';
 
 /** Display label for the default model. */
-const DEFAULT_GROK_PRIMARY_MODEL_LABEL = 'Grok Build';
+const DEFAULT_GROK_PRIMARY_MODEL_LABEL = 'Grok Build 0.1';
 
 /** Grok context window (256K). */
 export const DEFAULT_GROK_CONTEXT_WINDOW = 256_000;
@@ -41,8 +41,6 @@ function createGrokModelOption(model: GrokModel, label: string, description: str
 export const DEFAULT_GROK_MODELS: ProviderUIOption[] = [
   createGrokModelOption(DEFAULT_GROK_PRIMARY_MODEL, DEFAULT_GROK_PRIMARY_MODEL_LABEL, 'Standard CLI-Modell'),
   createGrokModelOption('grok-code-fast-1', 'Grok Code Fast', 'Schnelles Coding-Modell'),
-  createGrokModelOption('grok-4.20-0309-reasoning', 'Grok 4.20 Reasoning', 'Reasoning-Variante'),
-  createGrokModelOption('grok-4.20-multi-agent', 'Grok 4.20 Multi-Agent', 'Multi-Agent-Variante'),
 ];
 
 /** Fast lookup for whether a model id is one of the built-in defaults. */

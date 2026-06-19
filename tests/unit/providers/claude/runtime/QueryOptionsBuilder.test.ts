@@ -373,7 +373,7 @@ describe('QueryOptionsBuilder', () => {
 
       expect(options.permissionMode).toBe('auto');
       expect(options.allowDangerouslySkipPermissions).toBe(true);
-      expect(options.extraArgs).toEqual({ 'enable-auto-mode': null });
+      expect(options.extraArgs).toEqual({ 'permission-mode': 'auto' });
     });
 
     it('passes auto mode opt-in whenever Claude safe mode is auto', () => {
@@ -387,7 +387,7 @@ describe('QueryOptionsBuilder', () => {
       const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
 
       expect(options.permissionMode).toBe('bypassPermissions');
-      expect(options.extraArgs).toEqual({ 'enable-auto-mode': null });
+      expect(options.extraArgs).toEqual({ 'permission-mode': 'auto' });
     });
 
     it('ignores claudeSafeMode when permissionMode is yolo', () => {
@@ -500,7 +500,7 @@ describe('QueryOptionsBuilder', () => {
       };
       const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
 
-      expect(options.extraArgs).toEqual({ 'enable-auto-mode': null, chrome: null });
+      expect(options.extraArgs).toEqual({ 'permission-mode': 'auto', chrome: null });
     });
 
     it('does not set extraArgs when enableChrome is disabled', () => {
@@ -711,7 +711,7 @@ describe('QueryOptionsBuilder', () => {
       };
       const options = QueryOptionsBuilder.buildColdStartQueryOptions(ctx);
 
-      expect(options.extraArgs).toEqual({ 'enable-auto-mode': null });
+      expect(options.extraArgs).toEqual({ 'permission-mode': 'auto' });
     });
 
     it('does not set extraArgs when enableChrome is disabled', () => {

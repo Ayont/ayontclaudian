@@ -6,7 +6,7 @@ import type { GrokAgent, GrokPermissionMode } from '../settings';
  *
  * Verified `grok` v0.2 invocation:
  *   grok --output-format streaming-json -m <model> --cwd <cwd> \
- *     [--always-approve | --permission-mode <mode>] [-r <session>] -p <prompt>
+ *     [--always-approve] [-r <session>] -p <prompt>
  *
  * `-p/--single <PROMPT>` is headless single-turn (prints the response, exits).
  * `--output-format streaming-json` emits one JSON delta event per stdout line.
@@ -49,14 +49,11 @@ export function buildGrokLaunchSpec(params: BuildGrokLaunchSpecParams): GrokLaun
 
   args.push('--cwd', params.cwd);
 
-  // Tool-approval posture: yolo auto-approves; plan uses plan mode; otherwise
-  // accept edits non-interactively so a headless run does not hang on prompts.
-  if (params.permissionMode === 'plan') {
-    args.push('--permission-mode', 'plan');
-  } else if (params.permissionMode === 'yolo') {
+  // Tool-approval posture: yolo auto-approves. In plan/normal mode we do not
+  // pass a headless approval flag so the run will respect the CLI's default
+  // review behaviour and not hang on unknown flags.
+  if (params.permissionMode === 'yolo') {
     args.push('--always-approve');
-  } else {
-    args.push('--permission-mode', 'acceptEdits');
   }
 
   const sessionId = params.sessionId?.trim();

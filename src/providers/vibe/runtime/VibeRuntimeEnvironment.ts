@@ -3,7 +3,7 @@ import { getEnhancedPath, parseEnvironmentVariables } from '../../../utils/env';
 import { VIBE_PROVIDER_ID } from '../settings';
 
 /**
- * Builds the spawn environment for the `vibe-cli` CLI.
+ * Builds the spawn environment for the `vibe` CLI.
  *
  * Mirrors `buildAntigravityRuntimeEnv`: layer the process env, then the
  * user-configured provider/shared environment variables (`VIBE_*` / `MOONSHOT_*`),

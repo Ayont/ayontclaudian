@@ -3,7 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 /**
- * Filesystem layout helpers for the Grok (`grok-cli`) data directory:
+ * Filesystem layout helpers for the Grok (`grok`) data directory:
  *
  *   ~/.grok/
  *     config.toml          (models, defaults)
@@ -21,7 +21,7 @@ const SESSIONS_SUBDIR = 'sessions';
 const CONFIG_FILENAME = 'config.toml';
 const SESSION_LOG_EXTENSIONS = ['.jsonl', '.ndjson', '.json'];
 
-/** Root data directory for `grok-cli` (honors `GROK_HOME` if set). */
+/** Root data directory for `grok` (honors `GROK_HOME` if set). */
 export function getGrokDataDir(): string {
   const override = process.env.GROK_HOME?.trim();
   if (override) {

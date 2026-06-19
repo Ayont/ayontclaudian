@@ -1,5 +1,5 @@
 /**
- * Provider-owned persisted state for the Vibe (`vibe-cli`) provider.
+ * Provider-owned persisted state for the Vibe (`vibe`) provider.
  *
  * Vibe has native session resume (`--session <id>` / `--continue`), so the only
  * durable state Claudian needs is the session id reported by the CLI after the

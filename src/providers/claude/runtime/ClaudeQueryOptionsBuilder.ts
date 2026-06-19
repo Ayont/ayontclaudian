@@ -252,7 +252,7 @@ export class QueryOptionsBuilder {
     settings: { enableChrome: boolean; safeMode: ClaudeSafeMode },
   ): void {
     if (settings.safeMode === 'auto') {
-      options.extraArgs = { ...options.extraArgs, 'enable-auto-mode': null };
+      options.extraArgs = { ...options.extraArgs, 'permission-mode': 'auto' };
     }
 
     if (settings.enableChrome) {

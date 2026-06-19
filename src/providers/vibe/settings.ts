@@ -4,7 +4,7 @@ import { getHostnameKey } from '../../utils/env';
 
 export const VIBE_PROVIDER_ID = 'vibe';
 
-/** Agent presets exposed by `vibe-cli --agent`. */
+/** Agent presets exposed by `vibe --agent`. */
 export type VibeAgent = 'default' | 'okabe';
 
 /** Permission posture mapped onto `--yolo` / `--plan`. */
@@ -12,7 +12,7 @@ export type VibePermissionMode = 'normal' | 'yolo' | 'plan';
 
 /** Settings persisted for the Vibe provider. */
 export interface PersistedVibeProviderSettings {
-  /** Explicit path to the `vibe-cli` binary (overrides PATH discovery). */
+  /** Explicit path to the `vibe` binary (overrides PATH discovery). */
   cliPath: string;
   /** Hostname-keyed CLI paths, so a synced vault can target per-machine binaries. */
   cliPathsByHost: HostnameCliPaths;

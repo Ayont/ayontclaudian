@@ -57,9 +57,9 @@ const SESSION_HINT_PATTERN = /grok(?:-cli)?\s+-r\s+([^\s]+)/i;
 const SESSION_HINT_PATTERN_ALT = /resume this session:\s*grok(?:-cli)?\s+-r\s+([^\s]+)/i;
 
 /**
- * Single-turn subprocess runtime for the Grok (`grok-cli`) CLI.
+ * Single-turn subprocess runtime for the Grok (`grok`) CLI.
  *
- * Each turn spawns `grok-cli --print --output-format stream-json …` and parses
+ * Each turn spawns `grok --print --output-format stream-json …` and parses
  * the stdout JSON lines LIVE (one complete chat message per line) into
  * `StreamChunk`s. Conversation continuity uses native resume: the session id is
  * recovered from the stderr resume hint after the first run and replayed via
@@ -157,7 +157,7 @@ export class GrokChatRuntime implements ChatRuntime {
     if (!command) {
       yield {
         type: 'error',
-        content: 'Could not find the `grok-cli` binary. Set the CLI path in Grok settings.',
+        content: 'Could not find the `grok` binary. Set the CLI path in Grok settings.',
       };
       yield { type: 'done' };
       return;
@@ -170,7 +170,7 @@ export class GrokChatRuntime implements ChatRuntime {
       || resolveGrokModelSelection(settingsBag, typeof settingsBag.model === 'string' ? settingsBag.model : '')
       || '';
 
-    // Expand a chosen vault command/skill client-side — grok-cli print mode
+    // Expand a chosen vault command/skill client-side — grok print mode
     // can't expand `/command` or `$skill` tokens itself. Unknown input and
     // ordinary prompts pass through unchanged. Best-effort: any catalog error
     // falls back to the raw text.
@@ -224,7 +224,7 @@ export class GrokChatRuntime implements ChatRuntime {
     } catch (error) {
       yield {
         type: 'error',
-        content: error instanceof Error ? error.message : 'Failed to launch grok-cli.',
+        content: error instanceof Error ? error.message : 'Failed to launch grok.',
       };
       yield { type: 'done' };
       return;
@@ -232,7 +232,7 @@ export class GrokChatRuntime implements ChatRuntime {
 
     this.activeProcess = proc;
     // Close stdin so a non-TTY child process can't block on the open pipe;
-    // `grok-cli` print mode never reads stdin.
+    // `grok` print mode never reads stdin.
     proc.stdin.end();
     const streamState = createGrokStreamState();
     let stdoutBuffer = '';
@@ -339,14 +339,14 @@ export class GrokChatRuntime implements ChatRuntime {
       if (exitInfo.code !== 0 && exitInfo.code !== null) {
         yield {
           type: 'error',
-          content: this.formatError(`grok-cli exited with code ${exitInfo.code}`, stderr),
+          content: this.formatError(`grok exited with code ${exitInfo.code}`, stderr),
         };
         yield { type: 'done' };
         return;
       }
 
       this.currentTurnMetadata.wasSent = true;
-      // Estimated context-window feedback: grok-cli reports no token usage, so
+      // Estimated context-window feedback: grok reports no token usage, so
       // approximate from the conversation history + this turn's prompt/response.
       const contextTokens = estimateTokensForTexts([
         ...(conversationHistory ?? []).map((message) => message.content ?? ''),

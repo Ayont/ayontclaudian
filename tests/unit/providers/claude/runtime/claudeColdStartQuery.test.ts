@@ -180,7 +180,7 @@ describe('runColdStartQuery', () => {
         'hi',
       );
 
-      expect(sdkMock.getLastOptions()?.extraArgs).toEqual({ 'enable-auto-mode': null });
+      expect(sdkMock.getLastOptions()?.extraArgs).toEqual({ 'permission-mode': 'auto' });
     });
 
     it('sets persistSession false when configured', async () => {

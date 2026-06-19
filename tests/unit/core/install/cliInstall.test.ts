@@ -20,8 +20,8 @@ describe('cliInstallCatalog', () => {
 
   it('detects Kimi under its modern binary plus legacy aliases', () => {
     const spec = getCliInstallSpec('kimi');
-    expect(spec?.binary).toBe('kimi-cli');
-    expect(spec?.binaryAliases).toEqual(expect.arrayContaining(['kimi', 'kimi-legacy']));
+    expect(spec?.binary).toBe('kimi');
+    expect(spec?.binaryAliases).toEqual(expect.arrayContaining(['kimi-cli', 'kimi-legacy']));
   });
 
   it('offers the installer script first on macOS for Vibe, uv on Windows', () => {

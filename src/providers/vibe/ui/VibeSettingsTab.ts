@@ -44,7 +44,7 @@ export const vibeSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     new Setting(container)
       .setName('Enable Vibe')
-      .setDesc('Launch Vibe (`vibe-cli --print --output-format stream-json`) as a provider.')
+      .setDesc('Launch Vibe (`vibe --print --output-format stream-json`) as a provider.')
       .addToggle((toggle) =>
         toggle.setValue(settings.enabled).onChange(async (value) => {
           updateVibeProviderSettings(settingsBag, { enabled: value });
@@ -90,13 +90,13 @@ export const vibeSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     new Setting(container)
       .setName('CLI path')
-      .setDesc('Optional absolute path to the `vibe-cli` binary for this computer. Leave empty to use `vibe-cli` from PATH.')
+      .setDesc('Optional absolute path to the `vibe` binary for this computer. Leave empty to use `vibe` from PATH.')
       .addText((text) => {
         const currentValue = settings.cliPathsByHost[hostnameKey] || '';
         text
           .setPlaceholder(process.platform === 'win32'
-            ? 'C:\\Users\\you\\.local\\bin\\vibe-cli.exe'
-            : '/Users/you/.local/bin/vibe-cli')
+            ? 'C:\\Users\\you\\.local\\bin\\vibe.exe'
+            : '/Users/you/.local/bin/vibe')
           .setValue(currentValue)
           .onChange((value) => {
             void persistCliPath(value);

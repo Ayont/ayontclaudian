@@ -47,7 +47,7 @@ export async function probeRuntimeCommands(plugin: ClaudianPlugin): Promise<Slas
   const abortController = new AbortController();
   let commands: SlashCommand[] = [];
   const extraArgs = {
-    ...(claudeSettings.safeMode === 'auto' ? { 'enable-auto-mode': null } : {}),
+    ...(claudeSettings.safeMode === 'auto' ? { 'permission-mode': 'auto' } : {}),
     ...(claudeSettings.enableChrome ? { chrome: null } : {}),
   };
 

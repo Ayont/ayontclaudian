@@ -4,15 +4,15 @@ import { getHostnameKey } from '../../utils/env';
 
 export const GROK_PROVIDER_ID = 'grok';
 
-/** Agent presets exposed by `grok-cli --agent`. */
+/** Agent presets exposed by `grok --agent`. */
 export type GrokAgent = 'default' | 'okabe';
 
-/** Permission posture mapped onto `--yolo` / `--plan`. */
+/** Permission posture mapped onto `--always-approve`. */
 export type GrokPermissionMode = 'normal' | 'yolo' | 'plan';
 
 /** Settings persisted for the Grok provider. */
 export interface PersistedGrokProviderSettings {
-  /** Explicit path to the `grok-cli` binary (overrides PATH discovery). */
+  /** Explicit path to the `grok` binary (overrides PATH discovery). */
   cliPath: string;
   /** Hostname-keyed CLI paths, so a synced vault can target per-machine binaries. */
   cliPathsByHost: HostnameCliPaths;

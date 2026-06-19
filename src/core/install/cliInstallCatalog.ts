@@ -113,10 +113,10 @@ export const CLI_INSTALL_CATALOG: Record<string, CliInstallSpec> = {
   kimi: {
     id: 'kimi',
     displayName: 'Kimi CLI',
-    // uv installs `kimi-cli` (+ `kimi-legacy`); the new kimi-code build and the
-    // npm package ship `kimi`. Probe all three so an existing install is found.
-    binary: 'kimi-cli',
-    binaryAliases: ['kimi', 'kimi-legacy'],
+    // Modern kimi-code / npm builds ship `kimi`; legacy uv installs provided
+    // `kimi-cli` (+ `kimi-legacy`). Probe all three so an existing install is found.
+    binary: 'kimi',
+    binaryAliases: ['kimi-cli', 'kimi-legacy'],
     docsUrl: 'https://github.com/MoonshotAI/kimi-cli',
     methods: { default: [{ label: 'uv tool', command: 'uv tool install kimi-cli' }] },
   },

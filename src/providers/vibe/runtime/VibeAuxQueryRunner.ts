@@ -17,10 +17,10 @@ import { buildVibeLaunchSpec } from './VibeLaunchSpec';
 import { buildVibeRuntimeEnv } from './VibeRuntimeEnvironment';
 
 /**
- * One-shot `vibe-cli --print` runner for auxiliary tasks (title generation,
+ * One-shot `vibe --print` runner for auxiliary tasks (title generation,
  * instruction refinement, inline edits).
  *
- * Each call spawns a stateless `vibe-cli --print --output-format stream-json`
+ * Each call spawns a stateless `vibe --print --output-format stream-json`
  * (no `--session` resume, so the auxiliary turn never pollutes a chat session),
  * forces `--no-thinking` for speed, prepends the task-specific system prompt to
  * the user prompt, and resolves the final assistant text from the stream.
@@ -40,7 +40,7 @@ export class VibeAuxQueryRunner implements AuxQueryRunner {
 
     const command = this.plugin.getResolvedProviderCliPath(VIBE_PROVIDER_ID);
     if (!command) {
-      throw new Error('Could not find the `vibe-cli` binary.');
+      throw new Error('Could not find the `vibe` binary.');
     }
 
     if (config.abortController?.signal.aborted) {
@@ -84,7 +84,7 @@ export class VibeAuxQueryRunner implements AuxQueryRunner {
     });
     this.activeProcess = proc;
     // Close stdin so a non-TTY child process can't block on the open pipe;
-    // `vibe-cli` print mode never reads stdin.
+    // `vibe` print mode never reads stdin.
     proc.stdin.end();
 
     let stdout = '';
@@ -114,7 +114,7 @@ export class VibeAuxQueryRunner implements AuxQueryRunner {
       }
 
       if (code !== 0 && code !== null) {
-        const message = `vibe-cli exited with code ${code}`;
+        const message = `vibe exited with code ${code}`;
         const tail = stderr.trim().slice(-2000);
         throw new Error(tail ? `${message}\n\n${tail}` : message);
       }

@@ -17,10 +17,10 @@ import { buildGrokLaunchSpec } from './GrokLaunchSpec';
 import { buildGrokRuntimeEnv } from './GrokRuntimeEnvironment';
 
 /**
- * One-shot `grok-cli --print` runner for auxiliary tasks (title generation,
+ * One-shot `grok --print` runner for auxiliary tasks (title generation,
  * instruction refinement, inline edits).
  *
- * Each call spawns a stateless `grok-cli --print --output-format stream-json`
+ * Each call spawns a stateless `grok --print --output-format stream-json`
  * (no `--session` resume, so the auxiliary turn never pollutes a chat session),
  * forces `--no-thinking` for speed, prepends the task-specific system prompt to
  * the user prompt, and resolves the final assistant text from the stream.
@@ -40,7 +40,7 @@ export class GrokAuxQueryRunner implements AuxQueryRunner {
 
     const command = this.plugin.getResolvedProviderCliPath(GROK_PROVIDER_ID);
     if (!command) {
-      throw new Error('Could not find the `grok-cli` binary.');
+      throw new Error('Could not find the `grok` binary.');
     }
 
     if (config.abortController?.signal.aborted) {
@@ -84,7 +84,7 @@ export class GrokAuxQueryRunner implements AuxQueryRunner {
     });
     this.activeProcess = proc;
     // Close stdin so a non-TTY child process can't block on the open pipe;
-    // `grok-cli` print mode never reads stdin.
+    // `grok` print mode never reads stdin.
     proc.stdin.end();
 
     let stdout = '';
@@ -114,7 +114,7 @@ export class GrokAuxQueryRunner implements AuxQueryRunner {
       }
 
       if (code !== 0 && code !== null) {
-        const message = `grok-cli exited with code ${code}`;
+        const message = `grok exited with code ${code}`;
         const tail = stderr.trim().slice(-2000);
         throw new Error(tail ? `${message}\n\n${tail}` : message);
       }

@@ -1,7 +1,7 @@
 import type { ProviderCapabilities } from '../../core/providers/types';
 
 /**
- * Capabilities for the Grok (`grok-cli`) provider.
+ * Capabilities for the Grok (`grok`) provider.
  *
  * Grok CLI supports true line-delimited JSON streaming
  * (`--print --output-format stream-json`), native session resume

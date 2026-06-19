@@ -112,7 +112,7 @@ export async function runColdStartQuery(
   }
 
   if (claudeSettings.safeMode === 'auto') {
-    options.extraArgs = { ...options.extraArgs, 'enable-auto-mode': null };
+    options.extraArgs = { ...options.extraArgs, 'permission-mode': 'auto' };
   }
 
   if (!config.thinking?.disabled) {

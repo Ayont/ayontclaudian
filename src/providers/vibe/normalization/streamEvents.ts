@@ -1,7 +1,7 @@
 /**
  * Parsing + classification for Vibe CLI's `--output-format stream-json` output.
  *
- * CRITICAL (live-probed vibe-cli v1.47): unlike Claude Code / Codex stream-json
+ * CRITICAL (live-probed vibe v1.47): unlike Claude Code / Codex stream-json
  * (type-tagged event/delta streams), Vibe emits ONE COMPLETE OpenAI
  * ChatCompletion message object per NDJSON line, keyed by `role` — there is no
  * top-level `type` discriminator, no incremental text deltas, and no terminal

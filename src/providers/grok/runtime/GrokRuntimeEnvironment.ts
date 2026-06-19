@@ -3,7 +3,7 @@ import { getEnhancedPath, parseEnvironmentVariables } from '../../../utils/env';
 import { GROK_PROVIDER_ID } from '../settings';
 
 /**
- * Builds the spawn environment for the `grok-cli` CLI.
+ * Builds the spawn environment for the `grok` CLI.
  *
  * Mirrors `buildAntigravityRuntimeEnv`: layer the process env, then the
  * user-configured provider/shared environment variables (`GROK_*` / `MOONSHOT_*`),

@@ -57,9 +57,9 @@ const SESSION_HINT_PATTERN = /vibe(?:-cli)?\s+-r\s+([^\s]+)/i;
 const SESSION_HINT_PATTERN_ALT = /resume this session:\s*vibe(?:-cli)?\s+-r\s+([^\s]+)/i;
 
 /**
- * Single-turn subprocess runtime for the Vibe (`vibe-cli`) CLI.
+ * Single-turn subprocess runtime for the Vibe (`vibe`) CLI.
  *
- * Each turn spawns `vibe-cli --print --output-format stream-json …` and parses
+ * Each turn spawns `vibe --print --output-format stream-json …` and parses
  * the stdout JSON lines LIVE (one complete chat message per line) into
  * `StreamChunk`s. Conversation continuity uses native resume: the session id is
  * recovered from the stderr resume hint after the first run and replayed via
@@ -158,7 +158,7 @@ export class VibeChatRuntime implements ChatRuntime {
     if (!command) {
       yield {
         type: 'error',
-        content: 'Could not find the `vibe-cli` binary. Set the CLI path in Vibe settings.',
+        content: 'Could not find the `vibe` binary. Set the CLI path in Vibe settings.',
       };
       yield { type: 'done' };
       return;
@@ -171,7 +171,7 @@ export class VibeChatRuntime implements ChatRuntime {
       || resolveVibeModelSelection(settingsBag, typeof settingsBag.model === 'string' ? settingsBag.model : '')
       || '';
 
-    // Expand a chosen vault command/skill client-side — vibe-cli print mode
+    // Expand a chosen vault command/skill client-side — vibe print mode
     // can't expand `/command` or `$skill` tokens itself. Unknown input and
     // ordinary prompts pass through unchanged. Best-effort: any catalog error
     // falls back to the raw text.
@@ -225,7 +225,7 @@ export class VibeChatRuntime implements ChatRuntime {
     } catch (error) {
       yield {
         type: 'error',
-        content: error instanceof Error ? error.message : 'Failed to launch vibe-cli.',
+        content: error instanceof Error ? error.message : 'Failed to launch vibe.',
       };
       yield { type: 'done' };
       return;
@@ -233,7 +233,7 @@ export class VibeChatRuntime implements ChatRuntime {
 
     this.activeProcess = proc;
     // Close stdin so a non-TTY child process can't block on the open pipe;
-    // `vibe-cli` print mode never reads stdin.
+    // `vibe` print mode never reads stdin.
     proc.stdin.end();
     const streamState = createVibeStreamState();
     let stdoutBuffer = '';
@@ -340,14 +340,14 @@ export class VibeChatRuntime implements ChatRuntime {
       if (exitInfo.code !== 0 && exitInfo.code !== null) {
         yield {
           type: 'error',
-          content: this.formatError(`vibe-cli exited with code ${exitInfo.code}`, stderr),
+          content: this.formatError(`vibe exited with code ${exitInfo.code}`, stderr),
         };
         yield { type: 'done' };
         return;
       }
 
       this.currentTurnMetadata.wasSent = true;
-      // Estimated context-window feedback: vibe-cli reports no token usage, so
+      // Estimated context-window feedback: vibe reports no token usage, so
       // approximate from the conversation history + this turn's prompt/response.
       const contextTokens = estimateTokensForTexts([
         ...(conversationHistory ?? []).map((message) => message.content ?? ''),

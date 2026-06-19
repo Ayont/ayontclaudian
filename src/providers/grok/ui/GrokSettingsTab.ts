@@ -44,7 +44,7 @@ export const grokSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     new Setting(container)
       .setName('Enable Grok')
-      .setDesc('Launch Grok (`grok-cli --print --output-format stream-json`) as a provider.')
+      .setDesc('Launch Grok (`grok --print --output-format stream-json`) as a provider.')
       .addToggle((toggle) =>
         toggle.setValue(settings.enabled).onChange(async (value) => {
           updateGrokProviderSettings(settingsBag, { enabled: value });
@@ -90,13 +90,13 @@ export const grokSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     new Setting(container)
       .setName('CLI path')
-      .setDesc('Optional absolute path to the `grok-cli` binary for this computer. Leave empty to use `grok-cli` from PATH.')
+      .setDesc('Optional absolute path to the `grok` binary for this computer. Leave empty to use `grok` from PATH.')
       .addText((text) => {
         const currentValue = settings.cliPathsByHost[hostnameKey] || '';
         text
           .setPlaceholder(process.platform === 'win32'
-            ? 'C:\\Users\\you\\.local\\bin\\grok-cli.exe'
-            : '/Users/you/.local/bin/grok-cli')
+            ? 'C:\\Users\\you\\.local\\bin\\grok.exe'
+            : '/Users/you/.local/bin/grok')
           .setValue(currentValue)
           .onChange((value) => {
             void persistCliPath(value);

@@ -1,7 +1,7 @@
 import type { ProviderCapabilities } from '../../core/providers/types';
 
 /**
- * Capabilities for the Vibe (`vibe-cli`) provider.
+ * Capabilities for the Vibe (`vibe`) provider.
  *
  * Vibe CLI supports true line-delimited JSON streaming
  * (`--print --output-format stream-json`), native session resume
