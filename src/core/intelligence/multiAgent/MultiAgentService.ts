@@ -111,7 +111,7 @@ export function estimateTokens(text: string): number {
  */
 export function buildSynthesisPrompt(
   taskPrompt: string,
-  contributions: { agent: SpecialistAgent; output: string }[],
+  contributions: { agent: { name: string; role: string }; output: string }[],
 ): string {
   const sections = contributions
     .map((c) => `### ${c.agent.name} (${c.agent.role})\n${c.output}`)

@@ -171,8 +171,8 @@ describe('MultiAgentService', () => {
 
   it('buildSynthesisPrompt requests conflict resolution and citations', () => {
     const prompt = buildSynthesisPrompt('task-x', [
-      { agent: { id: 'a', name: 'A', role: 'a', systemPrompt: 'A' }, output: 'out-a' },
-      { agent: { id: 'b', name: 'B', role: 'b', systemPrompt: 'B' }, output: 'out-b' },
+      { agent: { name: 'A', role: 'a' }, output: 'out-a' },
+      { agent: { name: 'B', role: 'b' }, output: 'out-b' },
     ]);
 
     expect(prompt).toContain('task-x');

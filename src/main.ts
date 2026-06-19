@@ -40,7 +40,12 @@ import type { EmbeddingService } from './core/intelligence/embeddings/EmbeddingS
 import { KeywordEmbeddingProvider } from './core/intelligence/embeddings/KeywordEmbeddingProvider';
 import { OllamaEmbeddingProvider } from './core/intelligence/embeddings/OllamaEmbeddingProvider';
 import { AgenticMemoryService } from './core/intelligence/memory/AgenticMemoryService';
-import { MultiAgentService } from './core/intelligence/multiAgent/MultiAgentService';
+import {
+  buildSynthesisPrompt,
+  type MissionStateStorage as IMissionStateStorage,
+  MissionStateStorage,
+  MultiAgentService,
+} from './core/intelligence/multiAgent/MultiAgentService';
 import { ProjectService } from './core/intelligence/projects/ProjectService';
 import { VaultRAGService } from './core/intelligence/rag/VaultRAGService';
 import { VectorStore } from './core/intelligence/vectorStore/VectorStore';
@@ -129,6 +134,7 @@ export default class ClaudianPlugin extends Plugin {
   embeddingService!: EmbeddingService;
   vaultRAGService!: VaultRAGService;
   multiAgentService!: MultiAgentService;
+  missionStateStorage!: IMissionStateStorage;
   visionService!: VisionService;
 
   async onload() {
@@ -660,15 +666,7 @@ export default class ClaudianPlugin extends Plugin {
     contributions: { agent: { name: string; role: string }; output: string }[],
     onChunk?: (chunk: string) => void,
   ): Promise<string> {
-    const sections = contributions
-      .map((c) => `### ${c.agent.name} (${c.agent.role})\n${c.output}`)
-      .join('\n\n');
-    const synthPrompt =
-      'You are the lead coordinator of a team of specialist agents. They each answered the ' +
-      'SAME task independently. Synthesize their contributions into ONE coherent, ' +
-      'de-duplicated, actionable answer: resolve conflicts, keep the strongest insights, and be concise.\n\n' +
-      `## Task\n${prompt}\n\n## Specialist contributions\n${sections}\n\n## Final synthesized answer:`;
-    return this.runRawPrompt(synthPrompt, onChunk);
+    return this.runRawPrompt(buildSynthesisPrompt(prompt, contributions), onChunk);
   }
 
   /** Runs a raw prompt on the active provider runtime, streaming text via onChunk. */
@@ -1189,6 +1187,7 @@ export default class ClaudianPlugin extends Plugin {
     this.projectService = new ProjectService(this.app.vault);
     this.agenticMemoryService = new AgenticMemoryService(this.app.vault);
     this.multiAgentService = new MultiAgentService();
+    this.missionStateStorage = new MissionStateStorage(this.storage.getAdapter());
     this.visionService = new VisionService(this.app.vault);
 
     this.multiAgentService.registerAgent({ id: 'coder', name: 'Coder', role: 'code', systemPrompt: 'You are an expert software engineer.', icon: 'code-2', color: '#60a5fa' });

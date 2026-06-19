@@ -12,7 +12,8 @@ export type ClaudianEventType =
   | 'agent:run-error'
   | 'mission:started'
   | 'mission:progress'
-  | 'mission:completed';
+  | 'mission:completed'
+  | 'mission:event';
 
 export interface ClaudianEvent<T = unknown> {
   type: ClaudianEventType;

@@ -168,6 +168,11 @@ export class MultiAgentModal extends Modal {
             ),
         },
         (progress) => this.updateMissionProgress(progress),
+        undefined,
+        {
+          storage: this.plugin.missionStateStorage,
+          onEvent: (event) => globalEventBus.emit('mission:event', { id: this.missionId, ...event }),
+        },
       );
 
       const content = this.buildResultMarkdown(prompt, outcome.results, outcome.synthesis);

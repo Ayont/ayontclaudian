@@ -1,6 +1,8 @@
 import { ItemView, Notice, setIcon, type WorkspaceLeaf } from 'obsidian';
 
 import { type ClaudianEvent, type ClaudianEventType, globalEventBus } from '../../core/events/EventBus';
+import { formatMissionLogMarkdown } from '../../core/intelligence/multiAgent/formatMissionLogMarkdown';
+import type { MissionEvent } from '../../core/intelligence/multiAgent/MissionStateStorage';
 import type ClaudianPlugin from '../../main';
 
 export const VIEW_TYPE_CLAUDIAN_DASHBOARD = 'claudian-dashboard';
@@ -219,6 +221,11 @@ export class ClaudianDashboardView extends ItemView {
     projectBtn.createSpan({ text: 'New Project' });
     projectBtn.addEventListener('click', () => void this.plugin.createClaudianProject());
 
+    const missionLogBtn = actions.createEl('button', { cls: 'claudian-dashboard-action-btn' });
+    setIcon(missionLogBtn.createSpan(), 'scroll-text');
+    missionLogBtn.createSpan({ text: 'Mission Log' });
+    missionLogBtn.addEventListener('click', () => void this.openMissionLogBrowser());
+
     const refreshBtn = actions.createEl('button', { cls: 'claudian-dashboard-action-btn' });
     setIcon(refreshBtn.createSpan(), 'refresh-cw');
     refreshBtn.createSpan({ text: 'Refresh' });
@@ -288,6 +295,16 @@ export class ClaudianDashboardView extends ItemView {
       });
       void this.refreshCards();
     });
+    on<{ id?: string; type?: string; agentId?: string; message?: string }>('mission:event', (e) => {
+      const { type, agentId, message } = e.payload;
+      const prefix = agentId ? `[${agentId}] ` : '';
+      this.pushActivity({
+        ts: e.timestamp,
+        icon: type?.includes('error') ? 'alert-circle' : 'activity',
+        kind: 'mission',
+        text: `Mission event: ${prefix}${message ?? type ?? 'unknown'}`,
+      });
+    });
     on<{ topic?: string }>('memory:updated', (e) => {
       this.pushActivity({ ts: e.timestamp, icon: 'brain-circuit', kind: 'memory', text: `Memory aktualisiert${e.payload.topic ? `: ${e.payload.topic}` : ''}` });
     });
@@ -316,6 +333,24 @@ export class ClaudianDashboardView extends ItemView {
   }
 
   // ── Browsers (unchanged) ─────────────────────────────────────────────────────
+
+  private async openMissionLogBrowser(): Promise<void> {
+    const missions = await this.plugin.missionStateStorage.listMissions();
+    if (missions.length === 0) {
+      new Notice('No mission history yet.');
+      return;
+    }
+
+    const eventsByMission = new Map<string, MissionEvent[]>();
+    for (const mission of missions) {
+      eventsByMission.set(mission.taskId, await this.plugin.missionStateStorage.loadEvents(mission.taskId));
+    }
+
+    const content = formatMissionLogMarkdown(missions, eventsByMission);
+    const path = `.claudian/mission-log-${Date.now()}.md`;
+    await this.plugin.app.vault.create(path, content);
+    new Notice(`Mission log written to ${path}`);
+  }
 
   private openMemoryBrowser(): void {
     void this.plugin.agenticMemoryService.recall({ limit: 20 }).then((facts) => {
