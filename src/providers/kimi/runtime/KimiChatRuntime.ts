@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { Notice } from 'obsidian';
 
 import { expandProviderCommandInput } from '../../../core/providers/commands/expandProviderCommandInput';
+import { syncProviderModelConfig } from '../../../core/providers/modelConfigSync';
 import { getRuntimeEnvironmentText } from '../../../core/providers/providerEnvironment';
 import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorkspaceRegistry';
 import type { ProviderCapabilities } from '../../../core/providers/types';
@@ -46,7 +47,7 @@ import { KIMI_PROVIDER_CAPABILITIES } from '../capabilities';
 import { KimiHelpModal } from '../commands/KimiHelpModal';
 import { KimiSessionListModal } from '../commands/KimiSessionListModal';
 import { KimiSlashCommandHandler } from '../commands/KimiSlashCommandHandler';
-import { ensureKimiModelConfigured, getKimiModelContextWindow, resolveKimiModelSelection } from '../modelOptions';
+import { getKimiModelContextWindow, resolveKimiModelSelection } from '../modelOptions';
 import { parseKimiStreamLine } from '../normalization/streamEvents';
 import {
   createKimiStreamState,
@@ -297,7 +298,7 @@ export class KimiChatRuntime implements ChatRuntime {
     // Kimi CLI requires the `-m` model to be declared in ~/.kimi/config.toml.
     // If the user selected a catalog model that is not yet configured, add it
     // on-the-fly before spawning the CLI.
-    if (model && ensureKimiModelConfigured(model)) {
+    if (model && syncProviderModelConfig(KIMI_PROVIDER_ID, model, settingsBag)) {
       new Notice(`Added Kimi model ${model} to ~/.kimi/config.toml`);
     }
 

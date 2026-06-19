@@ -67,6 +67,10 @@ export interface ProviderRegistration {
   historyService: ProviderConversationHistoryService;
   taskResultInterpreter: ProviderTaskResultInterpreter;
   subagentLifecycleAdapter?: ProviderSubagentLifecycleAdapter;
+  configValidator?: ProviderConfigValidator;
+  modelConfigSync?: ProviderModelConfigSync;
+  /** Optional default provider config used by the unified config validator/repair. */
+  defaultConfig?: Record<string, unknown>;
 }
 
 export interface ProviderSettingsReconciler {
@@ -78,6 +82,26 @@ export interface ProviderSettingsReconciler {
   ): { changed: boolean; invalidatedConversations: Conversation[] };
 
   normalizeModelVariantSettings(settings: Record<string, unknown>): boolean;
+}
+
+/** Provider-specific config validation issue without provider id. */
+export interface ProviderConfigValidatorIssue {
+  severity: 'error' | 'warning';
+  code: string;
+  message: string;
+  autoRepairable: boolean;
+  field?: string;
+}
+
+/** Provider-specific config validation hook used by the unified validator. */
+export interface ProviderConfigValidator {
+  validate(settings: Record<string, unknown>): ProviderConfigValidatorIssue[];
+}
+
+/** Provider-specific model-config synchronization hook. */
+export interface ProviderModelConfigSync {
+  /** Ensure the given model id is valid/persisted for this provider. Return true if changes were made. */
+  syncModelConfig(model: string, settings: Record<string, unknown>): boolean;
 }
 
 // ---------------------------------------------------------------------------

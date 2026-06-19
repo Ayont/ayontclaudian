@@ -6,6 +6,7 @@ import {
   normalizeHiddenCommandList,
   normalizeHiddenProviderCommands,
 } from '../../core/providers/commands/hiddenCommands';
+import { repairAllProviderConfigs } from '../../core/providers/providerConfigValidator';
 import {
   getSharedEnvironmentVariables,
   inferEnvironmentSnippetScope,
@@ -316,6 +317,8 @@ export class ClaudianSettingsStorage {
       ...this.getDefaults(),
       ...legacyNormalized,
     };
+
+    repairAllProviderConfigs(merged);
 
     updateClaudeProviderSettings(
       merged,

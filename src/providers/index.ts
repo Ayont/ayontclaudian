@@ -1,3 +1,4 @@
+import { ModelConfigSyncRegistry } from '../core/providers/modelConfigSync';
 import { ProviderRegistry } from '../core/providers/ProviderRegistry';
 import { ProviderWorkspaceRegistry } from '../core/providers/ProviderWorkspaceRegistry';
 import { antigravityWorkspaceRegistration } from './antigravity/app/AntigravityWorkspaceServices';
@@ -9,7 +10,7 @@ import { codexProviderRegistration } from './codex/registration';
 import { grokWorkspaceRegistration } from './grok/app/GrokWorkspaceServices';
 import { grokProviderRegistration } from './grok/registration';
 import { kimiWorkspaceRegistration } from './kimi/app/KimiWorkspaceServices';
-import { kimiProviderRegistration } from './kimi/registration';
+import { kimiModelConfigSync, kimiProviderRegistration } from './kimi/registration';
 import { opencodeWorkspaceRegistration } from './opencode/app/OpencodeWorkspaceServices';
 import { opencodeProviderRegistration } from './opencode/registration';
 import { piWorkspaceRegistration } from './pi/app/PiWorkspaceServices';
@@ -40,6 +41,9 @@ export function registerBuiltInProviders(): void {
   ProviderWorkspaceRegistry.register('kimi', kimiWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('vibe', vibeWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('grok', grokWorkspaceRegistration);
+
+  ModelConfigSyncRegistry.register('kimi', kimiModelConfigSync);
+
   builtInProvidersRegistered = true;
 }
 

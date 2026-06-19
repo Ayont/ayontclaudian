@@ -1,3 +1,4 @@
+import { syncProviderModelConfig } from '../../../core/providers/modelConfigSync';
 import type { ProviderSettingsReconciler } from '../../../core/providers/types';
 import type { Conversation } from '../../../core/types';
 import { resolveKimiModelSelection } from '../modelOptions';
@@ -22,6 +23,10 @@ export const kimiSettingsReconciler: ProviderSettingsReconciler = {
     if (!nextModel || nextModel === currentModel) {
       return { changed: false, invalidatedConversations: [] };
     }
+
+    // Ensure the newly selected model is persisted in Kimi's config.toml before
+    // any conversation can spawn with it.
+    syncProviderModelConfig(KIMI_PROVIDER_ID, nextModel, settings);
 
     const invalidatedConversations: Conversation[] = [];
     for (const conv of conversations) {

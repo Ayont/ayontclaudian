@@ -35,7 +35,7 @@ export class ProviderRegistry {
     this.registrations[providerId] = registration;
   }
 
-  private static getProviderRegistration(providerId: ProviderId): ProviderRegistration {
+  static getProviderRegistration(providerId: ProviderId): ProviderRegistration {
     const registration = this.registrations[providerId];
     if (!registration) {
       throw new Error(`Provider "${providerId}" is not registered.`);

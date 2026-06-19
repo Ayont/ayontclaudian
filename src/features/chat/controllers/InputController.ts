@@ -6,6 +6,7 @@ import {
   isBuiltInCommandSupported,
 } from '../../../core/commands/builtInCommands';
 import { applyGoalPrefix, parseGoalArgs } from '../../../core/conversation/goalPrompt';
+import { ensureProviderHealthy } from '../../../core/diagnostics/providerHealthCheck';
 import { buildDiffPreview } from '../../../core/diff/diffPreview';
 import type { VaultRAGService } from '../../../core/intelligence/rag/VaultRAGService';
 import {
@@ -456,6 +457,18 @@ export class InputController {
       new Notice('Agent service not available. Please reload the plugin.');
       this.activeStreamingAssistantMessage = null;
       this.resetProviderMessageBoundaryState();
+      return;
+    }
+
+    const health = await ensureProviderHealthy(
+      agentService.providerId,
+      plugin.settings as unknown as Record<string, unknown>,
+    );
+    if (!health.ok) {
+      new Notice(health.error ?? 'Provider is not reachable.');
+      this.activeStreamingAssistantMessage = null;
+      this.resetProviderMessageBoundaryState();
+      state.isStreaming = false;
       return;
     }
 
