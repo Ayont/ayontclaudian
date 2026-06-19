@@ -109,6 +109,10 @@ export interface TabCreateOptions {
   tabId?: TabId;
   /** Restored draft model for blank tabs. */
   draftModel?: string | null;
+  /** When true, the Auto model is active — the router picks the best model per-prompt but Auto stays selected in the dropdown. */
+  autoModelActive?: boolean;
+  /** The model the router picked for the current prompt (for display only). Reset to null when Auto is re-selected or a manual model is chosen. */
+  routedModel?: string | null;
   /** Provider to inherit for blank tabs (e.g. from the active tab). */
   defaultProviderId?: ProviderId;
   onStreamingChanged?: (isStreaming: boolean) => void;
@@ -851,6 +855,8 @@ export async function initializeTabService(
     // Update lifecycle state
     if (tab.lifecycleState === 'blank') {
       tab.draftModel = null;
+      tab.autoModelActive = false;
+      tab.routedModel = null;
     }
     tab.lifecycleState = 'bound_active';
   } catch (error) {
@@ -1050,12 +1056,18 @@ function initializeInputToolbar(
       // will pick the best model per-prompt when the user sends a message.
       if (model === AUTO_MODEL_VALUE) {
         tab.draftModel = AUTO_MODEL_VALUE;
+        tab.autoModelActive = true;
+        tab.routedModel = null;
         tab.ui.modelSelector?.updateDisplay();
         tab.ui.modeSelector?.updateDisplay();
         tab.ui.modelSelector?.renderOptions();
         tab.ui.modeSelector?.renderOptions();
         return;
       }
+
+      // User picked a real model manually — Auto is no longer active.
+      tab.autoModelActive = false;
+      tab.routedModel = null;
 
       // For blank tabs, update draft model and derive provider
       if (tab.lifecycleState === 'blank') {
@@ -1174,7 +1186,9 @@ function initializeInputToolbar(
       await plugin.saveSettings();
       tab.ui.permissionToggle?.updateDisplay();
     },
-    getModelValue: () => tab.draftModel ?? getTabSettingsSnapshot(tab, plugin).model,
+    getModelValue: () => tab.autoModelActive
+      ? AUTO_MODEL_VALUE
+      : (tab.draftModel ?? getTabSettingsSnapshot(tab, plugin).model),
   });
 
   tab.ui.modelSelector = toolbarComponents.modelSelector;
@@ -1625,6 +1639,8 @@ export function initializeTabControllers(
         // Bind session state only — runtime starts on send
         tab.conversationId = conversation?.id ?? null;
         tab.draftModel = null;
+        tab.autoModelActive = false;
+        tab.routedModel = null;
         tab.lifecycleState = conversation ? 'bound_cold' : 'blank';
         syncSlashCommandDropdownForProvider(tab, plugin, getProviderCatalogConfig, conversation);
 
@@ -1646,9 +1662,18 @@ export function initializeTabControllers(
         // Reset to blank state and drop the bound runtime so the next send
         // reinitializes against the currently selected blank-tab provider.
         const previousProviderId = tab.providerId;
+        const wasAutoActive = tab.autoModelActive === true;
         cleanupTabRuntime(tab);
         tab.lifecycleState = 'blank';
-        tab.draftModel = resolveBlankTabModel(plugin, previousProviderId);
+        if (wasAutoActive) {
+          // Keep Auto active across new conversations — the user chose it deliberately.
+          tab.draftModel = AUTO_MODEL_VALUE;
+          tab.autoModelActive = true;
+        } else {
+          tab.draftModel = resolveBlankTabModel(plugin, previousProviderId);
+          tab.autoModelActive = false;
+        }
+        tab.routedModel = null;
         tab.conversationId = null;
         tab.providerId = getTabProviderId(tab, plugin);
         if (tab.providerId !== previousProviderId) {
@@ -1688,8 +1713,11 @@ export function initializeTabControllers(
     resetInputHeight: () => {
       // Per-tab input height is managed by CSS, no dynamic adjustment needed
     },
-    getAuxiliaryModel: () => tab.service?.getAuxiliaryModel?.() ?? tab.draftModel ?? null,
+    getAuxiliaryModel: () => tab.service?.getAuxiliaryModel?.()
+      ?? (tab.autoModelActive ? (tab.routedModel ?? null) : tab.draftModel)
+      ?? null,
     getActiveModel: () => {
+      if (tab.autoModelActive) return AUTO_MODEL_VALUE;
       if (tab.draftModel) return tab.draftModel;
       return getTabSettingsSnapshot(tab, plugin).model ?? null;
     },

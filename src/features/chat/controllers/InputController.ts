@@ -284,7 +284,8 @@ export class InputController {
 
     // Auto model (selected from the dropdown): route to the best model for this
     // prompt before sending. When "Auto" is the active model, the router picks
-    // the best matching model and switches the dropdown silently — no toggles needed.
+    // the best matching model for the actual send — but Auto stays selected in
+    // the dropdown so the user doesn't have to re-select it every time.
     const activeModelForRouting = this.deps.getActiveModel?.() ?? null;
     if (shouldUseInput && activeModelForRouting === AUTO_MODEL_VALUE && plugin.settings.modelRouterEnabled !== false) {
       try {
@@ -295,7 +296,25 @@ export class InputController {
           const fallbackModel = String(snapshot.model ?? plugin.settings.model);
           const decision = plugin.resolveModelRouteForInput(content, tab.providerId, fallbackModel);
           if (decision && decision.model !== fallbackModel) {
-            await tab.ui.modelSelector?.selectModel(decision.model);
+            // Don't call selectModel() — that would trigger onModelChange and
+            // deactivate Auto. Instead, record the routed model and update the
+            // provider settings so the actual send uses the routed model.
+            // Auto (draftModel === __auto__) stays active in the dropdown.
+            tab.routedModel = decision.model;
+            tab.autoModelActive = true;
+            tab.draftModel = AUTO_MODEL_VALUE;
+            const snapshot = ProviderSettingsCoordinator.getProviderSettingsSnapshot(
+              plugin.settings,
+              tab.providerId,
+            );
+            snapshot.model = decision.model;
+            ProviderSettingsCoordinator.commitProviderSettingsSnapshot(
+              plugin.settings,
+              tab.providerId,
+              snapshot,
+            );
+            await plugin.saveSettings();
+            tab.ui.modelSelector?.updateDisplay();
           }
         }
       } catch {
@@ -496,10 +515,15 @@ export class InputController {
       return;
     }
 
+    const activeModelForTimeline = this.deps.getActiveModel?.() ?? null;
+    const timelineModel = activeModelForTimeline === AUTO_MODEL_VALUE
+      ? (plugin.getView()?.getActiveTab()?.routedModel ?? this.getAuxiliaryModel())
+      : (activeModelForTimeline ?? this.getAuxiliaryModel());
+
     const runTimeline = startRunTimeline({
       conversationId: state.currentConversationId,
       providerId: agentService.providerId,
-      model: this.deps.getActiveModel?.() ?? this.getAuxiliaryModel(),
+      model: timelineModel,
       prompt: displayContent,
       currentNote: turnRequest.currentNotePath ?? null,
       externalContextPaths: turnRequest.externalContextPaths,

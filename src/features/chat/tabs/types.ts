@@ -194,6 +194,20 @@ export interface TabData {
    */
   draftModel: string | null;
 
+  /**
+   * When true, the "Auto" model is active — the router picks the best model
+   * per-prompt but Auto stays selected in the dropdown. The user doesn't have
+   * to re-select Auto after each send.
+   */
+  autoModelActive?: boolean;
+
+  /**
+   * The model the router picked for the most recent prompt (display only).
+   * Set when Auto routes to a different model; cleared when Auto is re-selected
+   * or a manual model is chosen. Not persisted.
+   */
+  routedModel?: string | null;
+
   /** Active provider for this tab's current conversation/runtime. */
   providerId: ProviderId;
 
