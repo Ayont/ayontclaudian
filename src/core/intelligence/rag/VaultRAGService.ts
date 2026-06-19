@@ -39,7 +39,14 @@ export class VaultRAGService {
         if (!content.trim()) continue;
 
         const chunks = this.chunkText(content);
-        const embeddings = await this.embeddingService.embed(chunks);
+        let embeddings: number[][];
+        try {
+          embeddings = await this.embeddingService.embed(chunks);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.warn('[VaultRAGService] embedding failed during index:', message);
+          return indexed;
+        }
 
         for (let i = 0; i < chunks.length; i++) {
           const record: VectorRecord = {
@@ -63,14 +70,22 @@ export class VaultRAGService {
   }
 
   async query(question: string, options: { limit?: number } = {}): Promise<RAGChunk[]> {
-    const [embedding] = await this.embeddingService.embed([question]);
-    const results = this.vectorStore.search(embedding, { limit: options.limit ?? 5 });
-    return results.map(result => ({
-      id: result.record.id,
-      path: String(result.record.metadata.path ?? 'unknown'),
-      text: result.record.text,
-      score: result.score,
-    }));
+    try {
+      const [embedding] = await this.embeddingService.embed([question]);
+      const results = this.vectorStore.search(embedding, { limit: options.limit ?? 5 });
+      return results.map(result => ({
+        id: result.record.id,
+        path: String(result.record.metadata.path ?? 'unknown'),
+        text: result.record.text,
+        score: result.score,
+      }));
+    } catch (error) {
+      // Defensive: if the configured embedding service (e.g. Ollama) fails at
+      // query time, surface a notice but do not break the chat send flow.
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn('[VaultRAGService] query failed:', message);
+      return [];
+    }
   }
 
   private chunkText(text: string): string[] {

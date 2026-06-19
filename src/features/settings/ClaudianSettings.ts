@@ -489,6 +489,57 @@ export class ClaudianSettingTab extends PluginSettingTab {
           });
       });
 
+    // --- Ollama local embeddings ---
+
+    new Setting(container).setName('Ollama embeddings').setHeading();
+
+    const ollamaEmbedding = this.plugin.settings.ollamaEmbedding ?? {
+      enabled: true,
+      baseUrl: 'http://localhost:11434',
+      model: 'nomic-embed-text',
+    };
+
+    new Setting(container)
+      .setName('Enable Ollama embeddings')
+      .setDesc('Use a local Ollama server for vault RAG embeddings. Disabled falls back to keyword search.')
+      .addToggle((toggle) => {
+        toggle
+          .setValue(ollamaEmbedding.enabled)
+          .onChange(async (value) => {
+            this.plugin.settings.ollamaEmbedding = { ...ollamaEmbedding, enabled: value };
+            await this.plugin.saveSettings();
+            this.display();
+          });
+      });
+
+    if (ollamaEmbedding.enabled) {
+      new Setting(container)
+        .setName('Ollama base URL')
+        .setDesc('Base URL of the Ollama server (e.g. http://localhost:11434).')
+        .addText((text) => {
+          text
+            .setPlaceholder('http://localhost:11434')
+            .setValue(ollamaEmbedding.baseUrl)
+            .onChange(async (value) => {
+              this.plugin.settings.ollamaEmbedding = { ...ollamaEmbedding, baseUrl: value.trim() };
+              await this.plugin.saveSettings();
+            });
+        });
+
+      new Setting(container)
+        .setName('Ollama embedding model')
+        .setDesc('Name of the embedding model that must be available via Ollama (e.g. nomic-embed-text).')
+        .addText((text) => {
+          text
+            .setPlaceholder('nomic-embed-text')
+            .setValue(ollamaEmbedding.model)
+            .onChange(async (value) => {
+              this.plugin.settings.ollamaEmbedding = { ...ollamaEmbedding, model: value.trim() };
+              await this.plugin.saveSettings();
+            });
+        });
+    }
+
     new Setting(container)
       .setName(t('settings.tokenBudgetEnabled.name'))
       .setDesc(t('settings.tokenBudgetEnabled.desc'))

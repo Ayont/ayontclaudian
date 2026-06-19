@@ -137,6 +137,13 @@ export interface ClaudianSettings {
   dailyTokenBudget?: number;
   sessionTokenBudget?: number;
 
+  /** Ollama local embedding configuration. */
+  ollamaEmbedding?: {
+    enabled: boolean;
+    baseUrl: string;
+    model: string;
+  };
+
   // Model & thinking (provider interprets values)
   model: string;
   thinkingBudget: string;

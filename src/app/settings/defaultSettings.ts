@@ -18,6 +18,12 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
   dailyTokenBudget: 0,
   sessionTokenBudget: 0,
 
+  ollamaEmbedding: {
+    enabled: true,
+    baseUrl: 'http://localhost:11434',
+    model: 'nomic-embed-text',
+  },
+
   model: 'haiku',
   thinkingBudget: 'off',
   effortLevel: 'high',

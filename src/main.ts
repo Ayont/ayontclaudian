@@ -1196,10 +1196,21 @@ export default class ClaudianPlugin extends Plugin {
 
     this.vectorStore = new VectorStore();
     this.embeddingService = new KeywordEmbeddingProvider();
-    // Try Ollama if available, otherwise keep keyword fallback.
-    const ollama = new OllamaEmbeddingProvider({ baseUrl: 'http://localhost:11434', model: 'nomic-embed-text' });
-    if (await ollama.isAvailable()) {
-      this.embeddingService = ollama;
+    // Try Ollama if enabled and the configured model is actually available,
+    // otherwise keep keyword fallback so RAG never blocks users without Ollama.
+    const ollamaSettings = this.settings.ollamaEmbedding ?? DEFAULT_CLAUDIAN_SETTINGS.ollamaEmbedding;
+    if (ollamaSettings?.enabled) {
+      const ollama = new OllamaEmbeddingProvider({
+        baseUrl: ollamaSettings.baseUrl || 'http://localhost:11434',
+        model: ollamaSettings.model || 'nomic-embed-text',
+      });
+      try {
+        if (await ollama.isAvailable()) {
+          this.embeddingService = ollama;
+        }
+      } catch {
+        // isAvailable is defensive, but keep fallback on any unexpected error.
+      }
     }
 
     this.vaultRAGService = new VaultRAGService(this.app.vault, this.embeddingService, this.vectorStore);

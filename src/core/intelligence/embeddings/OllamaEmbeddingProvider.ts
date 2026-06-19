@@ -11,7 +11,12 @@ export class OllamaEmbeddingProvider implements EmbeddingService {
   async isAvailable(): Promise<boolean> {
     try {
       const response = await fetch(`${this.config.baseUrl}/api/tags`, { method: 'GET' });
-      return response.ok;
+      if (!response.ok) {
+        return false;
+      }
+      const data = await response.json() as { models?: Array<{ name?: string }> };
+      const models = data.models ?? [];
+      return models.some((m) => (m.name ?? '').startsWith(this.config.model));
     } catch {
       return false;
     }
@@ -30,7 +35,8 @@ export class OllamaEmbeddingProvider implements EmbeddingService {
         body: JSON.stringify({ model: this.config.model, prompt: text }),
       });
       if (!response.ok) {
-        throw new Error(`Ollama embedding failed: ${response.statusText}`);
+        const body = await response.text().catch(() => '');
+        throw new Error(`Ollama embedding failed (${response.status} ${response.statusText}): ${body}`);
       }
       const data = await response.json() as { embedding: number[] };
       results.push(data.embedding);
