@@ -1983,7 +1983,7 @@ export class InputController {
         }
         new Notice('🚀 Multi-Agent Team gestartet — siehe Chat für Live-Updates.');
         try {
-          const { streamController, state } = this.deps;
+          const { streamController } = this.deps;
           const plugin = this.deps.plugin;
 
           // Show a header in the chat stream

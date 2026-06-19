@@ -699,7 +699,6 @@ export class MultiAgentService {
     };
 
     while (true) {
-      let partialOutput = '';
       try {
         const output = await executeWithResolvedProvider(currentAgent, currentPrompt, (id, chunk) => {
           if (id !== currentAgent.id) return;
@@ -720,7 +719,7 @@ export class MultiAgentService {
         return { status: 'done', output };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        partialOutput = ap.output ?? '';
+        const partialOutput = ap.output ?? '';
         const failedProviderId = resolveProvider(currentAgent);
 
         if (failedProviderId && executor.isRateLimitError?.(error)) {

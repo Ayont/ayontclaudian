@@ -45,6 +45,9 @@ import {
   DEFAULT_INLINE_TEAM_AGENT_IDS,
 } from './core/intelligence/multiAgent/agentRegistry';
 import {
+  multiAgentAvailabilityService,
+} from './core/intelligence/multiAgent/MultiAgentAvailabilityService';
+import {
   type AgentExecutor,
   buildSynthesisPrompt,
   isRateLimitErrorMessage,
@@ -53,9 +56,6 @@ import {
   MultiAgentService,
   type SpecialistAgent,
 } from './core/intelligence/multiAgent/MultiAgentService';
-import {
-  multiAgentAvailabilityService,
-} from './core/intelligence/multiAgent/MultiAgentAvailabilityService';
 import { ProjectService } from './core/intelligence/projects/ProjectService';
 import { VaultRAGService } from './core/intelligence/rag/VaultRAGService';
 import { VectorStore } from './core/intelligence/vectorStore/VectorStore';
@@ -740,16 +740,15 @@ export default class ClaudianPlugin extends Plugin {
    * preferred one is unavailable (a setup error, not a rate limit).
    */
   buildMultiAgentExecutor(): AgentExecutor {
-    const plugin = this;
     const activeProviderId = this.getActiveMultiAgentProviderId();
     return {
-      execute: (agent, prompt, onChunk) => plugin.runAgentPrompt(agent, prompt, onChunk ? (chunk) => onChunk(agent.id, chunk) : undefined),
+      execute: (agent, prompt, onChunk) => this.runAgentPrompt(agent, prompt, onChunk ? (chunk) => onChunk(agent.id, chunk) : undefined),
       executeWithProvider: async (agent, prompt, providerId, model, onChunk) => {
         try {
-          const resolved = providerId && plugin.isProviderMultiAgentAvailable(providerId)
+          const resolved = providerId && this.isProviderMultiAgentAvailable(providerId)
             ? providerId
             : activeProviderId;
-          return await plugin.runAgentPromptWithProvider(agent, prompt, resolved, model, onChunk ? (chunk) => onChunk(agent.id, chunk) : undefined);
+          return await this.runAgentPromptWithProvider(agent, prompt, resolved, model, onChunk ? (chunk) => onChunk(agent.id, chunk) : undefined);
         } catch (error) {
           // If the resolved preferred provider fails for a non-rate-limit
           // reason (e.g. not ready), retry once on the active provider before
@@ -760,7 +759,7 @@ export default class ClaudianPlugin extends Plugin {
             && providerId !== activeProviderId
             && !isRateLimitErrorMessage(message)
           ) {
-            return plugin.runAgentPromptWithProvider(agent, prompt, activeProviderId, undefined, onChunk ? (chunk) => onChunk(agent.id, chunk) : undefined);
+            return this.runAgentPromptWithProvider(agent, prompt, activeProviderId, undefined, onChunk ? (chunk) => onChunk(agent.id, chunk) : undefined);
           }
           throw error;
         }
