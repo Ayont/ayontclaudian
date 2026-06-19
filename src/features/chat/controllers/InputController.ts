@@ -292,10 +292,8 @@ export class InputController {
         const tab = plugin.getView()?.getActiveTab();
         if (tab) {
           const { ProviderSettingsCoordinator } = await import('../../../core/providers/ProviderSettingsCoordinator');
-          const snapshot = ProviderSettingsCoordinator.getProviderSettingsSnapshot(plugin.settings, tab.providerId);
-          const fallbackModel = String(snapshot.model ?? plugin.settings.model);
-          const decision = plugin.resolveModelRouteForInput(content, tab.providerId, fallbackModel);
-          if (decision && decision.model !== fallbackModel) {
+          const decision = plugin.resolveModelRouteForInput(content, tab);
+          if (decision) {
             // Don't call selectModel() — that would trigger onModelChange and
             // deactivate Auto. Instead, record the routed model and update the
             // provider settings so the actual send uses the routed model.
