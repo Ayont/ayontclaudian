@@ -125,9 +125,13 @@ const patchRendererUnsafeUnref = {
 };
 
 // Obsidian plugin folder path (set via OBSIDIAN_VAULT env var or .env.local)
+// Uses the plugin id from manifest.json so the folder name always matches what
+// Obsidian expects (e.g. "realclaudian" instead of a hardcoded "claudian").
 const OBSIDIAN_VAULT = process.env.OBSIDIAN_VAULT;
+const manifestRaw = existsSync('manifest.json') ? readFileSync('manifest.json', 'utf-8') : '{}';
+const PLUGIN_ID = JSON.parse(manifestRaw).id || 'claudian';
 const OBSIDIAN_PLUGIN_PATH = OBSIDIAN_VAULT && existsSync(OBSIDIAN_VAULT)
-  ? path.join(OBSIDIAN_VAULT, '.obsidian', 'plugins', 'claudian')
+  ? path.join(OBSIDIAN_VAULT, '.obsidian', 'plugins', PLUGIN_ID)
   : null;
 
 // Plugin to copy built files to Obsidian plugin folder
