@@ -1,5 +1,8 @@
 import type { ProviderId, ProviderUIOption } from '../providers/types';
 
+/** Sentinel value used when the user selects "Auto" in the model dropdown. */
+export const AUTO_MODEL_VALUE = '__auto__';
+
 export type ModelRouterTask = 'code' | 'writing' | 'planning' | 'vision' | 'cheap' | 'default';
 
 export interface ModelRouterRule {

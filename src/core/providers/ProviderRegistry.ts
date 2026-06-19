@@ -1,4 +1,5 @@
 import type ClaudianPlugin from '../../main';
+import { AUTO_MODEL_VALUE } from '../routing/modelRouterRules';
 import type { ChatRuntime } from '../runtime/ChatRuntime';
 import {
   type CreateChatRuntimeOptions,
@@ -206,7 +207,14 @@ export class ProviderRegistry {
    * (tagged with a single group), so the single-provider experience is unchanged.
    */
   static getAggregatedModelOptions(settings: Record<string, unknown>): ProviderUIOption[] {
-    return this.getEnabledProviderIds(settings).flatMap((providerId) => {
+    const autoOption: ProviderUIOption = {
+      value: AUTO_MODEL_VALUE,
+      label: 'Auto',
+      description: 'Automatically choose the best model based on your prompt',
+      group: 'Auto-Router',
+    };
+
+    const providerOptions = this.getEnabledProviderIds(settings).flatMap((providerId) => {
       const uiConfig = this.getChatUIConfig(providerId);
       const providerIcon = uiConfig.getProviderIcon?.() ?? undefined;
       const group = this.getProviderDisplayName(providerId);
@@ -226,6 +234,8 @@ export class ProviderRegistry {
           return a.label.localeCompare(b.label);
         });
     });
+
+    return [autoOption, ...providerOptions];
   }
 }
 

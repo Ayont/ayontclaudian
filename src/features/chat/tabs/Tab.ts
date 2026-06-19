@@ -20,6 +20,7 @@ import type {
 import {
   DEFAULT_CHAT_PROVIDER_ID,
 } from '../../../core/providers/types';
+import { AUTO_MODEL_VALUE } from '../../../core/routing/modelRouterRules';
 import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
 import type { AutoTurnResult } from '../../../core/runtime/types';
 import { TOOL_AGENT_OUTPUT } from '../../../core/tools/toolNames';
@@ -1045,6 +1046,17 @@ function initializeInputToolbar(
     getSettings: () => getTabSettingsSnapshot(tab, plugin),
     getEnvironmentVariables: () => plugin.getActiveEnvironmentVariables(),
     onModelChange: async (model: string) => {
+      // Auto model: keep the current provider, just set draftModel. The router
+      // will pick the best model per-prompt when the user sends a message.
+      if (model === AUTO_MODEL_VALUE) {
+        tab.draftModel = AUTO_MODEL_VALUE;
+        tab.ui.modelSelector?.updateDisplay();
+        tab.ui.modeSelector?.updateDisplay();
+        tab.ui.modelSelector?.renderOptions();
+        tab.ui.modeSelector?.renderOptions();
+        return;
+      }
+
       // For blank tabs, update draft model and derive provider
       if (tab.lifecycleState === 'blank') {
         const previousProvider = tab.providerId;
@@ -1162,6 +1174,7 @@ function initializeInputToolbar(
       await plugin.saveSettings();
       tab.ui.permissionToggle?.updateDisplay();
     },
+    getModelValue: () => tab.draftModel ?? getTabSettingsSnapshot(tab, plugin).model,
   });
 
   tab.ui.modelSelector = toolbarComponents.modelSelector;

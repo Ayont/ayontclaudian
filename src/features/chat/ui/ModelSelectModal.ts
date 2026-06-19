@@ -1,6 +1,7 @@
 import { type App,Modal } from 'obsidian';
 
 import type { ProviderUIOption } from '../../../core/providers/types';
+import { AUTO_MODEL_VALUE } from '../../../core/routing/modelRouterRules';
 import { createProviderIconSvg } from '../../../shared/icons';
 
 export class ModelSelectModal extends Modal {
@@ -74,6 +75,9 @@ export class ModelSelectModal extends Modal {
       if (model.value === this.currentModel) {
         optionEl.addClass('is-selected');
       }
+      if (model.value === AUTO_MODEL_VALUE) {
+        optionEl.addClass('is-auto');
+      }
 
       if (model.providerIcon) {
         const iconWrap = optionEl.createSpan({ cls: 'claudian-model-select-option-icon' });
@@ -82,6 +86,10 @@ export class ModelSelectModal extends Modal {
           ownerDocument: iconWrap.ownerDocument,
           width: 14,
         }));
+      } else if (model.value === AUTO_MODEL_VALUE) {
+        // Sparkle indicator for Auto option
+        const iconWrap = optionEl.createSpan({ cls: 'claudian-model-select-option-icon' });
+        iconWrap.setText('✦');
       }
 
       const labelEl = optionEl.createSpan({ cls: 'claudian-model-select-option-label' });

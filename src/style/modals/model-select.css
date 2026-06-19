@@ -190,6 +190,15 @@
   text-overflow: ellipsis;
 }
 
+/* Auto model option: distinct brand color */
+.claudian-model-select-option.is-auto {
+  background: linear-gradient(135deg, var(--cl-accent-soft, var(--interactive-accent-hover)), transparent 80%);
+  box-shadow: inset 0 0 0 1px var(--cl-accent-line, var(--interactive-accent));
+}
+.claudian-model-select-option.is-auto .claudian-model-select-option-label {
+  font-weight: 600;
+}
+
 .claudian-model-select-option-check {
   flex: 0 0 auto;
   width: 20px;

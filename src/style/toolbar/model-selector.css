@@ -68,6 +68,21 @@
   font-weight: 500;
 }
 
+/* Auto model button: distinct accent */
+.claudian-model-btn.is-auto {
+  background: linear-gradient(135deg, var(--cl-accent-soft, transparent), transparent);
+  border-color: var(--cl-accent-line, var(--interactive-accent));
+  color: var(--cl-accent, var(--interactive-accent));
+}
+.claudian-model-auto-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0.8;
+}
+
 .claudian-model-chevron {
   display: flex;
   align-items: center;

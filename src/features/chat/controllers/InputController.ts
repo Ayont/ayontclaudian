@@ -23,6 +23,7 @@ import {
   type ProviderId,
   type TitleGenerationService,
 } from '../../../core/providers/types';
+import { AUTO_MODEL_VALUE } from '../../../core/routing/modelRouterRules';
 import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
 import {
   cloneChatTurnRequest,
@@ -281,22 +282,19 @@ export class InputController {
       return;
     }
 
-    // Auto-mode model routing: silently switch to the best model for this prompt
-    // before sending. Only triggers when auto-mode is enabled and the user is
-    // sending from the input (not programmatic content overrides).
-    if (
-      shouldUseInput &&
-      plugin.settings.modelRouterEnabled !== false &&
-      plugin.settings.modelRouterAutoMode !== false
-    ) {
+    // Auto model (selected from the dropdown): route to the best model for this
+    // prompt before sending. When "Auto" is the active model, the router picks
+    // the best matching model and switches the dropdown silently — no toggles needed.
+    const activeModelForRouting = this.deps.getActiveModel?.() ?? null;
+    if (shouldUseInput && activeModelForRouting === AUTO_MODEL_VALUE && plugin.settings.modelRouterEnabled !== false) {
       try {
         const tab = plugin.getView()?.getActiveTab();
         if (tab) {
           const { ProviderSettingsCoordinator } = await import('../../../core/providers/ProviderSettingsCoordinator');
           const snapshot = ProviderSettingsCoordinator.getProviderSettingsSnapshot(plugin.settings, tab.providerId);
-          const currentModel = tab.draftModel ?? String(snapshot.model ?? plugin.settings.model);
-          const decision = plugin.resolveModelRouteForInput(content, tab.providerId, currentModel);
-          if (decision && decision.model !== currentModel) {
+          const fallbackModel = String(snapshot.model ?? plugin.settings.model);
+          const decision = plugin.resolveModelRouteForInput(content, tab.providerId, fallbackModel);
+          if (decision && decision.model !== fallbackModel) {
             await tab.ui.modelSelector?.selectModel(decision.model);
           }
         }

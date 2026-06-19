@@ -5,21 +5,26 @@ import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { DEFAULT_CODEX_PRIMARY_MODEL } from '@/providers/codex/types/models';
 
 describe('ProviderRegistry.getAggregatedModelOptions (unified model dropdown)', () => {
-  it('returns only the single provider\'s options when one provider is enabled', () => {
+  it('prepends the Auto model option before provider models', () => {
+    const settings = { providerConfigs: { codex: { enabled: false } } };
+    const aggregated = ProviderRegistry.getAggregatedModelOptions(settings);
+    const first = aggregated[0];
+
+    expect(first.value).toBe('__auto__');
+    expect(first.label).toBe('Auto');
+    expect(first.group).toBe('Auto-Router');
+  });
+
+  it('returns provider options alongside the Auto option when one provider is enabled', () => {
     const settings = { providerConfigs: { codex: { enabled: false } } };
 
     const aggregated = ProviderRegistry.getAggregatedModelOptions(settings);
     const claudeOnly = ProviderRegistry.getChatUIConfig('claude').getModelOptions(settings);
 
-    // Same set of model values as Claude alone, now sorted alphabetically by label.
-    expect(new Set(aggregated.map(o => o.value))).toEqual(new Set(claudeOnly.map(o => o.value)));
-    expect(aggregated.map(o => o.value)).toEqual(
-      [...claudeOnly.map(o => o.value)].sort((a, b) => a.localeCompare(b)),
-    );
-    // All options carry exactly one group (the Claude display name).
-    const groups = new Set(aggregated.map(o => o.group));
-    expect(groups.size).toBe(1);
-    expect(groups.has(ProviderRegistry.getProviderDisplayName('claude'))).toBe(true);
+    // Auto option is present in addition to all Claude models.
+    const values = aggregated.map(o => o.value);
+    expect(values[0]).toBe('__auto__');
+    expect(new Set(values)).toEqual(new Set(['__auto__', ...claudeOnly.map(o => o.value)]));
   });
 
   it('aggregates options across all enabled providers, tagging group + icon', () => {
@@ -28,6 +33,7 @@ describe('ProviderRegistry.getAggregatedModelOptions (unified model dropdown)', 
     const aggregated = ProviderRegistry.getAggregatedModelOptions(settings);
     const groups = new Set(aggregated.map(o => o.group));
 
+    expect(groups.has('Auto-Router')).toBe(true);
     expect(groups.has(ProviderRegistry.getProviderDisplayName('claude'))).toBe(true);
     expect(groups.has(ProviderRegistry.getProviderDisplayName('codex'))).toBe(true);
 
@@ -41,21 +47,23 @@ describe('ProviderRegistry.getAggregatedModelOptions (unified model dropdown)', 
     expect(codexOption?.providerIcon).toEqual(codexIcon);
   });
 
-  it('orders aggregated options by enabled-provider order', () => {
+  it('shows Auto-Router group first, then orders provider groups by enabled-provider order', () => {
     const settings = { providerConfigs: { codex: { enabled: true } } };
 
     const aggregated = ProviderRegistry.getAggregatedModelOptions(settings);
     const enabledOrder = ProviderRegistry.getEnabledProviderIds(settings)
       .map(id => ProviderRegistry.getProviderDisplayName(id));
 
-    // Group labels appear in the same relative order as the enabled providers.
+    // Group labels appear in the same relative order as the enabled providers,
+    // preceded by the Auto-Router group.
     const seenGroups: string[] = [];
     for (const opt of aggregated) {
       if (opt.group && seenGroups[seenGroups.length - 1] !== opt.group) {
         seenGroups.push(opt.group);
       }
     }
-    expect(seenGroups).toEqual(enabledOrder.filter(g => seenGroups.includes(g)));
+    expect(seenGroups[0]).toBe('Auto-Router');
+    expect(seenGroups.slice(1)).toEqual(enabledOrder.filter(g => g !== 'Auto-Router'));
   });
 });
 
@@ -76,11 +84,13 @@ describe('resolveProviderForModel for the unified dropdown', () => {
     expect(getEnabledProviderForModel('sonnet', settings)).toBe('claude');
   });
 
-  it('every aggregated option resolves to a provider that owns it', () => {
+  it('every aggregated option resolves to a provider that owns it (skipping the Auto sentinel)', () => {
     const settings = { providerConfigs: { codex: { enabled: true } } };
     const aggregated = ProviderRegistry.getAggregatedModelOptions(settings);
 
     for (const option of aggregated) {
+      // __auto__ is a virtual option that does not belong to any provider.
+      if (option.value === '__auto__') continue;
       const owner = getEnabledProviderForModel(option.value, settings);
       expect(ProviderRegistry.getChatUIConfig(owner).ownsModel(option.value, settings)).toBe(true);
     }

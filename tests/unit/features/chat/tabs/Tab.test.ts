@@ -3476,7 +3476,9 @@ describe('Tab - Blank Tab Model Selector', () => {
     jest.restoreAllMocks();
   });
 
-  it('returns Claude-only models when Codex is disabled', () => {
+  const autoModelOption = { value: '__auto__', label: 'Auto', description: 'Automatically choose the best model based on your prompt', group: 'Auto-Router' };
+
+  it('returns Auto option first, then Claude-only models when Codex is disabled', () => {
     const claudeModels = [
       { value: 'haiku', label: 'Haiku' },
       { value: 'sonnet', label: 'Sonnet' },
@@ -3488,13 +3490,17 @@ describe('Tab - Blank Tab Model Selector', () => {
     jest.spyOn(ProviderRegistry, 'getChatUIConfig').mockImplementation((providerId?: string) => ({
       getModelOptions: () => providerId === 'claude' ? claudeModels : [],
       getProviderIcon: jest.fn().mockReturnValue(null),
+      isDefaultModel: jest.fn().mockReturnValue(false),
     } as any));
 
     const result = getBlankTabModelOptions({ codexEnabled: false });
-    expect(result).toEqual(claudeModels.map(m => ({ ...m, group: 'Claude', providerId: 'claude', providerIcon: undefined })));
+    expect(result).toEqual([
+      autoModelOption,
+      ...claudeModels.map(m => ({ ...m, group: 'Claude', providerId: 'claude', providerIcon: undefined })),
+    ]);
   });
 
-  it('returns Claude + Codex models when Codex is enabled', () => {
+  it('returns Auto option first, then Claude + Codex models when Codex is enabled', () => {
     const claudeModels = [
       { value: 'haiku', label: 'Haiku' },
       { value: 'sonnet', label: 'Sonnet' },
@@ -3510,10 +3516,12 @@ describe('Tab - Blank Tab Model Selector', () => {
     jest.spyOn(ProviderRegistry, 'getChatUIConfig').mockImplementation((providerId?: string) => ({
       getModelOptions: () => providerId === 'codex' ? codexModels : claudeModels,
       getProviderIcon: jest.fn().mockReturnValue(null),
+      isDefaultModel: jest.fn().mockReturnValue(false),
     } as any));
 
     const result = getBlankTabModelOptions({ codexEnabled: true });
     expect(result).toEqual([
+      autoModelOption,
       ...codexModels.map(m => ({ ...m, group: 'Codex', providerId: 'codex', providerIcon: undefined })),
       ...claudeModels.map(m => ({ ...m, group: 'Claude', providerId: 'claude', providerIcon: undefined })),
     ]);

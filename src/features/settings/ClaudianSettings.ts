@@ -446,30 +446,18 @@ export class ClaudianSettingTab extends PluginSettingTab {
         });
       });
 
-    // --- Model Router / Auto-Mode ---
+    // --- Model Router ---
 
     new Setting(container).setName('Auto model routing').setHeading();
 
     new Setting(container)
       .setName('Enable model router')
-      .setDesc('Automatically pick the best model for your prompt when you send a message. Keyword-based: code, writing, vision, planning, quick.')
+      .setDesc('When enabled, the "Auto" model option in the dropdown automatically picks the best model for your prompt. Keyword-based: code, writing, vision, planning, quick.')
       .addToggle((toggle) => {
         toggle
           .setValue(this.plugin.settings.modelRouterEnabled ?? true)
           .onChange(async (value) => {
             this.plugin.settings.modelRouterEnabled = value;
-            await this.plugin.saveSettings();
-          });
-      });
-
-    new Setting(container)
-      .setName('Auto-mode (route on every send)')
-      .setDesc('When enabled, the router runs silently before each send. Disable to only route via the manual command.')
-      .addToggle((toggle) => {
-        toggle
-          .setValue(this.plugin.settings.modelRouterAutoMode ?? true)
-          .onChange(async (value) => {
-            this.plugin.settings.modelRouterAutoMode = value;
             await this.plugin.saveSettings();
           });
       });

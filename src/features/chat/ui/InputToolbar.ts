@@ -12,6 +12,7 @@ import type {
   ProviderServiceTierToggleConfig,
   ProviderUIOption,
 } from '../../../core/providers/types';
+import { AUTO_MODEL_VALUE } from '../../../core/routing/modelRouterRules';
 import type {
   ManagedMcpServer,
   UsageInfo,
@@ -63,6 +64,11 @@ export interface ToolbarCallbacks {
   getEnvironmentVariables?: () => string;
   getUIConfig: () => ProviderChatUIConfig;
   getCapabilities: () => ProviderCapabilities;
+  /**
+   * Returns the effective model value for display, considering draft model
+   * overrides like the "Auto" sentinel that are not persisted to settings.
+   */
+  getModelValue?: () => string;
 }
 
 export class ModelSelector {
@@ -81,8 +87,8 @@ export class ModelSelector {
     return null;
   }
 
-  private getAvailableModels() {
-    const settings = this.callbacks.getSettings();
+  private getAvailableModels(settingsOverride?: Record<string, unknown>) {
+    const settings = settingsOverride ?? this.callbacks.getSettings();
     const uiConfig = this.callbacks.getUIConfig();
     return uiConfig.getModelOptions({
       ...settings,
@@ -121,7 +127,7 @@ export class ModelSelector {
   }
 
   private openModal(): void {
-    const currentModel = this.callbacks.getSettings().model;
+    const currentModel = this.callbacks.getModelValue?.() ?? this.callbacks.getSettings().model;
     const models = sortModelOptions(this.getAvailableModels(), currentModel);
     new ModelSelectModal(
       this.callbacks.app,
@@ -138,13 +144,21 @@ export class ModelSelector {
 
   updateDisplay() {
     if (!this.buttonEl) return;
-    const currentModel = this.callbacks.getSettings().model;
+    const currentModel = this.callbacks.getModelValue?.() ?? this.callbacks.getSettings().model;
     const models = this.getAvailableModels();
     const modelInfo = models.find(m => m.value === currentModel);
 
     const displayModel = modelInfo || models[0];
 
     this.buttonEl.empty();
+
+    // Toggle auto-style class
+    this.buttonEl.toggleClass('is-auto', currentModel === AUTO_MODEL_VALUE);
+
+    if (currentModel === AUTO_MODEL_VALUE) {
+      const iconEl = this.buttonEl.createSpan({ cls: 'claudian-model-auto-icon' });
+      iconEl.setText('✦');
+    }
 
     const labelEl = this.buttonEl.createSpan({ cls: 'claudian-model-label' });
     labelEl.setText(displayModel?.label || 'Unknown');
