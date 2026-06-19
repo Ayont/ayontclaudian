@@ -2,6 +2,7 @@ import { Notice } from 'obsidian';
 import * as path from 'path';
 
 import type { ImageAttachment, ImageMediaType } from '../../../core/types';
+import type { ImageStagingService } from '../services/ImageStagingService';
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
@@ -26,17 +27,20 @@ export class ImageContextManager {
   private dropOverlay: HTMLElement | null = null;
   private attachedImages: Map<string, ImageAttachment> = new Map();
   private enabled = true;
+  private stagingService: ImageStagingService | null;
 
   constructor(
     containerEl: HTMLElement,
     inputEl: HTMLTextAreaElement,
     callbacks: ImageContextCallbacks,
-    previewContainerEl?: HTMLElement
+    previewContainerEl?: HTMLElement,
+    stagingService?: ImageStagingService
   ) {
     this.containerEl = containerEl;
     this.previewContainerEl = previewContainerEl ?? containerEl;
     this.inputEl = inputEl;
     this.callbacks = callbacks;
+    this.stagingService = stagingService ?? null;
 
     // Create image preview in previewContainerEl, before file indicator if present
     const fileIndicator = this.previewContainerEl.querySelector('.claudian-file-indicator');
@@ -47,6 +51,7 @@ export class ImageContextManager {
 
     this.setupDragAndDrop();
     this.setupPasteHandler();
+    void this.restoreFromStaging();
   }
 
   setEnabled(enabled: boolean): void {
@@ -64,10 +69,35 @@ export class ImageContextManager {
     return this.attachedImages.size > 0;
   }
 
-  clearImages() {
+  clearImages(clearStaging = false) {
+    if (clearStaging && this.stagingService) {
+      for (const id of this.attachedImages.keys()) {
+        void this.stagingService.deleteImage(id).catch(() => {});
+      }
+    }
     this.attachedImages.clear();
     this.updateImagePreview();
     this.callbacks.onImagesChanged();
+  }
+
+  /** Restores previously staged images from the vault on init. */
+  private async restoreFromStaging(): Promise<void> {
+    if (!this.stagingService) return;
+    try {
+      const entries = await this.stagingService.listImages();
+      for (const entry of entries) {
+        const loaded = await this.stagingService.loadImage(entry.id);
+        if (loaded) {
+          this.attachedImages.set(loaded.id, loaded);
+        }
+      }
+      if (this.attachedImages.size > 0) {
+        this.updateImagePreview();
+        this.callbacks.onImagesChanged();
+      }
+    } catch {
+      // Best-effort restore.
+    }
   }
 
   /** Sets images directly (used for queued messages). */
@@ -230,6 +260,10 @@ export class ImageContextManager {
       };
 
       this.attachedImages.set(attachment.id, attachment);
+      // Persist to staging so the image survives restarts.
+      void this.stagingService?.saveImage(attachment).catch(() => {
+        // Best-effort staging; the image is still in memory.
+      });
       this.updateImagePreview();
       this.callbacks.onImagesChanged();
       return true;
@@ -292,6 +326,7 @@ export class ImageContextManager {
     removeEl.addEventListener('click', (e) => {
       e.stopPropagation();
       this.attachedImages.delete(id);
+      void this.stagingService?.deleteImage(id).catch(() => {});
       this.updateImagePreview();
       this.callbacks.onImagesChanged();
     });

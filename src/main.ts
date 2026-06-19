@@ -72,6 +72,7 @@ import type { AppTabManagerState } from './core/providers/types';
 import { DEFAULT_CHAT_PROVIDER_ID } from './core/providers/types';
 import {
   chooseModelRoute,
+  type ModelRouteDecision,
   type ModelRouterRule,
   type ModelRouterTask,
   normalizeRouterRules,
@@ -96,6 +97,7 @@ import {
   workflowPathForName,
 } from './core/workflows/promptWorkflows';
 import { ClaudianView } from './features/chat/ClaudianView';
+import { ImageStagingService } from './features/chat/services/ImageStagingService';
 import { ModelSelectModal } from './features/chat/ui/ModelSelectModal';
 import { ProviderStatusBar } from './features/chat/ui/ProviderStatusBar';
 import { ClaudianDashboardView, VIEW_TYPE_CLAUDIAN_DASHBOARD } from './features/dashboard/ClaudianDashboardView';
@@ -136,10 +138,18 @@ export default class ClaudianPlugin extends Plugin {
   multiAgentService!: MultiAgentService;
   missionStateStorage!: IMissionStateStorage;
   visionService!: VisionService;
+  imageStagingService!: ImageStagingService;
 
   async onload() {
     await this.loadSettings();
     await this.initializeClaudianOSServices();
+
+    // Initialize image staging service and clean up old entries (7-day TTL).
+    this.imageStagingService = new ImageStagingService(this.app.vault);
+    void this.imageStagingService.cleanup(7).catch(() => {
+      // Best-effort cleanup on startup.
+    });
+
     await ProviderWorkspaceRegistry.initializeAll(this);
 
     this.registerView(
@@ -826,6 +836,24 @@ export default class ClaudianPlugin extends Plugin {
     ].filter((rule): rule is ModelRouterRule => rule !== null);
   }
 
+  /**
+   * Silent model routing: returns the routing decision (or null if no switch
+   * is needed) without UI side effects. Used by the auto-mode send hook.
+   */
+  resolveModelRouteForInput(prompt: string, providerId: ProviderId, currentModel: string): ModelRouteDecision | null {
+    const settingsBag = this.settings as unknown as Record<string, unknown>;
+    const fallbackModel = currentModel;
+    const availableModels = ProviderRegistry.getAggregatedModelOptions(settingsBag);
+    const explicitRules = normalizeRouterRules(this.settings.modelRouterRules);
+    const rules = explicitRules.length > 0 ? explicitRules : this.defaultRouterRulesFromModels();
+    const decision = chooseModelRoute({ prompt, rules, availableModels, fallbackModel });
+
+    if (decision.model === fallbackModel) {
+      return null;
+    }
+    return decision;
+  }
+
   async applyModelRouterToCurrentInput(): Promise<void> {
     const tab = this.getView()?.getActiveTab();
     if (!tab) {
@@ -839,16 +867,12 @@ export default class ClaudianPlugin extends Plugin {
       return;
     }
 
-    const settingsBag = this.settings as unknown as Record<string, unknown>;
     const snapshot = ProviderSettingsCoordinator.getProviderSettingsSnapshot(this.settings, tab.providerId);
     const fallbackModel = tab.draftModel ?? String(snapshot.model ?? this.settings.model);
-    const availableModels = ProviderRegistry.getAggregatedModelOptions(settingsBag);
-    const explicitRules = normalizeRouterRules(this.settings.modelRouterRules);
-    const rules = explicitRules.length > 0 ? explicitRules : this.defaultRouterRulesFromModels();
-    const decision = chooseModelRoute({ prompt, rules, availableModels, fallbackModel });
 
-    if (decision.model === fallbackModel) {
-      new Notice(`Model Router: ${decision.reason}; bleibe bei ${fallbackModel}.`);
+    const decision = this.resolveModelRouteForInput(prompt, tab.providerId, fallbackModel);
+    if (!decision) {
+      new Notice(`Model Router: bleibe bei ${fallbackModel}.`);
       return;
     }
 

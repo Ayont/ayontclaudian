@@ -411,6 +411,11 @@ function renderWebSearchExpanded(
   input: Record<string, unknown>,
   result: string | undefined,
 ): void {
+  // Web search badge with spinning globe icon
+  const badgeEl = container.createDiv({ cls: 'claudian-tool-web-badge' });
+  setIcon(badgeEl.createSpan(), 'globe');
+  badgeEl.createSpan({ text: result ? 'Web search complete' : 'Searching the web…' });
+
   const parsed = result ? parseWebSearchResult(result) : null;
   if (parsed && parsed.links.length > 0) {
     const linksEl = container.createDiv({ cls: 'claudian-tool-lines' });

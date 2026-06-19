@@ -349,6 +349,47 @@
   overflow-y: auto;
 }
 
+/* Web search badge — shown when agent is searching the web */
+.claudian-tool-web-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.12);
+  color: rgb(96, 165, 250);
+  font-size: var(--cl-text-xs);
+  font-weight: 600;
+  margin-bottom: var(--cl-space-1);
+}
+
+.claudian-tool-web-badge svg {
+  width: 12px;
+  height: 12px;
+  animation: claudian-globe-spin 2s linear infinite;
+}
+
+@keyframes claudian-globe-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Web search result links — card style */
+.claudian-tool-lines .claudian-tool-link {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--cl-radius-sm);
+  background: var(--background-secondary);
+  margin-bottom: 4px;
+  transition: background var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-tool-lines .claudian-tool-link:hover {
+  background: var(--background-modifier-hover);
+}
+
 /* Empty state for file search */
 .claudian-tool-empty {
   color: var(--text-faint);

@@ -281,6 +281,30 @@ export class InputController {
       return;
     }
 
+    // Auto-mode model routing: silently switch to the best model for this prompt
+    // before sending. Only triggers when auto-mode is enabled and the user is
+    // sending from the input (not programmatic content overrides).
+    if (
+      shouldUseInput &&
+      plugin.settings.modelRouterEnabled !== false &&
+      plugin.settings.modelRouterAutoMode !== false
+    ) {
+      try {
+        const tab = plugin.getView()?.getActiveTab();
+        if (tab) {
+          const { ProviderSettingsCoordinator } = await import('../../../core/providers/ProviderSettingsCoordinator');
+          const snapshot = ProviderSettingsCoordinator.getProviderSettingsSnapshot(plugin.settings, tab.providerId);
+          const currentModel = tab.draftModel ?? String(snapshot.model ?? plugin.settings.model);
+          const decision = plugin.resolveModelRouteForInput(content, tab.providerId, currentModel);
+          if (decision && decision.model !== currentModel) {
+            await tab.ui.modelSelector?.selectModel(decision.model);
+          }
+        }
+      } catch {
+        // Auto-routing is best-effort; never block the send on a routing failure.
+      }
+    }
+
     // Token-budget guard: block new turns when the daily/session budget is spent.
     if (plugin.settings.tokenBudgetEnabled !== false && plugin.tokenBudgetTracker) {
       const budgetCheck = plugin.tokenBudgetTracker.checkBudget(plugin.settings);
@@ -346,9 +370,10 @@ export class InputController {
     const imagesForMessage = images.length > 0 ? [...images] : undefined;
     const isCompact = /^\/compact(\s|$)/i.test(content);
 
-    // Only clear images if we consumed user input (not for programmatic content override)
+    // Only clear images if we consumed user input (not for programmatic content override).
+    // Pass clearStaging=true so the persisted copies are also removed.
     if (shouldUseInput) {
-      imageContextManager?.clearImages();
+      imageContextManager?.clearImages(true);
     }
 
     const turnSubmission = options?.turnRequestOverride

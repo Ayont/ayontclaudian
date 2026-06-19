@@ -908,7 +908,8 @@ function initializeContextManagers(tab: TabData, plugin: ClaudianPlugin): void {
         tab.renderer?.scrollToBottomIfNeeded();
       },
     },
-    dom.contextRowEl
+    dom.contextRowEl,
+    plugin.imageStagingService,
   );
 }
 

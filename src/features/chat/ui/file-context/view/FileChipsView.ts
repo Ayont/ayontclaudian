@@ -42,10 +42,13 @@ export class FileChipsView {
   }
 
   private renderFileChip(filePath: string, onRemove: () => void): void {
-    const chipEl = this.fileIndicatorEl.createDiv({ cls: 'claudian-file-chip' });
+    const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
+    const { icon, typeClass } = this.getFileTypeMeta(ext);
+
+    const chipEl = this.fileIndicatorEl.createDiv({ cls: `claudian-file-chip claudian-file-chip--${typeClass}` });
 
     const iconEl = chipEl.createSpan({ cls: 'claudian-file-chip-icon' });
-    setIcon(iconEl, 'file-text');
+    setIcon(iconEl, icon);
 
     const normalizedPath = filePath.replace(/\\/g, '/');
     const filename = normalizedPath.split('/').pop() || filePath;
@@ -66,5 +69,28 @@ export class FileChipsView {
     removeEl.addEventListener('click', () => {
       onRemove();
     });
+  }
+
+  /**
+   * Maps a file extension to a Lucide icon name and a CSS color class.
+   * PDF → red, Word → blue, Excel → green, code → purple, etc.
+   */
+  private getFileTypeMeta(ext: string): { icon: string; typeClass: string } {
+    const pdfExts = ['pdf'];
+    const docExts = ['doc', 'docx', 'odt', 'rtf', 'pages'];
+    const sheetExts = ['xls', 'xlsx', 'ods', 'csv', 'numbers'];
+    const codeExts = ['ts', 'tsx', 'js', 'jsx', 'py', 'rs', 'go', 'java', 'rb', 'php', 'c', 'cpp', 'h', 'sh', 'yml', 'yaml', 'json', 'xml', 'html', 'css', 'sql'];
+    const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico'];
+    const archiveExts = ['zip', 'tar', 'gz', 'rar', '7z', 'bz2'];
+    const mdExts = ['md', 'markdown', 'mdx'];
+
+    if (pdfExts.includes(ext)) return { icon: 'file-text', typeClass: 'pdf' };
+    if (docExts.includes(ext)) return { icon: 'file-text', typeClass: 'doc' };
+    if (sheetExts.includes(ext)) return { icon: 'table', typeClass: 'sheet' };
+    if (codeExts.includes(ext)) return { icon: 'file-code', typeClass: 'code' };
+    if (imageExts.includes(ext)) return { icon: 'image', typeClass: 'image' };
+    if (archiveExts.includes(ext)) return { icon: 'file-archive', typeClass: 'archive' };
+    if (mdExts.includes(ext)) return { icon: 'file-text', typeClass: 'md' };
+    return { icon: 'file-text', typeClass: 'default' };
   }
 }
