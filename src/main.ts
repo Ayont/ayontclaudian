@@ -97,6 +97,7 @@ import {
   workflowPathForName,
 } from './core/workflows/promptWorkflows';
 import { ClaudianView } from './features/chat/ClaudianView';
+import type { TabData } from './features/chat/tabs/types';
 import { ImageStagingService } from './features/chat/services/ImageStagingService';
 import { ModelSelectModal } from './features/chat/ui/ModelSelectModal';
 import { ProviderStatusBar } from './features/chat/ui/ProviderStatusBar';
@@ -840,9 +841,10 @@ export default class ClaudianPlugin extends Plugin {
    * Silent model routing: returns the routing decision (or null if no switch
    * is needed) without UI side effects. Used by the auto-mode send hook.
    */
-  resolveModelRouteForInput(prompt: string, providerId: ProviderId, currentModel: string): ModelRouteDecision | null {
+  resolveModelRouteForInput(prompt: string, tab: TabData): ModelRouteDecision | null {
     const settingsBag = this.settings as unknown as Record<string, unknown>;
-    const fallbackModel = currentModel;
+    const snapshot = ProviderSettingsCoordinator.getProviderSettingsSnapshot(this.settings, tab.providerId);
+    const fallbackModel = tab.draftModel ?? String(snapshot.model ?? this.settings.model);
     const availableModels = ProviderRegistry.getAggregatedModelOptions(settingsBag);
     const explicitRules = normalizeRouterRules(this.settings.modelRouterRules);
     const rules = explicitRules.length > 0 ? explicitRules : this.defaultRouterRulesFromModels();
@@ -867,11 +869,10 @@ export default class ClaudianPlugin extends Plugin {
       return;
     }
 
-    const snapshot = ProviderSettingsCoordinator.getProviderSettingsSnapshot(this.settings, tab.providerId);
-    const fallbackModel = tab.draftModel ?? String(snapshot.model ?? this.settings.model);
-
-    const decision = this.resolveModelRouteForInput(prompt, tab.providerId, fallbackModel);
+    const decision = this.resolveModelRouteForInput(prompt, tab);
     if (!decision) {
+      const snapshot = ProviderSettingsCoordinator.getProviderSettingsSnapshot(this.settings, tab.providerId);
+      const fallbackModel = tab.draftModel ?? String(snapshot.model ?? this.settings.model);
       new Notice(`Model Router: bleibe bei ${fallbackModel}.`);
       return;
     }
