@@ -41,6 +41,7 @@ function createInitialState(): ChatStateData {
     pendingNewSessionPlan: null,
     planFilePath: null,
     prePlanPermissionMode: null,
+    bookmarkedMessageIds: [],
   };
 }
 
@@ -362,6 +363,39 @@ export class ChatState {
   }
 
   // ============================================
+  // Bookmarks
+  // ============================================
+
+  get bookmarkedMessageIds(): string[] {
+    return [...this.state.bookmarkedMessageIds];
+  }
+
+  set bookmarkedMessageIds(value: string[]) {
+    const normalized = value ? [...value] : [];
+    const changed =
+      normalized.length !== this.state.bookmarkedMessageIds.length ||
+      normalized.some((id, i) => id !== this.state.bookmarkedMessageIds[i]);
+    this.state.bookmarkedMessageIds = normalized;
+    if (changed) {
+      this._callbacks.onBookmarksChanged?.(normalized);
+    }
+  }
+
+  isBookmarked(messageId: string): boolean {
+    return this.state.bookmarkedMessageIds.includes(messageId);
+  }
+
+  toggleBookmark(messageId: string): void {
+    const idx = this.state.bookmarkedMessageIds.indexOf(messageId);
+    if (idx === -1) {
+      this.state.bookmarkedMessageIds.push(messageId);
+    } else {
+      this.state.bookmarkedMessageIds.splice(idx, 1);
+    }
+    this._callbacks.onBookmarksChanged?.([...this.state.bookmarkedMessageIds]);
+  }
+
+  // ============================================
   // Reset Methods
   // ============================================
 
@@ -421,6 +455,7 @@ export class ChatState {
     this.usage = null;
     this.currentTodos = null;
     this.autoScrollEnabled = true;
+    this.bookmarkedMessageIds = [];
   }
 
   getPersistedMessages(): ChatMessage[] {

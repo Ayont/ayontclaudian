@@ -65,6 +65,7 @@ describe('ChatState', () => {
       expect(state.autoScrollEnabled).toBe(true);
       expect(state.responseStartTime).toBeNull();
       expect(state.flavorTimerInterval).toBeNull();
+      expect(state.bookmarkedMessageIds).toEqual([]);
     });
   });
 

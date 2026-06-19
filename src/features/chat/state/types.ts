@@ -108,6 +108,9 @@ export interface ChatStateData {
 
   // Saved permission mode before entering plan mode (for Shift+Tab toggle restore)
   prePlanPermissionMode: string | null;
+
+  // Bookmarked message ids for the active conversation
+  bookmarkedMessageIds: string[];
 }
 
 /** Callbacks for ChatState changes. */
@@ -119,6 +122,7 @@ export interface ChatStateCallbacks {
   onTodosChanged?: (todos: TodoItem[] | null) => void;
   onAttentionChanged?: (needsAttention: boolean) => void;
   onAutoScrollChanged?: (enabled: boolean) => void;
+  onBookmarksChanged?: (ids: string[]) => void;
 }
 
 /** Options for query execution. */
