@@ -33,6 +33,8 @@ export interface ProviderCapabilities {
   supportsInstructionMode: boolean;
   supportsMcpTools: boolean;
   supportsTurnSteer?: boolean;
+  /** Whether the provider can be used as an executor for multi-agent missions. */
+  supportsMultiAgent: boolean;
   reasoningControl: 'effort' | 'token-budget' | 'none';
   planPathPrefix?: string;
 }
@@ -71,6 +73,10 @@ export interface ProviderRegistration {
   modelConfigSync?: ProviderModelConfigSync;
   /** Optional default provider config used by the unified config validator/repair. */
   defaultConfig?: Record<string, unknown>;
+  /** Brand color used to theme provider-specific UI (e.g. multi-agent modal). Hex RGB. */
+  brandColor?: string;
+  /** Optional lighter variant for backgrounds/accents. */
+  brandColorLight?: string;
 }
 
 export interface ProviderSettingsReconciler {

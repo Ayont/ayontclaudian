@@ -61,6 +61,7 @@ function mockCapabilities(providerId: 'claude' | 'codex' = 'claude') {
     supportsImageAttachments: true,
     supportsInstructionMode: true,
     supportsMcpTools: true,
+    supportsMultiAgent: true,
     reasoningControl: 'effort' as const,
   });
 }

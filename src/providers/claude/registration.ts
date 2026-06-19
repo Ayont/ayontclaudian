@@ -36,4 +36,6 @@ export const claudeProviderRegistration: ProviderRegistration = {
   createInlineEditService: (plugin) => new ClaudeInlineEditService(plugin),
   historyService: new ClaudeConversationHistoryService(),
   taskResultInterpreter: new ClaudeTaskResultInterpreter(),
+  brandColor: '#E57035',
+  brandColorLight: '#FDF1EC',
 };

@@ -43,6 +43,10 @@ export class ProviderRegistry {
     return registration;
   }
 
+  static getProviderRegistrationSafe(providerId: ProviderId): ProviderRegistration | null {
+    return this.registrations[providerId] ?? null;
+  }
+
   static createChatRuntime(options: CreateChatRuntimeOptions): ChatRuntime {
     const providerId = options.providerId ?? DEFAULT_CHAT_PROVIDER_ID;
     return this.getProviderRegistration(providerId).createRuntime(options);

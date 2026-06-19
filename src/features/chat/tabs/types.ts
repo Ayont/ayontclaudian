@@ -132,6 +132,8 @@ export interface TabUIComponents {
   navigationSidebar: NavigationSidebar | null;
   streamStatusBar: StreamStatusBar | null;
   swarmPanel: SwarmPanel | null;
+  /** Claudian OS "Multi-Agent" action button; visibility is gated by provider capabilities. */
+  multiAgentButton: HTMLButtonElement | null;
 }
 
 /**

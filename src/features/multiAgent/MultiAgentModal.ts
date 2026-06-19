@@ -7,6 +7,7 @@ import type {
   SpecialistAgent,
   SynthesisContribution,
 } from '../../core/intelligence/multiAgent/MultiAgentService';
+import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
 import type ClaudianPlugin from '../../main';
 
 interface AgentCardRefs {
@@ -48,6 +49,13 @@ export class MultiAgentModal extends Modal {
   onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
+
+    // Tint the modal with the active provider's brand color so the mission UI
+    // visually matches the provider running the agents.
+    const activeProviderId =
+      this.plugin.getView()?.getActiveTab()?.providerId ??
+      ProviderRegistry.resolveSettingsProviderId(this.plugin.settings);
+    this.modalEl.dataset.provider = activeProviderId;
 
     const header = contentEl.createDiv({ cls: 'claudian-multi-agent-header' });
     const titleGroup = header.createDiv({ cls: 'claudian-multi-agent-title-group' });

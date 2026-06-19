@@ -837,6 +837,7 @@ describe('Tab - Service Initialization', () => {
         supportsImageAttachments: true,
         supportsInstructionMode: false,
         supportsMcpTools: false,
+        supportsMultiAgent: false,
         reasoningControl: 'none',
       });
 
@@ -2507,6 +2508,7 @@ describe('Tab - UI Callback Wiring', () => {
         supportsImageAttachments: true,
         supportsInstructionMode: false,
         supportsMcpTools: false,
+        supportsMultiAgent: false,
         reasoningControl: 'none',
       });
 

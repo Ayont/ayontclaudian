@@ -36,4 +36,6 @@ export const kimiProviderRegistration: ProviderRegistration = {
   settingsReconciler: kimiSettingsReconciler,
   taskResultInterpreter: new KimiTaskResultInterpreter(),
   modelConfigSync: kimiModelConfigSync,
+  brandColor: '#3B82F6',
+  brandColorLight: '#EFF6FF',
 };

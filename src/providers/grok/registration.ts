@@ -24,4 +24,6 @@ export const grokProviderRegistration: ProviderRegistration = {
   isEnabled: (settings) => getGrokProviderSettings(settings).enabled,
   settingsReconciler: grokSettingsReconciler,
   taskResultInterpreter: new GrokTaskResultInterpreter(),
+  brandColor: '#1D9BF0',
+  brandColorLight: '#E8F7FE',
 };

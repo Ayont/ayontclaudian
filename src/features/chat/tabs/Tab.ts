@@ -375,6 +375,9 @@ function applyProviderUIGating(tab: TabData, plugin: ClaudianPlugin): void {
   );
 
   tab.ui.imageContextManager?.setEnabled(capabilities.supportsImageAttachments);
+  if (tab.ui.multiAgentButton) {
+    tab.ui.multiAgentButton.classList.toggle('claudian-hidden', !capabilities.supportsMultiAgent);
+  }
   tab.ui.contextUsageMeter?.update(tab.state.usage);
 }
 
@@ -701,6 +704,7 @@ export function createTab(options: TabCreateOptions): TabData {
       navigationSidebar: null,
       streamStatusBar,
       swarmPanel,
+      multiAgentButton: null,
     },
     dom,
     renderer: null,
@@ -1213,7 +1217,7 @@ function initializeInputToolbar(
   createOSButton('Dashboard', 'layout-dashboard', () => {
     void plugin.openDashboard();
   });
-  createOSButton('Multi-Agent', 'users', () => {
+  tab.ui.multiAgentButton = createOSButton('Multi-Agent', 'users', () => {
     void plugin.runMultiAgentTask();
   });
   createOSButton('Index RAG', 'search', () => {

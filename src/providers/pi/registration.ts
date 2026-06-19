@@ -27,4 +27,6 @@ export const piProviderRegistration: ProviderRegistration = {
   isEnabled: (settings) => getPiProviderSettings(settings).enabled,
   settingsReconciler: piSettingsReconciler,
   taskResultInterpreter: new PiTaskResultInterpreter(),
+  brandColor: '#6366F1',
+  brandColorLight: '#EEF2FF',
 };

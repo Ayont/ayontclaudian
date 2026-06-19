@@ -23,6 +23,7 @@ export const VIBE_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object
   supportsImageAttachments: true,
   supportsInstructionMode: false,
   supportsMcpTools: true,
+  supportsMultiAgent: true,
   supportsTurnSteer: false,
   reasoningControl: 'effort',
 });

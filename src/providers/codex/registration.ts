@@ -26,4 +26,6 @@ export const codexProviderRegistration: ProviderRegistration = {
   historyService: new CodexConversationHistoryService(),
   taskResultInterpreter: new CodexTaskResultInterpreter(),
   subagentLifecycleAdapter: codexSubagentLifecycleAdapter,
+  brandColor: '#19C37D',
+  brandColorLight: '#E6FAF2',
 };

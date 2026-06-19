@@ -24,4 +24,6 @@ export const opencodeProviderRegistration: ProviderRegistration = {
   isEnabled: (settings) => getOpencodeProviderSettings(settings).enabled,
   settingsReconciler: opencodeSettingsReconciler,
   taskResultInterpreter: new OpencodeTaskResultInterpreter(),
+  brandColor: '#F97316',
+  brandColorLight: '#FFF7ED',
 };

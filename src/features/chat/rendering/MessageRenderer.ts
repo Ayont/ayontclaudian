@@ -152,6 +152,7 @@ export class MessageRenderer {
       supportsImageAttachments: false,
       supportsInstructionMode: false,
       supportsMcpTools: false,
+      supportsMultiAgent: false,
       supportsTurnSteer: false,
       reasoningControl: 'none' as const,
     }));

@@ -24,4 +24,6 @@ export const antigravityProviderRegistration: ProviderRegistration = {
   isEnabled: (settings) => getAntigravityProviderSettings(settings).enabled,
   settingsReconciler: antigravitySettingsReconciler,
   taskResultInterpreter: new AntigravityTaskResultInterpreter(),
+  brandColor: '#4285F4',
+  brandColorLight: '#E8F0FE',
 };

@@ -871,3 +871,65 @@
 }
 
 .claudian-multi-agent-status--synthesizing { color: var(--claudian-accent); }
+
+/* Provider-aware accent for the Multi-Agent modal (modal lives outside .claudian-container). */
+.claudian-multi-agent-modal[data-provider="claude"] {
+  --claudian-accent: var(--claudian-brand-claude);
+  --claudian-accent-rgb: var(--claudian-brand-claude-rgb);
+}
+
+.claudian-multi-agent-modal[data-provider="codex"] {
+  --claudian-accent: var(--claudian-brand-codex);
+  --claudian-accent-rgb: var(--claudian-brand-codex-rgb);
+}
+
+.claudian-multi-agent-modal[data-provider="opencode"] {
+  --claudian-accent: var(--claudian-brand-opencode);
+  --claudian-accent-rgb: var(--claudian-brand-opencode-rgb);
+}
+
+.claudian-multi-agent-modal[data-provider="pi"] {
+  --claudian-accent: var(--claudian-brand-pi);
+  --claudian-accent-rgb: var(--claudian-brand-pi-rgb);
+}
+
+.claudian-multi-agent-modal[data-provider="kimi"] {
+  --claudian-accent: var(--claudian-brand-kimi);
+  --claudian-accent-rgb: var(--claudian-brand-kimi-rgb);
+}
+
+.claudian-multi-agent-modal[data-provider="antigravity"] {
+  --claudian-accent: var(--claudian-brand-antigravity);
+  --claudian-accent-rgb: var(--claudian-brand-antigravity-rgb);
+}
+
+.claudian-multi-agent-modal[data-provider="vibe"] {
+  --claudian-accent: var(--claudian-brand-vibe);
+  --claudian-accent-rgb: var(--claudian-brand-vibe-rgb);
+}
+
+.claudian-multi-agent-modal[data-provider="grok"] {
+  --claudian-accent: var(--claudian-brand-grok);
+  --claudian-accent-rgb: var(--claudian-brand-grok-rgb);
+}
+
+/* Light-theme overrides must also apply inside the modal. */
+body.theme-light .claudian-multi-agent-modal[data-provider="codex"] {
+  --claudian-accent: var(--claudian-brand-codex);
+  --claudian-accent-rgb: var(--claudian-brand-codex-rgb);
+}
+
+body.theme-light .claudian-multi-agent-modal[data-provider="opencode"] {
+  --claudian-accent: var(--claudian-brand-opencode);
+  --claudian-accent-rgb: var(--claudian-brand-opencode-rgb);
+}
+
+body.theme-light .claudian-multi-agent-modal[data-provider="pi"] {
+  --claudian-accent: var(--claudian-brand-pi);
+  --claudian-accent-rgb: var(--claudian-brand-pi-rgb);
+}
+
+body.theme-light .claudian-multi-agent-modal[data-provider="grok"] {
+  --claudian-accent: var(--claudian-brand-grok);
+  --claudian-accent-rgb: var(--claudian-brand-grok-rgb);
+}

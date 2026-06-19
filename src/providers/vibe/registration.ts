@@ -24,4 +24,6 @@ export const vibeProviderRegistration: ProviderRegistration = {
   isEnabled: (settings) => getVibeProviderSettings(settings).enabled,
   settingsReconciler: vibeSettingsReconciler,
   taskResultInterpreter: new VibeTaskResultInterpreter(),
+  brandColor: '#7C3AED',
+  brandColorLight: '#F3EEFE',
 };

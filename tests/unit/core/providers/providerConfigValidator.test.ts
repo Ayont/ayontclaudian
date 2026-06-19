@@ -24,6 +24,7 @@ function createTestRegistration(overrides: Partial<ProviderRegistration> = {}): 
       supportsImageAttachments: false,
       supportsInstructionMode: false,
       supportsMcpTools: false,
+      supportsMultiAgent: false,
       reasoningControl: 'none',
     },
     chatUIConfig: {
