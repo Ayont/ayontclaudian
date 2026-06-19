@@ -8,7 +8,7 @@
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import type { ProviderCapabilities, ProviderId } from '../providers/types';
 
-export type BuiltInCommandAction = 'clear' | 'add-dir' | 'resume' | 'fork' | 'goal' | 'workflow';
+export type BuiltInCommandAction = 'clear' | 'add-dir' | 'resume' | 'fork' | 'goal' | 'workflow' | 'team';
 type BuiltInCommandCapability = 'supportsNativeHistory' | 'supportsFork';
 type BuiltInCommandSupportContext = ProviderId | Pick<ProviderCapabilities, BuiltInCommandCapability>;
 
@@ -71,6 +71,13 @@ export const BUILT_IN_COMMANDS: BuiltInCommand[] = [
     action: 'workflow',
     hasArgs: true,
     argumentHint: '[name] [args]',
+  },
+  {
+    name: 'team',
+    description: 'Run a multi-agent team on a task inline in chat',
+    action: 'team',
+    hasArgs: true,
+    argumentHint: '[task]',
   },
 ];
 
