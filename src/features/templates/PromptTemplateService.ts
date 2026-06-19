@@ -1,4 +1,4 @@
-import type { App } from 'obsidian';
+import type { App, TFile } from 'obsidian';
 
 /**
  * A reusable prompt template loaded from a Markdown note in the vault.
@@ -91,6 +91,24 @@ export function substituteTemplateVariables(template: string, ctx: TemplateConte
   });
 }
 
+function isFolder(file: unknown): file is { children: unknown[] } {
+  return (
+    typeof file === 'object' &&
+    file !== null &&
+    'children' in file &&
+    Array.isArray((file as { children?: unknown }).children)
+  );
+}
+
+function isMarkdownFile(file: unknown): file is { basename: string; extension: string; path: string } {
+  return (
+    typeof file === 'object' &&
+    file !== null &&
+    'extension' in file &&
+    (file as { extension?: unknown }).extension === 'md'
+  );
+}
+
 /** Loads prompt templates from both built-in definitions and the vault folder. */
 export class PromptTemplateService {
   constructor(private readonly app: App, private readonly folder: string = DEFAULT_TEMPLATE_FOLDER) {}
@@ -114,13 +132,13 @@ export class PromptTemplateService {
 
   private async loadVaultTemplates(): Promise<PromptTemplate[]> {
     const folder = this.app.vault.getAbstractFileByPath(this.folder);
-    if (!folder || !('children' in folder)) return [];
+    if (!folder || !isFolder(folder)) return [];
 
     const templates: PromptTemplate[] = [];
     for (const child of folder.children) {
-      if ('extension' in child && child.extension === 'md') {
+      if (isMarkdownFile(child)) {
         try {
-          const content = await this.app.vault.read(child);
+          const content = await this.app.vault.read(child as TFile);
           const { name, description, body } = this.parseTemplateFile(content, child.basename);
           templates.push({ name, description, body, filePath: child.path });
         } catch {

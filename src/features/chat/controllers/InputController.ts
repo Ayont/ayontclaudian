@@ -39,6 +39,7 @@ import { finishRunTimeline, recordRunTimelineChunk, startRunTimeline } from '../
 import { TOOL_EXIT_PLAN_MODE } from '../../../core/tools/toolNames';
 import type { ApprovalDecision, ChatMessage, ExitPlanModeDecision, StreamChunk } from '../../../core/types';
 import type { TemplateContext } from '../../../features/templates/PromptTemplateService';
+import type { VaultHealthResult } from '../../../features/templates/VaultHealthService';
 import type ClaudianPlugin from '../../../main';
 import { ResumeSessionDropdown } from '../../../shared/components/ResumeSessionDropdown';
 import { InstructionModal } from '../../../shared/modals/InstructionConfirmModal';
@@ -2072,7 +2073,7 @@ export class InputController {
         }
 
         const service = this.deps.plugin.vaultHealthService;
-        let result: import('../../../features/templates/VaultHealthService').VaultHealthResult;
+        let result: VaultHealthResult;
         switch (command) {
           case 'orphan-check':
             result = await service.orphanCheck();

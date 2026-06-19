@@ -109,11 +109,6 @@ import {
 import { ClaudianView } from './features/chat/ClaudianView';
 import { ImageStagingService } from './features/chat/services/ImageStagingService';
 import type { TabData } from './features/chat/tabs/types';
-import {
-  DEFAULT_TEMPLATE_FOLDER,
-  PromptTemplateService,
-} from './features/templates/PromptTemplateService';
-import { VaultHealthService } from './features/templates/VaultHealthService';
 import { ModelSelectModal } from './features/chat/ui/ModelSelectModal';
 import { ProviderStatusBar } from './features/chat/ui/ProviderStatusBar';
 import { ClaudianDashboardView, VIEW_TYPE_CLAUDIAN_DASHBOARD } from './features/dashboard/ClaudianDashboardView';
