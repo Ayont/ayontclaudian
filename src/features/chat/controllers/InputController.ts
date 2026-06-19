@@ -1,4 +1,4 @@
-import { Notice, setIcon } from 'obsidian';
+import { Notice, setIcon, type TFile } from 'obsidian';
 
 import {
   type BuiltInCommand,
@@ -48,6 +48,7 @@ import { formatDurationMmSs } from '../../../utils/date';
 import type { EditorSelectionContext } from '../../../utils/editor';
 import { appendMarkdownSnippet } from '../../../utils/markdown';
 import { COMPLETION_FLAVOR_WORDS } from '../constants';
+import type { TemplateContext } from '../../../features/templates/PromptTemplateService';
 import { resolveAutoQuestionAnswers, summarizeAutoAnswers } from '../rendering/autoQuestionAnswer';
 import { renderDiffContent, renderDiffStats } from '../rendering/DiffRenderer';
 import { type InlineAskQuestionConfig, InlineAskUserQuestion } from '../rendering/InlineAskUserQuestion';
@@ -1238,6 +1239,33 @@ export class InputController {
     this.awaitingProviderAssistantStart = false;
   }
 
+  private async buildTemplateContext(): Promise<TemplateContext> {
+    const ctx: TemplateContext = {};
+
+    const selectionContext = this.deps.selectionController.getContext();
+    if (selectionContext?.selectedText) {
+      ctx.selection = selectionContext.selectedText;
+    }
+
+    const fileContextManager = this.deps.getFileContextManager();
+    const currentNotePath = fileContextManager?.getCurrentNotePath?.() ?? null;
+    if (currentNotePath) {
+      try {
+        const file = this.deps.plugin.app.vault.getAbstractFileByPath(currentNotePath);
+        if (file && 'extension' in file) {
+          ctx.noteContent = await this.deps.plugin.app.vault.read(file as TFile);
+          ctx.noteTitle = file.name.replace(/\.md$/, '');
+          const cache = this.deps.plugin.app.metadataCache.getFileCache(file as TFile);
+          ctx.noteTags = cache?.tags?.map((tag) => tag.tag) ?? [];
+        }
+      } catch {
+        // Best-effort context build.
+      }
+    }
+
+    return ctx;
+  }
+
   private async handleProviderMessageBoundaryChunk(chunk: StreamChunk): Promise<boolean> {
     switch (chunk.type) {
       case 'user_message_start':
@@ -2008,6 +2036,71 @@ export class InputController {
           new Notice(`Team fehlgeschlagen: ${message}`);
           await this.deps.streamController.appendText(`\n\n**Team Error:** ${message}\n`);
         }
+        break;
+      }
+      case 'template': {
+        const inputEl = this.deps.getInputEl();
+        const name = args.trim();
+        if (!name) {
+          new Notice('Usage: /template <name>');
+          return;
+        }
+
+        const service = this.deps.plugin.promptTemplateService;
+        const templates = await service.listTemplates();
+        const template = service.getTemplate(name, templates);
+        if (!template) {
+          new Notice(`Template nicht gefunden: ${name}`);
+          return;
+        }
+
+        const ctx = await this.buildTemplateContext();
+        const expanded = service.expand(template, ctx);
+        inputEl.value = expanded;
+        inputEl.focus();
+        this.deps.resetInputHeight();
+        new Notice(`Template eingefügt: ${template.name}`);
+        break;
+      }
+      case 'vault-health': {
+        const inputEl = this.deps.getInputEl();
+        const command = args.trim() || 'orphan-check';
+        const validCommands = ['orphan-check', 'tag-dedupe', 'link-suggest', 'dedupe'] as const;
+        if (!validCommands.includes(command as typeof validCommands[number])) {
+          new Notice(`Unknown vault-health command: ${command}`);
+          return;
+        }
+
+        const service = this.deps.plugin.vaultHealthService;
+        let result: import('../../../features/templates/VaultHealthService').VaultHealthResult;
+        switch (command) {
+          case 'orphan-check':
+            result = await service.orphanCheck();
+            break;
+          case 'tag-dedupe':
+            result = await service.tagDedupe();
+            break;
+          case 'link-suggest':
+            result = await service.linkSuggest();
+            break;
+          case 'dedupe':
+            result = await service.dedupe();
+            break;
+          default:
+            throw new Error('unreachable');
+        }
+
+        const lines = [
+          `## Vault Health: ${result.command}`,
+          '',
+          result.summary,
+          '',
+          ...result.items.map((item) => `- **${item.severity.toUpperCase()}** ${item.path}: ${item.description}`),
+        ];
+        inputEl.value = lines.join('\n');
+        inputEl.focus();
+        this.deps.resetInputHeight();
+        new Notice(`Vault Health fertig: ${result.summary}`);
         break;
       }
       default: {

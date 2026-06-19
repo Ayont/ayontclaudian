@@ -109,6 +109,11 @@ import {
 import { ClaudianView } from './features/chat/ClaudianView';
 import { ImageStagingService } from './features/chat/services/ImageStagingService';
 import type { TabData } from './features/chat/tabs/types';
+import {
+  DEFAULT_TEMPLATE_FOLDER,
+  PromptTemplateService,
+} from './features/templates/PromptTemplateService';
+import { VaultHealthService } from './features/templates/VaultHealthService';
 import { ModelSelectModal } from './features/chat/ui/ModelSelectModal';
 import { ProviderStatusBar } from './features/chat/ui/ProviderStatusBar';
 import { ClaudianDashboardView, VIEW_TYPE_CLAUDIAN_DASHBOARD } from './features/dashboard/ClaudianDashboardView';
@@ -150,6 +155,8 @@ export default class ClaudianPlugin extends Plugin {
   missionStateStorage!: IMissionStateStorage;
   visionService!: VisionService;
   imageStagingService!: ImageStagingService;
+  promptTemplateService!: PromptTemplateService;
+  vaultHealthService!: VaultHealthService;
 
   async onload() {
     await this.loadSettings();
@@ -160,6 +167,13 @@ export default class ClaudianPlugin extends Plugin {
     void this.imageStagingService.cleanup(7).catch(() => {
       // Best-effort cleanup on startup.
     });
+
+    // Initialize prompt templates and vault health services.
+    this.promptTemplateService = new PromptTemplateService(
+      this.app,
+      this.settings.promptTemplateFolder ?? DEFAULT_TEMPLATE_FOLDER,
+    );
+    this.vaultHealthService = new VaultHealthService(this.app);
 
     await ProviderWorkspaceRegistry.initializeAll(this);
 
