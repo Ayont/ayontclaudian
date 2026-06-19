@@ -1,3 +1,5 @@
+import type { Vault } from 'obsidian';
+
 import { ImageStagingService } from '@/features/chat/services/ImageStagingService';
 
 function createMockVault() {
@@ -27,7 +29,7 @@ function createMockVault() {
         files.delete(path);
       }),
     },
-  } as unknown as import('obsidian').Vault;
+  } as unknown as Vault;
 }
 
 describe('ImageStagingService', () => {
@@ -36,7 +38,7 @@ describe('ImageStagingService', () => {
 
   beforeEach(() => {
     vault = createMockVault();
-    service = new ImageStagingService(vault as unknown as import('obsidian').Vault);
+    service = new ImageStagingService(vault as unknown as Vault);
   });
 
   it('saves and loads an image', async () => {

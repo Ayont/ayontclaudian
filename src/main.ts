@@ -97,8 +97,8 @@ import {
   workflowPathForName,
 } from './core/workflows/promptWorkflows';
 import { ClaudianView } from './features/chat/ClaudianView';
-import type { TabData } from './features/chat/tabs/types';
 import { ImageStagingService } from './features/chat/services/ImageStagingService';
+import type { TabData } from './features/chat/tabs/types';
 import { ModelSelectModal } from './features/chat/ui/ModelSelectModal';
 import { ProviderStatusBar } from './features/chat/ui/ProviderStatusBar';
 import { ClaudianDashboardView, VIEW_TYPE_CLAUDIAN_DASHBOARD } from './features/dashboard/ClaudianDashboardView';
