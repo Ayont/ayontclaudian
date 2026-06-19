@@ -386,9 +386,9 @@ export class InputController {
     const isCompact = /^\/compact(\s|$)/i.test(content);
 
     // Only clear images if we consumed user input (not for programmatic content override).
-    // Pass clearStaging=true so the persisted copies are also removed.
+    // Keep staged copies so images remain available for reuse after sending.
     if (shouldUseInput) {
-      imageContextManager?.clearImages(true);
+      imageContextManager?.clearImages();
     }
 
     const turnSubmission = options?.turnRequestOverride
