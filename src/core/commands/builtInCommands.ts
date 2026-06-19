@@ -8,7 +8,7 @@
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import type { ProviderCapabilities, ProviderId } from '../providers/types';
 
-export type BuiltInCommandAction = 'clear' | 'add-dir' | 'resume' | 'fork' | 'goal' | 'workflow' | 'team';
+export type BuiltInCommandAction = 'clear' | 'add-dir' | 'resume' | 'fork' | 'goal' | 'workflow' | 'team' | 'template' | 'vault-health';
 type BuiltInCommandCapability = 'supportsNativeHistory' | 'supportsFork';
 type BuiltInCommandSupportContext = ProviderId | Pick<ProviderCapabilities, BuiltInCommandCapability>;
 
@@ -78,6 +78,22 @@ export const BUILT_IN_COMMANDS: BuiltInCommand[] = [
     action: 'team',
     hasArgs: true,
     argumentHint: '[task]',
+  },
+  {
+    name: 'template',
+    aliases: ['tpl'],
+    description: 'Insert a reusable prompt template',
+    action: 'template',
+    hasArgs: true,
+    argumentHint: '[name]',
+  },
+  {
+    name: 'vault-health',
+    aliases: ['vh'],
+    description: 'Run a vault health check',
+    action: 'vault-health',
+    hasArgs: true,
+    argumentHint: '[orphan-check|tag-dedupe|link-suggest|dedupe]',
   },
 ];
 
