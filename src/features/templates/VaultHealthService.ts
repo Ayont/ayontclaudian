@@ -1,4 +1,4 @@
-import { type App, TFile, type TFolder } from 'obsidian';
+import type { App } from 'obsidian';
 
 export interface VaultHealthResult {
   command: string;

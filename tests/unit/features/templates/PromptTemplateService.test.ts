@@ -1,4 +1,4 @@
-import { TFile, type App, type TFolder } from 'obsidian';
+import type { App, TFile, TFolder } from 'obsidian';
 
 import {
   BUILT_IN_TEMPLATES,
@@ -19,7 +19,7 @@ function createMockApp(templates: Record<string, string> = {}): App {
     parent: null,
   } as unknown as TFolder;
 
-  for (const [path, content] of files) {
+  for (const [path] of files) {
     const file: TFile = {
       path,
       name: path.split('/').pop() || path,

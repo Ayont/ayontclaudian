@@ -120,6 +120,11 @@ import { ClaudianDashboardView, VIEW_TYPE_CLAUDIAN_DASHBOARD } from './features/
 import { type InlineEditContext, InlineEditModal } from './features/inline-edit/ui/InlineEditModal';
 import { MultiAgentModal } from './features/multiAgent/MultiAgentModal';
 import { ClaudianSettingTab } from './features/settings/ClaudianSettings';
+import {
+  DEFAULT_TEMPLATE_FOLDER,
+  PromptTemplateService,
+} from './features/templates/PromptTemplateService';
+import { VaultHealthService } from './features/templates/VaultHealthService';
 import { setLocale } from './i18n/i18n';
 import type { Locale } from './i18n/types';
 import { OPENCODE_PLAN_MODE_ID, OPENCODE_SAFE_MODE_ID } from './providers/opencode/modes';

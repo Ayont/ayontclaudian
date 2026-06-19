@@ -1,4 +1,4 @@
-import { TFile, type App, type CachedMetadata } from 'obsidian';
+import type { App, CachedMetadata, TFile } from 'obsidian';
 
 import { VaultHealthService } from '@/features/templates/VaultHealthService';
 

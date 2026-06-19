@@ -1,4 +1,4 @@
-import type { App, TFile } from 'obsidian';
+import type { App } from 'obsidian';
 
 /**
  * A reusable prompt template loaded from a Markdown note in the vault.
