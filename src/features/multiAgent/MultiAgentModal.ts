@@ -1,17 +1,45 @@
 import { Modal, Notice, setIcon } from 'obsidian';
 
-import type { MultiAgentProgress, SpecialistAgent } from '../../core/intelligence/multiAgent/MultiAgentService';
+import { globalEventBus } from '../../core/events/EventBus';
+import type {
+  AgentProgress,
+  MissionProgress,
+  SpecialistAgent,
+  SynthesisContribution,
+} from '../../core/intelligence/multiAgent/MultiAgentService';
 import type ClaudianPlugin from '../../main';
 
+interface AgentCardRefs {
+  card: HTMLElement;
+  statusEl: HTMLElement;
+  progressBar: HTMLElement;
+  metaEl: HTMLElement;
+  outputEl: HTMLElement;
+  startedAt: number | null;
+}
+
+/**
+ * Multi-Agent Mission control: the user types a task, a team of specialists runs
+ * it in parallel with live streaming + token/time metrics, and a lead coordinator
+ * synthesizes one final answer. Emits mission events on the global bus so the
+ * dashboard reflects activity in real time.
+ */
 export class MultiAgentModal extends Modal {
-  private container: HTMLElement | null = null;
-  private agentCards = new Map<string, HTMLElement>();
+  private readonly missionId = `ma-${Date.now()}`;
+  private gridEl: HTMLElement | null = null;
   private overallBar: HTMLElement | null = null;
   private statusText: HTMLElement | null = null;
-  private outputPreview: HTMLElement | null = null;
+  private promptInput: HTMLTextAreaElement | null = null;
+  private launchBtn: HTMLButtonElement | null = null;
+  private synthEl: HTMLElement | null = null;
+  private synthBodyEl: HTMLElement | null = null;
+  private readonly cards = new Map<string, AgentCardRefs>();
+  private tickTimer: number | null = null;
+  private running = false;
 
   constructor(
     private readonly plugin: ClaudianPlugin,
+    private readonly initialPrompt = '',
   ) {
     super(plugin.app);
     this.modalEl.addClass('claudian-multi-agent-modal');
@@ -26,40 +54,66 @@ export class MultiAgentModal extends Modal {
     const icon = titleGroup.createSpan({ cls: 'claudian-multi-agent-logo' });
     setIcon(icon, 'users');
     titleGroup.createEl('h2', { text: 'Multi-Agent Mission' });
+    this.statusText = header.createSpan({ cls: 'claudian-multi-agent-status', text: 'Beschreibe die Mission und starte das Team.' });
 
-    this.statusText = header.createSpan({ cls: 'claudian-multi-agent-status', text: 'Preparing agents…' });
+    this.renderPromptSection(contentEl);
 
-    this.container = contentEl.createDiv({ cls: 'claudian-multi-agent-grid' });
+    this.gridEl = contentEl.createDiv({ cls: 'claudian-multi-agent-grid' });
+    this.renderAgentCards();
 
     const progressWrapper = contentEl.createDiv({ cls: 'claudian-multi-agent-progress' });
-    progressWrapper.createSpan({ text: 'Overall progress' });
+    progressWrapper.createSpan({ text: 'Gesamtfortschritt' });
     const barTrack = progressWrapper.createDiv({ cls: 'claudian-multi-agent-progress-track' });
     this.overallBar = barTrack.createDiv({ cls: 'claudian-multi-agent-progress-bar' });
 
-    this.outputPreview = contentEl.createDiv({ cls: 'claudian-multi-agent-output' });
-    this.outputPreview.createEl('h4', { text: 'Live Output' });
-    this.outputPreview.createEl('p', { cls: 'claudian-multi-agent-output-empty', text: 'Waiting for agents to report…' });
+    this.synthEl = contentEl.createDiv({ cls: 'claudian-multi-agent-synthesis claudian-hidden' });
+    const synthHead = this.synthEl.createDiv({ cls: 'claudian-multi-agent-synthesis-head' });
+    const synthIcon = synthHead.createSpan();
+    setIcon(synthIcon, 'sparkles');
+    synthHead.createEl('h4', { text: 'Synthese' });
+    this.synthBodyEl = this.synthEl.createDiv({ cls: 'claudian-multi-agent-synthesis-body' });
 
     const footer = contentEl.createDiv({ cls: 'claudian-multi-agent-footer' });
-    const cancelBtn = footer.createEl('button', { text: 'Close' });
-    cancelBtn.addEventListener('click', () => this.close());
+    const closeBtn = footer.createEl('button', { text: 'Schließen' });
+    closeBtn.addEventListener('click', () => this.close());
+  }
 
-    this.renderAgentCards();
+  onClose(): void {
+    this.stopTicker();
+  }
+
+  private renderPromptSection(parent: HTMLElement): void {
+    const wrap = parent.createDiv({ cls: 'claudian-multi-agent-prompt' });
+    this.promptInput = wrap.createEl('textarea', {
+      cls: 'claudian-multi-agent-prompt-input',
+      attr: { rows: '3', placeholder: 'Was soll das Agenten-Team erledigen?' },
+    });
+    this.promptInput.value = this.initialPrompt;
+
+    this.launchBtn = wrap.createEl('button', { cls: 'claudian-multi-agent-launch' });
+    setIcon(this.launchBtn.createSpan(), 'rocket');
+    this.launchBtn.createSpan({ text: 'Mission starten' });
+    this.launchBtn.addEventListener('click', () => void this.launch());
+
+    this.promptInput.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        void this.launch();
+      }
+    });
   }
 
   private renderAgentCards(): void {
-    if (!this.container) return;
-    this.container.empty();
-    this.agentCards.clear();
+    if (!this.gridEl) return;
+    this.gridEl.empty();
+    this.cards.clear();
 
-    const agents = this.plugin.multiAgentService.listAgents();
-    for (const agent of agents) {
-      const card = this.container.createDiv({ cls: 'claudian-multi-agent-card' });
+    for (const agent of this.plugin.multiAgentService.listAgents()) {
+      const card = this.gridEl.createDiv({ cls: 'claudian-multi-agent-card claudian-multi-agent-card--pending' });
       card.setAttribute('data-agent-id', agent.id);
 
       const avatar = card.createDiv({ cls: 'claudian-multi-agent-avatar' });
-      const avatarIcon = avatar.createSpan();
-      setIcon(avatarIcon, agent.icon ?? 'user');
+      setIcon(avatar.createSpan(), agent.icon ?? 'user');
       const color = agent.color ?? 'var(--interactive-accent)';
       avatar.style.setProperty('--agent-color', color);
       avatar.style.setProperty('--agent-color-rgb', MultiAgentModal.hexToRgb(color) ?? '124, 58, 237');
@@ -68,106 +122,167 @@ export class MultiAgentModal extends Modal {
       info.createEl('h4', { text: agent.name });
       info.createEl('span', { cls: 'claudian-multi-agent-role', text: agent.role });
 
-      const status = card.createDiv({ cls: 'claudian-multi-agent-card-status', text: 'Pending' });
+      const statusEl = card.createDiv({ cls: 'claudian-multi-agent-card-status', text: 'Bereit' });
+      const metaEl = card.createDiv({ cls: 'claudian-multi-agent-card-meta' });
 
       const progressTrack = card.createDiv({ cls: 'claudian-multi-agent-card-progress-track' });
       const progressBar = progressTrack.createDiv({ cls: 'claudian-multi-agent-card-progress-bar' });
 
-      const output = card.createDiv({ cls: 'claudian-multi-agent-card-output claudian-hidden' });
+      const outputEl = card.createDiv({ cls: 'claudian-multi-agent-card-output claudian-hidden' });
 
-      this.agentCards.set(agent.id, card);
-
-      card.dataset.agentName = agent.name;
-      card.dataset.agentOutput = '';
-      card.dataset.agentStatus = 'pending';
-
-      Object.assign(card, { _progressBar: progressBar, _statusEl: status, _outputEl: output });
+      this.cards.set(agent.id, { card, statusEl, progressBar, metaEl, outputEl, startedAt: null });
     }
   }
 
-  updateProgress(progress: MultiAgentProgress): void {
-    if (!this.overallBar || !this.statusText) return;
+  private async launch(): Promise<void> {
+    if (this.running) return;
+    const prompt = this.promptInput?.value.trim() ?? '';
+    if (!prompt) {
+      new Notice('Bitte zuerst eine Mission beschreiben.');
+      this.promptInput?.focus();
+      return;
+    }
 
-    this.overallBar.style.width = `${progress.overall}%`;
+    this.running = true;
+    this.setControlsDisabled(true);
+    this.startTicker();
 
-    switch (progress.status) {
-      case 'running':
-        this.statusText.textContent = 'Agents are working…';
-        this.statusText.className = 'claudian-multi-agent-status claudian-multi-agent-status--running';
-        break;
-      case 'completed':
-        this.statusText.textContent = 'Mission completed';
-        this.statusText.className = 'claudian-multi-agent-status claudian-multi-agent-status--done';
-        break;
-      case 'error':
-        this.statusText.textContent = 'Mission completed with errors';
-        this.statusText.className = 'claudian-multi-agent-status claudian-multi-agent-status--error';
-        break;
-      default:
-        this.statusText.textContent = 'Preparing agents…';
+    const agents = this.plugin.multiAgentService.listAgents();
+    const task = { id: this.missionId, prompt, agents: agents.map((a) => a.id) };
+
+    globalEventBus.emit('mission:started', { id: this.missionId, prompt, agents: agents.length });
+
+    try {
+      const outcome = await this.plugin.multiAgentService.runMission(
+        task,
+        {
+          execute: (agent: SpecialistAgent, taskPrompt, onChunk) =>
+            this.plugin.runAgentPrompt(agent, taskPrompt, (chunk) => onChunk(agent.id, chunk)),
+        },
+        {
+          synthesize: (taskPrompt, contributions: SynthesisContribution[], onChunk) =>
+            this.plugin.runSynthesisPrompt(
+              taskPrompt,
+              contributions.map((c) => ({ agent: { name: c.agent.name, role: c.agent.role }, output: c.output })),
+              onChunk,
+            ),
+        },
+        (progress) => this.updateMissionProgress(progress),
+      );
+
+      const content = this.buildResultMarkdown(prompt, outcome.results, outcome.synthesis);
+      const filePath = `.claudian/multi-agent-${Date.now()}.md`;
+      await this.plugin.app.vault.create(filePath, content);
+      new Notice(`Mission gespeichert: ${filePath}`);
+      globalEventBus.emit('mission:completed', { id: this.missionId, agents: outcome.results.length, ok: true });
+    } catch (error) {
+      new Notice(`Mission fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`);
+      globalEventBus.emit('mission:completed', { id: this.missionId, agents: 0, ok: false });
+    } finally {
+      this.running = false;
+      this.stopTicker();
+      this.setControlsDisabled(false);
+    }
+  }
+
+  private updateMissionProgress(progress: MissionProgress): void {
+    globalEventBus.emit('mission:progress', { id: this.missionId, overall: progress.overall, status: progress.status });
+
+    if (this.overallBar) this.overallBar.style.width = `${progress.overall}%`;
+    if (this.statusText) {
+      const label =
+        progress.status === 'synthesizing' ? 'Synthese läuft…'
+          : progress.status === 'completed' ? 'Mission abgeschlossen'
+            : progress.status === 'error' ? 'Mission mit Fehlern beendet'
+              : 'Agenten arbeiten…';
+      this.statusText.textContent = label;
+      this.statusText.className = `claudian-multi-agent-status claudian-multi-agent-status--${progress.status}`;
     }
 
     for (const agentProgress of progress.agents) {
       this.updateAgentCard(agentProgress);
     }
 
-    this.updateOutputPreview();
+    if (progress.synthesis) {
+      this.showSynthesis(progress.synthesis.output);
+    }
   }
 
-  private updateAgentCard(progress: { agentId: string; status: string; progress: number; output?: string }): void {
-    const card = this.agentCards.get(progress.agentId);
-    if (!card) return;
+  private updateAgentCard(progress: AgentProgress): void {
+    const refs = this.cards.get(progress.agentId);
+    if (!refs) return;
 
-    const progressBar = (card as unknown as { _progressBar: HTMLElement })._progressBar;
-    const statusEl = (card as unknown as { _statusEl: HTMLElement })._statusEl;
-    const outputEl = (card as unknown as { _outputEl: HTMLElement })._outputEl;
+    if (progress.status === 'running' && refs.startedAt === null) {
+      refs.startedAt = Date.now();
+    }
+    if (progress.status === 'done' || progress.status === 'error') {
+      refs.startedAt = null;
+    }
 
-    progressBar.style.width = `${progress.progress}%`;
+    refs.progressBar.style.width = `${progress.progress}%`;
+    refs.card.removeClass(
+      'claudian-multi-agent-card--pending',
+      'claudian-multi-agent-card--running',
+      'claudian-multi-agent-card--done',
+      'claudian-multi-agent-card--error',
+    );
+    refs.card.addClass(`claudian-multi-agent-card--${progress.status}`);
 
-    card.removeClass('claudian-multi-agent-card--pending');
-    card.removeClass('claudian-multi-agent-card--running');
-    card.removeClass('claudian-multi-agent-card--done');
-    card.removeClass('claudian-multi-agent-card--error');
-    card.addClass(`claudian-multi-agent-card--${progress.status}`);
+    const statusLabel: Record<string, string> = { pending: 'Bereit', running: 'Arbeitet', done: 'Fertig', error: 'Fehler' };
+    refs.statusEl.textContent = statusLabel[progress.status] ?? progress.status;
 
-    statusEl.textContent = progress.status.charAt(0).toUpperCase() + progress.status.slice(1);
+    const tokens = progress.tokens ?? 0;
+    const duration = progress.durationMs ? `${(progress.durationMs / 1000).toFixed(1)}s` : this.liveElapsed(refs);
+    refs.metaEl.setText(`${tokens} tok${duration ? ` · ${duration}` : ''}`);
 
     if (progress.output) {
-      outputEl.removeClass('claudian-hidden');
-      outputEl.textContent = progress.output;
-    }
-
-    card.dataset.agentStatus = progress.status;
-    card.dataset.agentOutput = progress.output ?? '';
-  }
-
-  private updateOutputPreview(): void {
-    if (!this.outputPreview) return;
-
-    const lines: string[] = [];
-    for (const card of this.agentCards.values()) {
-      const status = card.dataset.agentStatus ?? 'pending';
-      const name = card.dataset.agentName ?? 'Agent';
-      const output = card.dataset.agentOutput ?? '';
-      const icon = status === 'done' ? '✓' : status === 'error' ? '✕' : status === 'running' ? '●' : '○';
-      lines.push(`${icon} **${name}**${output ? `: ${output}` : ''}`);
-    }
-
-    this.outputPreview.empty();
-    this.outputPreview.createEl('h4', { text: 'Live Output' });
-    if (lines.length === 0 || lines.every((l) => !l.includes(':'))) {
-      this.outputPreview.createEl('p', { cls: 'claudian-multi-agent-output-empty', text: 'Waiting for agents to report…' });
-    } else {
-      this.outputPreview.createEl('div', { cls: 'claudian-multi-agent-output-list' }).innerHTML = lines.join('<br>');
+      refs.outputEl.removeClass('claudian-hidden');
+      refs.outputEl.textContent = progress.output;
+      refs.outputEl.scrollTop = refs.outputEl.scrollHeight;
     }
   }
 
-  setFinalResult(content: string): void {
-    if (!this.outputPreview) return;
-    this.outputPreview.empty();
-    this.outputPreview.createEl('h4', { text: 'Final Result' });
-    const body = this.outputPreview.createEl('div', { cls: 'claudian-multi-agent-final-result' });
-    body.textContent = content.slice(0, 2000);
+  private showSynthesis(output: string): void {
+    if (!this.synthEl || !this.synthBodyEl) return;
+    if (!output) return;
+    this.synthEl.removeClass('claudian-hidden');
+    this.synthBodyEl.textContent = output;
+    this.synthBodyEl.scrollTop = this.synthBodyEl.scrollHeight;
+  }
+
+  private liveElapsed(refs: AgentCardRefs): string {
+    if (refs.startedAt === null) return '';
+    return `${((Date.now() - refs.startedAt) / 1000).toFixed(1)}s`;
+  }
+
+  private startTicker(): void {
+    this.stopTicker();
+    this.tickTimer = window.setInterval(() => {
+      for (const refs of this.cards.values()) {
+        if (refs.startedAt !== null) {
+          const tokens = refs.metaEl.textContent?.split(' tok')[0] ?? '0';
+          refs.metaEl.setText(`${tokens} tok · ${this.liveElapsed(refs)}`);
+        }
+      }
+    }, 250);
+  }
+
+  private stopTicker(): void {
+    if (this.tickTimer !== null) {
+      window.clearInterval(this.tickTimer);
+      this.tickTimer = null;
+    }
+  }
+
+  private setControlsDisabled(disabled: boolean): void {
+    if (this.launchBtn) this.launchBtn.disabled = disabled;
+    if (this.promptInput) this.promptInput.disabled = disabled;
+  }
+
+  private buildResultMarkdown(prompt: string, results: { agentId: string; output: string }[], synthesis: string): string {
+    const specialist = results.map((r) => `## ${r.agentId}\n\n${r.output}`).join('\n\n');
+    const synthSection = synthesis ? `# Synthese\n\n${synthesis}\n\n` : '';
+    return `# Multi-Agent Mission\n\n**Aufgabe:** ${prompt}\n\n${synthSection}---\n\n# Einzelbeiträge\n\n${specialist}`;
   }
 
   private static hexToRgb(hex: string): string | null {
@@ -187,35 +302,8 @@ export class MultiAgentModal extends Modal {
     return null;
   }
 
-  static async runTask(plugin: ClaudianPlugin, prompt: string): Promise<void> {
-    const modal = new MultiAgentModal(plugin);
-    modal.open();
-
-    try {
-      const agents = plugin.multiAgentService.listAgents().map((a) => a.id);
-      const results = await plugin.multiAgentService.runTask(
-        { id: `ma-${Date.now()}`, prompt, agents },
-        {
-          execute: async (agent: SpecialistAgent, taskPrompt: string, onChunk) => {
-            return plugin.runAgentPrompt(agent, taskPrompt, (chunk) => onChunk(agent.id, chunk));
-          },
-        },
-        (progress) => modal.updateProgress(progress),
-      );
-
-      const content = `# Multi-Agent Results\n\n${results.map((r) => `## ${r.agentId}\n\n${r.output}`).join('\n\n')}`;
-      const filePath = `.claudian/multi-agent-${Date.now()}.md`;
-      await plugin.app.vault.create(filePath, content);
-      modal.setFinalResult(`Saved results to ${filePath}`);
-      new Notice(`Multi-agent results written to ${filePath}`);
-    } catch (error) {
-      modal.updateProgress({
-        taskId: 'ma-error',
-        status: 'error',
-        overall: 100,
-        agents: [],
-      });
-      new Notice(`Multi-agent failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
+  /** Opens the mission console, optionally pre-filled with a task prompt. */
+  static open(plugin: ClaudianPlugin, initialPrompt = ''): void {
+    new MultiAgentModal(plugin, initialPrompt).open();
   }
 }

@@ -107,5 +107,55 @@
       </div>
     </div>
   </div>
+
+  <!-- Multi-agent mission card (running) -->
+  <div class="harness-section" data-vis="mission-card">
+    <div class="harness-label">Mission card (running)</div>
+    <div class="claudian-multi-agent-card claudian-multi-agent-card--running" style="max-width:280px">
+      <div class="claudian-multi-agent-avatar" style="--agent-color:#60a5fa;--agent-color-rgb:96,165,250">
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 16 4-4-4-4M6 8l-4 4 4 4M14.5 4l-5 16"/></svg></span>
+      </div>
+      <div class="claudian-multi-agent-info"><h4>Coder</h4><span class="claudian-multi-agent-role">code</span></div>
+      <div class="claudian-multi-agent-card-status">Arbeitet</div>
+      <div class="claudian-multi-agent-card-meta">128 tok · 2.4s</div>
+      <div class="claudian-multi-agent-card-progress-track"><div class="claudian-multi-agent-card-progress-bar" style="width:64%"></div></div>
+      <div class="claudian-multi-agent-card-output">Implementing the parser and wiring the events…</div>
+    </div>
+  </div>
+
+  <!-- Synthesis panel -->
+  <div class="harness-section" data-vis="synthesis">
+    <div class="harness-label">Synthesis panel</div>
+    <div class="claudian-multi-agent-synthesis">
+      <div class="claudian-multi-agent-synthesis-head">
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.9 5.8-5.8 1.9 5.8 1.9L12 18l1.9-5.4 5.8-1.9-5.8-1.9z"/></svg></span>
+        <h4>Synthese</h4>
+      </div>
+      <div class="claudian-multi-agent-synthesis-body">Kombiniertes Ergebnis aller Spezialisten: ein kohärenter, deduplizierter Plan.</div>
+    </div>
+  </div>
+
+  <!-- Dashboard activity feed -->
+  <div class="harness-section" data-vis="activity-feed">
+    <div class="harness-label">Activity feed</div>
+    <div class="claudian-dashboard-activity" style="max-width:420px">
+      <div class="claudian-dashboard-activity-head">
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
+        <h3>Live-Aktivität</h3>
+      </div>
+      <div class="claudian-dashboard-activity-feed">
+        <div class="claudian-dashboard-activity-item claudian-dashboard-activity-item--mission">
+          <span class="claudian-dashboard-activity-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4.5 16.5 3 22l5.5-1.5"/></svg></span>
+          <span class="claudian-dashboard-activity-text">Mission gestartet (3 Agents)</span>
+          <span class="claudian-dashboard-activity-time">vor 2s</span>
+        </div>
+        <div class="claudian-dashboard-activity-item claudian-dashboard-activity-item--memory">
+          <span class="claudian-dashboard-activity-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/></svg></span>
+          <span class="claudian-dashboard-activity-text">Memory aktualisiert: Architektur</span>
+          <span class="claudian-dashboard-activity-time">vor 9s</span>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

@@ -9,7 +9,10 @@ export type ClaudianEventType =
   | 'workflow:trigger'
   | 'agent:run-started'
   | 'agent:run-completed'
-  | 'agent:run-error';
+  | 'agent:run-error'
+  | 'mission:started'
+  | 'mission:progress'
+  | 'mission:completed';
 
 export interface ClaudianEvent<T = unknown> {
   type: ClaudianEventType;

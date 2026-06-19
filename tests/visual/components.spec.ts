@@ -5,7 +5,15 @@ import { expect, test } from '@playwright/test';
 
 const HARNESS_URL = pathToFileURL(path.join(__dirname, 'components.html')).href;
 
-const SECTIONS = ['goal-banner', 'permission-toggle', 'statusbar', 'switch-model'] as const;
+const SECTIONS = [
+  'goal-banner',
+  'permission-toggle',
+  'statusbar',
+  'switch-model',
+  'mission-card',
+  'synthesis',
+  'activity-feed',
+] as const;
 
 test.beforeEach(async ({ page }) => {
   await page.goto(HARNESS_URL);

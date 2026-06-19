@@ -647,9 +647,40 @@ export default class ClaudianPlugin extends Plugin {
     prompt: string,
     onChunk?: (chunk: string) => void,
   ): Promise<string> {
+    const fullPrompt = `${agent.systemPrompt}\n\nUser request: ${prompt}\n\nRespond as ${agent.name}.`;
+    return this.runRawPrompt(fullPrompt, onChunk, agent.model);
+  }
+
+  /**
+   * Synthesis pass: a lead coordinator merges several specialists' independent
+   * answers to the same task into one coherent, de-duplicated final answer.
+   */
+  async runSynthesisPrompt(
+    prompt: string,
+    contributions: { agent: { name: string; role: string }; output: string }[],
+    onChunk?: (chunk: string) => void,
+  ): Promise<string> {
+    const sections = contributions
+      .map((c) => `### ${c.agent.name} (${c.agent.role})\n${c.output}`)
+      .join('\n\n');
+    const synthPrompt =
+      'You are the lead coordinator of a team of specialist agents. They each answered the ' +
+      'SAME task independently. Synthesize their contributions into ONE coherent, ' +
+      'de-duplicated, actionable answer: resolve conflicts, keep the strongest insights, and be concise.\n\n' +
+      `## Task\n${prompt}\n\n## Specialist contributions\n${sections}\n\n## Final synthesized answer:`;
+    return this.runRawPrompt(synthPrompt, onChunk);
+  }
+
+  /** Runs a raw prompt on the active provider runtime, streaming text via onChunk. */
+  private async runRawPrompt(
+    fullPrompt: string,
+    onChunk?: (chunk: string) => void,
+    modelOverride?: string,
+  ): Promise<string> {
     const tab = this.getView()?.getActiveTab();
     const providerId = tab?.providerId ?? ProviderRegistry.resolveSettingsProviderId(this.settings);
-    const model = agent.model ?? tab?.ui.modelSelector?.getCurrentModelLabel() ?? this.getTabModel(providerId);
+    // Use the real model VALUE (not the selector's display label) so query() routes correctly.
+    const model = modelOverride ?? this.getTabModel(providerId);
 
     const runtime = ProviderRegistry.createChatRuntime({ plugin: this, providerId });
     try {
@@ -657,7 +688,6 @@ export default class ClaudianPlugin extends Plugin {
       if (!ready) {
         throw new Error(`Provider ${ProviderRegistry.getProviderDisplayName(providerId)} is not ready.`);
       }
-      const fullPrompt = `${agent.systemPrompt}\n\nUser request: ${prompt}\n\nRespond as ${agent.name}.`;
       const prepared = runtime.prepareTurn({ text: fullPrompt });
       let text = '';
       for await (const chunk of runtime.query(prepared, [], { model })) {
@@ -1000,9 +1030,8 @@ export default class ClaudianPlugin extends Plugin {
     new Notice(`Audit log written to ${filePath}`);
   }
 
-  async runMultiAgentTask(): Promise<void> {
-    const prompt = 'Analyze the current vault structure and suggest improvements.';
-    await MultiAgentModal.runTask(this, prompt);
+  runMultiAgentTask(initialPrompt = ''): void {
+    MultiAgentModal.open(this, initialPrompt);
   }
 
   updateProviderStatusBar(): void {

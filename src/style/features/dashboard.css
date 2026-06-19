@@ -676,3 +676,198 @@
   color: var(--text-on-accent);
   border-color: var(--claudian-accent);
 }
+
+/* ============================================================
+ * 3.0.5 — Live activity feed + mission console
+ * ============================================================ */
+
+/* Live badge in the dashboard header. */
+.claudian-dashboard-live {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--claudian-muted);
+}
+
+.claudian-dashboard-live--running {
+  color: var(--claudian-accent);
+  text-shadow: 0 0 12px var(--claudian-glow);
+  animation: claudian-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes claudian-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* Activity feed. */
+.claudian-dashboard-activity {
+  margin-top: 28px;
+  padding: 20px 22px;
+  border-radius: 18px;
+  background: var(--claudian-card-elevated);
+  border: 1px solid var(--claudian-border);
+}
+
+.claudian-dashboard-activity-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  color: var(--claudian-text);
+}
+
+.claudian-dashboard-activity-head h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.claudian-dashboard-activity-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.claudian-dashboard-activity-empty {
+  color: var(--claudian-muted);
+  font-size: 13px;
+  margin: 8px 0;
+}
+
+.claudian-dashboard-activity-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(var(--claudian-accent-rgb), 0.04);
+  border-inline-start: 2px solid transparent;
+  animation: claudian-fade-in 0.25s ease;
+}
+
+.claudian-dashboard-activity-item--mission { border-inline-start-color: var(--claudian-accent); }
+.claudian-dashboard-activity-item--memory { border-inline-start-color: #a78bfa; }
+.claudian-dashboard-activity-item--workflow { border-inline-start-color: #34d399; }
+.claudian-dashboard-activity-item--project { border-inline-start-color: #f59e0b; }
+
+.claudian-dashboard-activity-icon {
+  display: flex;
+  color: var(--claudian-accent);
+  flex-shrink: 0;
+}
+
+.claudian-dashboard-activity-icon svg { width: 15px; height: 15px; }
+
+.claudian-dashboard-activity-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--claudian-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.claudian-dashboard-activity-time {
+  font-size: 11px;
+  color: var(--claudian-muted);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Mission console: prompt input ─────────────────────────── */
+.claudian-multi-agent-prompt {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+  margin: 4px 0 18px;
+}
+
+.claudian-multi-agent-prompt-input {
+  flex: 1;
+  resize: vertical;
+  min-height: 52px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--claudian-border);
+  background: var(--claudian-card-bg);
+  color: var(--claudian-text);
+  font-family: var(--font-interface);
+  font-size: 13px;
+}
+
+.claudian-multi-agent-prompt-input:focus {
+  outline: none;
+  border-color: var(--claudian-accent);
+  box-shadow: 0 0 0 3px rgba(var(--claudian-accent-rgb), 0.18);
+}
+
+.claudian-multi-agent-launch {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 12px;
+  background: var(--claudian-accent);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+
+.claudian-multi-agent-launch:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px var(--claudian-glow);
+}
+
+.claudian-multi-agent-launch:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.claudian-multi-agent-launch svg { width: 15px; height: 15px; }
+
+/* Per-agent live metrics line. */
+.claudian-multi-agent-card-meta {
+  font-size: 11px;
+  color: var(--claudian-muted);
+  font-variant-numeric: tabular-nums;
+  margin: 2px 0 6px;
+}
+
+/* Synthesis panel. */
+.claudian-multi-agent-synthesis {
+  margin-top: 18px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(var(--claudian-accent-rgb), 0.12), rgba(var(--claudian-accent-rgb), 0.03));
+  border: 1px solid rgba(var(--claudian-accent-rgb), 0.32);
+  animation: claudian-fade-in 0.3s ease;
+}
+
+.claudian-multi-agent-synthesis-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--claudian-accent);
+}
+
+.claudian-multi-agent-synthesis-head h4 { margin: 0; font-size: 14px; }
+.claudian-multi-agent-synthesis-head svg { width: 16px; height: 16px; }
+
+.claudian-multi-agent-synthesis-body {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--claudian-text);
+  white-space: pre-wrap;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.claudian-multi-agent-status--synthesizing { color: var(--claudian-accent); }
