@@ -27,7 +27,7 @@ import type {
   SubagentRuntimeState,
 } from '../../../core/runtime/types';
 import type { TodoItem } from '../../../core/tools/todo';
-import { TOOL_TODO_WRITE } from '../../../core/tools/toolNames';
+import { isSubagentToolName, TOOL_SUBAGENT, TOOL_SUBAGENT_LEGACY, TOOL_TODO_WRITE } from '../../../core/tools/toolNames';
 import type {
   ChatMessage,
   Conversation,
@@ -519,13 +519,14 @@ export class KimiChatRuntime implements ChatRuntime {
   }
 
   /**
-   * Tracks live tool calls as a task list so Kimi shows a Codex-style todo
-   * panel. Each tool_use adds/updates a task; the matching tool_result marks
-   * it completed. The panel is updated via synthetic TodoWrite tool events.
+   * Tracks Kimi's subagent/Task tool calls as a task list so the status panel
+   * shows real Kimi tasks, not every Bash/Read/Write invocation. Only
+   * `Agent`/`Task` (Kimi's subagent/background-task tools) are mirrored into
+   * the todo panel via synthetic TodoWrite events.
    */
   private trackToolCallAsTodo(chunk: StreamChunk): StreamChunk | null {
-    if (chunk.type === 'tool_use' && chunk.name !== TOOL_TODO_WRITE) {
-      const description = describeToolUse(chunk.name, chunk.input);
+    if (chunk.type === 'tool_use' && isSubagentToolName(chunk.name)) {
+      const description = describeSubagentTask(chunk.name, chunk.input);
       const existingIndex = this.currentTodos.findIndex((todo) => todo.content === description.content);
       if (existingIndex >= 0) {
         this.currentTodos[existingIndex] = {
@@ -714,48 +715,6 @@ export class KimiChatRuntime implements ChatRuntime {
   }
 }
 
-const TOOL_NAME_DESCRIPTIONS: Record<string, { content: string; activeForm: string }> = {
-  bash: { content: 'Run command', activeForm: 'Running command' },
-  read_file: { content: 'Read file', activeForm: 'Reading file' },
-  write_file: { content: 'Write file', activeForm: 'Writing file' },
-  edit_file: { content: 'Edit file', activeForm: 'Editing file' },
-  search: { content: 'Search files', activeForm: 'Searching files' },
-  glob: { content: 'List files', activeForm: 'Listing files' },
-  ls: { content: 'List directory', activeForm: 'Listing directory' },
-  cat: { content: 'Show file', activeForm: 'Showing file' },
-  grep: { content: 'Search content', activeForm: 'Searching content' },
-  web_search: { content: 'Search web', activeForm: 'Searching web' },
-  url_fetch: { content: 'Fetch URL', activeForm: 'Fetching URL' },
-  // Kimi Code uses PascalCase tool names (Read, Write, Edit, Bash, …).
-  read: { content: 'Read file', activeForm: 'Reading file' },
-  view: { content: 'View file', activeForm: 'Viewing file' },
-  write: { content: 'Write file', activeForm: 'Writing file' },
-  edit: { content: 'Edit file', activeForm: 'Editing file' },
-  multiedit: { content: 'Edit files', activeForm: 'Editing files' },
-};
-
-function describeToolUse(
-  name: string,
-  input: Record<string, unknown>,
-): { content: string; activeForm: string } {
-  const normalized = name.toLowerCase().trim();
-  const base = TOOL_NAME_DESCRIPTIONS[normalized] ?? {
-    content: humanizeToolName(normalized),
-    activeForm: humanizeToolName(normalized),
-  };
-
-  const target = extractToolTarget(input);
-  if (!target) {
-    return base;
-  }
-
-  const shortTarget = target.split('/').pop() ?? target;
-  return {
-    content: `${base.content}: ${shortTarget}`,
-    activeForm: `${base.activeForm}: ${shortTarget}`,
-  };
-}
-
 function describeToolResult(
   toolId: string,
   _content: string,
@@ -770,23 +729,16 @@ function describeToolResult(
   return { content: 'Run tool', activeForm: 'Running tool' };
 }
 
-function extractToolTarget(input: Record<string, unknown>): string | null {
-  const candidates = [
-    input.file_path,
-    input.path,
-    input.file,
-    input.directory,
-    input.dir,
-    input.command,
-    input.query,
-    input.url,
-  ];
-  for (const candidate of candidates) {
-    if (typeof candidate === 'string' && candidate.trim()) {
-      return candidate.trim();
-    }
-  }
-  return null;
+function describeSubagentTask(
+  name: string,
+  input: Record<string, unknown>,
+): { content: string; activeForm: string } {
+  const label = (input.description as string) || humanizeToolName(name.toLowerCase().trim());
+  const taskName = name === TOOL_SUBAGENT || name === TOOL_SUBAGENT_LEGACY ? 'Task' : label;
+  return {
+    content: label,
+    activeForm: `Running ${taskName.toLowerCase()}`,
+  };
 }
 
 function humanizeToolName(name: string): string {
