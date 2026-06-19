@@ -10,6 +10,7 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
   autoModePauseAfter: 25,
   modelRouterEnabled: true,
   modelRouterRules: [],
+  promptTemplateFolder: 'Templates/Prompt Templates',
   diffPreviewBeforeWrites: true,
   memoryEnabled: true,
   memoryFolder: '.claudian/memory',

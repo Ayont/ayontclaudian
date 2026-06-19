@@ -124,6 +124,9 @@ export interface ClaudianSettings {
   modelRouterEnabled?: boolean;
   modelRouterRules?: ModelRouterRuleSetting[];
 
+  /** Folder for reusable prompt templates (Markdown files). */
+  promptTemplateFolder?: string;
+
   /** Show an inline diff preview inside write/edit approval prompts. */
   diffPreviewBeforeWrites?: boolean;
 

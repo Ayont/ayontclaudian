@@ -462,6 +462,19 @@ export class ClaudianSettingTab extends PluginSettingTab {
           });
       });
 
+    new Setting(container)
+      .setName('Prompt template folder')
+      .setDesc('Folder containing reusable Markdown prompt templates. Built-in templates are always available.')
+      .addText((text) => {
+        text
+          .setPlaceholder('Templates/Prompt Templates')
+          .setValue(this.plugin.settings.promptTemplateFolder ?? 'Templates/Prompt Templates')
+          .onChange(async (value) => {
+            this.plugin.settings.promptTemplateFolder = value.trim();
+            await this.plugin.saveSettings();
+          });
+      });
+
     // --- Memory & Budget ---
 
     new Setting(container).setName(t('settings.memoryAndBudget')).setHeading();
