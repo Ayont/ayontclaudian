@@ -36,6 +36,16 @@ export interface ChatRuntime {
     queryOptions?: ChatRuntimeQueryOptions,
   ): AsyncGenerator<StreamChunk>;
   steer?(turn: PreparedChatTurn): Promise<boolean>;
+  /**
+   * Soft steer: for providers without a native mid-turn steer primitive.
+   *
+   * Cancels the active stream so the caller can re-send the conversation with
+   * the steer message appended as a fresh turn. Unlike `steer()`, the message
+   * is NOT injected into the running stream — the caller is responsible for
+   * re-sending. Returns `true` when the active stream was cancelled (or was
+   * already idle), `false` when the cancel could not be performed.
+   */
+  softSteer?(turn: PreparedChatTurn): Promise<boolean>;
   cancel(): void;
   resetSession(): void;
   getSessionId(): string | null;

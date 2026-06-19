@@ -571,6 +571,11 @@ export class KimiChatRuntime implements ChatRuntime {
     }
   }
 
+  async softSteer(_turn: PreparedChatTurn): Promise<boolean> {
+    this.cancel();
+    return true;
+  }
+
   resetSession(): void {
     this.sessionInvalidated = true;
     this.sessionId = null;

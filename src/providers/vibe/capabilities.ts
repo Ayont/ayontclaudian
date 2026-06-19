@@ -24,6 +24,6 @@ export const VIBE_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object
   supportsInstructionMode: false,
   supportsMcpTools: true,
   supportsMultiAgent: true,
-  supportsTurnSteer: false,
+  supportsTurnSteer: true,
   reasoningControl: 'effort',
 });

@@ -12,7 +12,7 @@ export const CLAUDE_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Obje
   supportsInstructionMode: true,
   supportsMcpTools: true,
   supportsMultiAgent: true,
-  supportsTurnSteer: false,
+  supportsTurnSteer: true,
   reasoningControl: 'effort',
   planPathPrefix: '/.claude/plans/',
 });

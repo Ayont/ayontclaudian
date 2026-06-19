@@ -12,6 +12,6 @@ export const OPENCODE_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Ob
   supportsInstructionMode: true,
   supportsMcpTools: false,
   supportsMultiAgent: true,
-  supportsTurnSteer: false,
+  supportsTurnSteer: true,
   reasoningControl: 'effort',
 });

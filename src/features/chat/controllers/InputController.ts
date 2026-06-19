@@ -157,6 +157,7 @@ export class InputController {
   private inputContainerHideDepth = 0;
   private steerInFlight = false;
   private pendingSteerMessage: QueuedMessage | null = null;
+  private softSteerInProgress = false;
   private activeStreamingAssistantMessage: ChatMessage | null = null;
   private pendingProviderUserMessages: Array<{
     displayContent: string;
@@ -588,6 +589,13 @@ export class InputController {
           break;
         }
 
+        // Soft steer in progress: the active stream is being cancelled so the
+        // queued message can be re-sent as a fresh turn. Skip all chunks from
+        // the dying stream (abort errors, trailing text, done markers).
+        if (this.softSteerInProgress) {
+          continue;
+        }
+
         recordRunTimelineChunk(runTimeline, chunk);
 
         if (await this.handleProviderMessageBoundaryChunk(chunk)) {
@@ -600,16 +608,20 @@ export class InputController {
         );
       }
     } catch (error) {
-      const normalizedError = error instanceof Error ? error : new Error(String(error));
-      const errorMsg = normalizedError.message;
-      recordRunTimelineChunk(runTimeline, { type: 'error', content: errorMsg });
-      if (agentService) {
-        providerErrorRecoveryService.recordError(agentService.providerId, normalizedError);
+      if (this.softSteerInProgress) {
+        // Soft steer cancelled the stream — suppress the abort error.
+      } else {
+        const normalizedError = error instanceof Error ? error : new Error(String(error));
+        const errorMsg = normalizedError.message;
+        recordRunTimelineChunk(runTimeline, { type: 'error', content: errorMsg });
+        if (agentService) {
+          providerErrorRecoveryService.recordError(agentService.providerId, normalizedError);
+        }
+        await streamController.handleStreamChunk(
+          { type: 'error', content: errorMsg },
+          this.activeStreamingAssistantMessage ?? assistantMsg,
+        );
       }
-      await streamController.handleStreamChunk(
-        { type: 'error', content: errorMsg },
-        this.activeStreamingAssistantMessage ?? assistantMsg,
-      );
     } finally {
       const finalAssistantMsg = this.activeStreamingAssistantMessage ?? assistantMsg;
       const turnMetadata = agentService.consumeTurnMetadata();
@@ -624,7 +636,7 @@ export class InputController {
       // Skip remaining cleanup if stream was invalidated (tab closed or conversation switched)
       if (!wasInvalidated && state.streamGeneration === streamGeneration) {
         const didCancelThisTurn = wasInterrupted || state.cancelRequested;
-        if (didCancelThisTurn && !state.pendingNewSessionPlan) {
+        if (didCancelThisTurn && !state.pendingNewSessionPlan && !this.softSteerInProgress) {
           await streamController.appendText('\n\n<span class="claudian-interrupted">Interrupted</span> <span class="claudian-interrupted-hint">· What should Claudian do instead?</span>');
         }
         streamController.hideThinkingIndicator();
@@ -988,7 +1000,7 @@ export class InputController {
     const agentService = this.getAgentService();
     return this.deps.state.isStreaming
       && this.getActiveCapabilities().supportsTurnSteer === true
-      && typeof agentService?.steer === 'function';
+      && (typeof agentService?.steer === 'function' || typeof agentService?.softSteer === 'function');
   }
 
   private cloneQueuedMessage(message: QueuedMessage): QueuedMessage {
@@ -1055,6 +1067,7 @@ export class InputController {
   private clearPendingSteerState(): void {
     this.pendingSteerMessage = null;
     this.steerInFlight = false;
+    this.softSteerInProgress = false;
   }
 
   private restorePendingSteerMessageToQueue(): void {
@@ -1093,7 +1106,14 @@ export class InputController {
 
     const { state } = this.deps;
     const agentService = this.getAgentService();
-    if (!state.queuedMessage || !this.canSteerQueuedMessage() || !agentService?.steer) {
+    const hasNativeSteer = typeof agentService?.steer === 'function';
+    const hasSoftSteer = typeof agentService?.softSteer === 'function';
+    if (!state.queuedMessage || !this.canSteerQueuedMessage() || !agentService || (!hasNativeSteer && !hasSoftSteer)) {
+      return;
+    }
+
+    if (!hasNativeSteer && hasSoftSteer) {
+      await this.steerQueuedMessageSoft(agentService);
       return;
     }
 
@@ -1107,7 +1127,7 @@ export class InputController {
       const { displayContent, request } = this.toQueuedChatTurn(queuedMessage);
 
       const preparedTurn = agentService.prepareTurn(request);
-      const accepted = await agentService.steer(preparedTurn);
+      const accepted = await agentService.steer!(preparedTurn);
       if (state.cancelRequested || !this.pendingSteerMessage) {
         return;
       }
@@ -1128,7 +1148,46 @@ export class InputController {
       });
     } catch {
       this.restoreQueuedMessageAfterSteerFailure(queuedMessage);
-      new Notice('Failed to steer the queued Codex message. It is still available.');
+      new Notice('Failed to steer the queued message. It is still available.');
+    }
+  }
+
+  /**
+   * Soft steer: for providers without a native mid-turn steer primitive.
+   *
+   * Cancels the active stream (via `runtime.softSteer()`) so the current
+   * `sendMessage()` turn ends. Its `finally` block then restores
+   * `pendingSteerMessage` to the queue and `processQueuedMessage()` re-sends
+   * the conversation with the steer message appended as a fresh turn — full
+   * history included. The `softSteerInProgress` flag suppresses stray error
+   * chunks and the "Interrupted" hint from the dying stream.
+   */
+  private async steerQueuedMessageSoft(agentService: ChatRuntime): Promise<void> {
+    const { state } = this.deps;
+    if (!state.queuedMessage) {
+      return;
+    }
+    const queuedMessage = this.cloneQueuedMessage(state.queuedMessage);
+    state.queuedMessage = null;
+    this.pendingSteerMessage = queuedMessage;
+    this.steerInFlight = true;
+    this.softSteerInProgress = true;
+    this.updateQueueIndicator();
+
+    try {
+      const { request } = this.toQueuedChatTurn(queuedMessage);
+      const preparedTurn = agentService.prepareTurn(request);
+      const accepted = await agentService.softSteer!(preparedTurn);
+      if (!accepted) {
+        this.clearPendingSteerState();
+        this.restoreQueuedMessageAfterSteerFailure(queuedMessage);
+      }
+      // On success the active sendMessage() finally block restores the queued
+      // message and processQueuedMessage() re-sends it — nothing to do here.
+    } catch {
+      this.clearPendingSteerState();
+      this.restoreQueuedMessageAfterSteerFailure(queuedMessage);
+      new Notice('Failed to steer the queued message. It is still available.');
     }
   }
 

@@ -1620,6 +1620,11 @@ export class ClaudianService implements ChatRuntime {
     }
   }
 
+  async softSteer(_turn: PreparedChatTurn): Promise<boolean> {
+    this.cancel();
+    return true;
+  }
+
   /**
    * Reset the conversation session.
    * Closes the persistent query since session is changing.

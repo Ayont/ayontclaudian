@@ -79,6 +79,7 @@ function createMockAgentService() {
     ),
     query: jest.fn(),
     steer: jest.fn().mockResolvedValue(true),
+    softSteer: jest.fn().mockResolvedValue(true),
     cancel: jest.fn(),
     resetSession: jest.fn(),
     setResumeCheckpoint: jest.fn(),
@@ -595,7 +596,7 @@ describe('InputController - Message Queue', () => {
         canvasContext: null,
       });
       expect(mockNotice).toHaveBeenCalledWith(
-        'Failed to steer the queued Codex message. It is still available.',
+        'Failed to steer the queued message. It is still available.',
       );
     });
 
@@ -870,6 +871,248 @@ describe('InputController - Message Queue', () => {
         { type: 'text', content: 'after steer' },
         deps.state.messages[2],
       );
+    });
+  });
+
+  describe('Soft Steer (non-native-steer providers)', () => {
+    function createSoftSteerCapabilities() {
+      return {
+        providerId: 'claude',
+        supportsPersistentRuntime: true,
+        supportsNativeHistory: true,
+        supportsPlanMode: true,
+        supportsRewind: true,
+        supportsFork: true,
+        supportsProviderCommands: true,
+        supportsImageAttachments: true,
+        supportsInstructionMode: true,
+        supportsMcpTools: true,
+        supportsMultiAgent: true,
+        supportsTurnSteer: true,
+        reasoningControl: 'effort',
+      };
+    }
+
+    it('should show Steer Now when provider has softSteer but no native steer', () => {
+      const mockAgentService = (deps as any).mockAgentService;
+      mockAgentService.providerId = 'claude';
+      mockAgentService.getCapabilities = jest.fn().mockReturnValue(createSoftSteerCapabilities());
+      // Remove native steer, keep softSteer
+      delete (mockAgentService as any).steer;
+      mockAgentService.softSteer = jest.fn().mockResolvedValue(true);
+
+      deps.state.isStreaming = true;
+      deps.state.queuedMessage = { content: 'queued content', images: undefined, editorContext: null, browserContext: null, canvasContext: null };
+
+      controller.updateQueueIndicator();
+
+      const queueIndicatorEl = deps.state.queueIndicatorEl as any;
+      expect(queueIndicatorEl.querySelector('.claudian-queue-indicator-action')?.textContent).toBe('Steer Now');
+    });
+
+    it('should not show Steer Now when provider has neither steer nor softSteer', () => {
+      const mockAgentService = (deps as any).mockAgentService;
+      mockAgentService.providerId = 'claude';
+      mockAgentService.getCapabilities = jest.fn().mockReturnValue(createSoftSteerCapabilities());
+      delete (mockAgentService as any).steer;
+      delete (mockAgentService as any).softSteer;
+
+      deps.state.isStreaming = true;
+      deps.state.queuedMessage = { content: 'queued content', images: undefined, editorContext: null, browserContext: null, canvasContext: null };
+
+      controller.updateQueueIndicator();
+
+      const queueIndicatorEl = deps.state.queueIndicatorEl as any;
+      expect(queueIndicatorEl.querySelector('.claudian-queue-indicator-action')).toBeNull();
+    });
+
+    it('should call softSteer (which cancels) when Steer Now is clicked for a soft-steer provider', async () => {
+      const mockAgentService = (deps as any).mockAgentService;
+      mockAgentService.providerId = 'claude';
+      mockAgentService.getCapabilities = jest.fn().mockReturnValue(createSoftSteerCapabilities());
+      delete (mockAgentService as any).steer;
+      mockAgentService.softSteer = jest.fn().mockImplementation(() => {
+        mockAgentService.cancel();
+        return Promise.resolve(true);
+      });
+      mockAgentService.cancel = jest.fn();
+      mockAgentService.prepareTurn = jest.fn().mockReturnValue({
+        request: { text: 'queued follow-up' },
+        persistedContent: 'queued follow-up',
+        prompt: 'queued follow-up',
+        isCompact: false,
+        mcpMentions: new Set(),
+      });
+
+      deps.state.isStreaming = true;
+      deps.state.queuedMessage = {
+        content: 'queued follow-up',
+        images: undefined,
+        editorContext: null,
+        browserContext: null,
+        canvasContext: null,
+      };
+
+      controller.updateQueueIndicator();
+
+      const queueIndicatorEl = deps.state.queueIndicatorEl as any;
+      queueIndicatorEl.querySelector('.claudian-queue-indicator-action')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(mockAgentService.softSteer).toHaveBeenCalled();
+      expect(mockAgentService.cancel).toHaveBeenCalled();
+      expect(deps.state.queuedMessage).toBeNull();
+    });
+
+    it('should restore the queued message when softSteer fails', async () => {
+      const mockAgentService = (deps as any).mockAgentService;
+      mockAgentService.providerId = 'claude';
+      mockAgentService.getCapabilities = jest.fn().mockReturnValue(createSoftSteerCapabilities());
+      delete (mockAgentService as any).steer;
+      mockAgentService.softSteer = jest.fn().mockRejectedValue(new Error('boom'));
+      mockAgentService.prepareTurn = jest.fn().mockReturnValue({
+        request: { text: 'queued follow-up' },
+        persistedContent: 'queued follow-up',
+        prompt: 'queued follow-up',
+        isCompact: false,
+        mcpMentions: new Set(),
+      });
+
+      deps.state.isStreaming = true;
+      deps.state.queuedMessage = {
+        content: 'queued follow-up',
+        images: undefined,
+        editorContext: null,
+        browserContext: null,
+        canvasContext: null,
+      };
+
+      controller.updateQueueIndicator();
+
+      const queueIndicatorEl = deps.state.queueIndicatorEl as any;
+      queueIndicatorEl.querySelector('.claudian-queue-indicator-action')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(deps.state.queuedMessage).toEqual({
+        content: 'queued follow-up',
+        images: undefined,
+        editorContext: null,
+        browserContext: null,
+        canvasContext: null,
+      });
+      expect(mockNotice).toHaveBeenCalledWith(
+        'Failed to steer the queued message. It is still available.',
+      );
+    });
+
+    it('should suppress the Interrupted hint and re-send the queued message after soft steer', async () => {
+      deps = createSendableDeps();
+      const mockAgentService = (deps as any).mockAgentService;
+      mockAgentService.providerId = 'claude';
+      mockAgentService.getCapabilities = jest.fn().mockReturnValue(createSoftSteerCapabilities());
+      delete (mockAgentService as any).steer;
+      mockAgentService.prepareTurn = jest.fn().mockImplementation((request: any) => ({
+        request: { ...request },
+        persistedContent: request.text,
+        prompt: request.text,
+        isCompact: false,
+        mcpMentions: new Set(),
+      }));
+
+      let releaseSecondTurn: () => void = () => { throw new Error('Gate not initialized'); };
+      const secondTurnGate = new Promise<void>((resolve) => { releaseSecondTurn = () => resolve(); });
+
+      let queryCallCount = 0;
+      mockAgentService.query = jest.fn().mockImplementation(() => {
+        queryCallCount += 1;
+        if (queryCallCount === 1) {
+          // First turn: yields some text, then softSteer cancels and the stream ends
+          return (async function* () {
+            yield { type: 'user_message_start', content: 'first prompt', itemId: 'user-1' };
+            yield { type: 'assistant_message_start', itemId: 'assistant-1' };
+            yield { type: 'text', content: 'partial response' };
+            // softSteer fires here (from the test), calling cancel():
+            yield { type: 'error', content: 'AbortError: The user aborted a request' };
+            yield { type: 'done' };
+          })();
+        }
+        // Second turn (re-sent queued message): yields the steer response
+        return (async function* () {
+          yield { type: 'user_message_start', content: 'steer prompt', itemId: 'user-2' };
+          yield { type: 'assistant_message_start', itemId: 'assistant-2' };
+          yield { type: 'text', content: 'response after steer' };
+          yield { type: 'done' };
+        })();
+      });
+
+      // softSteer calls cancel — in this mock, cancel does nothing to the
+      // generator (the test controls the stream). The softSteerInProgress flag
+      // causes the remaining chunks (error, done) to be skipped.
+      mockAgentService.softSteer = jest.fn().mockResolvedValue(true);
+      mockAgentService.cancel = jest.fn();
+
+      inputEl = deps.getInputEl() as ReturnType<typeof createMockInputEl>;
+      inputEl.value = 'first prompt';
+      controller = new InputController(deps);
+
+      const sendPromise = controller.sendMessage();
+      // Let the first few chunks process
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // Queue a message and steer it
+      deps.state.queuedMessage = {
+        content: 'steer prompt',
+        images: undefined,
+        editorContext: null,
+        browserContext: null,
+        canvasContext: null,
+      };
+      controller.updateQueueIndicator();
+
+      const queueIndicatorEl = deps.state.queueIndicatorEl as any;
+      queueIndicatorEl.querySelector('.claudian-queue-indicator-action')?.click();
+      // Allow softSteer to resolve and the first turn to finish
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // The "Interrupted" hint should NOT appear (softSteerInProgress suppresses it)
+      expect((deps.streamController as any).appendText).not.toHaveBeenCalledWith(
+        expect.stringContaining('claudian-interrupted'),
+      );
+
+      // The error chunk from the aborted stream should NOT be displayed
+      expect((deps.streamController as any).handleStreamChunk).not.toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'error', content: expect.stringContaining('AbortError') }),
+        expect.anything(),
+      );
+
+      // softSteer should have been called
+      expect(mockAgentService.softSteer).toHaveBeenCalled();
+
+      // The second sendMessage() should have been triggered (processQueuedMessage)
+      // Wait for the full async flow: softSteer resolves → first turn finishes →
+      // restorePendingSteerMessageToQueue → processQueuedMessage → second query.
+      // Use a small delay + microtask flushes to let all async hops complete.
+      await new Promise(resolve => setTimeout(resolve, 50));
+      for (let i = 0; i < 20; i++) {
+        await Promise.resolve();
+      }
+
+      // The queued message should have been re-sent as a new turn
+      expect(queryCallCount).toBeGreaterThanOrEqual(2);
+      expect(mockAgentService.query).toHaveBeenCalledTimes(2);
+
+      // The second query call should include the steer prompt
+      const secondCallArg = (mockAgentService.query as jest.Mock).mock.calls[1][0];
+      expect(secondCallArg.request.text).toBe('steer prompt');
+
+      await sendPromise;
     });
   });
 
