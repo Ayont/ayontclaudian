@@ -166,6 +166,8 @@ export class InputController {
   private lastChunkTime = 0;
   private streamStartTime = 0;
   private watchdogWarningShown = false;
+  /** True when the current attempt was force-cancelled by the watchdog timeout. */
+  private watchdogTimedOut = false;
   private pendingProviderUserMessages: Array<{
     displayContent: string;
     persistedContent?: string;
@@ -617,39 +619,79 @@ export class InputController {
         ? undefined
         : preparedTurn.request.currentNotePath;
 
-      // Start the stream watchdog — detects hangs and provides user feedback.
-      this.startStreamWatchdog(state, streamController);
+      // Auto-retry loop: if the watchdog force-cancels a hung stream, re-send the
+      // SAME turn automatically (up to MAX_AUTO_RETRIES) instead of abandoning it.
+      // The same user message is reused — no duplicate bubble — so a transient
+      // provider hang just restarts the question and continues.
+      let retryAttempt = 0;
+      for (;;) {
+        this.watchdogTimedOut = false;
+        // Start the stream watchdog — detects hangs and provides user feedback.
+        this.startStreamWatchdog(state, streamController);
+        let timedOutThisAttempt = false;
 
-      for await (const chunk of agentService.query(preparedTurn, previousMessages)) {
-        // Ping the watchdog on every chunk — resets the hang timer.
-        this.pingStreamWatchdog();
+        try {
+          for await (const chunk of agentService.query(preparedTurn, previousMessages)) {
+            // Ping the watchdog on every chunk — resets the hang timer.
+            this.pingStreamWatchdog();
 
-        if (state.streamGeneration !== streamGeneration) {
-          wasInvalidated = true;
-          break;
+            if (state.streamGeneration !== streamGeneration) {
+              wasInvalidated = true;
+              break;
+            }
+            if (state.cancelRequested) {
+              // Distinguish a watchdog timeout (auto-retry candidate) from a
+              // genuine manual user cancel (a real interrupt).
+              if (this.watchdogTimedOut) {
+                timedOutThisAttempt = true;
+              } else {
+                wasInterrupted = true;
+              }
+              break;
+            }
+
+            // Soft steer in progress: the active stream is being cancelled so the
+            // queued message can be re-sent as a fresh turn. Skip all chunks from
+            // the dying stream (abort errors, trailing text, done markers).
+            if (this.softSteerInProgress) {
+              continue;
+            }
+
+            recordRunTimelineChunk(runTimeline, chunk);
+
+            if (await this.handleProviderMessageBoundaryChunk(chunk)) {
+              continue;
+            }
+
+            await streamController.handleStreamChunk(
+              chunk,
+              this.activeStreamingAssistantMessage ?? assistantMsg,
+            );
+          }
+        } finally {
+          this.stopStreamWatchdog();
         }
-        if (state.cancelRequested) {
+
+        // Watchdog timeout → auto-retry the same turn if budget remains.
+        if (timedOutThisAttempt && !wasInvalidated && retryAttempt < InputController.MAX_AUTO_RETRIES) {
+          retryAttempt += 1;
+          state.cancelRequested = false;
+          this.watchdogTimedOut = false;
+          try { agentService.cancel(); } catch { /* best-effort */ }
+          await streamController.appendText(
+            `\n\n> 🔄 *Keine Antwort — automatischer Neuversuch ${retryAttempt}/${InputController.MAX_AUTO_RETRIES}…*\n`,
+          ).catch(() => { /* best-effort */ });
+          continue;
+        }
+
+        // Retries exhausted (or none allowed): surface as a recoverable interrupt.
+        if (timedOutThisAttempt) {
           wasInterrupted = true;
-          break;
+          await streamController.appendText(
+            `\n\n> ⚠️ *Timeout nach ${InputController.MAX_AUTO_RETRIES} automatischen Versuchen. Bitte erneut senden oder ein anderes Modell wählen.*\n`,
+          ).catch(() => { /* best-effort */ });
         }
-
-        // Soft steer in progress: the active stream is being cancelled so the
-        // queued message can be re-sent as a fresh turn. Skip all chunks from
-        // the dying stream (abort errors, trailing text, done markers).
-        if (this.softSteerInProgress) {
-          continue;
-        }
-
-        recordRunTimelineChunk(runTimeline, chunk);
-
-        if (await this.handleProviderMessageBoundaryChunk(chunk)) {
-          continue;
-        }
-
-        await streamController.handleStreamChunk(
-          chunk,
-          this.activeStreamingAssistantMessage ?? assistantMsg,
-        );
+        break;
       }
     } catch (error) {
       if (this.softSteerInProgress) {
@@ -1120,6 +1162,8 @@ export class InputController {
   private static readonly WATCHDOG_TIMEOUT_MS = 120_000;
   /** Watchdog check interval (ms). */
   private static readonly WATCHDOG_INTERVAL_MS = 5_000;
+  /** How many times a timed-out turn is automatically re-sent before giving up. */
+  private static readonly MAX_AUTO_RETRIES = 2;
 
   /**
    * Starts the stream watchdog. Call right before the `for await` loop begins.
@@ -1136,7 +1180,6 @@ export class InputController {
 
     this.streamWatchdogTimer = window.setInterval(() => {
       const silenceMs = Date.now() - this.lastChunkTime;
-      const totalMs = Date.now() - this.streamStartTime;
 
       // Phase 1: Warning — show "still working" after 30s of silence
       if (silenceMs > InputController.WATCHDOG_WARN_MS && !this.watchdogWarningShown) {
@@ -1147,14 +1190,13 @@ export class InputController {
         ).catch(() => { /* best-effort */ });
       }
 
-      // Phase 2: Auto-cancel — force-cancel after 120s of total silence
+      // Phase 2: Auto-cancel after 120s of total silence. We only flag the
+      // timeout + cancel the provider here; the send loop owns the messaging and
+      // decides whether to auto-retry the same turn or surface a final timeout.
       if (silenceMs > InputController.WATCHDOG_TIMEOUT_MS) {
-        const mins = Math.round(silenceMs / 60_000);
         this.stopStreamWatchdog();
+        this.watchdogTimedOut = true;
         state.cancelRequested = true;
-        streamController.appendText(
-          `\n\n> ⚠️ **Stream-Timeout nach ${mins}m ohne Antwort.** Der Stream wurde automatisch abgebrochen. Du kannst es erneut versuchen oder ein anderes Modell wählen.*\n`,
-        ).catch(() => { /* best-effort */ });
         // Also try to cancel via the agent service
         const agentService = this.getAgentService();
         try { agentService?.cancel(); } catch { /* best-effort */ }
