@@ -304,10 +304,14 @@ export class ImageContextManager {
   private async stageAndMentionFile(file: File): Promise<boolean> {
     if (!this.callbacks.stageVaultAttachment) return false;
 
-    // Show an immediate "uploading" chip so the staging is visible.
+    // Show an immediate "uploading" chip so the staging is visible. The
+    // onImagesChanged() call re-runs the parent context-row visibility check —
+    // without it a file-only drop (no image) would set the chip's visible class
+    // but never reveal the row, so the chip would stay invisible.
     const pendingId = `att-${this.generateId()}`;
     this.pendingUploads.set(pendingId, file.name);
     this.updateAttachmentPreview();
+    this.callbacks.onImagesChanged();
 
     let relPath: string | null;
     try {
@@ -320,6 +324,7 @@ export class ImageContextManager {
 
     if (!relPath) {
       this.updateAttachmentPreview();
+      this.callbacks.onImagesChanged();
       new Notice(`„${file.name}" konnte nicht angehängt werden.`);
       return false;
     }
@@ -329,6 +334,7 @@ export class ImageContextManager {
     this.stagedAttachments.set(pendingId, { id: pendingId, name: file.name, relPath, size: file.size });
     this.insertIntoInput(`\n\n@${relPath}\n`);
     this.updateAttachmentPreview();
+    this.callbacks.onImagesChanged();
     new Notice(`„${file.name}" angehängt.`);
     return true;
   }

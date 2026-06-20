@@ -7,6 +7,13 @@
   --claudian-glow: rgba(var(--claudian-accent-rgb), 0.35);
   --claudian-text: var(--text-normal, #f4f4f5);
   --claudian-muted: var(--text-muted, #a1a1aa);
+
+  /* Activity-kind hues — tokenized (no hardcoded one-offs), paired with an icon
+     shape + text label so kind is never conveyed by color alone. */
+  --claudian-kind-memory: oklch(0.72 0.14 295);
+  --claudian-kind-workflow: oklch(0.74 0.15 158);
+  --claudian-kind-project: oklch(0.76 0.14 70);
+  --claudian-kind-vault: oklch(0.72 0.13 235);
 }
 
 .claudian-dashboard {
@@ -250,10 +257,9 @@
   line-height: 1;
   margin-bottom: 10px;
   letter-spacing: -0.04em;
-  background: linear-gradient(135deg, var(--claudian-text), var(--claudian-muted));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  /* Solid color + weight carry the hierarchy. Gradient-clipped text is banned:
+     decorative, lowers contrast, and reads as generic AI dashboard. */
+  color: var(--claudian-text);
 }
 
 .claudian-dashboard-card-title {
@@ -736,24 +742,28 @@
 }
 
 .claudian-dashboard-activity-item {
+  --claudian-kind: var(--claudian-accent);
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
   border-radius: 12px;
   background: rgba(var(--claudian-accent-rgb), 0.04);
-  border-inline-start: 2px solid transparent;
   animation: claudian-fade-in 0.25s ease;
 }
 
-.claudian-dashboard-activity-item--mission { border-inline-start-color: var(--claudian-accent); }
-.claudian-dashboard-activity-item--memory { border-inline-start-color: #a78bfa; }
-.claudian-dashboard-activity-item--workflow { border-inline-start-color: #34d399; }
-.claudian-dashboard-activity-item--project { border-inline-start-color: #f59e0b; }
+/* Kind is conveyed by the leading icon's color AND the row's text label, never
+   by a side-stripe (banned) and never by color alone (WCAG). Tokenized hues. */
+.claudian-dashboard-activity-item--mission { --claudian-kind: var(--claudian-accent); }
+.claudian-dashboard-activity-item--memory { --claudian-kind: var(--claudian-kind-memory); }
+.claudian-dashboard-activity-item--workflow { --claudian-kind: var(--claudian-kind-workflow); }
+.claudian-dashboard-activity-item--project { --claudian-kind: var(--claudian-kind-project); }
+.claudian-dashboard-activity-item--vault { --claudian-kind: var(--claudian-kind-vault); }
+.claudian-dashboard-activity-item--agent { --claudian-kind: var(--claudian-accent); }
 
 .claudian-dashboard-activity-icon {
   display: flex;
-  color: var(--claudian-accent);
+  color: var(--claudian-kind);
   flex-shrink: 0;
 }
 
@@ -1536,8 +1546,8 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
 }
 
 .claudian-browser-card-badge--high {
-  background: rgba(52, 211, 153, 0.15);
-  color: #34d399;
+  background: rgba(var(--color-green-rgb, 52, 211, 153), 0.15);
+  color: var(--color-green, #34d399);
 }
 
 .claudian-browser-card-badge--error {
@@ -1555,7 +1565,7 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
 /* ── Mission Cards ──────────────────────────────────────────────────────────── */
 
 .claudian-mission-card {
-  border-left: 3px solid var(--claudian-accent);
+  border: 1px solid rgba(var(--claudian-accent-rgb), 0.4);
 }
 
 .claudian-mission-meta {

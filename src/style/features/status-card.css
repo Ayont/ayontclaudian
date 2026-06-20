@@ -8,8 +8,9 @@
   margin: var(--cl-space-3) 0;
   padding: var(--cl-space-3) var(--cl-space-4);
   border-radius: var(--cl-radius-md);
-  border: 1px solid rgba(var(--cl-status-rgb), 0.28);
-  border-inline-start: 3px solid var(--cl-status-accent);
+  /* Full status-tinted border (no side-stripe). The leading status icon + label
+     carry severity, never a colored edge alone. */
+  border: 1px solid rgba(var(--cl-status-rgb), 0.45);
   background: rgba(var(--cl-status-rgb), 0.06);
   animation: claudian-status-card-in var(--duration-normal, 300ms) var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
 }

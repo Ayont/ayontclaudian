@@ -160,8 +160,8 @@
   gap: 10px;
   padding: 7px 9px;
   background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-left: 3px solid var(--att-accent);
+  /* Full border (no side-stripe). The colored icon tile carries the file type. */
+  border: 1px solid color-mix(in srgb, var(--att-accent) 30%, var(--background-modifier-border));
   border-radius: 9px;
   max-width: 230px;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;

@@ -6,6 +6,7 @@ import { ImageContextManager } from '@/features/chat/ui/ImageContext';
 
 jest.mock('obsidian', () => ({
   Notice: jest.fn(),
+  setIcon: jest.fn(),
 }));
 
 // Mock document.createElementNS for SVG elements created in setupDragAndDrop
@@ -559,6 +560,29 @@ describe('ImageContextManager - Private Helpers', () => {
 
       expect(addImageSpy).not.toHaveBeenCalled();
       addImageSpy.mockRestore();
+    });
+
+    it('staging a non-image file (docx-only) fires onImagesChanged so the chip row reveals', async () => {
+      // Regression: a file-only drop set the chip's visible class but never
+      // re-ran the context-row visibility check, so the chip stayed invisible
+      // until an image was also attached.
+      const stageVaultAttachment = jest.fn().mockResolvedValue('.claudian/attachments/report-1.docx');
+      const localCallbacks = { onImagesChanged: jest.fn(), stageVaultAttachment };
+      const localInput = createMockTextArea();
+      const { container: c } = createContainerWithInputWrapper();
+      const localManager = new ImageContextManager(c, localInput, localCallbacks);
+      localCallbacks.onImagesChanged.mockClear();
+
+      const ok = await localManager['stageAndMentionFile']({ name: 'report.docx', size: 57400 } as File);
+
+      expect(ok).toBe(true);
+      expect(stageVaultAttachment).toHaveBeenCalledTimes(1);
+      // The fix: visibility callback fires (twice — pending spinner + final chip).
+      expect(localCallbacks.onImagesChanged).toHaveBeenCalled();
+      // Chip row is marked visible and the @path mention is injected.
+      expect(localManager['attachmentPreviewEl'].hasClass('claudian-visible-flex')).toBe(true);
+      expect(localInput.value).toContain('@.claudian/attachments/report-1.docx');
+      expect(localManager.hasAttachments()).toBe(true);
     });
 
     it('handleDrop should handle no files gracefully', async () => {
