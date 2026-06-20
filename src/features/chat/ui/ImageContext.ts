@@ -2,6 +2,7 @@ import { Notice, setIcon } from 'obsidian';
 import * as path from 'path';
 
 import type { ImageAttachment, ImageMediaType } from '../../../core/types';
+import { updateContextRowHasContent } from '../controllers/contextRowVisibility';
 import type { ImageStagingService } from '../services/ImageStagingService';
 import { attachmentTypeMeta, formatFileSize } from './file-drop/attachmentMeta';
 import {
@@ -470,12 +471,35 @@ export class ImageContextManager {
   // Private: Image Preview
   // ============================================
 
+  /**
+   * Reveals/hides the parent context row to match the current preview state.
+   * Called directly (not via the onImagesChanged callback chain) so a file-only
+   * attachment ALWAYS reveals the row — the previous bug was that this re-check
+   * depended on an external callback that didn't fire for non-image drops.
+   */
+  private syncContextRowVisibility(): void {
+    const el = this.previewContainerEl;
+    let row: HTMLElement | null = null;
+    if (typeof el.hasClass === 'function' && el.hasClass('claudian-context-row')) {
+      row = el;
+    } else if (typeof el.closest === 'function') {
+      row = el.closest('.claudian-context-row');
+    }
+    if (!row) return;
+    try {
+      updateContextRowHasContent(row);
+    } catch {
+      // Mock/test DOM without full querySelector support — non-fatal.
+    }
+  }
+
   private updateImagePreview() {
     this.imagePreviewEl.empty();
 
     if (this.attachedImages.size === 0) {
       this.imagePreviewEl.removeClass('claudian-visible-flex');
       this.imagePreviewEl.addClass('claudian-hidden');
+      this.syncContextRowVisibility();
       return;
     }
 
@@ -485,6 +509,7 @@ export class ImageContextManager {
     for (const [id, image] of this.attachedImages) {
       this.renderImagePreview(id, image);
     }
+    this.syncContextRowVisibility();
   }
 
   private renderImagePreview(id: string, image: ImageAttachment) {
@@ -540,6 +565,7 @@ export class ImageContextManager {
     if (total === 0) {
       this.attachmentPreviewEl.removeClass('claudian-visible-flex');
       this.attachmentPreviewEl.addClass('claudian-hidden');
+      this.syncContextRowVisibility();
       return;
     }
 
@@ -553,6 +579,7 @@ export class ImageContextManager {
     for (const [id, att] of this.stagedAttachments) {
       this.renderAttachmentChip(id, att);
     }
+    this.syncContextRowVisibility();
   }
 
   /** A placeholder chip with a spinner shown while a file is being staged. */

@@ -562,27 +562,37 @@ describe('ImageContextManager - Private Helpers', () => {
       addImageSpy.mockRestore();
     });
 
-    it('staging a non-image file (docx-only) fires onImagesChanged so the chip row reveals', async () => {
-      // Regression: a file-only drop set the chip's visible class but never
-      // re-ran the context-row visibility check, so the chip stayed invisible
-      // until an image was also attached.
+    it('staging a docx WITHOUT any image reveals the context row (no image needed)', async () => {
+      // Regression: a file-only drop rendered the chip but the parent context
+      // row stayed display:none (no `has-content`), so the chip was invisible
+      // until an image was ALSO attached. The fix syncs the row directly.
       const stageVaultAttachment = jest.fn().mockResolvedValue('.claudian/attachments/report-1.docx');
       const localCallbacks = { onImagesChanged: jest.fn(), stageVaultAttachment };
       const localInput = createMockTextArea();
       const { container: c } = createContainerWithInputWrapper();
-      const localManager = new ImageContextManager(c, localInput, localCallbacks);
-      localCallbacks.onImagesChanged.mockClear();
+      // The preview container is the real context row (carries `has-content`).
+      const contextRow = createMockEl();
+      contextRow.addClass('claudian-context-row');
+      const localManager = new ImageContextManager(c, localInput, localCallbacks, contextRow as any);
+
+      // Precondition: no image attached, row starts without content.
+      expect(localManager.hasImages()).toBe(false);
+      expect(contextRow.hasClass('has-content')).toBe(false);
 
       const ok = await localManager['stageAndMentionFile']({ name: 'report.docx', size: 57400 } as File);
 
       expect(ok).toBe(true);
       expect(stageVaultAttachment).toHaveBeenCalledTimes(1);
-      // The fix: visibility callback fires (twice — pending spinner + final chip).
-      expect(localCallbacks.onImagesChanged).toHaveBeenCalled();
-      // Chip row is marked visible and the @path mention is injected.
+      // The actual fix: the row reveals even though NO image was attached.
+      expect(contextRow.hasClass('has-content')).toBe(true);
       expect(localManager['attachmentPreviewEl'].hasClass('claudian-visible-flex')).toBe(true);
       expect(localInput.value).toContain('@.claudian/attachments/report-1.docx');
       expect(localManager.hasAttachments()).toBe(true);
+
+      // Removing the only attachment hides the row again.
+      const id = Array.from(localManager['stagedAttachments'].keys())[0];
+      localManager['removeStagedAttachment'](id);
+      expect(contextRow.hasClass('has-content')).toBe(false);
     });
 
     it('handleDrop should handle no files gracefully', async () => {
