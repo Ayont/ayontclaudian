@@ -948,8 +948,13 @@ export default class ClaudianPlugin extends Plugin {
   /**
    * Runs a real one-shot vision prompt: picks a vision-capable provider
    * (prefers the active one), attaches the image, and returns the model's text.
+   *
+   * Public so the InputController can call it as a fallback when the active
+   * provider's model rejects image input ("this model does not support image
+   * input"). The descriptions produced here are then injected as text so the
+   * conversation can continue without forcing the user to switch models.
    */
-  private async runVisionPrompt(image: ImageAttachment, prompt: string): Promise<string> {
+  async runVisionPrompt(image: ImageAttachment, prompt: string): Promise<string> {
     const settingsBag = this.settings as unknown as Record<string, unknown>;
     const activeProviderId =
       this.getView()?.getActiveTab()?.providerId ??

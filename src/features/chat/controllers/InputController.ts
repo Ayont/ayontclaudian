@@ -34,10 +34,11 @@ import type {
   ApprovalCallbackOptions,
   ApprovalDecisionOption,
   ChatTurnRequest,
+  PreparedChatTurn,
 } from '../../../core/runtime/types';
 import { finishRunTimeline, recordRunTimelineChunk, startRunTimeline } from '../../../core/timeline/runTimeline';
 import { TOOL_EXIT_PLAN_MODE } from '../../../core/tools/toolNames';
-import type { ApprovalDecision, ChatMessage, ExitPlanModeDecision, StreamChunk } from '../../../core/types';
+import type { ApprovalDecision, ChatMessage, ExitPlanModeDecision, ImageAttachment, StreamChunk } from '../../../core/types';
 import type { TemplateContext } from '../../../features/templates/PromptTemplateService';
 import type { VaultHealthResult } from '../../../features/templates/VaultHealthService';
 import type ClaudianPlugin from '../../../main';
@@ -118,6 +119,13 @@ export interface InputControllerDeps {
   getActiveModel?: () => string | null;
   getAgentService?: () => ChatRuntime | null;
   getSubagentManager: () => SubagentManager;
+  /**
+   * Analyzes a single image via a vision-capable provider (cross-provider
+   * fallback). Returns a German description of what's in the image, or null
+   * when no vision provider is available. Used to keep the conversation going
+   * when the active provider's model rejects image input.
+   */
+  analyzeImageViaVision?: (image: ImageAttachment) => Promise<string | null>;
   /** Tab-level provider fallback for blank tabs (derived from draft model). */
   getTabProviderId?: () => ProviderId;
   /**
@@ -512,9 +520,17 @@ export class InputController {
     // placeholder assistant turn) so the chat survives plugin reloads, crashes,
     // or mid-stream closures for every model and provider.
     await this.deps.conversationController.save();
+    // Clone the image attachments bound to `pendingProviderUserMessages`. The
+    // save() above clears `img.data = ''` on every stored message's images to
+    // free memory, and `imagesForMessage` shares those exact object references.
+    // Without this clone, any LATER provider-emitted user_message_start event
+    // would create a new user bubble whose images are already 0-byte — so the
+    // chat history would render broken/empty thumbnails for those turns.
     this.pendingProviderUserMessages = [{
       displayContent,
-      images: imagesForMessage,
+      images: imagesForMessage
+        ? imagesForMessage.map((img) => ({ ...img }))
+        : undefined,
     }];
     this.sawInitialProviderUserMessage = false;
     this.awaitingProviderAssistantStart = true;
@@ -623,7 +639,10 @@ export class InputController {
         turnRequest = { ...turnRequest, text: applyGoalPrefix(turnRequest.text, activeGoal) };
       }
 
-      const preparedTurn = agentService.prepareTurn(turnRequest);
+      // `preparedTurn` may be reassigned by the vision-fallback retry path
+      // below (when the active model rejects image input, we rebuild the turn
+      // with descriptions instead of images and re-query). Use `let`.
+      let preparedTurn = agentService.prepareTurn(turnRequest);
       userMsg.content = preparedTurn.persistedContent;
       userMsg.currentNote = preparedTurn.isCompact
         ? undefined
@@ -634,11 +653,18 @@ export class InputController {
       // The same user message is reused — no duplicate bubble — so a transient
       // provider hang just restarts the question and continues.
       let retryAttempt = 0;
+      // Tracks whether the active model rejected image input on this turn. When
+      // true AND images are attached AND a vision fallback is wired, we retry the
+      // turn with the images replaced by text descriptions produced by a vision-
+      // capable provider (see analyzeImageViaVision). This keeps the conversation
+      // going instead of failing with "this model does not support image input".
+      let visionFallbackApplied = false;
       for (;;) {
         this.watchdogTimedOut = false;
         // Start the stream watchdog — detects hangs and provides user feedback.
         this.startStreamWatchdog(state, streamController);
         let timedOutThisAttempt = false;
+        let imageNotSupportedThisAttempt = false;
 
         try {
           for await (const chunk of agentService.query(preparedTurn, previousMessages)) {
@@ -667,6 +693,14 @@ export class InputController {
               continue;
             }
 
+            // Detect image-not-supported errors so we can fall back to a vision
+            // description retry (see the post-loop block). Providers raise this
+            // when the chosen model can't ingest images even though the provider
+            // itself supports them (mixed model families like Kimi-K2 vs vision).
+            if (chunk.type === 'error' && this.isImageNotSupportedError(chunk.content)) {
+              imageNotSupportedThisAttempt = true;
+            }
+
             recordRunTimelineChunk(runTimeline, chunk);
 
             if (await this.handleProviderMessageBoundaryChunk(chunk)) {
@@ -680,6 +714,29 @@ export class InputController {
           }
         } finally {
           this.stopStreamWatchdog();
+        }
+
+        // Vision fallback: the active model rejected image input. Before giving
+        // up, try once to analyze the images via a vision-capable provider and
+        // retry the turn with descriptions INSTEAD of raw image attachments.
+        if (
+          imageNotSupportedThisAttempt
+          && !visionFallbackApplied
+          && !wasInvalidated
+          && !wasInterrupted
+          && (preparedTurn.request.images?.length ?? 0) > 0
+          && this.deps.analyzeImageViaVision
+        ) {
+          visionFallbackApplied = true;
+          try { agentService.cancel(); } catch { /* best-effort */ }
+          const fallbackTurn = await this.buildVisionFallbackTurn(preparedTurn);
+          if (fallbackTurn) {
+            preparedTurn = fallbackTurn;
+            await streamController.appendText(
+              `\n\n> 🖼️ *Modell unterstützt keine Bilder — verwende Bildbeschreibung als Fallback.*\n`,
+            ).catch(() => { /* best-effort */ });
+            continue;
+          }
         }
 
         // Watchdog timeout → auto-retry the same turn if budget remains.
@@ -1174,6 +1231,64 @@ export class InputController {
   private static readonly WATCHDOG_INTERVAL_MS = 5_000;
   /** How many times a timed-out turn is automatically re-sent before giving up. */
   private static readonly MAX_AUTO_RETRIES = 2;
+
+  /**
+   * Matches provider error strings that indicate the active model rejects image
+   * input. Phrasing varies by provider (Anthropic, OpenAI, Google, …) — this
+   * regex covers the common variants so we can trigger a vision-description
+   * fallback and keep the conversation going instead of failing the turn.
+   */
+  private static readonly IMAGE_NOT_SUPPORTED_PATTERN =
+    /(?:image|vision)[\s\S]{0,40}(?:not supported|does not support|cannot read|unsupported)|(?:does not support|not supported|cannot read)[\s\S]{0,40}(?:image|vision)/i;
+
+  private isImageNotSupportedError(message: string): boolean {
+    if (!message) return false;
+    return InputController.IMAGE_NOT_SUPPORTED_PATTERN.test(message);
+  }
+
+  /**
+   * Builds a retry turn that replaces image attachments with text descriptions
+   * produced by a vision-capable provider. Returns null when no fallback is
+   * available (no analyzer wired, no images, or analysis failed for all).
+   */
+  private async buildVisionFallbackTurn(
+    preparedTurn: PreparedChatTurn,
+  ): Promise<PreparedChatTurn | null> {
+    const analyzer = this.deps.analyzeImageViaVision;
+    if (!analyzer) return null;
+    const images = preparedTurn.request.images ?? [];
+    if (images.length === 0) return null;
+
+    const descriptions: string[] = [];
+    for (let i = 0; i < images.length; i++) {
+      const img = images[i];
+      try {
+        const description = await analyzer(img);
+        if (description) {
+          descriptions.push(`### Bild ${i + 1}: ${img.name}\n\n${description.trim()}`);
+        } else {
+          descriptions.push(`### Bild ${i + 1}: ${img.name}\n\n*(Bild konnte nicht analysiert werden.)*`);
+        }
+      } catch {
+        descriptions.push(`### Bild ${i + 1}: ${img.name}\n\n*(Bildanalyse fehlgeschlagen.)*`);
+      }
+    }
+
+    if (descriptions.length === 0) return null;
+
+    const visionBlock = `\n\n<section data-vision-fallback>\n**Bildbeschreibungen (automatisch generiert — das aktive Modell unterstützt keine direkte Bildanzeige):**\n\n${descriptions.join('\n\n')}\n</section>\n`;
+
+    // Re-prepare the turn WITHOUT images but with descriptions appended to the
+    // prompt text. The original prompt is preserved verbatim.
+    const agentService = this.getAgentService();
+    if (!agentService) return null;
+    const newText = `${preparedTurn.request.text}${visionBlock}`;
+    return agentService.prepareTurn({
+      ...preparedTurn.request,
+      text: newText,
+      images: undefined,
+    });
+  }
 
   /**
    * Starts the stream watchdog. Call right before the `for await` loop begins.

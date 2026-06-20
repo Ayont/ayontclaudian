@@ -1762,6 +1762,11 @@ export function initializeTabControllers(
     getSubagentManager: () => services.subagentManager,
     getVaultRAGService: () => plugin.vaultRAGService ?? null,
     getTabProviderId: () => getTabProviderId(tab, plugin),
+    // Vision fallback: when the active provider's model rejects image input,
+    // analyze each attachment via a vision-capable provider and return a German
+    // description. The InputController then retries the turn with descriptions
+    // instead of raw images so the conversation continues uninterrupted.
+    analyzeImageViaVision: (image) => plugin.runVisionPrompt(image, '').catch(() => null),
     consumePendingContextBootstrap: () => {
       const pending = tab.pendingContextBootstrap;
       tab.pendingContextBootstrap = null;
