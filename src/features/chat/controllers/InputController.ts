@@ -161,6 +161,11 @@ export class InputController {
   private pendingSteerMessage: QueuedMessage | null = null;
   private softSteerInProgress = false;
   private activeStreamingAssistantMessage: ChatMessage | null = null;
+  // ── Stream watchdog: detects hangs and provides user feedback + recovery ──
+  private streamWatchdogTimer: number | null = null;
+  private lastChunkTime = 0;
+  private streamStartTime = 0;
+  private watchdogWarningShown = false;
   private pendingProviderUserMessages: Array<{
     displayContent: string;
     persistedContent?: string;
@@ -581,7 +586,14 @@ export class InputController {
       userMsg.currentNote = preparedTurn.isCompact
         ? undefined
         : preparedTurn.request.currentNotePath;
+
+      // Start the stream watchdog — detects hangs and provides user feedback.
+      this.startStreamWatchdog(state, streamController);
+
       for await (const chunk of agentService.query(preparedTurn, previousMessages)) {
+        // Ping the watchdog on every chunk — resets the hang timer.
+        this.pingStreamWatchdog();
+
         if (state.streamGeneration !== streamGeneration) {
           wasInvalidated = true;
           break;
@@ -625,6 +637,8 @@ export class InputController {
         );
       }
     } finally {
+      // Always stop the stream watchdog — prevents timer leaks on any exit path.
+      this.stopStreamWatchdog();
       const finalAssistantMsg = this.activeStreamingAssistantMessage ?? assistantMsg;
       const turnMetadata = agentService.consumeTurnMetadata();
       userMsg.userMessageId = turnMetadata.userMessageId ?? userMsg.userMessageId;
@@ -1064,6 +1078,72 @@ export class InputController {
     }
 
     return null;
+  }
+
+  // ============================================
+  // Stream Watchdog — hang detection + recovery
+  // ============================================
+
+  /** Time without any chunk before showing a "still waiting" warning (ms). */
+  private static readonly WATCHDOG_WARN_MS = 30_000;
+  /** Time without any chunk before auto-canceling the stream (ms). */
+  private static readonly WATCHDOG_TIMEOUT_MS = 120_000;
+  /** Watchdog check interval (ms). */
+  private static readonly WATCHDOG_INTERVAL_MS = 5_000;
+
+  /**
+   * Starts the stream watchdog. Call right before the `for await` loop begins.
+   * The watchdog checks every {@link WATCHDOG_INTERVAL_MS} whether chunks have
+   * arrived. After {@link WATCHDOG_WARN_MS} of silence it shows a "still waiting"
+   * indicator. After {@link WATCHDOG_TIMEOUT_MS} it auto-cancels the stream and
+   * shows an error message with a retry hint.
+   */
+  private startStreamWatchdog(state: ChatState, streamController: StreamController): void {
+    this.stopStreamWatchdog();
+    this.lastChunkTime = Date.now();
+    this.streamStartTime = Date.now();
+    this.watchdogWarningShown = false;
+
+    this.streamWatchdogTimer = window.setInterval(() => {
+      const silenceMs = Date.now() - this.lastChunkTime;
+      const totalMs = Date.now() - this.streamStartTime;
+
+      // Phase 1: Warning — show "still working" after 30s of silence
+      if (silenceMs > InputController.WATCHDOG_WARN_MS && !this.watchdogWarningShown) {
+        this.watchdogWarningShown = true;
+        const secs = Math.round(silenceMs / 1000);
+        streamController.appendText(
+          `\n\n> ⏳ *Claudian scheint noch zu arbeiten... ${secs}s ohne Antwort. Wenn es hängt, klicke "Cancel" oder warte weiter.*\n`,
+        ).catch(() => { /* best-effort */ });
+      }
+
+      // Phase 2: Auto-cancel — force-cancel after 120s of total silence
+      if (silenceMs > InputController.WATCHDOG_TIMEOUT_MS) {
+        const mins = Math.round(silenceMs / 60_000);
+        this.stopStreamWatchdog();
+        state.cancelRequested = true;
+        streamController.appendText(
+          `\n\n> ⚠️ **Stream-Timeout nach ${mins}m ohne Antwort.** Der Stream wurde automatisch abgebrochen. Du kannst es erneut versuchen oder ein anderes Modell wählen.*\n`,
+        ).catch(() => { /* best-effort */ });
+        // Also try to cancel via the agent service
+        const agentService = this.getAgentService();
+        try { agentService?.cancel(); } catch { /* best-effort */ }
+      }
+    }, InputController.WATCHDOG_INTERVAL_MS) as unknown as number;
+  }
+
+  /** Updates the watchdog's last-chunk timestamp. Call on every stream chunk. */
+  private pingStreamWatchdog(): void {
+    this.lastChunkTime = Date.now();
+  }
+
+  /** Stops the watchdog timer. Call in the finally block of sendMessage. */
+  private stopStreamWatchdog(): void {
+    if (this.streamWatchdogTimer !== null) {
+      window.clearInterval(this.streamWatchdogTimer);
+      this.streamWatchdogTimer = null;
+    }
+    this.watchdogWarningShown = false;
   }
 
   private clearPendingSteerState(): void {

@@ -47,6 +47,7 @@ import { ChatState } from '../state/ChatState';
 import { BangBashModeManager as BangBashModeManagerClass } from '../ui/BangBashModeManager';
 import { CommitBar } from '../ui/CommitBar';
 import { FileContextManager } from '../ui/FileContext';
+import { FilePreviewPanel } from '../ui/FilePreviewPanel';
 import { GoalBanner } from '../ui/GoalBanner';
 import { ImageContextManager } from '../ui/ImageContext';
 import { createInputToolbar } from '../ui/InputToolbar';
@@ -710,6 +711,7 @@ export function createTab(options: TabCreateOptions): TabData {
       streamStatusBar,
       swarmPanel,
       multiAgentButton: null,
+      filePreviewPanel: null,
     },
     dom,
     renderer: null,
@@ -1070,8 +1072,11 @@ function initializeInputToolbar(
       }
 
       // User picked a real model manually — Auto is no longer active.
+      // MUST clear draftModel so getModelValue() falls through to snapshot.model
+      // instead of returning the stale '__auto__' sentinel.
       tab.autoModelActive = false;
       tab.routedModel = null;
+      tab.draftModel = null;
 
       // For blank tabs, update draft model and derive provider
       if (tab.lifecycleState === 'blank') {
@@ -1308,6 +1313,13 @@ export function initializeTabUI(
       dom.messagesEl.parentElement,
       dom.messagesEl
     );
+
+    // File preview panel — collapsible right-side panel for file/document previews.
+    tab.ui.filePreviewPanel = new FilePreviewPanel(
+      dom.messagesEl.parentElement,
+      plugin,
+    );
+    tab.ui.filePreviewPanel.render();
   }
 
   initializeInstructionAndTodo(tab, plugin);
@@ -1993,6 +2005,8 @@ export async function destroyTab(tab: TabData): Promise<void> {
   tab.ui.statusPanel = null;
   tab.ui.navigationSidebar?.destroy();
   tab.ui.navigationSidebar = null;
+  tab.ui.filePreviewPanel?.destroy();
+  tab.ui.filePreviewPanel = null;
   tab.ui.swarmPanel?.destroy();
   tab.ui.swarmPanel = null;
   // Closes the model dropdown and removes its document-level dismiss listeners

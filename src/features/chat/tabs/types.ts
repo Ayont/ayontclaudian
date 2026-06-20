@@ -16,6 +16,7 @@ import type { SubagentManager } from '../services/SubagentManager';
 import type { ChatState } from '../state/ChatState';
 import type { BangBashModeManager } from '../ui/BangBashModeManager';
 import type { FileContextManager } from '../ui/FileContext';
+import type { FilePreviewPanel } from '../ui/FilePreviewPanel';
 import type { GoalBanner } from '../ui/GoalBanner';
 import type { ImageContextManager } from '../ui/ImageContext';
 import type {
@@ -134,6 +135,8 @@ export interface TabUIComponents {
   swarmPanel: SwarmPanel | null;
   /** Claudian OS "Multi-Agent" action button; visibility is gated by provider capabilities. */
   multiAgentButton: HTMLButtonElement | null;
+  /** Collapsible file preview panel on the right side of chat. */
+  filePreviewPanel: FilePreviewPanel | null;
 }
 
 /**

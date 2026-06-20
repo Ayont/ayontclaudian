@@ -83,6 +83,7 @@ import { DEFAULT_CHAT_PROVIDER_ID } from './core/providers/types';
 import {
   AUTO_MODEL_VALUE,
   chooseModelRoute,
+  type ModelRouteContext,
   type ModelRouteDecision,
   type ModelRouterRule,
   type ModelRouterTask,
@@ -941,11 +942,14 @@ export default class ClaudianPlugin extends Plugin {
       return found ? { task, model: found.value } : null;
     };
     return [
-      findModel('code', [/kimi/i, /code/i, /sonnet/i]),
-      findModel('writing', [/gpt/i, /claude/i, /sonnet/i]),
-      findModel('planning', [/claude/i, /kimi/i, /reason/i]),
-      findModel('vision', [/vision/i, /gpt/i, /gemini/i, /kimi/i]),
-      findModel('cheap', [/haiku/i, /mini/i, /flash/i, /highspeed/i]),
+      findModel('code', [/kimi.*code/i, /kimi.*for.*coding/i, /codex/i, /code/i, /sonnet/i, /claude/i]),
+      findModel('writing', [/claude.*sonnet/i, /claude/i, /gpt/i, /sonnet/i]),
+      findModel('planning', [/claude.*opus/i, /claude/i, /kimi/i, /reason/i, /o1/i, /o3/i]),
+      findModel('vision', [/vision/i, /gpt-4o/i, /gpt-5/i, /gemini/i, /kimi/i, /claude/i]),
+      findModel('analysis', [/kimi/i, /gpt/i, /claude/i, /sonnet/i]),
+      findModel('document', [/claude/i, /gpt/i, /kimi/i]),
+      findModel('cheap', [/haiku/i, /mini/i, /flash/i, /highspeed/i, /nano/i, /air/i]),
+      findModel('longcontext', [/claude/i, /gemini/i, /kimi/i]),
     ].filter((rule): rule is ModelRouterRule => rule !== null);
   }
 
@@ -967,7 +971,18 @@ export default class ClaudianPlugin extends Plugin {
     const availableModels = ProviderRegistry.getAggregatedModelOptions(settingsBag);
     const explicitRules = normalizeRouterRules(this.settings.modelRouterRules);
     const rules = explicitRules.length > 0 ? explicitRules : this.defaultRouterRulesFromModels();
-    const decision = chooseModelRoute({ prompt, rules, availableModels, fallbackModel });
+
+    // Context-aware routing: detect images, file extensions, and token estimate
+    const context: ModelRouteContext = {};
+    const imageContextManager = (this as any).imageStagingService;
+    if (imageContextManager) {
+      const images = imageContextManager.getAttachedImages?.() ?? [];
+      if (images.length > 0) context.hasImages = true;
+    }
+    // Estimate tokens from prompt length (~4 chars/token)
+    context.estimatedTokens = Math.ceil(prompt.length / 4);
+
+    const decision = chooseModelRoute({ prompt, rules, availableModels, fallbackModel, context });
 
     if (decision.model === fallbackModel) {
       return null;

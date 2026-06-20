@@ -1,0 +1,202 @@
+/* File Preview Panel — collapsible right-side panel for file previews */
+
+.claudian-preview-toggle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text-muted);
+  z-index: 50;
+  transition: background 0.2s, color 0.2s;
+}
+
+.claudian-preview-toggle:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.claudian-preview-toggle--active {
+  background: rgba(var(--interactive-accent-rgb), 0.15);
+  color: var(--interactive-accent);
+}
+
+.claudian-preview-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 45%;
+  height: 100%;
+  background: var(--background-primary);
+  border-left: 1px solid var(--background-modifier-border);
+  flex-direction: column;
+  z-index: 49;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
+  animation: claudian-preview-slide-in 0.25s ease;
+}
+
+@keyframes claudian-preview-slide-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.claudian-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  flex-shrink: 0;
+}
+
+.claudian-preview-header-icon {
+  color: var(--interactive-accent);
+  display: flex;
+}
+
+.claudian-preview-title {
+  font-weight: 600;
+  font-size: 0.9em;
+  flex: 1;
+}
+
+.claudian-preview-close {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.claudian-preview-close:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.claudian-preview-content {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.claudian-preview-empty,
+.claudian-preview-loading,
+.claudian-preview-error {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 32px;
+  font-style: italic;
+}
+
+.claudian-preview-error {
+  color: #f87171;
+}
+
+.claudian-preview-truncated {
+  color: var(--text-muted);
+  font-size: 0.8em;
+  text-align: center;
+  padding: 8px;
+  margin-top: 8px;
+}
+
+/* PDF preview */
+.claudian-preview-pdf {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 8px;
+  flex: 1;
+}
+
+/* Image preview */
+.claudian-preview-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  object-fit: contain;
+  align-self: center;
+}
+
+/* Text/code preview */
+.claudian-preview-text {
+  width: 100%;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  overflow: auto;
+  font-family: var(--font-monospace);
+  font-size: 0.85em;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.claudian-preview-text--code {
+  font-family: var(--font-monospace);
+}
+
+.claudian-preview-text--markdown {
+  font-family: var(--font-text);
+}
+
+/* CSV table preview */
+.claudian-preview-table-wrap {
+  overflow: auto;
+  border-radius: 8px;
+  border: 1px solid var(--background-modifier-border);
+}
+
+.claudian-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85em;
+}
+
+.claudian-preview-table th {
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  background: var(--background-secondary);
+  border-bottom: 2px solid var(--background-modifier-border);
+  position: sticky;
+  top: 0;
+}
+
+.claudian-preview-table td {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.claudian-preview-table tr:hover td {
+  background: var(--background-modifier-hover);
+}
+
+/* When preview is open, shrink the chat area */
+.claudian-preview-open .claudian-chat-messages {
+  width: 55%;
+}
+
+@media (max-width: 768px) {
+  .claudian-preview-panel {
+    width: 100%;
+  }
+  .claudian-preview-open .claudian-chat-messages {
+    width: 100%;
+  }
+}
