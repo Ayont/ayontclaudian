@@ -222,6 +222,9 @@ export class ConversationController {
       this.deps.setWelcomeEl(welcomeEl);
       this.updateWelcomeVisibility();
 
+      // Restore the "new chat" (null-scoped) draft images, if any survived a restart.
+      void this.deps.getImageContextManager()?.reloadForConversation();
+
       this.callbacks.onConversationLoaded?.();
       return;
     }
@@ -403,6 +406,9 @@ export class ConversationController {
         sessionId: initialSessionId,
       });
       state.currentConversationId = conversation.id;
+      // Re-tag any unsent draft images from the null "new chat" scope to this
+      // freshly created conversation so they stay bound to the right chat.
+      this.deps.getImageContextManager()?.reassignToConversation(conversation.id);
     }
 
     const fileCtx = this.deps.getFileContextManager();
@@ -494,6 +500,10 @@ export class ConversationController {
       () => this.getGreeting()
     );
     this.deps.setWelcomeEl(welcomeEl);
+
+    // Restore only THIS conversation's staged draft images (scoped) so switching
+    // or restarting never dumps every past chat's attachments into the input.
+    void this.deps.getImageContextManager()?.reloadForConversation();
   }
 
   /**

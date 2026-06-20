@@ -142,6 +142,149 @@
   font-weight: 500;
 }
 
+/* ============================================
+   Attachment preview chips (PDF / video / docs / generic files)
+   ============================================ */
+
+.claudian-attachment-preview {
+  display: none;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 0 8px;
+}
+
+.claudian-attachment-chip {
+  --att-accent: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-left: 3px solid var(--att-accent);
+  border-radius: 9px;
+  max-width: 230px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.claudian-attachment-chip:hover {
+  border-color: var(--att-accent);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+  transform: translateY(-1px);
+}
+
+/* Per-type accent colors */
+.claudian-attachment-chip--pdf { --att-accent: #f87171; }
+.claudian-attachment-chip--doc { --att-accent: #60a5fa; }
+.claudian-attachment-chip--sheet { --att-accent: #4ade80; }
+.claudian-attachment-chip--code { --att-accent: #a78bfa; }
+.claudian-attachment-chip--image { --att-accent: #fb923c; }
+.claudian-attachment-chip--video { --att-accent: #f472b6; }
+.claudian-attachment-chip--audio { --att-accent: #22d3ee; }
+.claudian-attachment-chip--archive { --att-accent: #eab308; }
+.claudian-attachment-chip--md { --att-accent: #818cf8; }
+.claudian-attachment-chip--generic { --att-accent: var(--text-muted); }
+
+.claudian-attachment-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  flex-shrink: 0;
+  color: var(--att-accent);
+  background: color-mix(in srgb, var(--att-accent) 14%, transparent);
+}
+
+.claudian-attachment-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.claudian-attachment-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.claudian-attachment-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claudian-attachment-meta {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.claudian-attachment-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.claudian-attachment-remove:hover {
+  background: var(--background-modifier-error);
+  color: var(--text-on-accent);
+}
+
+/* Uploading state (chips + image thumbs) */
+.claudian-attachment-chip--uploading {
+  opacity: 0.85;
+}
+
+.claudian-attachment-spinner {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 16px;
+  height: 16px;
+  border: 2px solid color-mix(in srgb, var(--att-accent, var(--claudian-brand)) 35%, transparent);
+  border-top-color: var(--att-accent, var(--claudian-brand));
+  border-radius: 50%;
+  animation: claudian-att-spin 0.7s linear infinite;
+}
+
+/* Spinner over an image thumbnail uses a translucent backdrop. */
+.claudian-image-thumb .claudian-attachment-spinner {
+  inset: 0;
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+}
+
+.claudian-image-chip.claudian-attachment-chip--uploading .claudian-image-thumb::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.claudian-image-chip.claudian-attachment-chip--uploading .claudian-image-thumb {
+  position: relative;
+}
+
+@keyframes claudian-att-spin {
+  to { transform: rotate(360deg); }
+}
+
 /* Images in Messages (displayed above user bubble) */
 
 /* Images container - right-aligned above user message */

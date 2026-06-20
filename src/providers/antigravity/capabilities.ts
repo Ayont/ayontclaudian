@@ -20,7 +20,7 @@ export const ANTIGRAVITY_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> =
   supportsImageAttachments: true,
   supportsInstructionMode: false,
   supportsMcpTools: false,
-  supportsMultiAgent: false,
+  supportsMultiAgent: true,
   supportsTurnSteer: true,
   reasoningControl: 'none',
 });

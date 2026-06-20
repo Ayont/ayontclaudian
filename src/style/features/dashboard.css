@@ -913,6 +913,88 @@
   --claudian-accent-rgb: var(--claudian-brand-grok-rgb);
 }
 
+/* Provider-aware accent for the Dashboard view + its browser modals + the
+   header provider chip — same brand map as the multi-agent modal so every
+   dashboard surface is tinted by the active provider. */
+.claudian-dashboard[data-provider="claude"],
+.claudian-dashboard-browser-modal[data-provider="claude"],
+.claudian-dashboard-provider-chip[data-provider="claude"] {
+  --claudian-accent: var(--claudian-brand-claude);
+  --claudian-accent-rgb: var(--claudian-brand-claude-rgb);
+}
+
+.claudian-dashboard[data-provider="codex"],
+.claudian-dashboard-browser-modal[data-provider="codex"],
+.claudian-dashboard-provider-chip[data-provider="codex"] {
+  --claudian-accent: var(--claudian-brand-codex);
+  --claudian-accent-rgb: var(--claudian-brand-codex-rgb);
+}
+
+.claudian-dashboard[data-provider="opencode"],
+.claudian-dashboard-browser-modal[data-provider="opencode"],
+.claudian-dashboard-provider-chip[data-provider="opencode"] {
+  --claudian-accent: var(--claudian-brand-opencode);
+  --claudian-accent-rgb: var(--claudian-brand-opencode-rgb);
+}
+
+.claudian-dashboard[data-provider="pi"],
+.claudian-dashboard-browser-modal[data-provider="pi"],
+.claudian-dashboard-provider-chip[data-provider="pi"] {
+  --claudian-accent: var(--claudian-brand-pi);
+  --claudian-accent-rgb: var(--claudian-brand-pi-rgb);
+}
+
+.claudian-dashboard[data-provider="kimi"],
+.claudian-dashboard-browser-modal[data-provider="kimi"],
+.claudian-dashboard-provider-chip[data-provider="kimi"] {
+  --claudian-accent: var(--claudian-brand-kimi);
+  --claudian-accent-rgb: var(--claudian-brand-kimi-rgb);
+}
+
+.claudian-dashboard[data-provider="antigravity"],
+.claudian-dashboard-browser-modal[data-provider="antigravity"],
+.claudian-dashboard-provider-chip[data-provider="antigravity"] {
+  --claudian-accent: var(--claudian-brand-antigravity);
+  --claudian-accent-rgb: var(--claudian-brand-antigravity-rgb);
+}
+
+.claudian-dashboard[data-provider="vibe"],
+.claudian-dashboard-browser-modal[data-provider="vibe"],
+.claudian-dashboard-provider-chip[data-provider="vibe"] {
+  --claudian-accent: var(--claudian-brand-vibe);
+  --claudian-accent-rgb: var(--claudian-brand-vibe-rgb);
+}
+
+.claudian-dashboard[data-provider="grok"],
+.claudian-dashboard-browser-modal[data-provider="grok"],
+.claudian-dashboard-provider-chip[data-provider="grok"] {
+  --claudian-accent: var(--claudian-brand-grok);
+  --claudian-accent-rgb: var(--claudian-brand-grok-rgb);
+}
+
+/* Header provider chip */
+.claudian-dashboard-provider-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--claudian-accent);
+  background: rgba(var(--claudian-accent-rgb), 0.12);
+  border: 1px solid rgba(var(--claudian-accent-rgb), 0.35);
+}
+
+.claudian-dashboard-provider-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--claudian-accent);
+  box-shadow: 0 0 8px rgba(var(--claudian-accent-rgb), 0.7);
+}
+
 /* Light-theme overrides must also apply inside the modal. */
 body.theme-light .claudian-multi-agent-modal[data-provider="codex"] {
   --claudian-accent: var(--claudian-brand-codex);
@@ -930,6 +1012,35 @@ body.theme-light .claudian-multi-agent-modal[data-provider="pi"] {
 }
 
 body.theme-light .claudian-multi-agent-modal[data-provider="grok"] {
+  --claudian-accent: var(--claudian-brand-grok);
+  --claudian-accent-rgb: var(--claudian-brand-grok-rgb);
+}
+
+/* Light-theme overrides for the dashboard view + browser modals + chip. */
+body.theme-light .claudian-dashboard[data-provider="codex"],
+body.theme-light .claudian-dashboard-browser-modal[data-provider="codex"],
+body.theme-light .claudian-dashboard-provider-chip[data-provider="codex"] {
+  --claudian-accent: var(--claudian-brand-codex);
+  --claudian-accent-rgb: var(--claudian-brand-codex-rgb);
+}
+
+body.theme-light .claudian-dashboard[data-provider="opencode"],
+body.theme-light .claudian-dashboard-browser-modal[data-provider="opencode"],
+body.theme-light .claudian-dashboard-provider-chip[data-provider="opencode"] {
+  --claudian-accent: var(--claudian-brand-opencode);
+  --claudian-accent-rgb: var(--claudian-brand-opencode-rgb);
+}
+
+body.theme-light .claudian-dashboard[data-provider="pi"],
+body.theme-light .claudian-dashboard-browser-modal[data-provider="pi"],
+body.theme-light .claudian-dashboard-provider-chip[data-provider="pi"] {
+  --claudian-accent: var(--claudian-brand-pi);
+  --claudian-accent-rgb: var(--claudian-brand-pi-rgb);
+}
+
+body.theme-light .claudian-dashboard[data-provider="grok"],
+body.theme-light .claudian-dashboard-browser-modal[data-provider="grok"],
+body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
   --claudian-accent: var(--claudian-brand-grok);
   --claudian-accent-rgb: var(--claudian-brand-grok-rgb);
 }

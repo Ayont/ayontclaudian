@@ -2,7 +2,22 @@ import type { App } from 'obsidian';
 import { Modal, Notice, setIcon } from 'obsidian';
 
 import type { MissionEvent, MissionState } from '../../core/intelligence/multiAgent/MissionStateStorage';
+import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
 import type ClaudianPlugin from '../../main';
+
+/**
+ * Tints a dashboard modal with the active provider's brand color via the shared
+ * `[data-provider]` CSS hook, so every dashboard surface matches the provider.
+ */
+function applyProviderTheme(modalEl: HTMLElement, plugin: ClaudianPlugin): void {
+  try {
+    modalEl.dataset.provider =
+      plugin.getView()?.getActiveTab()?.providerId ??
+      ProviderRegistry.resolveSettingsProviderId(plugin.settings);
+  } catch {
+    // Non-fatal: modal still renders with the default accent.
+  }
+}
 
 // ── Memory Browser Modal ──────────────────────────────────────────────────────
 
@@ -20,6 +35,7 @@ export class MemoryBrowserModal extends Modal {
   constructor(app: App, private readonly plugin: ClaudianPlugin) {
     super(app);
     this.modalEl.addClass('claudian-dashboard-browser-modal');
+    applyProviderTheme(this.modalEl, plugin);
   }
 
   async onOpen(): Promise<void> {
@@ -87,6 +103,7 @@ export class MissionLogBrowserModal extends Modal {
   constructor(app: App, private readonly plugin: ClaudianPlugin) {
     super(app);
     this.modalEl.addClass('claudian-dashboard-browser-modal');
+    applyProviderTheme(this.modalEl, plugin);
   }
 
   async onOpen(): Promise<void> {
@@ -155,6 +172,7 @@ export class WorkflowBrowserModal extends Modal {
   constructor(app: App, private readonly plugin: ClaudianPlugin) {
     super(app);
     this.modalEl.addClass('claudian-dashboard-browser-modal');
+    applyProviderTheme(this.modalEl, plugin);
   }
 
   onOpen(): void {
@@ -191,6 +209,7 @@ export class TokenUsageModal extends Modal {
   constructor(app: App, private readonly plugin: ClaudianPlugin) {
     super(app);
     this.modalEl.addClass('claudian-dashboard-browser-modal');
+    applyProviderTheme(this.modalEl, plugin);
   }
 
   onOpen(): void {
@@ -213,9 +232,10 @@ export class TokenUsageModal extends Modal {
     const canvas = chartWrap.createEl('canvas', { cls: 'claudian-usage-chart' });
     canvas.width = 500;
     canvas.height = 200;
+    const accent = this.resolveAccent();
     this.drawBarChart(canvas, [
-      { label: 'Daily', value: usage.dailyTotal, color: '#60a5fa' },
-      { label: 'Session', value: usage.sessionTotal, color: '#a78bfa' },
+      { label: 'Daily', value: usage.dailyTotal, color: accent.strong },
+      { label: 'Session', value: usage.sessionTotal, color: accent.soft },
     ]);
 
     const actions = contentEl.createDiv({ cls: 'claudian-usage-actions' });
@@ -226,6 +246,26 @@ export class TokenUsageModal extends Modal {
       new Notice('Token budget reset.');
       this.onOpen();
     });
+  }
+
+  /**
+   * Resolves the active provider's accent into concrete canvas colors. Canvas
+   * cannot consume CSS custom properties, so we read the computed `--claudian-*`
+   * tokens (set via `[data-provider]`) and fall back to sensible defaults.
+   */
+  private resolveAccent(): { strong: string; soft: string; grid: string; text: string; muted: string } {
+    const styles = getComputedStyle(this.modalEl);
+    const accent = styles.getPropertyValue('--claudian-accent').trim() || '#7c3aed';
+    const rgb = styles.getPropertyValue('--claudian-accent-rgb').trim();
+    const text = styles.getPropertyValue('--text-normal').trim() || '#e6e6e6';
+    const muted = styles.getPropertyValue('--text-muted').trim() || '#9a9a9a';
+    return {
+      strong: accent,
+      soft: rgb ? `rgba(${rgb}, 0.5)` : accent,
+      grid: rgb ? `rgba(${rgb}, 0.12)` : 'rgba(255,255,255,0.1)',
+      text,
+      muted,
+    };
   }
 
   private createStatCard(parent: HTMLElement, title: string, value: string, subtitle: string): void {
@@ -244,11 +284,12 @@ export class TokenUsageModal extends Modal {
     const padding = 40;
     const barWidth = (w - padding * 2) / bars.length - 20;
     const maxValue = Math.max(...bars.map(b => b.value), 1);
+    const accent = this.resolveAccent();
 
     ctx.clearRect(0, 0, w, h);
 
     // Grid lines
-    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.strokeStyle = accent.grid;
     ctx.lineWidth = 1;
     for (let i = 0; i <= 4; i++) {
       const y = padding + ((h - padding * 2) / 4) * i;
@@ -268,13 +309,13 @@ export class TokenUsageModal extends Modal {
       ctx.fillRect(x, y, barWidth, barHeight);
 
       // Label
-      ctx.fillStyle = 'var(--text-muted)';
+      ctx.fillStyle = accent.muted;
       ctx.font = '12px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(bar.label, x + barWidth / 2, h - padding + 20);
 
       // Value
-      ctx.fillStyle = 'var(--text-normal)';
+      ctx.fillStyle = accent.text;
       ctx.fillText(bar.value.toLocaleString(), x + barWidth / 2, y - 8);
     });
   }

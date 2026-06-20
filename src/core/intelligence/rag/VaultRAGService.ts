@@ -1,4 +1,4 @@
-import type { Vault } from 'obsidian';
+import type { TFile, Vault } from 'obsidian';
 
 import type { EmbeddingService } from '../embeddings/EmbeddingService';
 import type { VectorRecord, VectorStore } from '../vectorStore/VectorStore';
@@ -67,6 +67,56 @@ export class VaultRAGService {
     } finally {
       this.isIndexing = false;
     }
+  }
+
+  /**
+   * (Re-)indexes a single markdown file: drops its previous chunks and embeds
+   * the current content. Used for incremental, live index updates as the vault
+   * changes, so RAG stays fresh without a full re-index.
+   */
+  async indexFile(file: TFile): Promise<number> {
+    if (file.extension !== 'md') return 0;
+    this.removeFile(file.path);
+
+    const content = await this.vault.cachedRead(file).catch(() => '');
+    if (!content.trim()) return 0;
+
+    const chunks = this.chunkText(content);
+    if (chunks.length === 0) return 0;
+
+    let embeddings: number[][];
+    try {
+      embeddings = await this.embeddingService.embed(chunks);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn('[VaultRAGService] embedding failed during incremental index:', message);
+      return 0;
+    }
+
+    for (let i = 0; i < chunks.length; i++) {
+      this.vectorStore.upsert({
+        id: `${file.path}#chunk-${i}`,
+        text: chunks[i],
+        embedding: embeddings[i],
+        metadata: { path: file.path, index: i },
+        mtime: file.stat.mtime,
+      });
+    }
+    return chunks.length;
+  }
+
+  /** Removes every chunk belonging to a file path from the index. */
+  removeFile(path: string): void {
+    for (const record of this.vectorStore.getAll()) {
+      if (record.metadata.path === path) {
+        this.vectorStore.delete(record.id);
+      }
+    }
+  }
+
+  /** True while a full index is running (used to avoid overlapping work). */
+  get indexing(): boolean {
+    return this.isIndexing;
   }
 
   async query(question: string, options: { limit?: number } = {}): Promise<RAGChunk[]> {

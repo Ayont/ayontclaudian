@@ -14,6 +14,13 @@ export interface StagedImageEntry {
   size: number;
   source: 'file' | 'paste' | 'drop';
   createdAt: number;
+  /**
+   * The conversation this draft image belongs to. `null` means the image was
+   * staged in a not-yet-persisted "new chat". Legacy entries written before
+   * per-conversation scoping have this `undefined` and are purged on cleanup so
+   * they never reappear as a global dump across all chats.
+   */
+  conversationId?: string | null;
 }
 
 interface StagingManifest {
@@ -69,7 +76,7 @@ export class ImageStagingService {
    * Saves an image attachment to the staging folder and records it in the manifest.
    * If an image with the same id already exists, its entry is updated.
    */
-  async saveImage(attachment: ImageAttachment): Promise<void> {
+  async saveImage(attachment: ImageAttachment, conversationId: string | null = null): Promise<void> {
     const folder = await this.ensureStagingFolder();
     const ext = attachment.mediaType.split('/')[1] ?? 'png';
     const filename = `${attachment.id}.${ext}`;
@@ -88,6 +95,7 @@ export class ImageStagingService {
       size: attachment.size,
       source: attachment.source,
       createdAt: Date.now(),
+      conversationId,
     };
 
     const index = manifest.images.findIndex((img) => img.id === attachment.id);
@@ -153,6 +161,37 @@ export class ImageStagingService {
   }
 
   /**
+   * Returns only the staged images belonging to a specific conversation.
+   * Pass `null` for a not-yet-persisted "new chat". Legacy entries with an
+   * `undefined` conversationId are never matched, preventing the global dump.
+   */
+  async listImagesForConversation(conversationId: string | null): Promise<StagedImageEntry[]> {
+    const manifest = await this.readManifest();
+    return manifest.images.filter((img) => (img.conversationId ?? undefined) === (conversationId ?? undefined));
+  }
+
+  /**
+   * Re-tags staged images from one conversation scope to another. Used when a
+   * "new chat" (null scope) is lazily persisted and gets a real conversation id,
+   * so its drafted-but-unsent images stay attached to the right conversation.
+   */
+  async reassignConversation(ids: string[], conversationId: string | null): Promise<void> {
+    if (ids.length === 0) return;
+    const manifest = await this.readManifest();
+    const idSet = new Set(ids);
+    let changed = false;
+    for (const entry of manifest.images) {
+      if (idSet.has(entry.id) && (entry.conversationId ?? null) !== conversationId) {
+        entry.conversationId = conversationId;
+        changed = true;
+      }
+    }
+    if (changed) {
+      await this.writeManifest(manifest);
+    }
+  }
+
+  /**
    * Removes entries older than `maxAgeDays` (default 7) and entries whose
    * backing file no longer exists. Called on plugin startup.
    */
@@ -166,7 +205,11 @@ export class ImageStagingService {
     for (const entry of manifest.images) {
       const filePath = normalizePath(`${folder}/${entry.filename}`);
       const exists = await this.vault.adapter.exists(filePath);
-      if (!exists || entry.createdAt < cutoff) {
+      // Legacy entries (written before per-conversation scoping) have no
+      // conversationId field — purge them so they never reappear as a global
+      // dump of every past chat's images on startup.
+      const isLegacyUnscoped = !('conversationId' in entry);
+      if (!exists || entry.createdAt < cutoff || isLegacyUnscoped) {
         try {
           if (exists) {
             await this.vault.adapter.remove(filePath);

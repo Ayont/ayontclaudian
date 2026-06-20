@@ -1,6 +1,7 @@
 import { ItemView, Notice, setIcon, type WorkspaceLeaf } from 'obsidian';
 
 import { type ClaudianEvent, type ClaudianEventType, globalEventBus } from '../../core/events/EventBus';
+import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
 import type ClaudianPlugin from '../../main';
 import { ArtifactGalleryModal } from '../artifacts/ArtifactGalleryModal';
 import { MemoryBrowserModal, MissionLogBrowserModal, TokenUsageModal, WorkflowBrowserModal } from './DashboardModals';
@@ -59,6 +60,10 @@ export class ClaudianDashboardView extends ItemView {
     container.empty();
     container.addClass('claudian-dashboard');
 
+    // Tint the whole dashboard with the active provider's brand color so it
+    // feels like one cohesive, intentional surface per provider.
+    this.applyProviderTheme(container);
+
     this.renderHeader(container);
     this.gridEl = container.createDiv({ cls: 'claudian-dashboard-grid' });
     await this.refreshCards();
@@ -75,6 +80,21 @@ export class ClaudianDashboardView extends ItemView {
     this.unsubscribers.length = 0;
   }
 
+  // ── Provider theming ────────────────────────────────────────────────────────
+
+  /** Resolves the provider whose brand color should tint the dashboard. */
+  private getActiveProviderId(): string {
+    return (
+      this.plugin.getView()?.getActiveTab()?.providerId ??
+      ProviderRegistry.resolveSettingsProviderId(this.plugin.settings)
+    );
+  }
+
+  /** Applies the active provider's brand color via the `data-provider` hook. */
+  private applyProviderTheme(container: HTMLElement): void {
+    container.dataset.provider = this.getActiveProviderId();
+  }
+
   // ── Header + live indicator ────────────────────────────────────────────────
 
   private renderHeader(parent: HTMLElement): void {
@@ -89,10 +109,28 @@ export class ClaudianDashboardView extends ItemView {
     textGroup.createEl('p', { text: 'Agent operating system for your vault' });
 
     const status = header.createDiv({ cls: 'claudian-dashboard-status' });
+
+    // Provider chip — names the brand currently coloring the dashboard.
+    const providerId = this.getActiveProviderId();
+    const providerChip = status.createSpan({ cls: 'claudian-dashboard-provider-chip' });
+    providerChip.dataset.provider = providerId;
+    const providerDot = providerChip.createSpan({ cls: 'claudian-dashboard-provider-dot' });
+    void providerDot;
+    providerChip.createSpan({ text: this.getProviderLabel(providerId) });
+
     const statusDot = status.createSpan({ cls: 'claudian-dashboard-status-dot claudian-dashboard-status-dot--active' });
     void statusDot;
     this.liveBadgeEl = status.createSpan({ cls: 'claudian-dashboard-live', text: 'Active' });
     this.updateLiveBadge();
+  }
+
+  /** Human-readable provider name for the header chip. */
+  private getProviderLabel(providerId: string): string {
+    try {
+      return ProviderRegistry.getProviderDisplayName(providerId) ?? providerId;
+    } catch {
+      return providerId;
+    }
   }
 
   private updateLiveBadge(): void {

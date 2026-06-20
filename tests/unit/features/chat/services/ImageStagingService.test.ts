@@ -135,6 +135,81 @@ describe('ImageStagingService', () => {
     expect(await service.loadImage('img-old')).toBeNull();
   });
 
+  it('scopes images per conversation and never mixes chats', async () => {
+    const make = (id: string) => ({
+      id,
+      name: `${id}.png`,
+      mediaType: 'image/png' as const,
+      data: Buffer.from(id).toString('base64'),
+      size: 10,
+      source: 'paste' as const,
+    });
+
+    await service.saveImage(make('img-a1'), 'conv-a');
+    await service.saveImage(make('img-a2'), 'conv-a');
+    await service.saveImage(make('img-b1'), 'conv-b');
+    await service.saveImage(make('img-draft'), null);
+
+    const aImages = await service.listImagesForConversation('conv-a');
+    const bImages = await service.listImagesForConversation('conv-b');
+    const draftImages = await service.listImagesForConversation(null);
+
+    expect(aImages.map((i) => i.id).sort()).toEqual(['img-a1', 'img-a2']);
+    expect(bImages.map((i) => i.id)).toEqual(['img-b1']);
+    expect(draftImages.map((i) => i.id)).toEqual(['img-draft']);
+  });
+
+  it('re-tags draft images to a newly created conversation', async () => {
+    await service.saveImage(
+      {
+        id: 'img-draft',
+        name: 'draft.png',
+        mediaType: 'image/png' as const,
+        data: Buffer.from('draft').toString('base64'),
+        size: 10,
+        source: 'paste' as const,
+      },
+      null,
+    );
+
+    await service.reassignConversation(['img-draft'], 'conv-new');
+
+    expect(await service.listImagesForConversation(null)).toHaveLength(0);
+    expect((await service.listImagesForConversation('conv-new')).map((i) => i.id)).toEqual(['img-draft']);
+  });
+
+  it('purges legacy unscoped entries on cleanup so they never dump globally', async () => {
+    // Simulate a pre-scoping manifest: an entry with NO conversationId field.
+    const manifestPath = '.claudian/staging/images/manifest.json';
+    await vault.adapter.writeBinary('.claudian/staging/images/legacy.png', new TextEncoder().encode('legacy').buffer);
+    await vault.adapter.write(
+      manifestPath,
+      JSON.stringify(
+        {
+          version: 1,
+          images: [
+            {
+              id: 'legacy',
+              filename: 'legacy.png',
+              name: 'legacy.png',
+              mediaType: 'image/png',
+              size: 10,
+              source: 'paste',
+              createdAt: Date.now(),
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+    );
+
+    const removed = await service.cleanup(7);
+
+    expect(removed).toBe(1);
+    expect(await service.listImages()).toHaveLength(0);
+  });
+
   it('removes manifest entries whose backing file is missing', async () => {
     await service.saveImage({
       id: 'img-orphan',

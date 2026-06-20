@@ -95,6 +95,7 @@ import type {
   ClaudianSettings,
   Conversation,
   ConversationMeta,
+  ImageAttachment,
 } from './core/types';
 import {
   VIEW_TYPE_CLAUDIAN,
@@ -528,6 +529,115 @@ export default class ClaudianPlugin extends Plugin {
     window.setTimeout(() => {
       void this.pluginUpdater?.notifyIfUpdateAvailable();
     }, 30_000);
+
+    // RAG: load any persisted index, top it up in the background, and keep it
+    // fresh on vault changes so the chat's vault_context works out of the box.
+    this.setupVaultRAGAutoIndex();
+  }
+
+  // ── RAG auto-indexing ─────────────────────────────────────────────────────
+
+  private readonly RAG_INDEX_PATH = '.claudian/rag/index.json';
+  private ragSaveTimer: number | null = null;
+  private ragDirty = false;
+
+  /**
+   * Boots the RAG index without any manual command: restores the persisted
+   * vector store, schedules a background full index when empty, and registers
+   * debounced vault listeners for incremental updates. Gated on the memory
+   * feature so users who disable it pay nothing.
+   */
+  private setupVaultRAGAutoIndex(): void {
+    if (this.settings.memoryEnabled === false) return;
+    if (typeof this.app.workspace?.onLayoutReady !== 'function') return;
+
+    this.app.workspace.onLayoutReady(() => {
+      void (async () => {
+        await this.loadRAGIndex();
+
+        // Empty index (fresh install or never indexed) → background full pass.
+        if (this.vectorStore.size() === 0 && !this.vaultRAGService.indexing) {
+          try {
+            await this.vaultRAGService.indexVault({ limit: 1000 });
+            await this.saveRAGIndex();
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.warn('[Claudian] background RAG index failed:', message);
+          }
+        }
+
+        this.registerVaultRAGListeners();
+      })();
+    });
+  }
+
+  /** Debounced incremental index updates as markdown files change. */
+  private registerVaultRAGListeners(): void {
+    const reindex = (file: TFile): void => {
+      if (file.extension !== 'md') return;
+      void this.vaultRAGService.indexFile(file)
+        .then(() => this.scheduleRAGSave())
+        .catch(() => {});
+    };
+
+    this.registerEvent(this.app.vault.on('modify', (file) => {
+      if (file instanceof TFile) reindex(file);
+    }));
+    this.registerEvent(this.app.vault.on('create', (file) => {
+      if (file instanceof TFile) reindex(file);
+    }));
+    this.registerEvent(this.app.vault.on('delete', (file) => {
+      if (file instanceof TFile && file.extension === 'md') {
+        this.vaultRAGService.removeFile(file.path);
+        this.scheduleRAGSave();
+      }
+    }));
+    this.registerEvent(this.app.vault.on('rename', (file, oldPath) => {
+      if (file instanceof TFile && file.extension === 'md') {
+        this.vaultRAGService.removeFile(oldPath);
+        reindex(file);
+      }
+    }));
+  }
+
+  /** Coalesces frequent edits into a single index write (5s debounce). */
+  private scheduleRAGSave(): void {
+    this.ragDirty = true;
+    if (this.ragSaveTimer !== null) return;
+    this.ragSaveTimer = window.setTimeout(() => {
+      this.ragSaveTimer = null;
+      if (this.ragDirty) void this.saveRAGIndex();
+    }, 5_000);
+  }
+
+  /** Persists the vector store so the index survives restarts. */
+  private async saveRAGIndex(): Promise<void> {
+    this.ragDirty = false;
+    try {
+      const adapter = this.app.vault.adapter;
+      const folder = '.claudian/rag';
+      if (!(await adapter.exists(folder))) {
+        await adapter.mkdir(folder);
+      }
+      await adapter.write(this.RAG_INDEX_PATH, this.vectorStore.serialize());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn('[Claudian] failed to persist RAG index:', message);
+    }
+  }
+
+  /** Restores a persisted vector store, if present. */
+  private async loadRAGIndex(): Promise<void> {
+    try {
+      const adapter = this.app.vault.adapter;
+      if (await adapter.exists(this.RAG_INDEX_PATH)) {
+        const raw = await adapter.read(this.RAG_INDEX_PATH);
+        this.vectorStore.load(raw);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn('[Claudian] failed to load RAG index:', message);
+    }
   }
 
   onunload(): void {
@@ -833,6 +943,62 @@ export default class ClaudianPlugin extends Plugin {
   private getTabModel(providerId: ProviderId): string {
     const snapshot = ProviderSettingsCoordinator.getProviderSettingsSnapshot(this.settings, providerId);
     return snapshot.model as string;
+  }
+
+  /**
+   * Runs a real one-shot vision prompt: picks a vision-capable provider
+   * (prefers the active one), attaches the image, and returns the model's text.
+   */
+  private async runVisionPrompt(image: ImageAttachment, prompt: string): Promise<string> {
+    const settingsBag = this.settings as unknown as Record<string, unknown>;
+    const activeProviderId =
+      this.getView()?.getActiveTab()?.providerId ??
+      ProviderRegistry.resolveSettingsProviderId(this.settings);
+
+    const supportsImages = (id: ProviderId): boolean => {
+      try {
+        return ProviderRegistry.getCapabilities(id).supportsImageAttachments === true;
+      } catch {
+        return false;
+      }
+    };
+
+    // Prefer the active provider; otherwise the first enabled provider that can
+    // actually see images.
+    let providerId: ProviderId | null = supportsImages(activeProviderId) ? activeProviderId : null;
+    if (!providerId) {
+      providerId = ProviderRegistry.getEnabledProviderIds(settingsBag).find(supportsImages) ?? null;
+    }
+    if (!providerId) {
+      throw new Error('Kein bildfähiger Provider aktiviert. Aktiviere z. B. Claude, Pi oder Antigravity.');
+    }
+
+    const model = this.getTabModel(providerId);
+    const runtime = ProviderRegistry.createChatRuntime({ plugin: this, providerId });
+    try {
+      const ready = await runtime.ensureReady();
+      if (!ready) {
+        throw new Error(`Provider ${ProviderRegistry.getProviderDisplayName(providerId)} ist nicht bereit.`);
+      }
+      // The image rides inside the prepared turn (request.images); the 2nd
+      // query arg is conversation history, which is empty for a one-shot.
+      const prepared = runtime.prepareTurn({ text: prompt, images: [image] });
+      let text = '';
+      for await (const chunk of runtime.query(prepared, [], { model })) {
+        if (chunk.type === 'text') {
+          text += chunk.content;
+        } else if (chunk.type === 'error') {
+          throw new Error(chunk.content);
+        }
+      }
+      return text;
+    } finally {
+      try {
+        runtime.cleanup();
+      } catch {
+        // best-effort cleanup
+      }
+    }
   }
 
   /** Flips the global auto mode, persists it, and refreshes the toolbar + status bar. */
@@ -1161,7 +1327,8 @@ export default class ClaudianPlugin extends Plugin {
 
   async indexVaultRAG(): Promise<void> {
     new Notice('Indexing vault for RAG...');
-    const count = await this.vaultRAGService.indexVault({ limit: 500 });
+    const count = await this.vaultRAGService.indexVault({ limit: 1000 });
+    await this.saveRAGIndex();
     new Notice(`RAG index complete: ${count} chunks indexed.`);
   }
 
@@ -1389,6 +1556,9 @@ export default class ClaudianPlugin extends Plugin {
     this.multiAgentService = new MultiAgentService();
     this.missionStateStorage = new MissionStateStorage(this.storage.getAdapter());
     this.visionService = new VisionService(this.app.vault);
+    // Wire a real, provider-backed image analyzer (no mock): route the image to
+    // a vision-capable provider runtime and return the model's description.
+    this.visionService.setAnalyzer((image, prompt) => this.runVisionPrompt(image, prompt));
 
     // Register the full specialist pool (20 cross-provider agents). Each agent
     // may declare a preferred provider; the mission executor falls back to the

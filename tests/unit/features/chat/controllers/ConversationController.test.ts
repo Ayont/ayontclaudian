@@ -77,6 +77,8 @@ function createMockDeps(overrides: Partial<ConversationControllerDeps> = {}): Co
     getFileContextManager: () => fileContextManager as any,
     getImageContextManager: () => ({
       clearImages: jest.fn(),
+      reloadForConversation: jest.fn().mockResolvedValue(undefined),
+      reassignToConversation: jest.fn(),
     }) as any,
     getMcpServerSelector: () => ({
       clearEnabled: jest.fn(),

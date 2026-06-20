@@ -921,6 +921,9 @@ function initializeContextManagers(tab: TabData, plugin: ClaudianPlugin): void {
         autoResizeTextarea(dom.inputEl);
         tab.renderer?.scrollToBottomIfNeeded();
       },
+      // Scope staged draft images to the active conversation so a restart only
+      // restores THIS chat's attachments, never a global dump of every chat.
+      getConversationId: () => tab.state.currentConversationId,
       // Stage dropped PDFs / docs / binary files into the vault so any provider's
       // agent can read them via the @path mention inserted by the drop handler.
       stageVaultAttachment: async (file: File): Promise<string | null> => {
