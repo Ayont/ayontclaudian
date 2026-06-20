@@ -3,6 +3,11 @@ import * as path from 'path';
 
 import type { ImageAttachment, ImageMediaType } from '../../../core/types';
 import type { ImageStagingService } from '../services/ImageStagingService';
+import {
+  formatDroppedFileBlock,
+  isTextLikeFile,
+  MAX_DROPPED_TEXT_SIZE,
+} from './file-drop/droppedTextFile';
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
@@ -137,7 +142,7 @@ export class ImageContextManager {
     svg.appendChild(polyline);
     svg.appendChild(line);
     dropContent.appendChild(svg);
-    dropContent.createSpan({ text: 'Drop image here' });
+    dropContent.createSpan({ text: 'Drop image or text file here' });
 
     const dropZone = inputWrapper;
 
@@ -192,12 +197,56 @@ export class ImageContextManager {
     const files = e.dataTransfer?.files;
     if (!files) return;
 
+    let unsupported = 0;
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       if (this.isImageFile(file)) {
         await this.addImageFromFile(file, 'drop');
+      } else if (isTextLikeFile(file.name, file.type)) {
+        await this.insertDroppedTextFile(file);
+      } else {
+        unsupported++;
       }
     }
+
+    if (unsupported > 0) {
+      new Notice(
+        `${unsupported} Datei(en) übersprungen — per Drag & Drop werden nur Bilder und Textdateien unterstützt.`,
+      );
+    }
+  }
+
+  /**
+   * Inlines a dropped text-like file into the chat input as a fenced code block.
+   * Backwards compatible: the message stays a plain string. Inserted at the
+   * caret (or appended) so the user can keep typing around it.
+   */
+  private async insertDroppedTextFile(file: File): Promise<void> {
+    if (file.size > MAX_DROPPED_TEXT_SIZE) {
+      new Notice(
+        `„${file.name}" ist zu groß zum Einfügen (max ${Math.round(MAX_DROPPED_TEXT_SIZE / 1024)} KB).`,
+      );
+      return;
+    }
+
+    let content: string;
+    try {
+      content = await file.text();
+    } catch {
+      new Notice(`„${file.name}" konnte nicht gelesen werden.`);
+      return;
+    }
+
+    const block = formatDroppedFileBlock(file.name, content);
+    const el = this.inputEl;
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    el.value = el.value.slice(0, start) + block + el.value.slice(end);
+    const caret = start + block.length;
+    el.setSelectionRange?.(caret, caret);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.focus();
+    new Notice(`„${file.name}" als Text eingefügt.`);
   }
 
   private setupPasteHandler() {
