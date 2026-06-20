@@ -56,15 +56,26 @@ export class MultiAgentModal extends Modal {
       this.plugin.getView()?.getActiveTab()?.providerId ??
       ProviderRegistry.resolveSettingsProviderId(this.plugin.settings);
     this.modalEl.dataset.provider = activeProviderId;
+    const providerLabel = this.getProviderLabel(activeProviderId);
 
     const header = contentEl.createDiv({ cls: 'claudian-multi-agent-header' });
     const titleGroup = header.createDiv({ cls: 'claudian-multi-agent-title-group' });
     const icon = titleGroup.createSpan({ cls: 'claudian-multi-agent-logo' });
     setIcon(icon, 'users');
-    titleGroup.createEl('h2', { text: 'Multi-Agent Mission' });
+    const titleCopy = titleGroup.createDiv({ cls: 'claudian-multi-agent-title-copy' });
+    titleCopy.createSpan({ cls: 'claudian-multi-agent-eyebrow', text: `${providerLabel} · Mission Control` });
+    titleCopy.createEl('h2', { text: 'Multi-Agent Mission' });
     this.statusText = header.createSpan({ cls: 'claudian-multi-agent-status', text: 'Beschreibe die Mission und starte das Team.' });
+    this.statusText.setAttribute('role', 'status');
+    this.statusText.setAttribute('aria-live', 'polite');
 
     this.renderPromptSection(contentEl);
+
+    const agents = this.plugin.multiAgentService.listAgents();
+    const telemetry = contentEl.createDiv({ cls: 'claudian-multi-agent-telemetry' });
+    this.createTelemetryItem(telemetry, 'users', 'Team', `${agents.length} Spezialisten`);
+    this.createTelemetryItem(telemetry, 'cpu', 'Runtime', providerLabel);
+    this.createTelemetryItem(telemetry, 'keyboard', 'Start', '⌘/Ctrl + Enter');
 
     this.gridEl = contentEl.createDiv({ cls: 'claudian-multi-agent-grid' });
     this.renderAgentCards();
@@ -73,6 +84,11 @@ export class MultiAgentModal extends Modal {
     progressWrapper.createSpan({ text: 'Gesamtfortschritt' });
     const barTrack = progressWrapper.createDiv({ cls: 'claudian-multi-agent-progress-track' });
     this.overallBar = barTrack.createDiv({ cls: 'claudian-multi-agent-progress-bar' });
+    barTrack.setAttribute('role', 'progressbar');
+    barTrack.setAttribute('aria-label', 'Gesamtfortschritt');
+    barTrack.setAttribute('aria-valuemin', '0');
+    barTrack.setAttribute('aria-valuemax', '100');
+    barTrack.setAttribute('aria-valuenow', '0');
 
     this.synthEl = contentEl.createDiv({ cls: 'claudian-multi-agent-synthesis claudian-hidden' });
     const synthHead = this.synthEl.createDiv({ cls: 'claudian-multi-agent-synthesis-head' });
@@ -84,6 +100,22 @@ export class MultiAgentModal extends Modal {
     const footer = contentEl.createDiv({ cls: 'claudian-multi-agent-footer' });
     const closeBtn = footer.createEl('button', { text: 'Schließen' });
     closeBtn.addEventListener('click', () => this.close());
+  }
+
+  private getProviderLabel(providerId: string): string {
+    try {
+      return ProviderRegistry.getProviderDisplayName(providerId) ?? providerId;
+    } catch {
+      return providerId;
+    }
+  }
+
+  private createTelemetryItem(parent: HTMLElement, iconName: string, label: string, value: string): void {
+    const item = parent.createDiv({ cls: 'claudian-multi-agent-telemetry-item' });
+    setIcon(item.createSpan({ cls: 'claudian-multi-agent-telemetry-icon' }), iconName);
+    const copy = item.createDiv();
+    copy.createSpan({ cls: 'claudian-multi-agent-telemetry-label', text: label });
+    copy.createSpan({ cls: 'claudian-multi-agent-telemetry-value', text: value });
   }
 
   onClose(): void {
@@ -135,6 +167,11 @@ export class MultiAgentModal extends Modal {
 
       const progressTrack = card.createDiv({ cls: 'claudian-multi-agent-card-progress-track' });
       const progressBar = progressTrack.createDiv({ cls: 'claudian-multi-agent-card-progress-bar' });
+      progressTrack.setAttribute('role', 'progressbar');
+      progressTrack.setAttribute('aria-label', `${agent.name} Fortschritt`);
+      progressTrack.setAttribute('aria-valuemin', '0');
+      progressTrack.setAttribute('aria-valuemax', '100');
+      progressTrack.setAttribute('aria-valuenow', '0');
 
       const outputEl = card.createDiv({ cls: 'claudian-multi-agent-card-output claudian-hidden' });
 
@@ -202,6 +239,7 @@ export class MultiAgentModal extends Modal {
     globalEventBus.emit('mission:progress', { id: this.missionId, overall: progress.overall, status: progress.status });
 
     if (this.overallBar) this.overallBar.style.width = `${progress.overall}%`;
+    this.overallBar?.parentElement?.setAttribute('aria-valuenow', String(progress.overall));
     if (this.statusText) {
       const label =
         progress.status === 'synthesizing' ? 'Synthese läuft…'
@@ -233,6 +271,7 @@ export class MultiAgentModal extends Modal {
     }
 
     refs.progressBar.style.width = `${progress.progress}%`;
+    refs.progressBar.parentElement?.setAttribute('aria-valuenow', String(progress.progress));
     refs.card.removeClass(
       'claudian-multi-agent-card--pending',
       'claudian-multi-agent-card--running',

@@ -78,6 +78,7 @@ export class ProviderStatusBar {
   private nameEl: HTMLElement | null = null;
   private stateEl: HTMLElement | null = null;
   private pctEl: HTMLElement | null = null;
+  private meterFillEl: HTMLElement | null = null;
   private autoEl: HTMLElement | null = null;
 
   constructor(statusBarEl: HTMLElement) {
@@ -92,6 +93,8 @@ export class ProviderStatusBar {
     this.nameEl = this.el.createSpan({ cls: 'claudian-statusbar-name' });
     this.stateEl = this.el.createSpan({ cls: 'claudian-statusbar-state' });
     this.pctEl = this.el.createSpan({ cls: 'claudian-statusbar-pct' });
+    const meterEl = this.el.createSpan({ cls: 'claudian-statusbar-meter', attr: { 'aria-hidden': 'true' } });
+    this.meterFillEl = meterEl.createSpan({ cls: 'claudian-statusbar-meter-fill' });
     this.autoEl = this.el.createSpan({ cls: 'claudian-statusbar-auto claudian-hidden', text: 'AUTO' });
   }
 
@@ -104,6 +107,8 @@ export class ProviderStatusBar {
     this.el.removeClass('claudian-hidden');
 
     const brand = PROVIDER_COLOR[status.providerId] ?? 'var(--text-muted)';
+    this.el.dataset.provider = status.providerId;
+    this.el.style.setProperty('--status-brand', brand);
 
     if (this.dotEl) {
       // While generating, spin a loader in the brand color; otherwise a solid
@@ -131,6 +136,13 @@ export class ProviderStatusBar {
       } else {
         this.pctEl.toggleClass('claudian-hidden', true);
       }
+    }
+
+    if (this.meterFillEl) {
+      const percentage = status.percentage ?? 0;
+      this.meterFillEl.style.width = `${Math.max(0, Math.min(100, percentage))}%`;
+      this.meterFillEl.toggleClass('is-warning', percentage > 80);
+      this.meterFillEl.parentElement?.toggleClass('claudian-hidden', status.percentage === null);
     }
 
     this.autoEl?.toggleClass('claudian-hidden', status.autoMode !== true);

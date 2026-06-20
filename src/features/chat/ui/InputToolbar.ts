@@ -17,7 +17,7 @@ import type {
   ManagedMcpServer,
   UsageInfo,
 } from '../../../core/types';
-import { appendCheckIcon, appendMcpIcon } from '../../../shared/icons';
+import { appendCheckIcon, appendMcpIcon, createProviderIconSvg } from '../../../shared/icons';
 import { filterValidPaths, findConflictingPath, isDuplicatePath, isValidDirectoryPath, validateDirectoryPath } from '../../../utils/externalContext';
 import { expandHomePath, normalizePathForFilesystem } from '../../../utils/path';
 import { ModelSelectModal } from './ModelSelectModal';
@@ -154,14 +154,29 @@ export class ModelSelector {
 
     // Toggle auto-style class
     this.buttonEl.toggleClass('is-auto', currentModel === AUTO_MODEL_VALUE);
+    if (displayModel?.providerId) {
+      this.buttonEl.dataset.provider = displayModel.providerId;
+    } else {
+      delete this.buttonEl.dataset.provider;
+    }
 
     if (currentModel === AUTO_MODEL_VALUE) {
       const iconEl = this.buttonEl.createSpan({ cls: 'claudian-model-auto-icon' });
       iconEl.setText('✦');
+    } else if (displayModel?.providerIcon) {
+      const iconEl = this.buttonEl.createSpan({ cls: 'claudian-model-provider-mark' });
+      iconEl.appendChild(createProviderIconSvg(displayModel.providerIcon, {
+        height: 14,
+        ownerDocument: iconEl.ownerDocument,
+        width: 14,
+      }));
     }
 
     const labelEl = this.buttonEl.createSpan({ cls: 'claudian-model-label' });
     labelEl.setText(displayModel?.label || 'Unknown');
+    if (displayModel?.group) {
+      this.buttonEl.createSpan({ cls: 'claudian-model-provider-name', text: displayModel.group });
+    }
   }
 
   /** Human label of the currently selected model, or null when unknown. */

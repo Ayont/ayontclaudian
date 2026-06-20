@@ -229,6 +229,8 @@ export class MessageRenderer {
   private applyMessageProvider(msg: ChatMessage, msgEl: HTMLElement): ProviderId {
     const providerId = this.resolveMessageProvider(msg);
     msgEl.dataset.messageProvider = providerId;
+    msgEl.dataset.providerLabel = msg.agentLabel ?? this.getProviderShortLabel(providerId);
+    if (msg.agentModel) msgEl.dataset.modelLabel = msg.agentModel;
     // `style.setProperty` may be absent in lightweight test stubs; guard so
     // the brand color never blocks message rendering.
     if (typeof msgEl.style?.setProperty === 'function') {

@@ -65,6 +65,7 @@ export class ClaudianDashboardView extends ItemView {
     this.applyProviderTheme(container);
 
     this.renderHeader(container);
+    this.renderSectionHeading(container, 'Systemübersicht', 'Live-Zustand deines Agent-Workspace');
     this.gridEl = container.createDiv({ cls: 'claudian-dashboard-grid' });
     await this.refreshCards();
     this.renderActions(container);
@@ -106,7 +107,7 @@ export class ClaudianDashboardView extends ItemView {
 
     const textGroup = titleGroup.createDiv({ cls: 'claudian-dashboard-text-group' });
     textGroup.createEl('h2', { text: 'Claudian OS' });
-    textGroup.createEl('p', { text: 'Agent operating system for your vault' });
+    textGroup.createEl('p', { text: 'Agent workspace for your vault' });
 
     const status = header.createDiv({ cls: 'claudian-dashboard-status' });
 
@@ -117,11 +118,18 @@ export class ClaudianDashboardView extends ItemView {
     const providerDot = providerChip.createSpan({ cls: 'claudian-dashboard-provider-dot' });
     void providerDot;
     providerChip.createSpan({ text: this.getProviderLabel(providerId) });
+    providerChip.setAttribute('aria-label', `Aktiver Provider: ${this.getProviderLabel(providerId)}`);
 
     const statusDot = status.createSpan({ cls: 'claudian-dashboard-status-dot claudian-dashboard-status-dot--active' });
     void statusDot;
     this.liveBadgeEl = status.createSpan({ cls: 'claudian-dashboard-live', text: 'Active' });
     this.updateLiveBadge();
+  }
+
+  private renderSectionHeading(parent: HTMLElement, title: string, detail: string): void {
+    const heading = parent.createDiv({ cls: 'claudian-dashboard-section-heading' });
+    heading.createEl('h3', { text: title });
+    heading.createSpan({ text: detail });
   }
 
   /** Human-readable provider name for the header chip. */
@@ -242,6 +250,7 @@ export class ClaudianDashboardView extends ItemView {
   }
 
   private renderActions(parent: HTMLElement): void {
+    this.renderSectionHeading(parent, 'Schnellaktionen', 'Häufige Aufgaben ohne Umwege');
     const actions = parent.createDiv({ cls: 'claudian-dashboard-actions' });
 
     const indexBtn = actions.createEl('button', { cls: 'claudian-dashboard-action-btn' });
@@ -277,12 +286,28 @@ export class ClaudianDashboardView extends ItemView {
     const refreshBtn = actions.createEl('button', { cls: 'claudian-dashboard-action-btn' });
     setIcon(refreshBtn.createSpan(), 'refresh-cw');
     refreshBtn.createSpan({ text: 'Refresh' });
-    refreshBtn.addEventListener('click', () => void this.refreshCards());
+    refreshBtn.addEventListener('click', () => {
+      void (async (): Promise<void> => {
+        refreshBtn.disabled = true;
+        refreshBtn.addClass('is-loading');
+        refreshBtn.setAttribute('aria-busy', 'true');
+        try {
+          await this.refreshCards();
+          refreshBtn.querySelector('span:last-child')?.setText('Aktualisiert');
+          window.setTimeout(() => refreshBtn.querySelector('span:last-child')?.setText('Refresh'), 1200);
+        } finally {
+          refreshBtn.disabled = false;
+          refreshBtn.removeClass('is-loading');
+          refreshBtn.removeAttribute('aria-busy');
+        }
+      })();
+    });
   }
 
   // ── Live activity feed ──────────────────────────────────────────────────────
 
   private renderActivityFeed(parent: HTMLElement): void {
+    this.renderSectionHeading(parent, 'Aktivität', 'Ereignisse aus Missionen, Memory und Workflows');
     const section = parent.createDiv({ cls: 'claudian-dashboard-activity' });
     const head = section.createDiv({ cls: 'claudian-dashboard-activity-head' });
     setIcon(head.createSpan(), 'activity');

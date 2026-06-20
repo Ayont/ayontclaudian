@@ -13,15 +13,14 @@
    messages (no `agentProvider` field) still render with the fallback color.
    ========================================================================== */
 
-/* -----------------------------------------------------------------------------
-   User message: swap the trailing-edge accent stripe to this message's brand.
-   -------------------------------------------------------------------------- */
+/* User turns keep a restrained provenance tint. */
 .claudian-message-user[data-message-provider] {
-  border-inline-end-color: rgba(var(--message-brand-rgb, var(--claudian-brand-rgb)), 0.55);
+  border-color: rgba(var(--message-brand-rgb, var(--claudian-brand-rgb)), 0.3);
+  background: color-mix(in srgb, var(--message-brand, var(--claudian-brand)) 5%, var(--cl-surface-raised));
 }
 
 .claudian-message-user[data-message-provider]:hover {
-  border-inline-end-color: var(--message-brand, var(--claudian-brand));
+  border-color: rgba(var(--message-brand-rgb, var(--claudian-brand-rgb)), 0.58);
 }
 
 /* Selection inside a user bubble uses the message brand, not the active accent. */
@@ -29,24 +28,20 @@
   background: rgba(var(--message-brand-rgb, var(--claudian-brand-rgb)), 0.18);
 }
 
-/* -----------------------------------------------------------------------------
-   Assistant message: add a subtle leading-edge marker so the brand is visible
-   even though assistant bubbles are surface-free. Implemented as a thin
-   gradient bar pinned to the inline-start edge of the content area.
-   -------------------------------------------------------------------------- */
+/* Assistant provenance is a readable label, not a decorative stripe. */
 .claudian-message-assistant[data-message-provider]::before {
-  content: '';
-  position: absolute;
-  inset-inline-start: 0;
-  inset-block: 4px;
-  width: 2px;
-  border-radius: 2px;
-  background: linear-gradient(
-    to bottom,
-    rgba(var(--message-brand-rgb, var(--claudian-brand-rgb)), 0.9),
-    rgba(var(--message-brand-rgb, var(--claudian-brand-rgb)), 0.25)
-  );
-  opacity: 0.85;
+  content: attr(data-provider-label);
+  display: inline-flex;
+  margin-bottom: 7px;
+  padding: 2px 7px;
+  border: 1px solid rgba(var(--message-brand-rgb, var(--claudian-brand-rgb)), 0.28);
+  border-radius: var(--cl-radius-pill);
+  color: var(--message-brand, var(--claudian-brand));
+  background: rgba(var(--message-brand-rgb, var(--claudian-brand-rgb)), 0.07);
+  font-family: var(--cl-font-ui);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
   pointer-events: none;
 }
 
@@ -75,13 +70,7 @@
 .claudian-provider-switch-line {
   flex: 1;
   height: 1px;
-  background: linear-gradient(
-    to right,
-    transparent,
-    var(--cl-border-subtle, var(--background-modifier-border)) 20%,
-    var(--cl-border-subtle, var(--background-modifier-border)) 80%,
-    transparent
-  );
+  background: var(--cl-border-subtle, var(--background-modifier-border));
 }
 
 .claudian-provider-switch-chip {

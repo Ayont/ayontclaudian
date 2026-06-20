@@ -72,6 +72,9 @@ export class ModelSelectModal extends Modal {
       }
 
       const optionEl = this.listEl.createDiv({ cls: 'claudian-model-select-option' });
+      if (model.providerId) {
+        optionEl.dataset.provider = model.providerId;
+      }
       if (model.value === this.currentModel) {
         optionEl.addClass('is-selected');
       }
@@ -94,6 +97,10 @@ export class ModelSelectModal extends Modal {
 
       const labelEl = optionEl.createSpan({ cls: 'claudian-model-select-option-label' });
       labelEl.setText(model.label);
+
+      if (model.description) {
+        optionEl.createSpan({ cls: 'claudian-model-select-option-description', text: model.description });
+      }
 
       if (model.value === this.currentModel) {
         const checkEl = optionEl.createSpan({ cls: 'claudian-model-select-option-check' });

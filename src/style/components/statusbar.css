@@ -4,6 +4,11 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-height: 22px;
+  padding: 1px 7px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--status-brand, var(--interactive-accent)) 5%, var(--background-primary));
 }
 
 .claudian-statusbar-dot {
@@ -17,7 +22,8 @@
 }
 
 .claudian-statusbar-name {
-  font-weight: 500;
+  color: var(--status-brand, var(--text-normal));
+  font-weight: 650;
 }
 
 .claudian-statusbar-state {
@@ -40,6 +46,25 @@
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
+
+.claudian-statusbar-meter {
+  position: relative;
+  width: 34px;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--background-modifier-border);
+}
+
+.claudian-statusbar-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--status-brand, var(--interactive-accent));
+  transition: width 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.claudian-statusbar-meter-fill.is-warning { background: var(--color-red); }
 
 .claudian-statusbar-pct.is-warning {
   color: var(--color-red);
@@ -65,5 +90,6 @@
 }
 
 .claudian-statusbar-state.is-streaming {
-  color: var(--text-accent);
+  color: var(--status-brand, var(--text-accent));
+  font-weight: 600;
 }
