@@ -1938,6 +1938,52 @@ export class InputController {
   // Built-in Commands
   // ============================================
 
+  /**
+   * Builds the system prompt that tells the AI to generate a self-contained
+   * HTML artifact. Adapted from Claude Code's artifact prompting patterns.
+   */
+  private buildArtifactPrompt(description: string): string {
+    return (
+      'You are generating an interactive HTML artifact. Produce ONLY the inner HTML ' +
+      '(no <html>, <head>, or <body> tags — those are added by the artifact shell).\n\n' +
+      'Rules:\n' +
+      '1. All CSS must be inline (<style> tags are allowed inside the HTML body)\n' +
+      '2. All JavaScript must be inline (<script> tags are allowed)\n' +
+      '3. No external requests — no external scripts, stylesheets, fonts, or images\n' +
+      '4. Use data URIs for any images\n' +
+      '5. Make it responsive and visually polished\n' +
+      '6. Use modern CSS (flexbox/grid, CSS variables, smooth transitions)\n' +
+      '7. The page should be interactive and useful\n\n' +
+      `Build this artifact: ${description}\n\n` +
+      'Output ONLY the HTML content. Do not wrap it in markdown code fences.'
+    );
+  }
+
+  /**
+   * Extracts HTML content from the AI response. Handles:
+   * - Raw HTML
+   * - HTML wrapped in ```html code blocks
+   * - HTML wrapped in ``` code blocks
+   */
+  private extractHtmlFromResponse(response: string): string {
+    // Try to extract from markdown code block
+    const codeBlockMatch = response.match(/```(?:html)?\s*\n([\s\S]*?)```/);
+    if (codeBlockMatch) {
+      return codeBlockMatch[1].trim();
+    }
+    // If the response starts with < or contains HTML tags, use as-is
+    const trimmed = response.trim();
+    if (trimmed.startsWith('<') || /<\w+[^>]*>/.test(trimmed)) {
+      // Strip any leading/trailing prose
+      const firstTag = trimmed.indexOf('<');
+      const lastTag = trimmed.lastIndexOf('>');
+      if (firstTag >= 0 && lastTag > firstTag) {
+        return trimmed.slice(firstTag, lastTag + 1);
+      }
+    }
+    return trimmed;
+  }
+
   private async executeBuiltInCommand(command: BuiltInCommand, args: string): Promise<void> {
     const { conversationController } = this.deps;
     const capabilities = this.getActiveCapabilities();
@@ -2102,6 +2148,63 @@ export class InputController {
         inputEl.focus();
         this.deps.resetInputHeight();
         new Notice(`Vault Health fertig: ${result.summary}`);
+        break;
+      }
+      case 'artifact': {
+        const description = args.trim();
+        if (!description) {
+          new Notice('Usage: /artifact <description of what to build>');
+          return;
+        }
+
+        const plugin = this.deps.plugin;
+        const { streamController } = this.deps;
+
+        await streamController.appendText(
+          `\n\n---\n## 📄 Creating Artifact\n**Request:** ${description}\n\nGenerating interactive HTML page...\n---\n`,
+        );
+
+        try {
+          // Build the artifact prompt: ask the AI to generate self-contained HTML
+          const artifactPrompt = this.buildArtifactPrompt(description);
+
+          // Use the active provider's raw prompt runner to generate the HTML
+          let html = '';
+          await plugin.runRawPrompt(artifactPrompt, (chunk) => {
+            html += chunk;
+          });
+
+          // Extract HTML from the response (the AI might wrap it in markdown code blocks)
+          html = this.extractHtmlFromResponse(html);
+
+          if (!html || html.length < 50) {
+            new Notice('Artifact generation produced no usable HTML. Try a more specific prompt.');
+            await streamController.appendText('\n\n**Artifact Error:** No usable HTML generated.\n');
+            return;
+          }
+
+          // Determine title from the description
+          const title = description.slice(0, 60);
+
+          const artifact = await plugin.artifactService.createArtifact({
+            title,
+            icon: '📄',
+            kind: 'custom',
+            html,
+          });
+
+          await streamController.appendText(
+            `\n\n## ✅ Artifact Created\n**${artifact.icon} ${artifact.title}** (v${artifact.version})\n` +
+            `Saved to: \`${artifact.filePath}\`\n\n` +
+            `Open it in your browser from the Artifact Gallery (Dashboard → Artifact Gallery).\n`,
+          );
+
+          new Notice(`Artifact created: ${artifact.title}`);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          new Notice(`Artifact creation failed: ${message}`);
+          await streamController.appendText(`\n\n**Artifact Error:** ${message}\n`);
+        }
         break;
       }
       default: {

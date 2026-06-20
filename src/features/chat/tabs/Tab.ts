@@ -854,9 +854,13 @@ export async function initializeTabService(
 
     // Update lifecycle state
     if (tab.lifecycleState === 'blank') {
-      tab.draftModel = null;
-      tab.autoModelActive = false;
-      tab.routedModel = null;
+      // Preserve Auto mode across the blank→bound transition (first send).
+      // Only clear draftModel (the blank-tab model placeholder); keep autoModelActive
+      // so Auto survives the first message and continues routing on subsequent sends.
+      if (!tab.autoModelActive) {
+        tab.draftModel = null;
+        tab.routedModel = null;
+      }
     }
     tab.lifecycleState = 'bound_active';
   } catch (error) {

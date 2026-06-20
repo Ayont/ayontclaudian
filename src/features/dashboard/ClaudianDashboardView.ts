@@ -2,6 +2,7 @@ import { ItemView, Notice, setIcon, type WorkspaceLeaf } from 'obsidian';
 
 import { type ClaudianEvent, type ClaudianEventType, globalEventBus } from '../../core/events/EventBus';
 import type ClaudianPlugin from '../../main';
+import { ArtifactGalleryModal } from '../artifacts/ArtifactGalleryModal';
 import { MemoryBrowserModal, MissionLogBrowserModal, TokenUsageModal, WorkflowBrowserModal } from './DashboardModals';
 
 export const VIEW_TYPE_CLAUDIAN_DASHBOARD = 'claudian-dashboard';
@@ -229,6 +230,11 @@ export class ClaudianDashboardView extends ItemView {
     setIcon(usageBtn.createSpan(), 'gauge');
     usageBtn.createSpan({ text: 'Token Usage' });
     usageBtn.addEventListener('click', () => this.openTokenUsageModal());
+
+    const artifactBtn = actions.createEl('button', { cls: 'claudian-dashboard-action-btn' });
+    setIcon(artifactBtn.createSpan(), 'layout-dashboard');
+    artifactBtn.createSpan({ text: 'Artifacts' });
+    artifactBtn.addEventListener('click', () => new ArtifactGalleryModal(this.app, this.plugin).open());
 
     const refreshBtn = actions.createEl('button', { cls: 'claudian-dashboard-action-btn' });
     setIcon(refreshBtn.createSpan(), 'refresh-cw');

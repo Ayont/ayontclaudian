@@ -81,6 +81,7 @@ import type { ProviderId } from './core/providers/types';
 import type { AppTabManagerState } from './core/providers/types';
 import { DEFAULT_CHAT_PROVIDER_ID } from './core/providers/types';
 import {
+  AUTO_MODEL_VALUE,
   chooseModelRoute,
   type ModelRouteDecision,
   type ModelRouterRule,
@@ -106,6 +107,7 @@ import {
   WORKFLOW_FOLDER,
   workflowPathForName,
 } from './core/workflows/promptWorkflows';
+import { ArtifactService } from './features/artifacts/ArtifactService';
 import { ClaudianView } from './features/chat/ClaudianView';
 import { ImageStagingService } from './features/chat/services/ImageStagingService';
 import type { TabData } from './features/chat/tabs/types';
@@ -157,6 +159,7 @@ export default class ClaudianPlugin extends Plugin {
   imageStagingService!: ImageStagingService;
   promptTemplateService!: PromptTemplateService;
   vaultHealthService!: VaultHealthService;
+  artifactService!: ArtifactService;
 
   async onload() {
     await this.loadSettings();
@@ -174,6 +177,9 @@ export default class ClaudianPlugin extends Plugin {
       this.settings.promptTemplateFolder ?? DEFAULT_TEMPLATE_FOLDER,
     );
     this.vaultHealthService = new VaultHealthService(this.app);
+
+    // Initialize the artifact system (Claude Code Artifacts adapted for Obsidian).
+    this.artifactService = new ArtifactService(this.app);
 
     await ProviderWorkspaceRegistry.initializeAll(this);
 
@@ -785,7 +791,7 @@ export default class ClaudianPlugin extends Plugin {
   }
 
   /** Runs a raw prompt on the active provider runtime, streaming text via onChunk. */
-  private async runRawPrompt(
+  async runRawPrompt(
     fullPrompt: string,
     onChunk?: (chunk: string) => void,
     modelOverride?: string,
@@ -950,7 +956,14 @@ export default class ClaudianPlugin extends Plugin {
   resolveModelRouteForInput(prompt: string, tab: TabData): ModelRouteDecision | null {
     const settingsBag = this.settings as unknown as Record<string, unknown>;
     const snapshot = ProviderSettingsCoordinator.getProviderSettingsSnapshot(this.settings, tab.providerId);
-    const fallbackModel = tab.draftModel ?? String(snapshot.model ?? this.settings.model);
+    // When Auto is active, draftModel is the sentinel '__auto__' — use the real
+    // provider model (or the last routed model) as the routing fallback instead.
+    const realDraftModel = tab.draftModel && tab.draftModel !== AUTO_MODEL_VALUE
+      ? tab.draftModel
+      : null;
+    const fallbackModel = realDraftModel
+      ?? tab.routedModel
+      ?? String(snapshot.model ?? this.settings.model);
     const availableModels = ProviderRegistry.getAggregatedModelOptions(settingsBag);
     const explicitRules = normalizeRouterRules(this.settings.modelRouterRules);
     const rules = explicitRules.length > 0 ? explicitRules : this.defaultRouterRulesFromModels();

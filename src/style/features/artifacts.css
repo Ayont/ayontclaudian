@@ -1,0 +1,115 @@
+/* Artifact Gallery Modal */
+.claudian-artifact-gallery-modal {
+  max-width: 800px;
+  max-height: 80vh;
+}
+
+.claudian-artifact-gallery-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--claudian-border);
+}
+
+.claudian-artifact-gallery-icon {
+  color: var(--claudian-accent);
+  display: flex;
+}
+
+.claudian-artifact-gallery-header h2 {
+  margin: 0;
+  font-size: 1.4em;
+}
+
+.claudian-artifact-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.claudian-artifact-gallery-empty {
+  color: var(--claudian-muted);
+  text-align: center;
+  padding: 40px;
+  font-style: italic;
+  grid-column: 1 / -1;
+}
+
+.claudian-artifact-card {
+  padding: 20px;
+  border-radius: 14px;
+  background: var(--claudian-card-elevated);
+  border: 1px solid var(--claudian-border);
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.claudian-artifact-card:hover {
+  border-color: rgba(var(--claudian-accent-rgb), 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.claudian-artifact-card-icon {
+  font-size: 2em;
+  line-height: 1;
+}
+
+.claudian-artifact-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.claudian-artifact-card-title {
+  font-weight: 600;
+  font-size: 0.95em;
+  color: var(--claudian-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claudian-artifact-card-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 0.75em;
+  color: var(--claudian-muted);
+}
+
+.claudian-artifact-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.claudian-artifact-card-btn {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--claudian-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--claudian-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8em;
+  transition: background 0.2s;
+}
+
+.claudian-artifact-card-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.claudian-artifact-card-btn--danger:hover {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+}

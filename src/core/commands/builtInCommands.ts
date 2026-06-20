@@ -8,7 +8,7 @@
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import type { ProviderCapabilities, ProviderId } from '../providers/types';
 
-export type BuiltInCommandAction = 'clear' | 'add-dir' | 'resume' | 'fork' | 'goal' | 'workflow' | 'team' | 'template' | 'vault-health';
+export type BuiltInCommandAction = 'clear' | 'add-dir' | 'resume' | 'fork' | 'goal' | 'workflow' | 'team' | 'template' | 'vault-health' | 'artifact';
 type BuiltInCommandCapability = 'supportsNativeHistory' | 'supportsFork';
 type BuiltInCommandSupportContext = ProviderId | Pick<ProviderCapabilities, BuiltInCommandCapability>;
 
@@ -94,6 +94,14 @@ export const BUILT_IN_COMMANDS: BuiltInCommand[] = [
     action: 'vault-health',
     hasArgs: true,
     argumentHint: '[orphan-check|tag-dedupe|link-suggest|dedupe]',
+  },
+  {
+    name: 'artifact',
+    aliases: ['art'],
+    description: 'Create an interactive artifact (HTML page) from the conversation',
+    action: 'artifact',
+    hasArgs: true,
+    argumentHint: '[description of what to build]',
   },
 ];
 
