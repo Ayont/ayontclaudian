@@ -46,6 +46,13 @@ Claudian is used for concentrated work in Obsidian, often for hours and frequent
 - Multi-agent uses a mission brief, team roster, overall progress, per-agent telemetry, and synthesis.
 - At widths below 560px, grids collapse, secondary copy truncates, and actions wrap without horizontal overflow.
 
+## Feature Discovery
+
+- The dashboard exposes enabled providers before individual capabilities.
+- Capability matrices distinguish provider-native support from workspace-level features.
+- The Feature Map shows both the feature name and its live state, including useful counts where available.
+- Unsupported features remain visible and muted so users can discover them without confusing them for active controls.
+
 ## Motion
 
 - 120 to 220ms, ease-out-quart/expo.

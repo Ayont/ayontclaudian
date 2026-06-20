@@ -2,6 +2,7 @@ import { ItemView, Notice, setIcon, type WorkspaceLeaf } from 'obsidian';
 
 import { type ClaudianEvent, type ClaudianEventType, globalEventBus } from '../../core/events/EventBus';
 import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
+import type { ProviderCapabilities, ProviderId } from '../../core/providers/types';
 import type ClaudianPlugin from '../../main';
 import { ArtifactGalleryModal } from '../artifacts/ArtifactGalleryModal';
 import { MemoryBrowserModal, MissionLogBrowserModal, TokenUsageModal, WorkflowBrowserModal } from './DashboardModals';
@@ -24,6 +25,14 @@ interface ActivityItem {
   icon: string;
   text: string;
   kind: 'mission' | 'agent' | 'memory' | 'workflow' | 'project' | 'vault';
+}
+
+interface FeatureStatusItem {
+  icon: string;
+  label: string;
+  detail: string;
+  active: boolean;
+  value: string;
 }
 
 /** Stats refresh cadence while the dashboard is open. */
@@ -68,6 +77,8 @@ export class ClaudianDashboardView extends ItemView {
     this.renderSectionHeading(container, 'Systemübersicht', 'Live-Zustand deines Agent-Workspace');
     this.gridEl = container.createDiv({ cls: 'claudian-dashboard-grid' });
     await this.refreshCards();
+    this.renderProviderCapabilities(container);
+    this.renderFeatureMap(container);
     this.renderActions(container);
     this.renderActivityFeed(container);
 
@@ -84,11 +95,85 @@ export class ClaudianDashboardView extends ItemView {
   // ── Provider theming ────────────────────────────────────────────────────────
 
   /** Resolves the provider whose brand color should tint the dashboard. */
-  private getActiveProviderId(): string {
+  private getActiveProviderId(): ProviderId {
     return (
       this.plugin.getView()?.getActiveTab()?.providerId ??
       ProviderRegistry.resolveSettingsProviderId(this.plugin.settings)
     );
+  }
+
+  private renderProviderCapabilities(parent: HTMLElement): void {
+    const activeProviderId = this.getActiveProviderId();
+    const capabilities = ProviderRegistry.getCapabilities(activeProviderId);
+    const enabledProviders = ProviderRegistry.getEnabledProviderIds(this.plugin.settings);
+
+    this.renderSectionHeading(parent, 'Provider-Fähigkeiten', 'Was dein aktiver Runtime-Provider direkt unterstützt');
+    const panel = parent.createDiv({ cls: 'claudian-dashboard-capabilities' });
+
+    const providerRail = panel.createDiv({ cls: 'claudian-dashboard-provider-rail' });
+    providerRail.createSpan({ cls: 'claudian-dashboard-provider-rail-label', text: 'Aktivierte Provider' });
+    const providerList = providerRail.createDiv({ cls: 'claudian-dashboard-provider-list' });
+    for (const providerId of enabledProviders) {
+      const chip = providerList.createSpan({ cls: 'claudian-dashboard-provider-item' });
+      chip.dataset.provider = providerId;
+      chip.toggleClass('is-active', providerId === activeProviderId);
+      chip.createSpan({ cls: 'claudian-dashboard-provider-item-dot' });
+      chip.createSpan({ text: this.getProviderLabel(providerId) });
+      if (providerId === activeProviderId) chip.createSpan({ cls: 'claudian-dashboard-provider-item-current', text: 'aktiv' });
+    }
+
+    const capabilityGrid = panel.createDiv({ cls: 'claudian-dashboard-capability-grid' });
+    for (const item of this.getCapabilityItems(capabilities)) {
+      const row = capabilityGrid.createDiv({ cls: 'claudian-dashboard-capability' });
+      row.toggleClass('is-supported', item.supported);
+      setIcon(row.createSpan({ cls: 'claudian-dashboard-capability-icon' }), item.icon);
+      const copy = row.createDiv({ cls: 'claudian-dashboard-capability-copy' });
+      copy.createSpan({ cls: 'claudian-dashboard-capability-label', text: item.label });
+      copy.createSpan({ cls: 'claudian-dashboard-capability-state', text: item.supported ? 'Verfügbar' : 'Nicht unterstützt' });
+      setIcon(row.createSpan({ cls: 'claudian-dashboard-capability-check' }), item.supported ? 'check' : 'minus');
+    }
+  }
+
+  private getCapabilityItems(capabilities: ProviderCapabilities): Array<{ label: string; icon: string; supported: boolean }> {
+    return [
+      { label: 'Bilder & Vision', icon: 'image', supported: capabilities.supportsImageAttachments },
+      { label: 'Plan Mode', icon: 'list-checks', supported: capabilities.supportsPlanMode },
+      { label: 'MCP Tools', icon: 'plug', supported: capabilities.supportsMcpTools },
+      { label: 'Multi-Agent', icon: 'users', supported: capabilities.supportsMultiAgent },
+      { label: 'Rewind', icon: 'history', supported: capabilities.supportsRewind },
+      { label: 'Fork', icon: 'git-fork', supported: capabilities.supportsFork },
+      { label: 'Instructions', icon: 'message-square-code', supported: capabilities.supportsInstructionMode },
+      { label: 'Live Steering', icon: 'route', supported: capabilities.supportsTurnSteer === true },
+    ];
+  }
+
+  private renderFeatureMap(parent: HTMLElement): void {
+    const workflows = this.plugin.workflowEngine.list();
+    const ragSize = this.plugin.vectorStore.size();
+    const hasVisionProvider = ProviderRegistry.getEnabledProviderIds(this.plugin.settings)
+      .some((providerId) => ProviderRegistry.getCapabilities(providerId).supportsImageAttachments);
+    const features: FeatureStatusItem[] = [
+      { icon: 'route', label: 'Model Router', detail: 'Wählt automatisch das passende Modell', active: this.plugin.settings.modelRouterEnabled === true, value: this.plugin.settings.modelRouterEnabled ? 'Aktiv' : 'Aus' },
+      { icon: 'brain-circuit', label: 'Agent Memory', detail: 'Erinnert projektbezogene Fakten', active: this.plugin.settings.memoryEnabled !== false, value: this.plugin.settings.memoryEnabled === false ? 'Aus' : 'Aktiv' },
+      { icon: 'search', label: 'Vault RAG', detail: 'Semantischer Kontext aus deinem Vault', active: ragSize > 0, value: ragSize > 0 ? `${ragSize} Chunks` : 'Nicht indexiert' },
+      { icon: 'scan-eye', label: 'Vision', detail: 'Analysiert Bilder und Screenshots', active: hasVisionProvider, value: hasVisionProvider ? 'Bereit' : 'Kein Provider' },
+      { icon: 'bot', label: 'Auto Mode', detail: 'Führt lange Ziele unbeaufsichtigt fort', active: this.plugin.settings.autoMode === true, value: this.plugin.settings.autoMode ? 'Aktiv' : 'Aus' },
+      { icon: 'file-diff', label: 'Diff Preview', detail: 'Zeigt Änderungen vor der Freigabe', active: this.plugin.settings.diffPreviewBeforeWrites !== false, value: this.plugin.settings.diffPreviewBeforeWrites === false ? 'Aus' : 'Aktiv' },
+      { icon: 'shield-check', label: 'Token Guard', detail: 'Überwacht Session- und Tagesbudget', active: this.plugin.settings.tokenBudgetEnabled === true, value: this.plugin.settings.tokenBudgetEnabled ? 'Aktiv' : 'Aus' },
+      { icon: 'workflow', label: 'Workflows', detail: 'Zeit- und eventgesteuerte Automationen', active: workflows.some((workflow) => workflow.enabled), value: `${workflows.filter((workflow) => workflow.enabled).length}/${workflows.length} aktiv` },
+    ];
+
+    this.renderSectionHeading(parent, 'Feature Map', 'Deine wichtigsten Claudian-Systeme auf einen Blick');
+    const map = parent.createDiv({ cls: 'claudian-dashboard-feature-map', attr: { role: 'list' } });
+    for (const feature of features) {
+      const row = map.createDiv({ cls: 'claudian-dashboard-feature', attr: { role: 'listitem' } });
+      row.toggleClass('is-active', feature.active);
+      setIcon(row.createSpan({ cls: 'claudian-dashboard-feature-icon' }), feature.icon);
+      const copy = row.createDiv({ cls: 'claudian-dashboard-feature-copy' });
+      copy.createSpan({ cls: 'claudian-dashboard-feature-label', text: feature.label });
+      copy.createSpan({ cls: 'claudian-dashboard-feature-detail', text: feature.detail });
+      row.createSpan({ cls: 'claudian-dashboard-feature-value', text: feature.value });
+    }
   }
 
   /** Applies the active provider's brand color via the `data-provider` hook. */

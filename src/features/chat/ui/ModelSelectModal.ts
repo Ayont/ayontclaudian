@@ -25,6 +25,11 @@ export class ModelSelectModal extends Modal {
 
     const frame = this.contentEl.createDiv({ cls: 'claudian-model-select-frame' });
 
+    const summary = frame.createDiv({ cls: 'claudian-model-select-summary' });
+    const providerCount = new Set(this.models.map((model) => model.providerId).filter(Boolean)).size;
+    summary.createSpan({ text: `${this.models.length} Modelle · ${providerCount} Provider` });
+    summary.createSpan({ cls: 'claudian-model-select-summary-hint', text: 'Esc zum Schließen' });
+
     const searchContainer = frame.createDiv({ cls: 'claudian-model-select-search' });
     this.searchInput = searchContainer.createEl('input', {
       type: 'text',

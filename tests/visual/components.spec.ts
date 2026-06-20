@@ -13,6 +13,8 @@ const SECTIONS = [
   'mission-card',
   'synthesis',
   'activity-feed',
+  'provider-capabilities',
+  'feature-map',
 ] as const;
 
 test.beforeEach(async ({ page }) => {
