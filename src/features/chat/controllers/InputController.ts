@@ -445,6 +445,16 @@ export class InputController {
     // `turnRequest` may be reassigned below to prepend a one-shot cross-provider bootstrap.
     let turnRequest = turnSubmission.turnRequest;
 
+    // CRITICAL: decouple THIS turn's image base64 from the message objects that
+    // get persisted. The pre-send `save()` (below) clears `img.data = ''` on the
+    // stored message images to free memory — and `turnRequest.images` shares
+    // those exact object references, so without this snapshot the provider (e.g.
+    // Claude) would receive 0-byte images ("I can't see the image"). Copying the
+    // attachments here keeps the data alive until the query consumes it.
+    if (turnRequest.images && turnRequest.images.length > 0) {
+      turnRequest = { ...turnRequest, images: turnRequest.images.map((img) => ({ ...img })) };
+    }
+
     if (!options?.turnRequestOverride && plugin.settings.memoryEnabled !== false && plugin.app?.vault) {
       const memoryNotes = await loadMemoryNotes(
         plugin.app.vault,

@@ -1196,6 +1196,54 @@ describe('InputController - Message Queue', () => {
       expect(deps.state.isStreaming).toBe(false);
     });
 
+    it('keeps image base64 data alive for the provider after the pre-send save clears stored copies', async () => {
+      // Regression: Claude received 0-byte images ("I can't see the image").
+      // Root cause — the pre-send save() (updateConversation) clears
+      // msg.images[].data = '' to free memory, and turnRequest.images shared
+      // those exact object references, so the data was gone before the SDK
+      // consumed it. The controller now snapshots turnRequest.images first.
+      deps = createSendableDeps();
+      const imageContextManager = deps.getImageContextManager()!;
+      const attachedImage = {
+        id: 'img-1',
+        name: 'screenshot.png',
+        mediaType: 'image/png',
+        data: 'BASE64DATA',
+        size: 1234,
+        source: 'paste',
+      };
+      (imageContextManager.hasImages as jest.Mock).mockReturnValue(true);
+      (imageContextManager.getAttachedImages as jest.Mock).mockReturnValue([attachedImage]);
+
+      // Simulate updateConversation: the pre-send save() clears the base64 on
+      // every stored message image to free memory. This mutates the live
+      // message objects (and, before the fix, the shared turnRequest images).
+      (deps.conversationController.save as jest.Mock).mockImplementation(() => {
+        for (const msg of deps.state.messages) {
+          for (const img of msg.images ?? []) {
+            img.data = '';
+          }
+        }
+      });
+
+      let dataReachingProvider: string | undefined;
+      (deps as any).mockAgentService.query = jest.fn().mockImplementation((turn: any) => {
+        dataReachingProvider = turn.request.images?.[0]?.data;
+        return createMockStream([{ type: 'done' }]);
+      });
+
+      inputEl = deps.getInputEl() as ReturnType<typeof createMockInputEl>;
+      inputEl.value = 'What is in this image?';
+      controller = new InputController(deps);
+
+      await controller.sendMessage();
+
+      // The provider must still see the real base64, not the cleared copy.
+      expect(dataReachingProvider).toBe('BASE64DATA');
+      // The stored message copy is intentionally cleared to free memory.
+      expect(deps.state.messages[0].images?.[0]?.data).toBe('');
+    });
+
     it('should persist replay-safe user content instead of transport-only prompt', async () => {
       deps = createSendableDeps();
       (deps as any).mockAgentService.prepareTurn = jest.fn().mockReturnValue({
