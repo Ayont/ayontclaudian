@@ -60,6 +60,21 @@ export interface ChatMessage {
   userMessageId?: string;
   /** Provider-native assistant message identifier used for rewind/fork checkpoints. */
   assistantMessageId?: string;
+  /**
+   * Provider that owned this message at creation time. Stamped on every new
+   * message so the chat history can render per-message brand colors even after
+   * the user switches providers mid-conversation. Messages persisted before
+   * this field existed fall back to `conversation.providerId` at render time.
+   */
+  agentProvider?: ProviderId;
+  /**
+   * Human-readable agent label at message creation time, e.g.
+   * "Claude · Sonnet 4.5" or "Gemini · 2.5 Pro". Surfaced in the switch
+   * divider chip between provider changes.
+   */
+  agentLabel?: string;
+  /** Model id that produced (or received, for user turns) this message. */
+  agentModel?: string;
 }
 
 /** Persisted conversation with messages and session state. */

@@ -1,0 +1,141 @@
+/* =============================================================================
+   Per-Message Provider Branding
+   -----------------------------------------------------------------------------
+   Each chat message carries `data-message-provider="..."` and inline
+   `--message-brand` / `--message-brand-rgb` CSS variables (set by
+   MessageRenderer.applyMessageProvider). This file consumes those variables so
+   the message keeps the brand color of the provider that produced it — even
+   after the user switches providers mid-conversation. Without this override,
+   every bubble would re-color to the *currently active* provider and the
+   chat history would lose its per-message provenance.
+
+   Brand variables fall back to the container's `--claudian-brand` so legacy
+   messages (no `agentProvider` field) still render with the fallback color.
+   ========================================================================== */
+
+/* -----------------------------------------------------------------------------
+   User message: swap the trailing-edge accent stripe to this message's brand.
+   -------------------------------------------------------------------------- */
+.claudian-message-user[data-message-provider] {
+  border-inline-end-color: rgba(var(--message-brand-rgb, var(--claudian-brand-rgb)), 0.55);
+}
+
+.claudian-message-user[data-message-provider]:hover {
+  border-inline-end-color: var(--message-brand, var(--claudian-brand));
+}
+
+/* Selection inside a user bubble uses the message brand, not the active accent. */
+.claudian-message-user[data-message-provider] ::selection {
+  background: rgba(var(--message-brand-rgb, var(--claudian-brand-rgb)), 0.18);
+}
+
+/* -----------------------------------------------------------------------------
+   Assistant message: add a subtle leading-edge marker so the brand is visible
+   even though assistant bubbles are surface-free. Implemented as a thin
+   gradient bar pinned to the inline-start edge of the content area.
+   -------------------------------------------------------------------------- */
+.claudian-message-assistant[data-message-provider]::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block: 4px;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to bottom,
+    rgba(var(--message-brand-rgb, var(--claudian-brand-rgb)), 0.9),
+    rgba(var(--message-brand-rgb, var(--claudian-brand-rgb)), 0.25)
+  );
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+/* Ensure the assistant message is a positioning context for the leading bar. */
+.claudian-message-assistant {
+  position: relative;
+}
+
+/* -----------------------------------------------------------------------------
+   Provider Switch Divider
+   -----------------------------------------------------------------------------
+   Rendered between two messages when their providers differ. Centered chip
+   with two brand-colored dots and labels, joined by an arrow, flanked by
+   hairline rules that span the column.
+   -------------------------------------------------------------------------- */
+.claudian-provider-switch {
+  display: flex;
+  align-items: center;
+  gap: var(--cl-space-3, 12px);
+  margin: var(--cl-space-5, 24px) 0 var(--cl-space-4, 16px);
+  padding: 0;
+  width: 100%;
+  pointer-events: none;
+}
+
+.claudian-provider-switch-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--cl-border-subtle, var(--background-modifier-border)) 20%,
+    var(--cl-border-subtle, var(--background-modifier-border)) 80%,
+    transparent
+  );
+}
+
+.claudian-provider-switch-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cl-space-2, 8px);
+  padding: 4px 10px;
+  border-radius: var(--cl-radius-pill, 999px);
+  background: var(--cl-surface-raised, var(--background-secondary));
+  border: 1px solid var(--cl-border-subtle, var(--background-modifier-border));
+  box-shadow: var(--cl-shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.18));
+  font-size: var(--cl-text-xs, 11px);
+  font-family: var(--cl-font-ui, var(--font-interface));
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+
+.claudian-provider-switch-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.claudian-provider-switch-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--message-brand, var(--claudian-brand));
+  box-shadow: 0 0 6px rgba(var(--message-brand-rgb, var(--claudian-brand-rgb)), 0.55);
+  flex-shrink: 0;
+}
+
+.claudian-provider-switch-label {
+  font-weight: 500;
+}
+
+.claudian-provider-switch-from .claudian-provider-switch-label {
+  color: var(--message-brand, var(--claudian-brand));
+}
+
+.claudian-provider-switch-to .claudian-provider-switch-label {
+  color: var(--message-brand, var(--claudian-brand));
+}
+
+.claudian-provider-switch-arrow {
+  color: var(--text-faint, var(--text-muted));
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.75;
+}
+
+/* Light theme softens the dot glow so it doesn't look radioactive on white. */
+body.theme-light .claudian-provider-switch-dot {
+  box-shadow: none;
+}

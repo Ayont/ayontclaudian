@@ -217,6 +217,34 @@ export class InputController {
     return this.deps.plugin.getConversationSync(conversationId)?.providerId ?? DEFAULT_CHAT_PROVIDER_ID;
   }
 
+  /**
+   * Captures the active provider/model/label at message-creation time so the
+   * chat history can render per-message brand colors after a provider switch.
+   * Returned object is spread into every new ChatMessage.
+   */
+  private buildAgentStamp(): { agentProvider: ProviderId; agentModel?: string; agentLabel?: string } {
+    const providerId = this.getActiveProviderId();
+    const model = this.deps.getActiveModel?.() ?? undefined;
+    // ProviderRegistry throws if the provider isn't registered (e.g. in unit
+    // tests with a stubbed registry). Fall back to the raw id so the stamp
+    // never breaks message creation.
+    let providerName: string;
+    try {
+      providerName = ProviderRegistry.getProviderDisplayName(providerId);
+    } catch {
+      providerName = providerId;
+    }
+    const agentLabel = model
+      ? `${providerName} · ${model}`
+      : providerName;
+    return {
+      agentProvider: providerId,
+      agentModel: model,
+      // Don't store Auto sentinel as a label — it would mislead the divider.
+      agentLabel: model === AUTO_MODEL_VALUE ? providerName : agentLabel,
+    };
+  }
+
   private getActiveCapabilities(): ProviderCapabilities {
     const providerId = this.getActiveProviderId();
     const agentService = this.getAgentService();
@@ -447,6 +475,7 @@ export class InputController {
       displayContent,                // Original user input (for UI display)
       timestamp: Date.now(),
       images: imagesForMessage,
+      ...this.buildAgentStamp(),
     };
     state.addMessage(userMsg);
     state.hasPendingConversationSave = true;
@@ -461,6 +490,7 @@ export class InputController {
       timestamp: Date.now(),
       toolCalls: [],
       contentBlocks: [],
+      ...this.buildAgentStamp(),
     };
     state.addMessage(assistantMsg);
     this.activeStreamingAssistantMessage = assistantMsg;
@@ -1396,6 +1426,7 @@ export class InputController {
         timestamp: Date.now(),
         currentNote: expected?.currentNote,
         images,
+        ...this.buildAgentStamp(),
       };
       this.deps.state.addMessage(userMessage);
       this.deps.renderer.addMessage(userMessage);
@@ -1408,6 +1439,7 @@ export class InputController {
       timestamp: Date.now(),
       toolCalls: [],
       contentBlocks: [],
+      ...this.buildAgentStamp(),
     };
     this.deps.state.addMessage(assistantMessage);
     this.activeStreamingAssistantMessage = assistantMessage;
@@ -1436,6 +1468,7 @@ export class InputController {
       timestamp: Date.now(),
       toolCalls: [],
       contentBlocks: [],
+      ...this.buildAgentStamp(),
     };
     this.deps.state.addMessage(assistantMessage);
     this.activeStreamingAssistantMessage = assistantMessage;

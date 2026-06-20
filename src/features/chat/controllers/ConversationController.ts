@@ -486,6 +486,9 @@ export class ConversationController {
       mcpServerSelector?.clearEnabled();
     }
 
+    // Brand-color fallback for legacy messages without `agentProvider`.
+    renderer.setFallbackProvider?.(conversation.providerId);
+
     const welcomeEl = renderer.renderMessages(
       state.messages,
       () => this.getGreeting()

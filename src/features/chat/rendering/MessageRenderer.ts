@@ -1,7 +1,8 @@
 import type { App, Component } from 'obsidian';
 import { MarkdownRenderer, Menu, Notice, setIcon } from 'obsidian';
 
-import { DEFAULT_CHAT_PROVIDER_ID, type ProviderCapabilities } from '../../../core/providers/types';
+import { DEFAULT_CHAT_PROVIDER_ID, type ProviderCapabilities, type ProviderId } from '../../../core/providers/types';
+import { ProviderRegistry } from '../../../core/providers/ProviderRegistry';
 import type { ChatRewindMode } from '../../../core/runtime/types';
 import {
   isSubagentToolName,
@@ -124,6 +125,19 @@ export class MessageRenderer {
   private forkCallback?: (messageId: string) => Promise<void>;
   private switchModelCallback?: () => void;
   private liveMessageEls = new Map<string, HTMLElement>();
+  /**
+   * Provider used as a fallback for messages persisted before `agentProvider`
+   * existed. Set per conversation (typically `conversation.providerId`) so
+   * legacy history still gets a coherent color instead of the default brand.
+   */
+  private fallbackProviderId: ProviderId = DEFAULT_CHAT_PROVIDER_ID;
+  /**
+   * Tracks the provider of the most recently rendered message so we can insert
+   * a switch-divider when a new message comes in from a different provider.
+   * Reset to null at the start of every batch render so the first message
+   * never gets a leading divider.
+   */
+  private lastRenderedProviderId: ProviderId | null = null;
 
   constructor(
     plugin: ClaudianPlugin,
@@ -179,6 +193,129 @@ export class MessageRenderer {
   }
 
   // ============================================
+  // Per-Message Provider Branding
+  // ============================================
+
+  /**
+   * Sets the fallback provider used for legacy messages without `agentProvider`.
+   * Should be called whenever a conversation is loaded or switched, before
+   * `renderMessages()` runs.
+   */
+  setFallbackProvider(providerId: ProviderId): void {
+    this.fallbackProviderId = providerId;
+  }
+
+  /** Returns the provider that owns a given message (explicit stamp or fallback). */
+  private resolveMessageProvider(msg: ChatMessage): ProviderId {
+    return msg.agentProvider ?? this.fallbackProviderId;
+  }
+
+  /** Short display label for a provider (used in the switch divider). */
+  private getProviderShortLabel(providerId: ProviderId): string {
+    try {
+      return ProviderRegistry.getProviderDisplayName(providerId);
+    } catch {
+      return providerId;
+    }
+  }
+
+  /**
+   * Stamps the message element with `data-message-provider` and per-message
+   * brand color CSS variables (`--message-brand`, `--message-brand-rgb`).
+   * CSS rules in `message-provider.css` consume these to color the bubble
+   * border, header chip, and dot — independent of the container's active
+   * provider.
+   */
+  private applyMessageProvider(msg: ChatMessage, msgEl: HTMLElement): ProviderId {
+    const providerId = this.resolveMessageProvider(msg);
+    msgEl.dataset.messageProvider = providerId;
+    // `style.setProperty` may be absent in lightweight test stubs; guard so
+    // the brand color never blocks message rendering.
+    if (typeof msgEl.style?.setProperty === 'function') {
+      msgEl.style.setProperty('--message-brand', `var(--claudian-brand-${providerId}, var(--claudian-brand))`);
+      msgEl.style.setProperty(
+        '--message-brand-rgb',
+        `var(--claudian-brand-${providerId}-rgb, var(--claudian-brand-rgb))`,
+      );
+    }
+    return providerId;
+  }
+
+  /**
+   * Renders a centered "From ● Provider → ● Provider" divider between two
+   * messages when their providers differ. Both dots pick up the corresponding
+   * brand color via `--message-brand` set on each side element.
+   */
+  private renderProviderSwitchDivider(
+    prevProvider: ProviderId,
+    prevLabel: string,
+    nextProvider: ProviderId,
+    nextLabel: string,
+  ): HTMLElement {
+    const dividerEl = this.messagesEl.createDiv({ cls: 'claudian-provider-switch' });
+    dividerEl.dataset.fromProvider = prevProvider;
+    dividerEl.dataset.toProvider = nextProvider;
+
+    dividerEl.createDiv({ cls: 'claudian-provider-switch-line' });
+
+    const chipEl = dividerEl.createDiv({ cls: 'claudian-provider-switch-chip' });
+    chipEl.setAttribute('role', 'separator');
+    chipEl.setAttribute('aria-label', `${prevLabel} → ${nextLabel}`);
+
+    const fromEl = chipEl.createSpan({ cls: 'claudian-provider-switch-side claudian-provider-switch-from' });
+    if (typeof fromEl.style?.setProperty === 'function') {
+      fromEl.style.setProperty(
+        '--message-brand',
+        `var(--claudian-brand-${prevProvider}, var(--claudian-brand))`,
+      );
+      fromEl.style.setProperty(
+        '--message-brand-rgb',
+        `var(--claudian-brand-${prevProvider}-rgb, var(--claudian-brand-rgb))`,
+      );
+    }
+    fromEl.createSpan({ cls: 'claudian-provider-switch-dot' });
+    fromEl.createSpan({ cls: 'claudian-provider-switch-label', text: prevLabel });
+
+    chipEl.createSpan({ cls: 'claudian-provider-switch-arrow', text: '→' });
+
+    const toEl = chipEl.createSpan({ cls: 'claudian-provider-switch-side claudian-provider-switch-to' });
+    if (typeof toEl.style?.setProperty === 'function') {
+      toEl.style.setProperty(
+        '--message-brand',
+        `var(--claudian-brand-${nextProvider}, var(--claudian-brand))`,
+      );
+      toEl.style.setProperty(
+        '--message-brand-rgb',
+        `var(--claudian-brand-${nextProvider}-rgb, var(--claudian-brand-rgb))`,
+      );
+    }
+    toEl.createSpan({ cls: 'claudian-provider-switch-dot' });
+    toEl.createSpan({ cls: 'claudian-provider-switch-label', text: nextLabel });
+
+    dividerEl.createDiv({ cls: 'claudian-provider-switch-line' });
+
+    return dividerEl;
+  }
+
+  /**
+   * Inserts a provider-switch divider before rendering `msg` if its provider
+   * differs from the previously rendered message's provider. Updates the
+   * `lastRenderedProviderId` cursor to `msg`'s provider so subsequent
+   * messages compare against this one. Returns the provider id of `msg`.
+   */
+  private maybeRenderSwitchDivider(msg: ChatMessage): ProviderId {
+    const nextProvider = this.resolveMessageProvider(msg);
+    const prev = this.lastRenderedProviderId;
+    if (prev !== null && prev !== nextProvider) {
+      const prevLabel = this.getProviderShortLabel(prev);
+      const nextLabel = msg.agentLabel ?? this.getProviderShortLabel(nextProvider);
+      this.renderProviderSwitchDivider(prev, prevLabel, nextProvider, nextLabel);
+    }
+    this.lastRenderedProviderId = nextProvider;
+    return nextProvider;
+  }
+
+  // ============================================
   // Streaming Message Rendering
   // ============================================
 
@@ -209,6 +346,13 @@ export class MessageRenderer {
         'data-role': msg.role,
       },
     });
+
+    // Per-message provider branding: stamp brand color CSS vars on the
+    // element so the bubble keeps its original provider's color even after
+    // the user switches providers mid-conversation. Also insert a divider
+    // when this message's provider differs from the previously rendered one.
+    this.maybeRenderSwitchDivider(msg);
+    this.applyMessageProvider(msg, msgEl);
 
     const contentEl = msgEl.createDiv({ cls: 'claudian-message-content', attr: { dir: 'auto' } });
 
@@ -289,6 +433,10 @@ export class MessageRenderer {
   ): HTMLElement {
     this.messagesEl.empty();
     this.liveMessageEls.clear();
+    // Reset the switch-divider cursor so the first rendered message never
+    // gets a leading divider. As messages stream in, each one updates the
+    // cursor via applyMessageProvider().
+    this.lastRenderedProviderId = null;
 
     // Recreate welcome element after clearing
     const newWelcomeEl = this.messagesEl.createDiv({ cls: 'claudian-welcome' });
@@ -340,6 +488,10 @@ export class MessageRenderer {
         'data-role': msg.role,
       },
     });
+
+    // Per-message provider branding (see addMessage for rationale).
+    this.maybeRenderSwitchDivider(msg);
+    this.applyMessageProvider(msg, msgEl);
 
     const contentEl = msgEl.createDiv({ cls: 'claudian-message-content', attr: { dir: 'auto' } });
 

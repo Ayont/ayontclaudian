@@ -2083,7 +2083,7 @@ export function setupServiceCallbacks(tab: TabData, plugin: ClaudianPlugin): voi
         hasRunning: tab.services.subagentManager.hasRunningSubagents(),
       })
     );
-    tab.service.setAutoTurnCallback((result: AutoTurnResult) => renderAutoTriggeredTurn(tab, result));
+    tab.service.setAutoTurnCallback((result: AutoTurnResult) => renderAutoTriggeredTurn(tab, plugin, result));
     tab.service.setPermissionModeSyncCallback((sdkMode) => {
       const mode = sdkMode === 'bypassPermissions' || sdkMode === 'yolo'
         ? 'yolo'
@@ -2140,7 +2140,7 @@ function hasVisibleAutoTurnMessageContent(msg: ChatMessage): boolean {
   ) ?? false;
 }
 
-async function renderAutoTriggeredTurn(tab: TabData, result: AutoTurnResult): Promise<void> {
+async function renderAutoTriggeredTurn(tab: TabData, plugin: ClaudianPlugin, result: AutoTurnResult): Promise<void> {
   if (!tab.dom.contentEl.isConnected) {
     return;
   }
@@ -2164,6 +2164,14 @@ async function renderAutoTriggeredTurn(tab: TabData, result: AutoTurnResult): Pr
     timestamp: Date.now(),
     toolCalls: [],
     contentBlocks: [],
+    agentProvider: getTabProviderId(tab, plugin),
+    agentModel: getTabSettingsSnapshot(tab, plugin).model ?? undefined,
+    agentLabel: (() => {
+      const pid = getTabProviderId(tab, plugin);
+      const m = getTabSettingsSnapshot(tab, plugin).model;
+      const name = ProviderRegistry.getProviderDisplayName(pid);
+      return m && m !== AUTO_MODEL_VALUE ? `${name} · ${m}` : name;
+    })(),
     ...(metadata.assistantMessageId && { assistantMessageId: metadata.assistantMessageId }),
   };
 
