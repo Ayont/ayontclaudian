@@ -475,6 +475,19 @@ export class ClaudianSettingTab extends PluginSettingTab {
           });
       });
 
+    new Setting(container)
+      .setName('Conversation export folder')
+      .setDesc('Vault folder where "Export conversation to note" saves Markdown notes. Exported notes are auto-indexed for RAG.')
+      .addText((text) => {
+        text
+          .setPlaceholder('Claudian/Conversations')
+          .setValue(this.plugin.settings.conversationExportFolder ?? 'Claudian/Conversations')
+          .onChange(async (value) => {
+            this.plugin.settings.conversationExportFolder = value.trim();
+            await this.plugin.saveSettings();
+          });
+      });
+
     // --- Memory & Budget ---
 
     new Setting(container).setName(t('settings.memoryAndBudget')).setHeading();

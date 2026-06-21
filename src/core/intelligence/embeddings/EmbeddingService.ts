@@ -5,6 +5,10 @@ export interface EmbeddingService {
 }
 
 export function cosineSimilarity(a: number[], b: number[]): number {
+  // Vectors from different embedding models have different dimensions. Comparing
+  // them would read past the end of the shorter vector (undefined → NaN) and
+  // silently drop every result. Refuse mismatched dimensions instead.
+  if (a.length !== b.length) return 0;
   let dot = 0;
   let normA = 0;
   let normB = 0;

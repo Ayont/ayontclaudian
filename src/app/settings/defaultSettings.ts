@@ -11,6 +11,7 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
   modelRouterEnabled: true,
   modelRouterRules: [],
   promptTemplateFolder: 'Templates/Prompt Templates',
+  conversationExportFolder: 'Claudian/Conversations',
   diffPreviewBeforeWrites: true,
   memoryEnabled: true,
   memoryFolder: '.claudian/memory',

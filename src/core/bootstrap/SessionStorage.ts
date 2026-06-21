@@ -47,7 +47,11 @@ export class SessionStorage {
       }
 
       return metadata;
-    } catch {
+    } catch (error) {
+      // A corrupt/truncated meta file would otherwise make the conversation
+      // silently vanish with no trace. Log it so it's diagnosable.
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[Claudian] failed to load conversation metadata for "${id}":`, message);
       return null;
     }
   }

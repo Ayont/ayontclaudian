@@ -127,6 +127,9 @@ export interface ClaudianSettings {
   /** Folder for reusable prompt templates (Markdown files). */
   promptTemplateFolder?: string;
 
+  /** Vault folder where exported conversation notes are written. */
+  conversationExportFolder?: string;
+
   /** Show an inline diff preview inside write/edit approval prompts. */
   diffPreviewBeforeWrites?: boolean;
 

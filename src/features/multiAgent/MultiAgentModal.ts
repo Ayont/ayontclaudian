@@ -4,7 +4,6 @@ import { globalEventBus } from '../../core/events/EventBus';
 import type {
   AgentProgress,
   MissionProgress,
-  SpecialistAgent,
   SynthesisContribution,
 } from '../../core/intelligence/multiAgent/MultiAgentService';
 import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
@@ -37,6 +36,8 @@ export class MultiAgentModal extends Modal {
   private readonly cards = new Map<string, AgentCardRefs>();
   private tickTimer: number | null = null;
   private running = false;
+  /** Set when the modal closes; guards async progress callbacks from writing to detached DOM. */
+  private closed = false;
 
   constructor(
     private readonly plugin: ClaudianPlugin,
@@ -119,6 +120,10 @@ export class MultiAgentModal extends Modal {
   }
 
   onClose(): void {
+    // Mark closed so any in-flight mission progress callbacks stop writing to
+    // the now-detached DOM. The mission finishes in the background and its
+    // result is still saved + a completion event still fires from launch().
+    this.closed = true;
     this.stopTicker();
   }
 
@@ -198,12 +203,13 @@ export class MultiAgentModal extends Modal {
     globalEventBus.emit('mission:started', { id: this.missionId, prompt, agents: agents.length });
 
     try {
+      // Use the plugin's full executor so missions launched from the modal get
+      // the SAME provider targeting + rate-limit failover as inline missions
+      // (executeWithProvider + isRateLimitError). The previous inline executor
+      // only had `execute`, silently disabling failover on this entry point.
       const outcome = await this.plugin.multiAgentService.runMission(
         task,
-        {
-          execute: (agent: SpecialistAgent, taskPrompt, onChunk) =>
-            this.plugin.runAgentPrompt(agent, taskPrompt, (chunk) => onChunk(agent.id, chunk)),
-        },
+        this.plugin.buildMultiAgentExecutor(),
         {
           synthesize: (taskPrompt, contributions: SynthesisContribution[], onChunk) =>
             this.plugin.runSynthesisPrompt(
@@ -217,6 +223,9 @@ export class MultiAgentModal extends Modal {
         {
           storage: this.plugin.missionStateStorage,
           onEvent: (event) => globalEventBus.emit('mission:event', { id: this.missionId, ...event }),
+          defaultProviderId: this.plugin.getActiveMultiAgentProviderId(),
+          resolveAgentProviderId: (agent) => this.plugin.resolveMultiAgentProviderId(agent),
+          maxFailovers: 3,
         },
       );
 
@@ -236,6 +245,8 @@ export class MultiAgentModal extends Modal {
   }
 
   private updateMissionProgress(progress: MissionProgress): void {
+    // Modal was dismissed mid-mission — don't touch detached DOM.
+    if (this.closed) return;
     globalEventBus.emit('mission:progress', { id: this.missionId, overall: progress.overall, status: progress.status });
 
     if (this.overallBar) this.overallBar.style.width = `${progress.overall}%`;

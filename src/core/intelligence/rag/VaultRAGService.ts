@@ -18,6 +18,8 @@ export interface VaultRAGOptions {
 
 export class VaultRAGService {
   private isIndexing = false;
+  /** Per-path serialization so concurrent re-indexes of one file can't interleave. */
+  private readonly indexQueue = new Map<string, Promise<number>>();
 
   constructor(
     private readonly vault: Vault,
@@ -76,6 +78,21 @@ export class VaultRAGService {
    */
   async indexFile(file: TFile): Promise<number> {
     if (file.extension !== 'md') return 0;
+    // Chain on any in-flight index for the SAME path so two rapid edits can't
+    // interleave (remove/embed/upsert overlapping) and leave stale chunks behind.
+    const prev = this.indexQueue.get(file.path) ?? Promise.resolve(0);
+    const next = prev.catch(() => 0).then(() => this.doIndexFile(file));
+    this.indexQueue.set(file.path, next);
+    try {
+      return await next;
+    } finally {
+      if (this.indexQueue.get(file.path) === next) {
+        this.indexQueue.delete(file.path);
+      }
+    }
+  }
+
+  private async doIndexFile(file: TFile): Promise<number> {
     this.removeFile(file.path);
 
     const content = await this.vault.cachedRead(file).catch(() => '');
@@ -93,6 +110,8 @@ export class VaultRAGService {
       return 0;
     }
 
+    // Clear any stale chunks beyond the new length (file shrank) before upserting.
+    this.removeFile(file.path);
     for (let i = 0; i < chunks.length; i++) {
       this.vectorStore.upsert({
         id: `${file.path}#chunk-${i}`,

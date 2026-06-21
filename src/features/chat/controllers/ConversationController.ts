@@ -756,6 +756,12 @@ export class ConversationController {
         this.showRenameInput(item, conversationId, title);
       }));
     menu.addItem((menuItem) => menuItem
+      .setTitle('Export to note')
+      .setIcon('download')
+      .onClick(() => {
+        void this.deps.plugin.exportActiveConversation(conversationId);
+      }));
+    menu.addItem((menuItem) => menuItem
       .setTitle('Delete')
       .onClick(() => {
         void this.runHistoryAction(

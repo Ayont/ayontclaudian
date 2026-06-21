@@ -32,4 +32,24 @@ describe('VectorStore', () => {
     store2.load(serialized);
     expect(store2.size()).toBe(1);
   });
+
+  it('reports the embedding dimension and persists it in the envelope', () => {
+    const store = new VectorStore();
+    expect(store.dimension()).toBe(0);
+    store.upsert({ id: 'a', text: 'foo', embedding: vector(768, 1), metadata: {}, mtime: 1 });
+    expect(store.dimension()).toBe(768);
+
+    const envelope = JSON.parse(store.serialize());
+    expect(envelope.dimension).toBe(768);
+    expect(Array.isArray(envelope.records)).toBe(true);
+  });
+
+  it('loads legacy bare-array indexes for backward compatibility', () => {
+    const legacy = JSON.stringify([
+      { id: 'a', text: 'foo', embedding: vector(4, 1), metadata: {}, mtime: 1 },
+    ]);
+    const store = new VectorStore();
+    store.load(legacy);
+    expect(store.size()).toBe(1);
+  });
 });

@@ -1001,7 +1001,7 @@ function initializeInstructionAndTodo(tab: TabData, plugin: ClaudianPlugin): voi
             const statusPanel = tab.ui.statusPanel;
             if (!statusPanel) return;
 
-            const id = `bash-${Date.now()}`;
+            const id = `bash-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
             statusPanel.addBashOutput({ id, command, status: 'running', output: '' });
 
             const result = await bashService.execute(command);

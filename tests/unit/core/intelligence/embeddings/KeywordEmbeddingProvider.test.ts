@@ -15,4 +15,13 @@ describe('KeywordEmbeddingProvider', () => {
     const provider = new KeywordEmbeddingProvider();
     expect(await provider.isAvailable()).toBe(true);
   });
+
+  it('cosineSimilarity returns 0 for mismatched dimensions (no NaN)', () => {
+    // Regression: vectors from different embedding models (256 vs 768 dim) must
+    // not silently produce NaN and drop every RAG result.
+    const a = [1, 0, 0];
+    const b = [1, 0, 0, 0, 0];
+    expect(cosineSimilarity(a, b)).toBe(0);
+    expect(Number.isNaN(cosineSimilarity(a, b))).toBe(false);
+  });
 });

@@ -235,8 +235,8 @@
 
 /* Env Snippet Modal */
 .claudian-env-snippet-modal .modal-content {
-  max-width: 550px;
-  width: 550px;
+  max-width: min(550px, 90vw);
+  width: 100%;
   padding: 16px;
 }
 

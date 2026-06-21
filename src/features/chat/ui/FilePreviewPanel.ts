@@ -13,6 +13,8 @@ export class FilePreviewPanel {
   private contentEl: HTMLElement | null = null;
   private isOpen = false;
   private currentFilePath: string | null = null;
+  /** Object URL of the currently previewed blob (PDF/image), revoked on replace/destroy. */
+  private activeObjectUrl: string | null = null;
 
   constructor(
     private readonly containerEl: HTMLElement,
@@ -71,6 +73,7 @@ export class FilePreviewPanel {
     if (!this.contentEl) return;
     this.currentFilePath = filePath;
     this.contentEl.empty();
+    this.revokeActiveObjectUrl();
 
     const file = this.plugin.app.vault.getAbstractFileByPath(filePath);
     if (!(file instanceof TFile)) {
@@ -134,6 +137,7 @@ export class FilePreviewPanel {
   previewDataUri(dataUri: string, mimeType: string, fileName: string): void {
     if (!this.contentEl) return;
     this.contentEl.empty();
+    this.revokeActiveObjectUrl();
     this.currentFilePath = fileName;
 
     if (mimeType.startsWith('image/')) {
@@ -154,13 +158,11 @@ export class FilePreviewPanel {
     const arrayBuffer = await this.plugin.app.vault.readBinary(file);
     const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
+    this.activeObjectUrl = url;
     const iframe = this.contentEl.createEl('iframe', { cls: 'claudian-preview-pdf' });
     iframe.src = url;
     iframe.setAttribute('sandbox', 'allow-same-origin');
-    // Clean up the blob URL when the panel is closed/replaced
-    iframe.addEventListener('load', () => {
-      // URL.revokeObjectURL(url) — deferred to panel close
-    });
+    // The URL is revoked on the next preview / panel destroy (revokeActiveObjectUrl).
   }
 
   private async renderImagePreview(file: TFile): Promise<void> {
@@ -168,9 +170,18 @@ export class FilePreviewPanel {
     const arrayBuffer = await this.plugin.app.vault.readBinary(file);
     const blob = new Blob([arrayBuffer]);
     const url = URL.createObjectURL(blob);
+    this.activeObjectUrl = url;
     const img = this.contentEl.createEl('img', { cls: 'claudian-preview-image' });
     img.src = url;
     img.alt = file.name;
+  }
+
+  /** Releases the active blob URL so previewed binaries don't pin memory. */
+  private revokeActiveObjectUrl(): void {
+    if (this.activeObjectUrl) {
+      URL.revokeObjectURL(this.activeObjectUrl);
+      this.activeObjectUrl = null;
+    }
   }
 
   private async renderCsvPreview(file: TFile): Promise<void> {
@@ -252,6 +263,7 @@ export class FilePreviewPanel {
 
   destroy(): void {
     this.close();
+    this.revokeActiveObjectUrl();
     this.panelEl?.remove();
     this.toggleBtn?.remove();
     this.panelEl = null;

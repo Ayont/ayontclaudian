@@ -111,6 +111,7 @@ import {
 } from './core/workflows/promptWorkflows';
 import { ArtifactService } from './features/artifacts/ArtifactService';
 import { ClaudianView } from './features/chat/ClaudianView';
+import { exportConversationToNote } from './features/chat/export/ConversationExportWriter';
 import { ImageStagingService } from './features/chat/services/ImageStagingService';
 import type { TabData } from './features/chat/tabs/types';
 import { ModelSelectModal } from './features/chat/ui/ModelSelectModal';
@@ -518,6 +519,12 @@ export default class ClaudianPlugin extends Plugin {
       },
     });
 
+    this.addCommand({
+      id: 'export-conversation',
+      name: 'Export conversation to note',
+      callback: () => { void this.exportActiveConversation(); },
+    });
+
     this.addSettingTab(new ClaudianSettingTab(this.app, this));
 
     // Status-bar item: active provider, set-up/auth state, and context usage %.
@@ -554,6 +561,16 @@ export default class ClaudianPlugin extends Plugin {
     this.app.workspace.onLayoutReady(() => {
       void (async () => {
         await this.loadRAGIndex();
+
+        // If the embedding model changed since the index was built (e.g. keyword
+        // 256-dim → Ollama 768-dim), the stored vectors are incompatible and
+        // every query would silently return nothing. Drop them and re-index.
+        const storedDim = this.vectorStore.dimension();
+        const currentDim = this.embeddingService.getDimension();
+        if (storedDim > 0 && storedDim !== currentDim) {
+          console.warn(`[Claudian] RAG embedding dimension changed (${storedDim} → ${currentDim}); rebuilding index.`);
+          this.vectorStore.clear();
+        }
 
         // Empty index (fresh install or never indexed) → background full pass.
         if (this.vectorStore.size() === 0 && !this.vaultRAGService.indexing) {
@@ -644,6 +661,13 @@ export default class ClaudianPlugin extends Plugin {
     this.providerStatusBar?.destroy();
     this.providerStatusBar = null;
     this.pluginUpdater = null;
+    // Clear the debounced RAG-save timer and flush any pending index changes so
+    // the last edits aren't lost and the timer doesn't fire on a torn-down plugin.
+    if (this.ragSaveTimer !== null) {
+      window.clearTimeout(this.ragSaveTimer);
+      this.ragSaveTimer = null;
+    }
+    if (this.ragDirty) void this.saveRAGIndex();
     void this.persistOpenTabStates();
     void this.persistOpenConversations();
   }
@@ -996,6 +1020,9 @@ export default class ClaudianPlugin extends Plugin {
           throw new Error(chunk.content);
         }
       }
+      if (text.trim() === '') {
+        throw new Error('Der Provider lieferte keine Bildbeschreibung zurück.');
+      }
       return text;
     } finally {
       try {
@@ -1328,6 +1355,31 @@ export default class ClaudianPlugin extends Plugin {
     }
     await leaf.setViewState({ type: VIEW_TYPE_CLAUDIAN_DASHBOARD });
     this.app.workspace.revealLeaf(leaf);
+  }
+
+  /**
+   * Exports a conversation (the active one by default) to a Markdown note in the
+   * vault. The note preserves provider provenance and is auto-indexed by RAG.
+   */
+  async exportActiveConversation(conversationId?: string): Promise<void> {
+    const id = conversationId ?? this.getView()?.getActiveTab()?.conversationId ?? null;
+    if (!id) {
+      new Notice('Keine aktive Konversation zum Exportieren.');
+      return;
+    }
+    const conversation = await this.getConversationById(id);
+    if (!conversation || conversation.messages.length === 0) {
+      new Notice('Diese Konversation hat noch keine Nachrichten.');
+      return;
+    }
+    try {
+      await exportConversationToNote(this.app, conversation, {
+        folder: this.settings.conversationExportFolder,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      new Notice(`Export fehlgeschlagen: ${message}`);
+    }
   }
 
   async indexVaultRAG(): Promise<void> {
