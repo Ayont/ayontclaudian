@@ -1516,10 +1516,16 @@ export class ClaudianService implements ChatRuntime {
       allowedTools = [...toolSet];
     }
 
+    // Honor a pending rewind checkpoint on the cold-start path too (e.g. a
+    // freshly loaded conversation with no live persistent query). Consume it so
+    // it does not re-apply on a later send.
+    const resumeAtMessageId = this.pendingResumeAt;
+
     const ctx: ColdStartQueryContext = {
       ...baseContext,
       abortController: this.abortController ?? undefined,
       sessionId: this.sessionManager.getSessionId() ?? undefined,
+      resumeAt: resumeAtMessageId,
       modelOverride: queryOptions?.model,
       canUseTool: this.createApprovalCallback(),
       hooks,
@@ -1531,6 +1537,9 @@ export class ClaudianService implements ChatRuntime {
     };
 
     const options = QueryOptionsBuilder.buildColdStartQueryOptions(ctx);
+    if (this.pendingResumeAt === resumeAtMessageId) {
+      this.pendingResumeAt = undefined;
+    }
 
     let sawStreamText = false;
     let sawStreamThinking = false;
@@ -1750,6 +1759,16 @@ export class ClaudianService implements ChatRuntime {
     assistantMessageId: string,
     mode: ChatRewindMode = 'code-and-conversation',
   ): Promise<ChatRewindResult> {
+    // Code rewind operates on the SDK's file checkpoints, which live on the
+    // persistent query. A freshly loaded conversation has no query yet, so
+    // rewindFiles() would throw 'No active query'. Start one first.
+    if (mode !== 'conversation' && !this.persistentQuery) {
+      try {
+        await this.ensureReady();
+      } catch {
+        // If it can't start (no CLI/vault), rewindFiles will report canRewind:false.
+      }
+    }
     return executeClaudeRewind(userMessageId, {
       assistantMessageId,
       mode,

@@ -54,6 +54,8 @@ export interface PersistentQueryContext extends QueryOptionsContext {
 export interface ColdStartQueryContext extends QueryOptionsContext {
   abortController?: AbortController;
   sessionId?: string;
+  /** Resume-at checkpoint (assistant message uuid) for rewind on the cold-start path. */
+  resumeAt?: string;
   modelOverride?: string;
   canUseTool?: CanUseTool;
   hooks: Options['hooks'];
@@ -209,8 +211,17 @@ export class QueryOptionsBuilder {
       options.tools = ctx.allowedTools;
     }
 
+    // Rewind needs file checkpointing + resumeSessionAt even on the cold-start
+    // path (no live persistent query). Without these, rewinding then sending a
+    // message that routes to cold-start silently resumed at HEAD and never
+    // rolled back files.
+    options.enableFileCheckpointing = true;
+
     if (ctx.sessionId) {
       options.resume = ctx.sessionId;
+      if (ctx.resumeAt) {
+        options.resumeSessionAt = ctx.resumeAt;
+      }
     }
 
     if (ctx.externalContextPaths && ctx.externalContextPaths.length > 0) {

@@ -112,8 +112,58 @@ interface ClaudeModelSignature {
   date?: string;
 }
 
-function isResultError(message: { type: 'result'; subtype: string }): message is SDKResultError {
+/** Narrows to the SDK error-shaped result (any non-'success' subtype). */
+function isResultErrorShape(message: { type: 'result'; subtype: string }): message is SDKResultError {
   return !!message.subtype && message.subtype !== 'success';
+}
+
+/**
+ * Benign terminal reasons: the turn ended normally (or was cleanly aborted), so
+ * a result carrying one of these must NOT be surfaced as an error — even though
+ * its subtype isn't 'success' and stop_reason may be null (e.g. a background
+ * task that completed). Treating subtype-alone as an error produced spurious
+ * "Unerwarteter Fehler" cards on benign completions.
+ */
+const BENIGN_TERMINAL_REASONS = new Set(['completed', 'aborted_streaming', 'aborted_tools']);
+
+/**
+ * A result is a GENUINE error only when the SDK explicitly reports `is_error`
+ * AND there is real error content OR a non-benign terminal reason. Otherwise the
+ * turn completed acceptably and should produce no error chunk.
+ */
+function shouldSurfaceResultError(message: SDKResultError): boolean {
+  // Real error content is always worth surfacing.
+  const hasRealErrors = Array.isArray(message.errors) && message.errors.some((e) => e.trim().length > 0);
+  if (hasRealErrors) return true;
+  // No error text: only surface when the SDK flags is_error AND it wasn't a
+  // benign terminal (completed / aborted / background-task completion with a
+  // null stop_reason). This stops benign completions becoming error cards.
+  if (message.is_error !== true) return false;
+  const terminal = message.terminal_reason;
+  const benignTerminal = terminal === undefined || BENIGN_TERMINAL_REASONS.has(terminal);
+  return !benignTerminal;
+}
+
+/** Human-readable message for a genuine error result that carries no `errors[]`. */
+function describeResultError(message: SDKResultError): string {
+  const realErrors = (message.errors ?? []).filter((e) => e.trim().length > 0);
+  if (realErrors.length > 0) return realErrors.join('\n');
+  switch (message.terminal_reason) {
+    case 'prompt_too_long': return 'Die Anfrage ist zu lang für das Kontextfenster des Modells.';
+    case 'max_turns': return 'Das Limit an Agent-Schritten (max turns) wurde erreicht.';
+    case 'blocking_limit': return 'Ein Nutzungslimit wurde erreicht. Bitte später erneut versuchen.';
+    case 'rapid_refill_breaker': return 'Vorübergehende Ratenbegrenzung des Anbieters. Bitte später erneut versuchen.';
+    case 'image_error': return 'Das Modell konnte ein angehängtes Bild nicht verarbeiten.';
+    case 'model_error': return 'Der Modell-Anbieter hat einen Fehler gemeldet.';
+    default:
+      break;
+  }
+  switch (message.subtype) {
+    case 'error_max_turns': return 'Das Limit an Agent-Schritten (max turns) wurde erreicht.';
+    case 'error_max_budget_usd': return 'Das Budgetlimit für diese Anfrage wurde erreicht.';
+    case 'error_max_structured_output_retries': return 'Das Modell konnte keine gültige strukturierte Ausgabe erzeugen.';
+    default: return 'Der Anbieter hat die Anfrage mit einem Fehler beendet.';
+  }
 }
 
 function normalizeClaudeModelId(model: string): string {
@@ -560,11 +610,10 @@ export function* transformSDKMessage(
         }
         options.usageState.clear();
       }
-      if (isResultError(message)) {
-        const content = message.errors.filter((e) => e.trim().length > 0).join('\n');
+      if (isResultErrorShape(message) && shouldSurfaceResultError(message)) {
         yield {
           type: 'error',
-          content: content || `Result error: ${message.subtype}`,
+          content: describeResultError(message),
         };
       }
 

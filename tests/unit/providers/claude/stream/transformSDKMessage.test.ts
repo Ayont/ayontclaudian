@@ -1160,6 +1160,54 @@ describe('transformSDKMessage', () => {
       ]);
     });
 
+    it('does NOT surface an error for a benign non-success result (background task completed)', () => {
+      // Regression: a turn that ends with a non-'success' subtype but no real
+      // error content and a benign/absent terminal_reason (stop_reason=null,
+      // "background task completed") must not become an "Unerwarteter Fehler".
+      const message = msg({
+        type: 'result',
+        subtype: 'error_during_execution',
+        is_error: true,
+        stop_reason: null,
+        errors: [],
+        terminal_reason: 'completed',
+        modelUsage: undefined,
+      });
+
+      const results = [...transformSDKMessage(message)];
+      expect(results.some((r) => r.type === 'error')).toBe(false);
+    });
+
+    it('does NOT surface an error when errors[] are empty and terminal_reason is absent', () => {
+      const message = msg({
+        type: 'result',
+        subtype: 'error_during_execution',
+        is_error: true,
+        errors: ['', '   '],
+        modelUsage: undefined,
+      });
+
+      const results = [...transformSDKMessage(message)];
+      expect(results.some((r) => r.type === 'error')).toBe(false);
+    });
+
+    it('surfaces a human-readable error for a fatal terminal with no error text', () => {
+      const message = msg({
+        type: 'result',
+        subtype: 'error_during_execution',
+        is_error: true,
+        errors: [],
+        terminal_reason: 'model_error',
+        modelUsage: undefined,
+      });
+
+      const results = [...transformSDKMessage(message)];
+      const errorChunk = results.find((r) => r.type === 'error') as { type: 'error'; content: string } | undefined;
+      expect(errorChunk).toBeDefined();
+      expect(errorChunk?.content).not.toContain('Result error:');
+      expect(errorChunk?.content.length).toBeGreaterThan(0);
+    });
+
     it('yields context_window with 1M for [1m] models', () => {
       const message = msg({
         type: 'result',

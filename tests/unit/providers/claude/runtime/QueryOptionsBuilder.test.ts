@@ -657,6 +657,38 @@ describe('QueryOptionsBuilder', () => {
       expect(options.mcpServers?.['test-server']).toBeDefined();
     });
 
+    it('enables file checkpointing and honors the rewind checkpoint on cold start', () => {
+      // Regression: rewinding then sending a message routed to cold-start
+      // previously resumed at HEAD (no resumeSessionAt) and never rolled back
+      // files (no enableFileCheckpointing).
+      const ctx = {
+        ...createMockContext(),
+        abortController: new AbortController(),
+        hooks: {},
+        sessionId: 'sess-123',
+        resumeAt: 'assistant-uuid-42',
+        hasEditorContext: false,
+      };
+      const options = QueryOptionsBuilder.buildColdStartQueryOptions(ctx);
+
+      expect(options.enableFileCheckpointing).toBe(true);
+      expect(options.resume).toBe('sess-123');
+      expect(options.resumeSessionAt).toBe('assistant-uuid-42');
+    });
+
+    it('does not set resumeSessionAt when no checkpoint is pending', () => {
+      const ctx = {
+        ...createMockContext(),
+        abortController: new AbortController(),
+        hooks: {},
+        sessionId: 'sess-123',
+        hasEditorContext: false,
+      };
+      const options = QueryOptionsBuilder.buildColdStartQueryOptions(ctx);
+      expect(options.enableFileCheckpointing).toBe(true);
+      expect(options.resumeSessionAt).toBeUndefined();
+    });
+
     it('uses model override when provided', () => {
       const ctx = {
         ...createMockContext({
