@@ -314,7 +314,7 @@ export class QueryOptionsBuilder {
     // `ultracode` is a session setting (xhigh effort + standing dynamic-workflow
     // orchestration), not an API effort value — send `xhigh` and enable the
     // `ultracode` flag so Claude Code stands up workflows for substantive tasks.
-    // SDK runtime accepts `xhigh`/`max` on Opus 4.7+; its type defs lag our union.
+    // SDK 0.3.186+ exposes the session-scoped `ultracode` setting natively.
     options.effort = toApiEffortLevel(effortLevel);
     if (isUltracodeEffort(effortLevel)) {
       const existing =

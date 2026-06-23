@@ -1208,6 +1208,62 @@ describe('transformSDKMessage', () => {
       expect(errorChunk?.content.length).toBeGreaterThan(0);
     });
 
+    it('does NOT surface an error for a tool-paused turn (stop_reason=tool_use)', () => {
+      // Regression: a turn that ends wanting to run a tool arrives as
+      // error_during_execution with stop_reason 'tool_use'; it is a normal
+      // boundary, not an error.
+      const message = msg({
+        type: 'result',
+        subtype: 'error_during_execution',
+        is_error: true,
+        stop_reason: 'tool_use',
+        errors: [],
+        modelUsage: undefined,
+      });
+      const results = [...transformSDKMessage(message)];
+      expect(results.some((r) => r.type === 'error')).toBe(false);
+    });
+
+    it('does NOT surface an error for stop_reason=null with no error text', () => {
+      const message = msg({
+        type: 'result',
+        subtype: 'error_during_execution',
+        is_error: true,
+        stop_reason: null,
+        errors: [],
+        modelUsage: undefined,
+      });
+      const results = [...transformSDKMessage(message)];
+      expect(results.some((r) => r.type === 'error')).toBe(false);
+    });
+
+    it('does NOT surface an error for non-fatal terminal reasons (tool_deferred / hook_stopped)', () => {
+      for (const terminal of ['tool_deferred', 'hook_stopped', 'stop_hook_prevented', 'aborted_tools']) {
+        const message = msg({
+          type: 'result',
+          subtype: 'error_during_execution',
+          is_error: true,
+          errors: [],
+          terminal_reason: terminal,
+          modelUsage: undefined,
+        });
+        const results = [...transformSDKMessage(message)];
+        expect(results.some((r) => r.type === 'error')).toBe(false);
+      }
+    });
+
+    it('still surfaces inherently-fatal subtypes without error text (error_max_turns)', () => {
+      const message = msg({
+        type: 'result',
+        subtype: 'error_max_turns',
+        is_error: true,
+        errors: [],
+        modelUsage: undefined,
+      });
+      const results = [...transformSDKMessage(message)];
+      expect(results.some((r) => r.type === 'error')).toBe(true);
+    });
+
     it('yields context_window with 1M for [1m] models', () => {
       const message = msg({
         type: 'result',

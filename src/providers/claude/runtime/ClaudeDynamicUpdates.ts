@@ -85,7 +85,9 @@ export async function applyClaudeDynamicUpdates(
       // `ultracode` sends `xhigh` effort + standing dynamic-workflow orchestration.
       // Toggle the `ultracode` flag together with the effort level so switching the
       // effort gear in/out of Ultracode takes effect mid-session (no restart); every
-      // other level clears the flag. SDK accepts `xhigh`/`max`; its type defs lag.
+      // other level clears the flag. SDK 0.3.186+ types `ultracode` natively;
+      // the runtime also accepts session-only `max`, which remains wider than
+      // the public Settings effortLevel union.
       await persistentQuery.applyFlagSettings({
         effortLevel: toApiEffortLevel(effortLevel),
         ultracode: isUltracodeEffort(effortLevel),

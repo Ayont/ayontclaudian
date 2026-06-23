@@ -118,30 +118,47 @@ function isResultErrorShape(message: { type: 'result'; subtype: string }): messa
 }
 
 /**
- * Benign terminal reasons: the turn ended normally (or was cleanly aborted), so
- * a result carrying one of these must NOT be surfaced as an error — even though
- * its subtype isn't 'success' and stop_reason may be null (e.g. a background
- * task that completed). Treating subtype-alone as an error produced spurious
- * "Unerwarteter Fehler" cards on benign completions.
+ * Result subtypes that are inherently fatal (hard limits) and should always
+ * surface, even with no `errors[]` text.
  */
-const BENIGN_TERMINAL_REASONS = new Set(['completed', 'aborted_streaming', 'aborted_tools']);
+const FATAL_RESULT_SUBTYPES = new Set<string>([
+  'error_max_turns',
+  'error_max_budget_usd',
+  'error_max_structured_output_retries',
+]);
 
 /**
- * A result is a GENUINE error only when the SDK explicitly reports `is_error`
- * AND there is real error content OR a non-benign terminal reason. Otherwise the
- * turn completed acceptably and should produce no error chunk.
+ * Terminal reasons that represent a real failure the user must see. Everything
+ * NOT in this set — including `completed`, `aborted_streaming`, `aborted_tools`,
+ * `tool_deferred`, `stop_hook_prevented`, `hook_stopped`, or an absent reason —
+ * is a normal/benign turn boundary (e.g. a turn that paused to run a tool, which
+ * the SDK reports as `error_during_execution` with `stop_reason: 'tool_use'` or
+ * `null`). Surfacing those produced spurious "Unerwarteter Fehler" cards.
+ */
+const FATAL_TERMINAL_REASONS = new Set<string>([
+  'prompt_too_long',
+  'max_turns',
+  'model_error',
+  'image_error',
+  'blocking_limit',
+  'rapid_refill_breaker',
+]);
+
+/**
+ * A result is a GENUINE error only when it carries real error text, an
+ * inherently-fatal subtype, or an explicitly-fatal terminal reason. Benign turn
+ * boundaries (tool pauses, deferred tools, hook stops, aborts, completions, and
+ * null/tool_use/end_turn stop reasons with no error payload) produce no error.
  */
 function shouldSurfaceResultError(message: SDKResultError): boolean {
   // Real error content is always worth surfacing.
   const hasRealErrors = Array.isArray(message.errors) && message.errors.some((e) => e.trim().length > 0);
   if (hasRealErrors) return true;
-  // No error text: only surface when the SDK flags is_error AND it wasn't a
-  // benign terminal (completed / aborted / background-task completion with a
-  // null stop_reason). This stops benign completions becoming error cards.
-  if (message.is_error !== true) return false;
+  // Inherently-fatal subtypes (hard limits) surface even without error text.
+  if (FATAL_RESULT_SUBTYPES.has(message.subtype)) return true;
+  // Otherwise only an explicitly-fatal terminal reason counts as an error.
   const terminal = message.terminal_reason;
-  const benignTerminal = terminal === undefined || BENIGN_TERMINAL_REASONS.has(terminal);
-  return !benignTerminal;
+  return terminal !== undefined && FATAL_TERMINAL_REASONS.has(terminal);
 }
 
 /** Human-readable message for a genuine error result that carries no `errors[]`. */
