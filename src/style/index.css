@@ -65,6 +65,7 @@
 @import "./settings/provider-model-picker.css";
 @import "./settings/cli-install.css";
 @import "./settings/kimi-features.css";
+@import "./settings/antigravity-ui.css";
 
 /* Accessibility */
 @import "./accessibility.css";

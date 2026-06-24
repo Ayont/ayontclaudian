@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.6.1] - 2026-06-24
+
+### Added
+
+- **Premium Visual Design for Antigravity (agy 2.0)**:
+  - Created a dedicated stylesheet `antigravity-ui.css` for custom settings cards and modals.
+  - Implemented glassmorphic, color-coded account connection cards with pulse notifications for Google Account authentication.
+  - Styled CLI actions and version panels to use modern CSS layouts with flexbox and micro-animations.
+  - Redesigned the changelog viewer with monospace code blocks, shadow elevations, and premium scroll interfaces.
+
 ## [5.6.0] - 2026-06-24
 
 ### Added

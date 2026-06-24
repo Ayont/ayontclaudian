@@ -1,0 +1,190 @@
+/* Antigravity Settings UI & Modal styling */
+
+.claudian-agy-auth-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--background-secondary-alt);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  transition: all 0.2s ease-in-out;
+}
+
+.claudian-agy-auth-card.is-authenticated {
+  border-left: 4px solid var(--claudian-brand-antigravity);
+}
+
+.claudian-agy-auth-card.is-unauthenticated {
+  border-left: 4px solid var(--text-error);
+}
+
+.claudian-agy-auth-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.claudian-agy-auth-card.is-authenticated .claudian-agy-auth-dot {
+  background-color: var(--claudian-brand-antigravity);
+  box-shadow: 0 0 8px var(--claudian-brand-antigravity);
+  animation: pulse 2s infinite ease-in-out;
+}
+
+.claudian-agy-auth-card.is-unauthenticated .claudian-agy-auth-dot {
+  background-color: var(--text-error);
+  box-shadow: 0 0 8px var(--text-error);
+}
+
+.claudian-agy-auth-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.claudian-agy-auth-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-normal);
+}
+
+.claudian-agy-auth-email,
+.claudian-agy-auth-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.claudian-agy-version-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--background-secondary-alt);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.claudian-agy-version-label {
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--text-normal);
+}
+
+.claudian-agy-version-value {
+  font-family: var(--font-monospace);
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--background-secondary);
+}
+
+.claudian-agy-version-value.is-present {
+  color: var(--claudian-brand-antigravity);
+}
+
+.claudian-agy-version-value.is-missing {
+  color: var(--text-error);
+}
+
+/* CLI actions styling */
+.claudian-agy-actions-container {
+  padding: 16px;
+  background: var(--background-secondary-alt);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  margin-top: 10px;
+  margin-bottom: 20px;
+}
+
+.claudian-agy-actions-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-top: 0;
+  margin-bottom: 6px;
+  color: var(--text-normal);
+}
+
+.claudian-agy-actions-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.claudian-agy-buttons-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.claudian-agy-buttons-row button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease-out;
+}
+
+.claudian-agy-buttons-row button:hover {
+  transform: translateY(-1px);
+}
+
+/* Modal styling */
+.claudian-agy-changelog-modal {
+  max-width: 680px;
+  width: 90vw;
+  padding: 20px;
+  border-radius: 12px;
+}
+
+.claudian-agy-modal-header {
+  margin-bottom: 16px;
+}
+
+.claudian-agy-modal-title {
+  margin: 0 0 4px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.claudian-agy-modal-subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.claudian-agy-modal-body {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-secondary-alt);
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.claudian-agy-modal-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.claudian-agy-modal-pre code {
+  font-family: var(--font-monospace);
+  font-size: 12px;
+  color: var(--text-normal);
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(66, 134, 244, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(66, 134, 244, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(66, 134, 244, 0);
+  }
+}

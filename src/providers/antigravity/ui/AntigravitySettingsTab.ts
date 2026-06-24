@@ -178,87 +178,92 @@ export const antigravitySettingsTabRenderer: ProviderSettingsTabRenderer = {
       // Ignore
     }
 
-    new Setting(container).setName('Authentication & Version').setHeading();
+    new Setting(container).setName('CLI Status').setHeading();
 
-    new Setting(container)
-      .setName('Google Account')
-      .setDesc(activeEmail ? `🟢 Authenticated as ${activeEmail}` : '⚠️ Not authenticated. Run `agy` in your terminal to sign in.');
+    // Visual Account Card
+    const authCard = container.createDiv({ cls: 'claudian-agy-auth-card' });
+    authCard.createDiv({ cls: 'claudian-agy-auth-dot' });
+    const authText = authCard.createDiv({ cls: 'claudian-agy-auth-text' });
+    if (activeEmail) {
+      authCard.addClass('is-authenticated');
+      authText.createEl('span', { text: 'Google Account', cls: 'claudian-agy-auth-title' });
+      authText.createEl('span', { text: activeEmail, cls: 'claudian-agy-auth-email' });
+    } else {
+      authCard.addClass('is-unauthenticated');
+      authText.createEl('span', { text: 'Not Authenticated', cls: 'claudian-agy-auth-title' });
+      authText.createEl('span', { text: 'Run agy in terminal to complete Google Sign-In.', cls: 'claudian-agy-auth-subtitle' });
+    }
 
-    const versionSetting = new Setting(container)
-      .setName('CLI Version')
-      .setDesc('Checking...');
+    // Visual Version Card
+    const versionCard = container.createDiv({ cls: 'claudian-agy-version-card' });
+    versionCard.createEl('span', { text: 'CLI Binary Version', cls: 'claudian-agy-version-label' });
+    const versionVal = versionCard.createEl('span', { text: 'Checking...', cls: 'claudian-agy-version-value' });
 
     const resolvedCliPath = context.plugin.getResolvedProviderCliPath(ANTIGRAVITY_PROVIDER_ID) || 'agy';
     exec(`"${resolvedCliPath}" --version`, (err, stdout, stderr) => {
       if (err) {
-        versionSetting.setDesc('Not installed or not found on PATH');
+        versionVal.setText('Not found on PATH');
+        versionVal.addClass('is-missing');
       } else {
-        versionSetting.setDesc(stdout.trim() || stderr.trim() || 'Unknown');
+        versionVal.setText(stdout.trim() || stderr.trim() || 'Unknown');
+        versionVal.addClass('is-present');
       }
     });
 
-    new Setting(container).setName('CLI Management').setHeading();
+    // Premium Action Section
+    const actionContainer = container.createDiv({ cls: 'claudian-agy-actions-container' });
+    actionContainer.createEl('h4', { text: 'CLI Operations', cls: 'claudian-agy-actions-title' });
+    actionContainer.createEl('p', { text: 'Manage the Antigravity CLI binary lifecycle directly inside Obsidian.', cls: 'claudian-agy-actions-desc' });
 
-    new Setting(container)
-      .setName('CLI Actions')
-      .setDesc('Perform updates, view release notes, or import extensions.')
-      .addButton((btn) =>
-        btn
-          .setButtonText('Update CLI')
-          .setTooltip('Update agy CLI to the latest version')
-          .onClick(() => {
-            btn.setButtonText('Updating...');
-            btn.setDisabled(true);
-            exec(`"${resolvedCliPath}" update`, (err, stdout, stderr) => {
-              btn.setDisabled(false);
-              btn.setButtonText('Update CLI');
-              if (err) {
-                new Notice(`Failed to update CLI: ${stderr.trim() || err.message}`);
-              } else {
-                new Notice(`Antigravity CLI updated successfully!\n${stdout.trim()}`);
-                exec(`"${resolvedCliPath}" --version`, (err2, stdout2) => {
-                  if (!err2) versionSetting.setDesc(stdout2.trim());
-                });
-              }
-            });
-          }),
-      )
-      .addButton((btn) =>
-        btn
-          .setButtonText('View Changelog')
-          .setTooltip('Show recent CLI release notes')
-          .onClick(() => {
-            btn.setButtonText('Loading...');
-            btn.setDisabled(true);
-            exec(`"${resolvedCliPath}" changelog`, (err, stdout, stderr) => {
-              btn.setDisabled(false);
-              btn.setButtonText('View Changelog');
-              if (err) {
-                new Notice(`Failed to fetch changelog: ${stderr.trim() || err.message}`);
-              } else {
-                new AgyChangelogModal(context.plugin.app, stdout).open();
-              }
-            });
-          }),
-      )
-      .addButton((btn) =>
-        btn
-          .setButtonText('Import Plugins')
-          .setTooltip('Import plugins from Claude Code')
-          .onClick(() => {
-            btn.setButtonText('Importing...');
-            btn.setDisabled(true);
-            exec(`"${resolvedCliPath}" plugin import claude`, (err, stdout, stderr) => {
-              btn.setDisabled(false);
-              btn.setButtonText('Import Plugins');
-              if (err) {
-                new Notice(`Import failed: ${stderr.trim() || err.message}`);
-              } else {
-                new Notice(stdout.trim() || 'Plugins imported successfully.');
-              }
-            });
-          }),
-      );
+    const buttonsRow = actionContainer.createDiv({ cls: 'claudian-agy-buttons-row' });
+
+    const updateBtn = buttonsRow.createEl('button', { text: 'Update CLI', cls: 'mod-cta' });
+    updateBtn.addEventListener('click', () => {
+      updateBtn.textContent = 'Updating...';
+      updateBtn.disabled = true;
+      exec(`"${resolvedCliPath}" update`, (err, stdout, stderr) => {
+        updateBtn.disabled = false;
+        updateBtn.textContent = 'Update CLI';
+        if (err) {
+          new Notice(`Failed to update CLI: ${stderr.trim() || err.message}`);
+        } else {
+          new Notice(`Antigravity CLI updated successfully!\n${stdout.trim()}`);
+          exec(`"${resolvedCliPath}" --version`, (err2, stdout2) => {
+            if (!err2) versionVal.setText(stdout2.trim());
+          });
+        }
+      });
+    });
+
+    const changelogBtn = buttonsRow.createEl('button', { text: 'View Changelog' });
+    changelogBtn.addEventListener('click', () => {
+      changelogBtn.textContent = 'Loading...';
+      changelogBtn.disabled = true;
+      exec(`"${resolvedCliPath}" changelog`, (err, stdout, stderr) => {
+        changelogBtn.disabled = false;
+        changelogBtn.textContent = 'View Changelog';
+        if (err) {
+          new Notice(`Failed to fetch changelog: ${stderr.trim() || err.message}`);
+        } else {
+          new AgyChangelogModal(context.plugin.app, stdout).open();
+        }
+      });
+    });
+
+    const importBtn = buttonsRow.createEl('button', { text: 'Import Plugins' });
+    importBtn.addEventListener('click', () => {
+      importBtn.textContent = 'Importing...';
+      importBtn.disabled = true;
+      exec(`"${resolvedCliPath}" plugin import claude`, (err, stdout, stderr) => {
+        importBtn.disabled = false;
+        importBtn.textContent = 'Import Plugins';
+        if (err) {
+          new Notice(`Import failed: ${stderr.trim() || err.message}`);
+        } else {
+          new Notice(stdout.trim() || 'Plugins imported successfully.');
+        }
+      });
+    });
 
     renderEnvironmentSettingsSection({
       container,
