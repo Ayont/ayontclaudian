@@ -1,3 +1,14 @@
+@keyframes thinking-glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(var(--claudian-brand-rgb), 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    border-color: rgba(var(--claudian-brand-rgb), 0.25);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(var(--claudian-brand-rgb), 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    border-color: rgba(var(--claudian-brand-rgb), 0.6);
+  }
+}
+
 /* Streaming "Thinking…" pulse line (shown while reasoning streams in). */
 .claudian-thinking {
   display: inline-flex;
@@ -5,22 +16,23 @@
   gap: 8px;
   color: var(--cl-accent);
   font-style: italic;
-  padding: 6px 10px;
+  padding: 6px 14px;
   margin: var(--cl-space-2) 0;
   border: 1px solid var(--cl-accent-line);
   border-radius: var(--cl-radius-pill);
   background:
-    linear-gradient(90deg, var(--cl-accent-soft), transparent 65%),
+    linear-gradient(90deg, var(--cl-accent-soft), var(--cl-accent-softer) 75%),
     var(--cl-surface-raised);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   text-align: start;
-  animation: thinking-pulse 1.5s ease-in-out infinite;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  animation: thinking-glow-pulse 2s ease-in-out infinite;
 }
 
 .claudian-thinking::before {
   content: "";
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
   background: var(--cl-accent);
   box-shadow: 0 0 0 4px var(--cl-accent-softer);
@@ -46,14 +58,16 @@
 .claudian-thinking-block {
   position: relative;
   margin: var(--cl-space-3) 0;
-  border: 1px solid var(--cl-border-subtle);
-  border-radius: var(--cl-radius-md);
+  border: 1px solid rgba(var(--claudian-brand-rgb), 0.15);
+  border-radius: var(--cl-radius-lg);
   background:
     linear-gradient(
       180deg,
-      var(--cl-accent-soft) 0%,
-      var(--cl-accent-softer) 100%
-    );
+      rgba(var(--claudian-brand-rgb), 0.08) 0%,
+      rgba(var(--claudian-brand-rgb), 0.02) 100%
+    ),
+    var(--cl-surface-sunken);
+  backdrop-filter: blur(4px);
   box-shadow: var(--cl-shadow-sm);
   overflow: hidden;
   transition:
@@ -67,19 +81,20 @@
   position: absolute;
   inset-block: 0;
   inset-inline-start: 0;
-  width: 3px;
+  width: 4px;
   background: var(--cl-accent);
-  opacity: 0.55;
+  opacity: 0.65;
+  box-shadow: 0 0 8px rgba(var(--claudian-brand-rgb), 0.5);
   transition: opacity var(--cl-dur) var(--cl-ease);
 }
 
 .claudian-thinking-block:hover {
-  border-color: var(--cl-accent-line);
-  box-shadow: var(--cl-shadow-md);
+  border-color: rgba(var(--claudian-brand-rgb), 0.4);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06), var(--cl-shadow-md);
 }
 
 .claudian-thinking-block:hover::before {
-  opacity: 0.9;
+  opacity: 1;
 }
 
 .claudian-text-block + .claudian-thinking-block,

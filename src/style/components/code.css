@@ -2,15 +2,18 @@
 .claudian-code-wrapper {
   position: relative;
   margin: var(--cl-space-3) 0;
-  border: 1px solid var(--cl-border-subtle);
-  border-radius: var(--cl-radius-md);
+  border: 1px solid rgba(var(--claudian-brand-rgb), 0.15);
+  border-radius: var(--cl-radius-lg);
   overflow: hidden;
-  box-shadow: var(--cl-shadow-sm);
-  transition: border-color var(--cl-dur-fast) var(--cl-ease);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15), var(--cl-shadow-sm);
+  transition: 
+    border-color var(--cl-dur) var(--cl-ease),
+    box-shadow var(--cl-dur) var(--cl-ease);
 }
 
 .claudian-code-wrapper:hover {
-  border-color: var(--cl-border-strong);
+  border-color: rgba(var(--claudian-brand-rgb), 0.45);
+  box-shadow: 0 6px 20px rgba(var(--claudian-brand-rgb), 0.08), var(--cl-shadow-md);
 }
 
 /* Header bar — language label (left) + Copy button (right) on a raised strip. */
@@ -19,9 +22,9 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--cl-space-2);
-  padding: var(--cl-space-1) var(--cl-space-2) var(--cl-space-1) var(--cl-space-3);
-  background: var(--cl-surface-raised);
-  border-bottom: 1px solid var(--cl-border-subtle);
+  padding: 6px 12px;
+  background: linear-gradient(180deg, rgba(var(--claudian-brand-rgb), 0.08) 0%, rgba(var(--claudian-brand-rgb), 0.02) 100%), var(--cl-surface-raised);
+  border-bottom: 1px solid rgba(var(--claudian-brand-rgb), 0.15);
 }
 
 .claudian-code-lang {
@@ -110,6 +113,18 @@ body.theme-light .claudian-message-content pre {
   border: 1px solid var(--cl-border-subtle);
   border-radius: var(--cl-radius-md);
   box-shadow: var(--cl-shadow-sm);
+}
+
+.claudian-message-content code:not(pre code) {
+  font-family: var(--cl-font-mono);
+  font-size: 0.9em;
+  padding: 2px 6px;
+  margin: 0 2px;
+  border-radius: 4px;
+  background: rgba(var(--cl-accent-rgb), 0.08);
+  border: 1px solid rgba(var(--cl-accent-rgb), 0.18);
+  color: var(--cl-accent);
+  word-break: break-word;
 }
 
 .claudian-message-content code {

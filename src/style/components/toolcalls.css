@@ -62,13 +62,21 @@
 .claudian-tool-call-bash {
   position: relative;
   margin-block: var(--cl-space-3);
-  border: 1px solid var(--cl-border-subtle);
+  border: 1px solid rgba(var(--claudian-brand-rgb), 0.2);
   border-radius: var(--cl-radius-lg);
   background:
-    radial-gradient(circle at 0% 0%, rgba(var(--claudian-brand-rgb), 0.12), transparent 36%),
-    color-mix(in srgb, var(--cl-surface-raised) 94%, transparent);
-  box-shadow: var(--cl-shadow-sm);
+    radial-gradient(circle at 0% 0%, rgba(var(--claudian-brand-rgb), 0.16), transparent 45%),
+    rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18), var(--cl-shadow-sm);
   overflow: hidden;
+  transition: 
+    border-color var(--cl-dur) var(--cl-ease),
+    box-shadow var(--cl-dur) var(--cl-ease);
+}
+
+.claudian-tool-call-bash:hover {
+  border-color: rgba(var(--claudian-brand-rgb), 0.45);
+  box-shadow: 0 6px 24px rgba(var(--claudian-brand-rgb), 0.08), var(--cl-shadow-md);
 }
 
 .claudian-tool-call-bash .claudian-tool-header {
@@ -77,7 +85,7 @@
 }
 
 .claudian-tool-call-bash.expanded .claudian-tool-header {
-  border-bottom-color: var(--cl-border-subtle);
+  border-bottom-color: rgba(var(--claudian-brand-rgb), 0.18);
 }
 
 .claudian-tool-call-bash .claudian-tool-content {
@@ -97,15 +105,16 @@
 }
 
 .claudian-tool-bash-panel {
-  background: rgba(0, 0, 0, 0.10);
+  background: rgba(0, 0, 0, 0.15);
 }
 
 .claudian-tool-bash-shell {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 10px;
-  padding: 11px 13px;
-  border-bottom: 1px solid var(--cl-border-subtle);
+  padding: 11px 14px;
+  background: rgba(0, 0, 0, 0.28);
+  border-bottom: 1px solid rgba(var(--claudian-brand-rgb), 0.18);
 }
 
 .claudian-tool-bash-prompt {
@@ -218,12 +227,12 @@
 .claudian-tool-content {
   padding: var(--cl-space-1) 0 var(--cl-space-1) var(--cl-space-4);
   margin-inline-start: var(--cl-space-2);
-  border-inline-start: 2px solid var(--cl-border-subtle);
+  border-inline-start: 2px solid rgba(var(--claudian-brand-rgb), 0.25);
   transition: border-color var(--cl-dur) var(--cl-ease);
 }
 
 .claudian-tool-call:hover .claudian-tool-content {
-  border-inline-start-color: var(--cl-accent-line);
+  border-inline-start-color: var(--cl-accent);
 }
 
 /* Tool content variants that render inline widgets instead of bordered results */
