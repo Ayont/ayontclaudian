@@ -66,18 +66,26 @@
    on the trailing edge, so the user's turn reads as a distinct, contained card. */
 .claudian-message-user {
   position: relative;
-  background: var(--cl-surface-raised);
-  border: 1px solid var(--cl-border-subtle);
-  border-inline-end: 2px solid var(--cl-accent-line);
-  box-shadow: var(--cl-shadow-sm);
+  background: linear-gradient(135deg, rgba(var(--claudian-brand-rgb), 0.12), rgba(var(--claudian-brand-rgb), 0.04)), var(--cl-surface-raised);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(var(--claudian-brand-rgb), 0.22);
+  border-inline-end: 3px solid var(--cl-accent);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08), var(--cl-shadow-sm);
   align-self: flex-end;
+  border-radius: var(--cl-radius-lg);
   border-end-end-radius: var(--cl-radius-xs);
-  transition: border-color var(--cl-dur) var(--cl-ease);
+  padding: 10px 14px;
+  transition: 
+    border-color var(--cl-dur) var(--cl-ease),
+    transform var(--cl-dur) var(--cl-ease),
+    box-shadow var(--cl-dur) var(--cl-ease);
 }
 
 .claudian-message-user:hover {
-  border-color: var(--cl-border-strong);
+  border-color: rgba(var(--claudian-brand-rgb), 0.45);
   border-inline-end-color: var(--cl-accent);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(var(--claudian-brand-rgb), 0.12), var(--cl-shadow-md);
 }
 
 /* Text selection in user messages - visible highlight */
@@ -86,15 +94,28 @@
   color: inherit;
 }
 
-/* Assistant turn — full-width, surface-free so prose flows like an answer,
-   distinguished from the user card by openness rather than a competing fill. */
+/* Assistant turn — elevated card with subtle gradient and left accent line */
 .claudian-message-assistant {
-  background: transparent;
+  position: relative;
+  background: linear-gradient(180deg, rgba(var(--claudian-brand-rgb), 0.02) 0%, transparent 100%), var(--cl-surface-sunken);
+  border: 1px solid var(--cl-border-subtle);
+  border-inline-start: 3px solid var(--cl-accent-line);
+  box-shadow: var(--cl-shadow-sm);
   align-self: stretch;
   width: 100%;
   max-width: 100%;
+  border-radius: var(--cl-radius-lg);
   border-end-start-radius: var(--cl-radius-xs);
-  text-align: start;
+  padding: 12px 16px;
+  transition: 
+    border-color var(--cl-dur) var(--cl-ease),
+    box-shadow var(--cl-dur) var(--cl-ease);
+}
+
+.claudian-message-assistant:hover {
+  border-color: rgba(var(--claudian-brand-rgb), 0.28);
+  border-inline-start-color: var(--cl-accent);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05), var(--cl-shadow-md);
 }
 
 .claudian-message-content {

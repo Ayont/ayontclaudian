@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.6.2] - 2026-06-24
+
+### Added
+
+- **Premium Chat UI Redesign**:
+  - Implemented glassmorphic, color-coded chat bubbles (`messages.css`) with micro-animations and OKLCH-based brand gradient backdrops.
+  - Redesigned reasoning collapsible containers (`thinking.css`) with neon accent rails and pulsating glow stream badges.
+  - Upgraded terminal panels (`toolcalls.css`) for CLI command executions with custom borders and status indicators.
+  - Styled inline code tags (`code.css`) as premium badges with translucent background tints and colored borders.
+
+### Changed
+
+- **Renovate Dependency Upgrades**:
+  - Upgraded `@anthropic-ai/claude-agent-sdk` to `v0.3.190`.
+  - Upgraded `smol-toml` to `v1.7.0`.
+  - Upgraded `@typescript-eslint` packages to `v8.62.0`.
+  - Upgraded `@playwright/test` to `v1.61.1`.
+  - Upgraded release actions to `softprops/action-gh-release@v3` and Node.js engine target to `24.18.0`.
+
 ## [5.6.1] - 2026-06-24
 
 ### Added

@@ -41,8 +41,12 @@ describe('cliInstallCatalog', () => {
     expect(getPreferredInstallCommand('vibe', 'darwin')?.command).toBe(
       'curl -LsSf https://mistral.ai/vibe/install.sh | bash',
     );
-    // antigravity is docs-only → no runnable command.
-    expect(getPreferredInstallCommand('antigravity', 'darwin')).toBeNull();
+    // antigravity has a runnable command
+    expect(getPreferredInstallCommand('antigravity', 'darwin')?.command).toBe(
+      'curl -fsSL https://antigravity.google/cli/install.sh | bash',
+    );
+    // pi is docs-only
+    expect(getPreferredInstallCommand('pi', 'darwin')).toBeNull();
     expect(getPreferredInstallCommand('unknown', 'darwin')).toBeNull();
   });
 
