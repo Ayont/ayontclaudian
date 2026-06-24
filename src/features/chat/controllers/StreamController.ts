@@ -211,6 +211,35 @@ export class StreamController {
         await this.handleAsyncSubagentResult(chunk);
         break;
 
+      case 'background_task_started':
+        this.deps.subagentManager.handleWorkflowTaskStarted(chunk);
+        this.deps.updateLiveActivity?.({
+          primary: chunk.workflowName ? `Workflow: ${chunk.workflowName}` : chunk.description,
+          meta: 'Claude Code workflow started',
+          phrase: 'orchestrating workflow',
+        });
+        this.showThinkingIndicator();
+        break;
+
+      case 'background_task_progress':
+        this.deps.subagentManager.handleWorkflowTaskProgress(chunk);
+        this.deps.updateLiveActivity?.({
+          primary: chunk.summary || chunk.description,
+          meta: `${chunk.usage.toolUses} tools · ${chunk.usage.totalTokens.toLocaleString()} tokens`,
+          phrase: 'workflow running',
+        });
+        break;
+
+      case 'background_task_result':
+        this.deps.subagentManager.handleWorkflowTaskResult(chunk);
+        this.deps.updateLiveActivity?.({
+          primary: chunk.status === 'completed' ? 'Workflow completed' : 'Workflow stopped',
+          meta: chunk.summary || `Task ${chunk.taskId}`,
+          phrase: chunk.status === 'completed' ? 'continuing automatically' : 'workflow ended',
+        });
+        if (chunk.status === 'completed') this.showThinkingIndicator();
+        break;
+
       case 'tool_output':
         this.handleToolOutput(chunk, msg);
         break;

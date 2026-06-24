@@ -36,6 +36,7 @@
     .harness-section { margin-bottom: 28px; max-width: 720px; }
     .harness-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
     .harness-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .harness-workflow-host { position: relative; min-height: 230px; }
     /* Stand-in for setIcon's injected SVG so layout/box sizing is representative. */
     .harness-section svg { width: 100%; height: 100%; }
   </style>
@@ -187,6 +188,38 @@
       <div class="claudian-dashboard-feature is-active"><span class="claudian-dashboard-feature-icon">◎</span><div class="claudian-dashboard-feature-copy"><span class="claudian-dashboard-feature-label">Vault RAG</span><span class="claudian-dashboard-feature-detail">Semantischer Kontext aus deinem Vault</span></div><span class="claudian-dashboard-feature-value">1240 Chunks</span></div>
       <div class="claudian-dashboard-feature"><span class="claudian-dashboard-feature-icon">⬡</span><div class="claudian-dashboard-feature-copy"><span class="claudian-dashboard-feature-label">Auto Mode</span><span class="claudian-dashboard-feature-detail">Führt lange Ziele unbeaufsichtigt fort</span></div><span class="claudian-dashboard-feature-value">Aus</span></div>
       <div class="claudian-dashboard-feature is-active"><span class="claudian-dashboard-feature-icon">⌘</span><div class="claudian-dashboard-feature-copy"><span class="claudian-dashboard-feature-label">Workflows</span><span class="claudian-dashboard-feature-detail">Zeit- und eventgesteuerte Automationen</span></div><span class="claudian-dashboard-feature-value">3/4 aktiv</span></div>
+    </div>
+  </div>
+
+  <!-- Claude Code workflow live dock -->
+  <div class="harness-section" data-vis="workflow-live">
+    <div class="harness-label">Workflow live dock</div>
+    <div class="harness-workflow-host claudian-container">
+      <div class="claudian-swarm-panel has-running is-open">
+        <button class="claudian-swarm-toggle" type="button" aria-expanded="true">
+          <span class="claudian-swarm-toggle-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg></span>
+          <span class="claudian-swarm-toggle-label">Live work</span>
+          <span class="claudian-swarm-count">2</span>
+          <span class="claudian-swarm-auto-continue">Auto-continue</span>
+          <span class="claudian-swarm-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></span>
+        </button>
+        <div class="claudian-swarm-list">
+          <button class="claudian-swarm-agent status-running is-expanded" data-kind="workflow" type="button" aria-expanded="true">
+            <span class="claudian-swarm-agent-status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+            <div class="claudian-swarm-agent-main">
+              <div class="claudian-swarm-agent-name-row"><span class="claudian-swarm-agent-name">release-review</span><span class="claudian-swarm-agent-mode mode-workflow">Workflow</span></div>
+              <div class="claudian-swarm-agent-activity"><span class="claudian-swarm-agent-activity-text">Prüft Regressionstests und Release-Artefakte</span></div>
+              <div class="claudian-swarm-workflow-detail"><div class="claudian-swarm-workflow-detail-text">Alle geänderten Dateien prüfen und Findings zusammenführen.</div><div class="claudian-swarm-workflow-continuation">Der Chat fährt nach Abschluss automatisch fort.</div></div>
+            </div>
+            <div class="claudian-swarm-agent-meta"><span class="claudian-swarm-agent-tools">7 tools</span><span class="claudian-swarm-agent-tokens">4.200 tok</span><span class="claudian-swarm-agent-duration is-live">18s</span></div>
+          </button>
+          <button class="claudian-swarm-agent status-completed" data-kind="workflow" type="button" aria-expanded="false">
+            <span class="claudian-swarm-agent-status">✓</span>
+            <div class="claudian-swarm-agent-main"><div class="claudian-swarm-agent-name-row"><span class="claudian-swarm-agent-name">test-audit</span><span class="claudian-swarm-agent-mode mode-workflow">Workflow</span></div><div class="claudian-swarm-agent-activity"><span class="claudian-swarm-agent-activity-text">Tests abgeschlossen</span></div></div>
+            <div class="claudian-swarm-agent-meta"><span class="claudian-swarm-agent-tools">5 tools</span><span class="claudian-swarm-agent-duration">12s</span></div>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </body>

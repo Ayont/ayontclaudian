@@ -62,6 +62,17 @@ function formatDuration(ms: number): string {
 
 /** Latest tool the agent ran — the "what / where it codes" line. */
 function describeActivity(info: SubagentInfo): { icon: string; text: string } | null {
+  if (info.kind === 'workflow') {
+    if (info.lastToolName) {
+      return {
+        icon: getToolIcon(info.lastToolName),
+        text: info.progressSummary || info.description,
+      };
+    }
+    if (info.progressSummary) {
+      return { icon: 'activity', text: info.progressSummary };
+    }
+  }
   const last = info.toolCalls[info.toolCalls.length - 1];
   if (!last) return null;
   return { icon: getToolIcon(last.name), text: getToolLabel(last.name, last.input) };
@@ -78,10 +89,12 @@ export class SwarmPanel {
   private readonly rootEl: HTMLElement;
   private readonly toggleEl: HTMLButtonElement;
   private readonly countEl: HTMLElement;
+  private readonly autoContinueEl: HTMLElement;
   private readonly listEl: HTMLElement;
   private readonly unsubscribe: () => void;
 
   private isOpen = true;
+  private readonly expandedWorkflowIds = new Set<string>();
   private renderScheduled = false;
   private readonly flashTimers = new Set<number>();
   /** Live duration spans for running agents, keyed by agent id, ticked every 1s. */
@@ -97,8 +110,12 @@ export class SwarmPanel {
     this.toggleEl.setAttribute('type', 'button');
     const titleIconEl = this.toggleEl.createSpan({ cls: 'claudian-swarm-toggle-icon' });
     setIcon(titleIconEl, 'workflow');
-    this.toggleEl.createSpan({ cls: 'claudian-swarm-toggle-label', text: 'Agents' });
+    this.toggleEl.createSpan({ cls: 'claudian-swarm-toggle-label', text: 'Live work' });
     this.countEl = this.toggleEl.createSpan({ cls: 'claudian-swarm-count' });
+    this.autoContinueEl = this.toggleEl.createSpan({
+      cls: 'claudian-swarm-auto-continue claudian-hidden',
+      text: 'Auto-continue',
+    });
     const chevronEl = this.toggleEl.createSpan({ cls: 'claudian-swarm-chevron' });
     setIcon(chevronEl, 'chevron-down');
     this.toggleEl.addEventListener('click', () => this.toggleOpen());
@@ -139,11 +156,13 @@ export class SwarmPanel {
     this.rootEl.classList.remove('claudian-hidden');
 
     const runningCount = agents.filter(isRunning).length;
+    const runningWorkflowCount = agents.filter(info => info.kind === 'workflow' && isRunning(info)).length;
     this.countEl.setText(String(agents.length));
     this.rootEl.classList.toggle('has-running', runningCount > 0);
+    this.autoContinueEl.classList.toggle('claudian-hidden', runningWorkflowCount === 0);
     this.toggleEl.setAttribute(
       'aria-label',
-      `${agents.length} agent${agents.length === 1 ? '' : 's'}`
+      `${agents.length} live task${agents.length === 1 ? '' : 's'}`
         + (runningCount > 0 ? `, ${runningCount} running` : ''),
     );
     this.applyOpenState();
@@ -181,6 +200,10 @@ export class SwarmPanel {
       cls: `claudian-swarm-agent status-${status.cls}`,
     });
     row.setAttribute('type', 'button');
+    row.dataset.kind = info.kind ?? 'agent';
+    if (info.kind === 'workflow') {
+      row.setAttribute('aria-expanded', this.expandedWorkflowIds.has(info.id) ? 'true' : 'false');
+    }
 
     const statusEl = row.createSpan({ cls: 'claudian-swarm-agent-status' });
     setIcon(statusEl, status.icon);
@@ -189,9 +212,14 @@ export class SwarmPanel {
     const nameRow = main.createDiv({ cls: 'claudian-swarm-agent-name-row' });
     nameRow.createSpan({
       cls: 'claudian-swarm-agent-name',
-      text: info.description || 'Subagent',
+      text: info.workflowName || info.description || 'Subagent',
     });
-    if (info.mode) {
+    if (info.kind === 'workflow') {
+      nameRow.createSpan({
+        cls: 'claudian-swarm-agent-mode mode-workflow',
+        text: 'Workflow',
+      });
+    } else if (info.mode) {
       nameRow.createSpan({
         cls: `claudian-swarm-agent-mode mode-${info.mode}`,
         text: info.mode,
@@ -214,12 +242,32 @@ export class SwarmPanel {
       });
     }
 
+    if (info.kind === 'workflow') {
+      const detail = main.createDiv({ cls: 'claudian-swarm-workflow-detail' });
+      const detailText = info.result || info.progressSummary || info.prompt || info.description;
+      detail.createDiv({ cls: 'claudian-swarm-workflow-detail-text', text: detailText });
+      detail.createDiv({
+        cls: 'claudian-swarm-workflow-continuation',
+        text: isRunning(info)
+          ? 'Der Chat fährt nach Abschluss automatisch fort.'
+          : info.status === 'completed' ? 'Abgeschlossen, Chat wird fortgesetzt.' : 'Workflow beendet.',
+      });
+      row.classList.toggle('is-expanded', this.expandedWorkflowIds.has(info.id));
+    }
+
     const meta = row.createDiv({ cls: 'claudian-swarm-agent-meta' });
-    const toolCount = info.toolCalls.length;
+    const toolCount = info.kind === 'workflow' ? (info.toolUses ?? 0) : info.toolCalls.length;
     if (toolCount > 0) {
       meta.createSpan({
         cls: 'claudian-swarm-agent-tools',
         text: `${toolCount} tool${toolCount === 1 ? '' : 's'}`,
+      });
+    }
+
+    if (info.kind === 'workflow' && (info.totalTokens ?? 0) > 0) {
+      meta.createSpan({
+        cls: 'claudian-swarm-agent-tokens',
+        text: `${info.totalTokens?.toLocaleString()} tok`,
       });
     }
 
@@ -237,11 +285,20 @@ export class SwarmPanel {
       }
     }
 
-    row.addEventListener('click', () => this.focusSubagent(info.id));
+    row.addEventListener('click', () => {
+      if (info.kind === 'workflow') {
+        if (this.expandedWorkflowIds.has(info.id)) this.expandedWorkflowIds.delete(info.id);
+        else this.expandedWorkflowIds.add(info.id);
+        this.render();
+        return;
+      }
+      this.focusSubagent(info.id);
+    });
   }
 
   /** Total runtime for finished agents (running agents tick live instead). */
   private formatAgentDuration(info: SubagentInfo): string | null {
+    if (info.durationMs !== undefined) return formatDuration(info.durationMs);
     if (info.startedAt === undefined || info.completedAt === undefined) return null;
     return formatDuration(info.completedAt - info.startedAt);
   }
@@ -270,6 +327,7 @@ export class SwarmPanel {
       this.tickId = null;
     }
     this.liveDurations.clear();
+    this.expandedWorkflowIds.clear();
     for (const timer of this.flashTimers) {
       window.clearTimeout(timer);
     }

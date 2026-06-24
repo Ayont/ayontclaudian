@@ -87,6 +87,20 @@
   transition: background var(--duration-fast, 150ms) ease, color var(--duration-fast, 150ms) ease;
 }
 
+.claudian-swarm-auto-continue {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border: 1px solid color-mix(in srgb, var(--cl-accent) 35%, transparent);
+  border-radius: var(--cl-radius-pill);
+  color: var(--cl-accent);
+  background: color-mix(in srgb, var(--cl-accent) 8%, transparent);
+  font-family: var(--cl-font-ui);
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 /* When something is running the count lights up in the accent. */
 .claudian-swarm-panel.has-running .claudian-swarm-count {
   background: var(--cl-accent);
@@ -243,6 +257,47 @@
   color: var(--cl-accent);
 }
 
+.claudian-swarm-agent-mode.mode-workflow {
+  background: color-mix(in srgb, var(--cl-accent) 18%, transparent);
+  color: var(--cl-accent);
+}
+
+.claudian-swarm-agent[data-kind="workflow"] {
+  background: color-mix(in srgb, var(--cl-accent) 4%, transparent);
+}
+
+.claudian-swarm-agent[data-kind="workflow"] .claudian-swarm-agent-name {
+  font-weight: 650;
+}
+
+.claudian-swarm-workflow-detail {
+  display: none;
+  margin-top: 6px;
+  padding: 8px;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: var(--cl-radius-sm);
+  background: var(--background-primary);
+}
+
+.claudian-swarm-agent.is-expanded .claudian-swarm-workflow-detail {
+  display: block;
+}
+
+.claudian-swarm-workflow-detail-text {
+  color: var(--text-normal);
+  font-family: var(--cl-font-ui);
+  font-size: var(--cl-text-xs);
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.claudian-swarm-workflow-continuation {
+  margin-top: 6px;
+  color: var(--cl-accent);
+  font-family: var(--cl-font-ui);
+  font-size: 10px;
+}
+
 .claudian-swarm-agent-activity {
   display: flex;
   align-items: center;
@@ -290,6 +345,11 @@
   border-radius: var(--cl-radius-sm, 4px);
   background: var(--background-modifier-border);
   color: var(--text-muted);
+}
+
+.claudian-swarm-agent-tokens {
+  color: var(--text-muted);
+  font-family: var(--cl-font-mono);
 }
 
 /* Live, ticking elapsed time for a running agent. */

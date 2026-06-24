@@ -177,6 +177,30 @@ export type StreamChunk =
   | { type: 'done' }
   | { type: 'usage'; usage: UsageInfo; sessionId?: string | null }
   | { type: 'context_compacted' }
+  | {
+      type: 'background_task_started';
+      taskId: string;
+      description: string;
+      taskType?: string;
+      workflowName?: string;
+      prompt?: string;
+      skipTranscript?: boolean;
+    }
+  | {
+      type: 'background_task_progress';
+      taskId: string;
+      description: string;
+      summary?: string;
+      lastToolName?: string;
+      usage: { totalTokens: number; toolUses: number; durationMs: number };
+    }
+  | {
+      type: 'background_task_result';
+      taskId: string;
+      status: 'completed' | 'error' | 'stopped';
+      summary?: string;
+      usage?: { totalTokens: number; toolUses: number; durationMs: number };
+    }
   | { type: 'async_subagent_result'; agentId: string; status: 'completed' | 'error'; result?: string }
   | { type: 'subagent_tool_use'; subagentId: string; id: string; name: string; input: Record<string, unknown> }
   | { type: 'subagent_tool_result'; subagentId: string; id: string; content: string; isError?: boolean; toolUseResult?: SDKToolUseResult };

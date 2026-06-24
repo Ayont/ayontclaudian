@@ -1700,6 +1700,78 @@ Only this is the final result.
   });
 
   // ============================================
+  // Claude workflow tasks
+  // ============================================
+
+  describe('Claude workflow tasks', () => {
+    it('tracks start, live progress, and completion in the swarm registry', () => {
+      const { manager, updates } = createManager();
+
+      manager.handleWorkflowTaskStarted({
+        taskId: 'workflow-1',
+        taskType: 'local_workflow',
+        workflowName: 'review',
+        description: 'Review release',
+        prompt: 'Review every changed file',
+      });
+      manager.handleWorkflowTaskProgress({
+        taskId: 'workflow-1',
+        description: 'Checking tests',
+        summary: 'Inspecting regression coverage',
+        lastToolName: 'Read',
+        usage: { totalTokens: 4200, toolUses: 7, durationMs: 12500 },
+      });
+
+      const running = manager.getSubagentById('workflow-1');
+      expect(running).toEqual(expect.objectContaining({
+        kind: 'workflow',
+        workflowName: 'review',
+        status: 'running',
+        progressSummary: 'Inspecting regression coverage',
+        lastToolName: 'Read',
+        totalTokens: 4200,
+        toolUses: 7,
+      }));
+      expect(manager.hasRunningSubagents()).toBe(true);
+
+      manager.handleWorkflowTaskResult({
+        taskId: 'workflow-1',
+        status: 'completed',
+        summary: 'Review complete.',
+        usage: { totalTokens: 5100, toolUses: 9, durationMs: 18000 },
+      });
+
+      expect(manager.getSubagentById('workflow-1')).toEqual(expect.objectContaining({
+        status: 'completed',
+        asyncStatus: 'completed',
+        result: 'Review complete.',
+        totalTokens: 5100,
+        toolUses: 9,
+        durationMs: 18000,
+      }));
+      expect(manager.hasRunningSubagents()).toBe(false);
+      expect(updates.length).toBe(3);
+    });
+
+    it('ignores ambient or non-workflow task_started events', () => {
+      const { manager } = createManager();
+      expect(manager.handleWorkflowTaskStarted({
+        taskId: 'ambient',
+        taskType: 'local_workflow',
+        workflowName: 'housekeeping',
+        description: 'Ambient cleanup',
+        skipTranscript: true,
+      })).toBeUndefined();
+      expect(manager.handleWorkflowTaskStarted({
+        taskId: 'agent',
+        taskType: 'subagent',
+        description: 'Ordinary agent',
+      })).toBeUndefined();
+      expect(manager.getAllSubagents()).toHaveLength(0);
+    });
+  });
+
+  // ============================================
   // Lifecycle
   // ============================================
 

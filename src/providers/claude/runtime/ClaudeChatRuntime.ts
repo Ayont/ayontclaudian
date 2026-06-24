@@ -181,6 +181,9 @@ export class ClaudianService implements ChatRuntime {
   private _autoTurnSawStreamText = false;
   private _autoTurnSawStreamThinking = false;
   private _autoTurnCallback: AutoTurnCallback | null = null;
+  private readonly activeWorkflowTaskIds = new Set<string>();
+  private workflowContinuationTimer: number | null = null;
+  private workflowBatchNeedsContinuation = false;
   private turnMetadata: ChatTurnMetadata = {};
   private bufferedUsageChunk: StreamChunk & { type: 'usage' } | null = null;
   private streamTransformState = createTransformStreamState();
@@ -596,6 +599,7 @@ export class ClaudianService implements ChatRuntime {
     this._autoTurnBuffer = [];
     this._autoTurnSawStreamText = false;
     this._autoTurnSawStreamThinking = false;
+    this.clearWorkflowContinuationState();
     if (!preserveHandlers) {
       this.responseHandlers = [];
       this.currentAllowedTools = null;
@@ -825,6 +829,10 @@ export class ClaudianService implements ChatRuntime {
     // Note: Session expiration errors are handled in catch blocks (queryViaSDK, handleAbort)
     // The SDK throws errors as exceptions, not as message types
 
+    // Keep Claude Code local workflows visible after the foreground turn ends,
+    // and resume the model automatically once the whole workflow batch settles.
+    this.trackWorkflowContinuation(message);
+
     // Safe to use last handler - design guarantees single handler at a time
     const handler = this.responseHandlers[this.responseHandlers.length - 1];
     const autoTurnBufferStartLength = this._autoTurnBuffer.length;
@@ -917,12 +925,12 @@ export class ClaudianService implements ChatRuntime {
       }
     }
 
-    if (
-      !handler
-      && message.type === 'system'
-      && message.subtype === 'task_notification'
-      && this._autoTurnBuffer.length > autoTurnBufferStartLength
-    ) {
+    const isLiveTaskEvent = message.type === 'system' && (
+      message.subtype === 'task_started'
+      || message.subtype === 'task_progress'
+      || message.subtype === 'task_notification'
+    );
+    if (!handler && isLiveTaskEvent && this._autoTurnBuffer.length > autoTurnBufferStartLength) {
       await this.flushAutoTurnBuffer();
     }
 
@@ -962,6 +970,77 @@ export class ClaudianService implements ChatRuntime {
     } catch {
       new Notice('Background task completed, but the result could not be rendered.');
     }
+  }
+
+  /** Tracks local workflow batches and schedules a hidden continuation turn. */
+  private trackWorkflowContinuation(message: SDKMessage): void {
+    // If the SDK already continues by itself, cancel our delayed fallback.
+    if (message.type === 'assistant' && this.workflowContinuationTimer !== null) {
+      window.clearTimeout(this.workflowContinuationTimer);
+      this.workflowContinuationTimer = null;
+      this.workflowBatchNeedsContinuation = false;
+      return;
+    }
+
+    if (message.type !== 'system') return;
+    if (message.subtype === 'task_started') {
+      if (message.task_type !== 'local_workflow' && !message.workflow_name) return;
+      if (message.skip_transcript === true) return;
+      this.activeWorkflowTaskIds.add(message.task_id);
+      this.workflowBatchNeedsContinuation = true;
+      if (this.workflowContinuationTimer !== null) {
+        window.clearTimeout(this.workflowContinuationTimer);
+        this.workflowContinuationTimer = null;
+      }
+      return;
+    }
+
+    if (message.subtype !== 'task_notification') return;
+    if (!this.activeWorkflowTaskIds.delete(message.task_id)) return;
+    if (this.activeWorkflowTaskIds.size > 0 || !this.workflowBatchNeedsContinuation) return;
+
+    this.scheduleWorkflowContinuation();
+  }
+
+  private scheduleWorkflowContinuation(): void {
+    if (this.workflowContinuationTimer !== null) {
+      window.clearTimeout(this.workflowContinuationTimer);
+    }
+    this.workflowContinuationTimer = window.setTimeout(() => {
+      this.workflowContinuationTimer = null;
+      if (
+        !this.workflowBatchNeedsContinuation
+        || this.activeWorkflowTaskIds.size > 0
+        || this.responseHandlers.length > 0
+        || !this.messageChannel
+        || this.shuttingDown
+      ) {
+        return;
+      }
+
+      const continuation = this.buildSDKUserMessage(
+        '<workflow_completion>All Claude Code workflow tasks have finished. '
+        + 'Continue the original task now, integrate the workflow results, and provide the next useful update. '
+        + 'Do not ask for confirmation merely because the workflow completed.</workflow_completion>'
+      );
+      continuation.isSynthetic = true;
+      continuation.priority = 'now';
+      this.workflowBatchNeedsContinuation = false;
+      try {
+        this.messageChannel.enqueue(continuation);
+      } catch {
+        // The conversation closed while the workflow was settling.
+      }
+    }, 700);
+  }
+
+  private clearWorkflowContinuationState(): void {
+    if (this.workflowContinuationTimer !== null) {
+      window.clearTimeout(this.workflowContinuationTimer);
+      this.workflowContinuationTimer = null;
+    }
+    this.activeWorkflowTaskIds.clear();
+    this.workflowBatchNeedsContinuation = false;
   }
 
   private registerResponseHandler(handler: ResponseHandler): void {

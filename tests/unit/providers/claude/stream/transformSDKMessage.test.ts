@@ -107,12 +107,56 @@ describe('transformSDKMessage', () => {
 
       expect(results).toEqual([
         {
+          type: 'background_task_result',
+          taskId: 'agent-123',
+          status: 'completed',
+          summary: 'Agent completed successfully.',
+        },
+        {
           type: 'async_subagent_result',
           agentId: 'agent-123',
           status: 'completed',
           result: 'Agent completed successfully.',
         },
       ]);
+    });
+
+    it('normalizes local workflow start and progress telemetry', () => {
+      const started = [...transformSDKMessage(msg({
+        type: 'system',
+        subtype: 'task_started',
+        task_id: 'workflow-1',
+        description: 'Review the release',
+        task_type: 'local_workflow',
+        workflow_name: 'review',
+        prompt: 'Review every changed file',
+      } as any))];
+      const progress = [...transformSDKMessage(msg({
+        type: 'system',
+        subtype: 'task_progress',
+        task_id: 'workflow-1',
+        description: 'Checking tests',
+        summary: 'Inspecting regression coverage',
+        last_tool_name: 'Read',
+        usage: { total_tokens: 4200, tool_uses: 7, duration_ms: 12500 },
+      } as any))];
+
+      expect(started).toEqual([{
+        type: 'background_task_started',
+        taskId: 'workflow-1',
+        description: 'Review the release',
+        taskType: 'local_workflow',
+        workflowName: 'review',
+        prompt: 'Review every changed file',
+      }]);
+      expect(progress).toEqual([{
+        type: 'background_task_progress',
+        taskId: 'workflow-1',
+        description: 'Checking tests',
+        summary: 'Inspecting regression coverage',
+        lastToolName: 'Read',
+        usage: { totalTokens: 4200, toolUses: 7, durationMs: 12500 },
+      }]);
     });
 
     it('maps non-completed task_notification statuses to async subagent errors', () => {
@@ -128,6 +172,12 @@ describe('transformSDKMessage', () => {
       const results = [...transformSDKMessage(message)];
 
       expect(results).toEqual([
+        {
+          type: 'background_task_result',
+          taskId: 'agent-failed',
+          status: 'error',
+          summary: 'Agent failed.',
+        },
         {
           type: 'async_subagent_result',
           agentId: 'agent-failed',

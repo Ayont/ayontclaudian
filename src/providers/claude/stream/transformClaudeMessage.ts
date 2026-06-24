@@ -65,6 +65,54 @@ function transformTaskNotification(message: SDKMessage): StreamChunk | null {
   };
 }
 
+function transformTaskStarted(message: SDKMessage): StreamChunk | null {
+  if (message.type !== 'system' || message.subtype !== 'task_started') return null;
+  return {
+    type: 'background_task_started',
+    taskId: message.task_id,
+    description: message.description,
+    ...(message.task_type && { taskType: message.task_type }),
+    ...(message.workflow_name && { workflowName: message.workflow_name }),
+    ...(message.prompt && { prompt: message.prompt }),
+    ...(message.skip_transcript !== undefined && { skipTranscript: message.skip_transcript }),
+  };
+}
+
+function transformTaskProgress(message: SDKMessage): StreamChunk | null {
+  if (message.type !== 'system' || message.subtype !== 'task_progress') return null;
+  return {
+    type: 'background_task_progress',
+    taskId: message.task_id,
+    description: message.description,
+    ...(message.summary && { summary: message.summary }),
+    ...(message.last_tool_name && { lastToolName: message.last_tool_name }),
+    usage: {
+      totalTokens: message.usage.total_tokens,
+      toolUses: message.usage.tool_uses,
+      durationMs: message.usage.duration_ms,
+    },
+  };
+}
+
+function transformTaskResult(message: SDKMessage): StreamChunk | null {
+  if (message.type !== 'system' || message.subtype !== 'task_notification') return null;
+  return {
+    type: 'background_task_result',
+    taskId: message.task_id,
+    status: message.status === 'completed'
+      ? 'completed'
+      : message.status === 'stopped' ? 'stopped' : 'error',
+    ...(message.summary && { summary: message.summary }),
+    ...(message.usage && {
+      usage: {
+        totalTokens: message.usage.total_tokens,
+        toolUses: message.usage.tool_uses,
+        durationMs: message.usage.duration_ms,
+      },
+    }),
+  };
+}
+
 export interface TransformOptions {
   /** The intended model from settings/query (used for context window size). */
   intendedModel?: string;
@@ -451,7 +499,15 @@ export function* transformSDKMessage(
         };
       } else if (message.subtype === 'compact_boundary') {
         yield { type: 'context_compacted' };
+      } else if (message.subtype === 'task_started') {
+        const started = transformTaskStarted(message);
+        if (started) yield started;
+      } else if (message.subtype === 'task_progress') {
+        const progress = transformTaskProgress(message);
+        if (progress) yield progress;
       } else if (message.subtype === 'task_notification') {
+        const result = transformTaskResult(message);
+        if (result) yield result;
         const notification = transformTaskNotification(message);
         if (notification) {
           yield notification;

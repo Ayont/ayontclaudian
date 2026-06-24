@@ -15,6 +15,7 @@ const SECTIONS = [
   'activity-feed',
   'provider-capabilities',
   'feature-map',
+  'workflow-live',
 ] as const;
 
 test.beforeEach(async ({ page }) => {

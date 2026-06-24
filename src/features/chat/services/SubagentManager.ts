@@ -511,6 +511,91 @@ export class SubagentManager {
     return subagent;
   }
 
+  /** Registers a Claude Code local workflow announced through task_started. */
+  public handleWorkflowTaskStarted(task: {
+    taskId: string;
+    description: string;
+    taskType?: string;
+    workflowName?: string;
+    prompt?: string;
+    skipTranscript?: boolean;
+  }): SubagentInfo | undefined {
+    if (task.skipTranscript === true) return undefined;
+    if (task.taskType !== 'local_workflow' && !task.workflowName) return undefined;
+
+    const existing = this.allSubagents.get(task.taskId);
+    if (existing) return existing;
+
+    const info: SubagentInfo = {
+      id: task.taskId,
+      agentId: task.taskId,
+      description: task.description || task.workflowName || 'Workflow',
+      prompt: task.prompt,
+      mode: 'async',
+      kind: 'workflow',
+      workflowName: task.workflowName,
+      taskType: task.taskType,
+      isExpanded: false,
+      status: 'running',
+      asyncStatus: 'running',
+      toolCalls: [],
+      startedAt: Date.now(),
+    };
+
+    this.activeAsyncSubagents.set(task.taskId, info);
+    this.allSubagents.set(task.taskId, info);
+    this.emitChange(info);
+    return info;
+  }
+
+  /** Applies live task_progress telemetry to a tracked workflow. */
+  public handleWorkflowTaskProgress(progress: {
+    taskId: string;
+    description: string;
+    summary?: string;
+    lastToolName?: string;
+    usage: { totalTokens: number; toolUses: number; durationMs: number };
+  }): SubagentInfo | undefined {
+    const info = this.allSubagents.get(progress.taskId);
+    if (!info || info.kind !== 'workflow' || info.status !== 'running') return undefined;
+
+    info.description = progress.description || info.description;
+    info.progressSummary = progress.summary?.trim() || progress.description;
+    info.lastToolName = progress.lastToolName;
+    info.totalTokens = progress.usage.totalTokens;
+    info.toolUses = progress.usage.toolUses;
+    info.durationMs = progress.usage.durationMs;
+    this.emitChange(info);
+    return info;
+  }
+
+  /** Finalizes a tracked workflow and keeps it in the conversation overview. */
+  public handleWorkflowTaskResult(result: {
+    taskId: string;
+    status: 'completed' | 'error' | 'stopped';
+    summary?: string;
+    usage?: { totalTokens: number; toolUses: number; durationMs: number };
+  }): SubagentInfo | undefined {
+    const info = this.allSubagents.get(result.taskId);
+    if (!info || info.kind !== 'workflow') return undefined;
+
+    const succeeded = result.status === 'completed';
+    info.status = succeeded ? 'completed' : 'error';
+    info.asyncStatus = succeeded ? 'completed' : 'error';
+    info.result = result.summary?.trim()
+      || (result.status === 'stopped' ? 'Workflow stopped.' : succeeded ? 'Workflow completed.' : 'Workflow failed.');
+    info.progressSummary = info.result;
+    info.completedAt = Date.now();
+    if (result.usage) {
+      info.totalTokens = result.usage.totalTokens;
+      info.toolUses = result.usage.toolUses;
+      info.durationMs = result.usage.durationMs;
+    }
+    this.activeAsyncSubagents.delete(result.taskId);
+    this.emitChange(info);
+    return info;
+  }
+
   public isPendingAsyncTask(taskToolId: string): boolean {
     return this.pendingAsyncSubagents.has(taskToolId);
   }

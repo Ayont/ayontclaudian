@@ -77,4 +77,13 @@ export interface SubagentInfo {
   outputToolId?: string;
   startedAt?: number;
   completedAt?: number;
+  /** Distinguishes Claude Code workflow tasks from ordinary Agent/Task subagents. */
+  kind?: 'agent' | 'workflow';
+  workflowName?: string;
+  taskType?: string;
+  progressSummary?: string;
+  lastToolName?: string;
+  totalTokens?: number;
+  toolUses?: number;
+  durationMs?: number;
 }

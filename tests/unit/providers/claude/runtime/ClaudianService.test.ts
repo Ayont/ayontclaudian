@@ -1209,6 +1209,12 @@ describe('ClaudianService', () => {
       expect(autoTurnCallback).toHaveBeenCalledWith({
         chunks: [
           {
+            type: 'background_task_result',
+            taskId: 'agent-456',
+            status: 'completed',
+            summary: 'Background agent finished.',
+          },
+          {
             type: 'async_subagent_result',
             agentId: 'agent-456',
             status: 'completed',
@@ -1217,6 +1223,51 @@ describe('ClaudianService', () => {
         ],
         metadata: {},
       });
+    });
+
+    it('auto-continues after the last local workflow completes', async () => {
+      jest.useFakeTimers();
+      try {
+        (service as any).responseHandlers = [];
+        const enqueue = jest.fn();
+        (service as any).messageChannel = {
+          enqueue,
+          onTurnComplete: jest.fn(),
+          setSessionId: jest.fn(),
+        };
+
+        await (service as any).routeMessage({
+          type: 'system',
+          subtype: 'task_started',
+          task_id: 'workflow-1',
+          task_type: 'local_workflow',
+          workflow_name: 'review',
+          description: 'Review release',
+          uuid: 'workflow-start',
+          session_id: 'session-1',
+        });
+        await (service as any).routeMessage({
+          type: 'system',
+          subtype: 'task_notification',
+          task_id: 'workflow-1',
+          status: 'completed',
+          output_file: '/tmp/workflow-1.output',
+          summary: 'Review complete.',
+          uuid: 'workflow-done',
+          session_id: 'session-1',
+        });
+
+        expect(enqueue).not.toHaveBeenCalled();
+        jest.advanceTimersByTime(700);
+        expect(enqueue).toHaveBeenCalledTimes(1);
+        expect(enqueue.mock.calls[0][0]).toEqual(expect.objectContaining({
+          isSynthetic: true,
+          priority: 'now',
+        }));
+        expect(enqueue.mock.calls[0][0].message.content).toContain('Continue the original task');
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     it('should route tool input deltas as tool_use updates', async () => {
