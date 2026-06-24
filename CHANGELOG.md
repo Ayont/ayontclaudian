@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.6.0] - 2026-06-24
+
+### Added
+
+- **Antigravity CLI 2.0 Integration**:
+  - Exposed provider-level commands `/agy-version`, `/agy-changelog`, `/agy-models`, `/agy-plugins`, and `/agy-update` in the composer autocomplete.
+  - Implemented dynamic runtime command execution to process these slash commands locally and stream the output.
+  - Added native OS installation commands for Windows PowerShell and macOS/Linux in the installation catalog.
+  - Added a CLI Management panel in settings displaying the installed version, authenticated Google account, and actions (Update CLI, View Changelog, and Import Plugins).
+  - Created a custom scrollable modal (`AgyChangelogModal`) to render release notes.
+  - Added friendly warning prompts for authentication failures in both chat sessions and settings.
+
 ## [5.0.0] - 2026-06-19
 
 ### Added

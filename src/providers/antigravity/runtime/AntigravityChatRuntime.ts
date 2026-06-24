@@ -1,4 +1,4 @@
-import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
+import { type ChildProcessWithoutNullStreams, exec, spawn } from 'node:child_process';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -184,6 +184,13 @@ export class AntigravityChatRuntime implements ChatRuntime {
   ): AsyncGenerator<StreamChunk> {
     this.currentTurnMetadata = {};
     this.cancelled = false;
+
+    const promptText = turn.request.text.trim();
+    if (promptText.startsWith('/agy-')) {
+      yield { type: 'user_message_start', content: turn.request.text };
+      yield* this.handleAgyInternalCommand(promptText);
+      return;
+    }
 
     // See VibeChatRuntime: a single fresh re-run after a dead-conversation recovery.
     const isRetry = this.isResumeRetry;
@@ -517,7 +524,43 @@ export class AntigravityChatRuntime implements ChatRuntime {
   }
 
   async getSupportedCommands(): Promise<SlashCommand[]> {
-    return [];
+    return [
+      {
+        id: 'agy:version',
+        name: 'agy-version',
+        description: 'Show the version of the Antigravity CLI',
+        content: '',
+        source: 'sdk' as const,
+      },
+      {
+        id: 'agy:changelog',
+        name: 'agy-changelog',
+        description: 'Show the changelog and release notes of the Antigravity CLI',
+        content: '',
+        source: 'sdk' as const,
+      },
+      {
+        id: 'agy:models',
+        name: 'agy-models',
+        description: 'List available models in the Antigravity CLI',
+        content: '',
+        source: 'sdk' as const,
+      },
+      {
+        id: 'agy:plugins',
+        name: 'agy-plugins',
+        description: 'List imported plugins in the Antigravity CLI',
+        content: '',
+        source: 'sdk' as const,
+      },
+      {
+        id: 'agy:update',
+        name: 'agy-update',
+        description: 'Update the Antigravity CLI to the latest version',
+        content: '',
+        source: 'sdk' as const,
+      },
+    ];
   }
 
   getAuxiliaryModel(): string | null {
@@ -623,8 +666,56 @@ export class AntigravityChatRuntime implements ChatRuntime {
     }
   }
 
+  private async *handleAgyInternalCommand(prompt: string): AsyncGenerator<StreamChunk> {
+    const command = this.plugin.getResolvedProviderCliPath(ANTIGRAVITY_PROVIDER_ID) || 'agy';
+    let subCommand = '';
+    if (prompt === '/agy-version') {
+      subCommand = '--version';
+    } else if (prompt === '/agy-changelog') {
+      subCommand = 'changelog';
+    } else if (prompt === '/agy-models') {
+      subCommand = 'models';
+    } else if (prompt === '/agy-plugins') {
+      subCommand = 'plugin list';
+    } else if (prompt === '/agy-update') {
+      subCommand = 'update';
+    } else {
+      yield { type: 'text', content: `Unknown command: ${prompt}` };
+      yield { type: 'done' };
+      return;
+    }
+
+    yield { type: 'text', content: `Running \`${command} ${subCommand}\`...\n\n` };
+
+    const runPromise = new Promise<{ stdout: string; stderr: string; err: Error | null }>((resolve) => {
+      exec(`"${command}" ${subCommand}`, { cwd: process.cwd() }, (err, stdout, stderr) => {
+        resolve({ stdout, stderr, err });
+      });
+    });
+
+    const result = await runPromise;
+    if (result.err) {
+      const errText = result.stderr.trim() || result.err.message;
+      if (errText.includes('You are not logged into Antigravity')) {
+        yield {
+          type: 'text',
+          content: `⚠️ **Authentication Required**\n\nYou are not logged into Antigravity. Please run the CLI once in your local terminal to complete the Google Sign-In authentication flow:\n\n\`\`\`bash\nagy -p "hello"\n\`\`\`\n\nOnce completed, restart your chat session in Obsidian.`,
+        };
+      } else {
+        yield { type: 'text', content: `Error: ${errText}` };
+      }
+    } else {
+      const output = result.stdout.trim() || result.stderr.trim() || 'No output.';
+      yield { type: 'text', content: output };
+    }
+    yield { type: 'done' };
+  }
+
   private formatError(message: string, stderr: string): string {
     const trimmed = stderr.trim().slice(-2000);
+    if (trimmed.includes('You are not logged into Antigravity')) {
+      return `⚠️ **Authentication Required**\n\nYou are not logged into Antigravity. Please run the CLI once in your local terminal to complete the Google Sign-In authentication flow:\n\n\`\`\`bash\nagy -p "hello"\n\`\`\`\n\nOnce completed, restart your chat session in Obsidian.`;
+    }
     return trimmed ? `${message}\n\n${trimmed}` : message;
   }
 }

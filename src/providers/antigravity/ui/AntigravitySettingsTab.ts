@@ -1,6 +1,9 @@
+import { exec } from 'node:child_process';
 import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
-import { Setting } from 'obsidian';
+import { Notice, Setting } from 'obsidian';
 
 import type { ProviderSettingsTabRenderer } from '../../../core/providers/types';
 import { renderEnvironmentSettingsSection } from '../../../features/settings/ui/EnvironmentSettingsSection';
@@ -12,6 +15,7 @@ import {
   getAntigravityProviderSettings,
   updateAntigravityProviderSettings,
 } from '../settings';
+import { AgyChangelogModal } from './AgyChangelogModal';
 
 function validateCliPath(value: string): string | null {
   const trimmed = value.trim();
@@ -157,6 +161,102 @@ export const antigravitySettingsTabRenderer: ProviderSettingsTabRenderer = {
           .onChange(async (value) => {
             updateAntigravityProviderSettings(settingsBag, { printTimeout: value.trim() });
             await context.plugin.saveSettings();
+          }),
+      );
+
+    // Read the active account from Google Accounts
+    let activeEmail: string | null = null;
+    try {
+      const homedir = os.homedir();
+      const accountsPath = path.join(homedir, '.gemini', 'google_accounts.json');
+      if (fs.existsSync(accountsPath)) {
+        const raw = fs.readFileSync(accountsPath, 'utf8');
+        const parsed = JSON.parse(raw);
+        activeEmail = parsed.active || null;
+      }
+    } catch {
+      // Ignore
+    }
+
+    new Setting(container).setName('Authentication & Version').setHeading();
+
+    new Setting(container)
+      .setName('Google Account')
+      .setDesc(activeEmail ? `🟢 Authenticated as ${activeEmail}` : '⚠️ Not authenticated. Run `agy` in your terminal to sign in.');
+
+    const versionSetting = new Setting(container)
+      .setName('CLI Version')
+      .setDesc('Checking...');
+
+    const resolvedCliPath = context.plugin.getResolvedProviderCliPath(ANTIGRAVITY_PROVIDER_ID) || 'agy';
+    exec(`"${resolvedCliPath}" --version`, (err, stdout, stderr) => {
+      if (err) {
+        versionSetting.setDesc('Not installed or not found on PATH');
+      } else {
+        versionSetting.setDesc(stdout.trim() || stderr.trim() || 'Unknown');
+      }
+    });
+
+    new Setting(container).setName('CLI Management').setHeading();
+
+    new Setting(container)
+      .setName('CLI Actions')
+      .setDesc('Perform updates, view release notes, or import extensions.')
+      .addButton((btn) =>
+        btn
+          .setButtonText('Update CLI')
+          .setTooltip('Update agy CLI to the latest version')
+          .onClick(() => {
+            btn.setButtonText('Updating...');
+            btn.setDisabled(true);
+            exec(`"${resolvedCliPath}" update`, (err, stdout, stderr) => {
+              btn.setDisabled(false);
+              btn.setButtonText('Update CLI');
+              if (err) {
+                new Notice(`Failed to update CLI: ${stderr.trim() || err.message}`);
+              } else {
+                new Notice(`Antigravity CLI updated successfully!\n${stdout.trim()}`);
+                exec(`"${resolvedCliPath}" --version`, (err2, stdout2) => {
+                  if (!err2) versionSetting.setDesc(stdout2.trim());
+                });
+              }
+            });
+          }),
+      )
+      .addButton((btn) =>
+        btn
+          .setButtonText('View Changelog')
+          .setTooltip('Show recent CLI release notes')
+          .onClick(() => {
+            btn.setButtonText('Loading...');
+            btn.setDisabled(true);
+            exec(`"${resolvedCliPath}" changelog`, (err, stdout, stderr) => {
+              btn.setDisabled(false);
+              btn.setButtonText('View Changelog');
+              if (err) {
+                new Notice(`Failed to fetch changelog: ${stderr.trim() || err.message}`);
+              } else {
+                new AgyChangelogModal(context.plugin.app, stdout).open();
+              }
+            });
+          }),
+      )
+      .addButton((btn) =>
+        btn
+          .setButtonText('Import Plugins')
+          .setTooltip('Import plugins from Claude Code')
+          .onClick(() => {
+            btn.setButtonText('Importing...');
+            btn.setDisabled(true);
+            exec(`"${resolvedCliPath}" plugin import claude`, (err, stdout, stderr) => {
+              btn.setDisabled(false);
+              btn.setButtonText('Import Plugins');
+              if (err) {
+                new Notice(`Import failed: ${stderr.trim() || err.message}`);
+              } else {
+                new Notice(stdout.trim() || 'Plugins imported successfully.');
+              }
+            });
           }),
       );
 

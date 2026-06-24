@@ -128,7 +128,12 @@ export const CLI_INSTALL_CATALOG: Record<string, CliInstallSpec> = {
     displayName: 'Antigravity (agy)',
     binary: 'agy',
     docsUrl: 'https://antigravity.google/docs/cli',
-    methods: { default: [{ label: 'Docs', command: '' }] },
+    methods: {
+      darwin: [{ label: 'Installer-Skript', command: 'curl -fsSL https://antigravity.google/cli/install.sh | bash' }],
+      linux: [{ label: 'Installer-Skript', command: 'curl -fsSL https://antigravity.google/cli/install.sh | bash' }],
+      win32: [{ label: 'PowerShell', command: 'powershell -NoProfile -Command "irm https://antigravity.google/cli/install.ps1 | iex"' }],
+      default: [{ label: 'Installer-Skript', command: 'curl -fsSL https://antigravity.google/cli/install.sh | bash' }],
+    },
   },
 
   pi: {
