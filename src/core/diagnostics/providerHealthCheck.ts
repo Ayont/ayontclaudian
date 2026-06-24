@@ -11,6 +11,7 @@ import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 import * as path from 'node:path';
 
 import { getEnhancedPath } from '../../utils/env';
+import { resolveWindowsCmdShimSpawnSpec } from '../../utils/windowsCmdShim';
 import { resolveProviderCliPath } from '../install/cliDetection';
 import { getRuntimeEnvironmentVariables } from '../providers/providerEnvironment';
 import { ProviderRegistry } from '../providers/ProviderRegistry';
@@ -53,15 +54,17 @@ export const HEALTH_PROBE_TIMEOUT_MS = 5000;
 export function probeCli(options: ProbeOptions): Promise<ProbeResult> {
   const args = options.args ?? ['--version'];
   const timeoutMs = options.timeoutMs ?? HEALTH_PROBE_TIMEOUT_MS;
+  const resolved = resolveWindowsCmdShimSpawnSpec({ command: options.command, args });
 
   return new Promise<ProbeResult>((resolve) => {
     let proc: ChildProcessWithoutNullStreams;
     try {
-      proc = spawn(options.command, args, {
+      proc = spawn(resolved.command, resolved.args, {
         cwd: options.cwd,
         env: options.env,
         stdio: 'pipe',
         windowsHide: true,
+        ...(resolved.windowsVerbatimArguments ? { windowsVerbatimArguments: true } : {}),
       });
     } catch (error) {
       resolve({ ok: false, output: '', detail: error instanceof Error ? error.message : 'spawn failed' });
