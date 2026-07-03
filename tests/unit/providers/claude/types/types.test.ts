@@ -651,27 +651,41 @@ describe('types.ts', () => {
         expect(getContextWindowSize('opus')).toBe(CONTEXT_WINDOW_STANDARD);
         expect(getContextWindowSize('sonnet')).toBe(CONTEXT_WINDOW_STANDARD);
       });
+
+      it('should return 1M for Fable (1M context is the default)', () => {
+        // Fable 5 ships with 1M context by default — no [1m] suffix needed or gated.
+        expect(getContextWindowSize('fable')).toBe(CONTEXT_WINDOW_1M);
+        expect(getContextWindowSize('fable[1m]')).toBe(CONTEXT_WINDOW_1M);
+        expect(getContextWindowSize('FABLE')).toBe(CONTEXT_WINDOW_1M);
+        expect(getContextWindowSize('claude-fable-5')).toBe(CONTEXT_WINDOW_1M);
+      });
     });
 
     describe('filterVisibleModelOptions', () => {
       it('should hide 1M variants when toggles are disabled', () => {
         const models = filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, false, false).map((model) => model.value);
-        expect(models).toEqual(['haiku', 'sonnet', 'opus']);
+        expect(models).toEqual(['haiku', 'sonnet', 'opus', 'fable']);
       });
 
       it('should swap in 1M variants when toggles are enabled', () => {
         const models = filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, true, true).map((model) => model.value);
-        expect(models).toEqual(['haiku', 'sonnet[1m]', 'opus[1m]']);
+        expect(models).toEqual(['haiku', 'sonnet[1m]', 'opus[1m]', 'fable']);
       });
 
       it('should swap only opus when enableOpus1M is true and enableSonnet1M is false', () => {
         const models = filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, true, false).map((model) => model.value);
-        expect(models).toEqual(['haiku', 'sonnet', 'opus[1m]']);
+        expect(models).toEqual(['haiku', 'sonnet', 'opus[1m]', 'fable']);
       });
 
       it('should swap only sonnet when enableSonnet1M is true and enableOpus1M is false', () => {
         const models = filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, false, true).map((model) => model.value);
-        expect(models).toEqual(['haiku', 'sonnet[1m]', 'opus']);
+        expect(models).toEqual(['haiku', 'sonnet[1m]', 'opus', 'fable']);
+      });
+
+      it('should always show fable (1M context is its default, no toggle)', () => {
+        // Fable must appear regardless of the 1M toggles (which only gate Sonnet/Opus).
+        expect(filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, false, false).map(m => m.value)).toContain('fable');
+        expect(filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, true, true).map(m => m.value)).toContain('fable');
       });
     });
 
@@ -703,6 +717,13 @@ describe('types.ts', () => {
       expect(supportsXHighEffort('opus[1M]')).toBe(true);
       expect(supportsXHighEffort('claude-opus-4-7')).toBe(true);
       expect(supportsXHighEffort('claude-opus-5')).toBe(true);
+    });
+
+    it('returns true for Fable (Mythos-class flagship, xhigh-capable)', () => {
+      expect(supportsXHighEffort('fable')).toBe(true);
+      expect(supportsXHighEffort('fable[1m]')).toBe(true);
+      expect(supportsXHighEffort('FABLE')).toBe(true);
+      expect(supportsXHighEffort('claude-fable-5')).toBe(true);
     });
 
     it('returns false for non-opus models and older opus ids', () => {

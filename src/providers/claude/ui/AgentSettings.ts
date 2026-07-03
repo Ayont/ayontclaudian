@@ -12,6 +12,7 @@ import { validateAgentName } from '../../../utils/agent';
 
 const MODEL_OPTIONS = [
   { value: 'inherit', label: 'Inherit' },
+  { value: 'fable', label: 'Fable' },
   { value: 'sonnet', label: 'Sonnet' },
   { value: 'opus', label: 'Opus' },
   { value: 'haiku', label: 'Haiku' },

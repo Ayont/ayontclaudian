@@ -1,5 +1,17 @@
 // Mock for Obsidian API
 
+/**
+ * Mirrors Obsidian's normalizePath: forward slashes, no duplicates, no leading
+ * slash, no trailing slash. Several services (memory, RAG, projects) rely on it.
+ */
+export function normalizePath(path: string): string {
+  return path
+    .replace(/\\/g, '/')
+    .replace(/\/+/g, '/')
+    .replace(/^\//, '')
+    .replace(/\/$/, '');
+}
+
 /** Minimal chainable element stub for status-bar / DOM-creating mocks. */
 function makeElStub(): any {
   const el: any = {

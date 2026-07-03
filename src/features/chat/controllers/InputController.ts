@@ -464,10 +464,13 @@ export class InputController {
     }
 
     if (!options?.turnRequestOverride && plugin.settings.memoryEnabled !== false && plugin.app?.vault) {
-      const memoryNotes = await loadMemoryNotes(
-        plugin.app.vault,
-        plugin.settings.memoryFolder ?? '.claudian/memory',
-      );
+      const memoryFolder = plugin.settings.memoryFolder ?? '.claudian/memory';
+      // Use the cached store so the always-on auto-recall doesn't re-scan every
+      // vault markdown file on each turn. Falls back to a direct load if the store
+      // isn't initialized yet (defensive — it is created during plugin onload).
+      const memoryNotes = plugin.cachedMemoryStore
+        ? await plugin.cachedMemoryStore.getNotes(memoryFolder)
+        : await loadMemoryNotes(plugin.app.vault, memoryFolder);
       const memoryCandidates = rankMemoryNotes(displayContent, memoryNotes, {
         limit: plugin.settings.memoryMaxNotes ?? 5,
       });

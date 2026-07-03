@@ -66,13 +66,13 @@ export function parsePermissionMode(mode?: string): AgentPermissionMode | undefi
   return undefined;
 }
 
-const VALID_MODELS = ['sonnet', 'opus', 'haiku', 'inherit'] as const;
+const VALID_MODELS = ['sonnet', 'opus', 'haiku', 'fable', 'inherit'] as const;
 
-export function parseModel(model?: string): 'sonnet' | 'opus' | 'haiku' | 'inherit' {
+export function parseModel(model?: string): 'sonnet' | 'opus' | 'haiku' | 'fable' | 'inherit' {
   if (!model) return 'inherit';
   const normalized = model.toLowerCase().trim();
   if (VALID_MODELS.includes(normalized as typeof VALID_MODELS[number])) {
-    return normalized as 'sonnet' | 'opus' | 'haiku' | 'inherit';
+    return normalized as 'sonnet' | 'opus' | 'haiku' | 'fable' | 'inherit';
   }
   return 'inherit';
 }

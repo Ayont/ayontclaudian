@@ -11,6 +11,11 @@ export const DEFAULT_CLAUDE_MODELS: { value: ClaudeModel; label: string; descrip
   { value: 'sonnet[1m]', label: 'Sonnet 1M', description: 'Balanced performance (1M context window)' },
   { value: 'opus', label: 'Opus', description: 'Most capable' },
   { value: 'opus[1m]', label: 'Opus 1M', description: 'Most capable (1M context window)' },
+  // Fable 5 is Anthropic's Mythos-class flagship (introduced with Claude Code 2.1.170).
+  // It ships with a 1M context window by default, so there is no separate `[1m]` variant —
+  // the CLI strips a `[1m]` suffix automatically (changelog 2.1.173). Placed last (not at
+  // index 0) so it never becomes the accidental default and silently consumes usage credits.
+  { value: 'fable', label: 'Fable', description: 'Mythos-class flagship (1M context by default)' },
 ];
 
 /**
@@ -43,6 +48,8 @@ export const DEFAULT_EFFORT_LEVEL: Record<string, EffortLevel> = {
   'sonnet[1m]': 'high',
   'opus': 'high',
   'opus[1m]': 'high',
+  'fable': 'high',
+  'fable[1m]': 'high',
 };
 
 const ONE_M_SUFFIX = '[1m]';
@@ -56,9 +63,24 @@ function has1MContextSuffix(model: string): boolean {
   return normalizeModelId(model).endsWith(ONE_M_SUFFIX);
 }
 
-function isBuiltInFamilyVariant(model: string, family: 'sonnet' | 'opus'): boolean {
+function isBuiltInFamilyVariant(model: string, family: 'sonnet' | 'opus' | 'fable'): boolean {
   const normalized = normalizeModelId(model);
+  // Fable 5 includes 1M context by default and has no opt-out `[1m]` variant; the CLI
+  // normalizes a stray `fable[1m]` back to `fable`. Accept both for resilience.
+  if (family === 'fable') {
+    return normalized === 'fable' || normalized === 'fable[1m]';
+  }
   return normalized === family || normalized === `${family}${ONE_M_SUFFIX}`;
+}
+
+/**
+ * Whether `model` belongs to the Fable (Mythos-class) family — either the bare
+ * `fable` alias / `fable[1m]`, or a full name like `claude-fable-5`. Fable ships
+ * with a 1M context window by default and is xhigh/ultracode-capable.
+ */
+function isFableFamilyModel(model: string): boolean {
+  const normalized = normalizeModelId(model);
+  return normalized === 'fable' || normalized === 'fable[1m]' || /claude-fable-\d/.test(normalized);
 }
 
 function isValidContextLimit(limit: unknown): limit is number {
@@ -91,12 +113,13 @@ export function isDefaultClaudeModel(model: string): boolean {
 }
 
 /**
- * Whether the model supports the `xhigh` effort level. Opus 4.7+ only — the SDK
- * silently falls back to `high` on other models.
+ * Whether the model supports the `xhigh` effort level. Opus 4.7+ and Fable 5+
+ * (Mythos-class) — the SDK silently falls back to `high` on other models.
  */
 export function supportsXHighEffort(model: string): boolean {
   const normalized = normalizeModelId(model);
   if (isBuiltInFamilyVariant(normalized, 'opus')) return true;
+  if (isFableFamilyModel(normalized)) return true;
   return /claude-opus-(4-[7-9]|[5-9])/.test(normalized);
 }
 
@@ -186,7 +209,14 @@ export function getContextWindowSize(
     return customLimit;
   }
 
+  // Explicit `[1m]` suffix always wins (Sonnet/Opus 1M variants).
   if (has1MContextSuffix(model)) {
+    return CONTEXT_WINDOW_1M;
+  }
+
+  // Fable 5 ships with a 1M context window by default (no opt-out), so the bare
+  // `fable` alias, `fable[1m]`, and full names like `claude-fable-5` resolve to 1M.
+  if (isFableFamilyModel(model)) {
     return CONTEXT_WINDOW_1M;
   }
 

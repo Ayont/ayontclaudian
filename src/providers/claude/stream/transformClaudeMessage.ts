@@ -153,7 +153,7 @@ interface ContextWindowEntry {
 
 interface ClaudeModelSignature {
   normalizedModel: string;
-  family: 'haiku' | 'sonnet' | 'opus';
+  family: 'haiku' | 'sonnet' | 'opus' | 'fable';
   is1M: boolean;
   major?: string;
   minor?: string;
@@ -248,17 +248,23 @@ function parseClaudeModelSignature(model: string): ClaudeModelSignature | null {
   if (normalized === 'opus' || normalized === 'opus[1m]') {
     return { normalizedModel: normalized, family: 'opus', is1M: normalized.endsWith('[1m]') };
   }
+  // Fable 5 includes 1M context by default; the CLI strips a stray `[1m]` suffix.
+  if (normalized === 'fable' || normalized === 'fable[1m]') {
+    return { normalizedModel: 'fable', family: 'fable', is1M: true };
+  }
 
   const versionedMatch = normalized.match(
-    /^claude-(haiku|sonnet|opus)-(\d+)(?:-(\d+))?(?:-(\d{8}))?(?:-v\d+:\d+)?(\[1m\])?$/,
+    /^claude-(haiku|sonnet|opus|fable)-(\d+)(?:-(\d+))?(?:-(\d{8}))?(?:-v\d+:\d+)?(\[1m\])?$/,
   );
   if (versionedMatch) {
     const [, familyMatch, major, minor, date, oneMillionSuffix] = versionedMatch;
     const family = familyMatch as ClaudeModelSignature['family'];
+    // Fable's 1M context is the default (not an opt-in suffix).
+    const is1M = family === 'fable' ? true : oneMillionSuffix === '[1m]';
     return {
       normalizedModel: normalized,
       family,
-      is1M: oneMillionSuffix === '[1m]',
+      is1M,
       major,
       minor,
       date,

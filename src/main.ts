@@ -60,6 +60,7 @@ import { ProjectService } from './core/intelligence/projects/ProjectService';
 import { VaultRAGService } from './core/intelligence/rag/VaultRAGService';
 import { VectorStore } from './core/intelligence/vectorStore/VectorStore';
 import { VisionService } from './core/intelligence/vision/VisionService';
+import { CachedMemoryStore } from './core/memory/CachedMemoryStore';
 import {
   deleteMemory,
   ensureMemoryFolder,
@@ -153,6 +154,12 @@ export default class ClaudianPlugin extends Plugin {
   workflowEngine!: WorkflowEngine;
   projectService!: ProjectService;
   agenticMemoryService!: AgenticMemoryService;
+  /**
+   * Cached wrapper around loadMemoryNotes. The always-on auto-recall runs on
+   * every send; this cache avoids re-scanning all vault markdown files each turn.
+   * Invalidation is event-driven (vault create/modify/delete/rename + memory:updated).
+   */
+  cachedMemoryStore!: CachedMemoryStore;
   vectorStore!: VectorStore;
   embeddingService!: EmbeddingService;
   vaultRAGService!: VaultRAGService;
@@ -668,6 +675,7 @@ export default class ClaudianPlugin extends Plugin {
       this.ragSaveTimer = null;
     }
     if (this.ragDirty) void this.saveRAGIndex();
+    this.cachedMemoryStore?.dispose();
     void this.persistOpenTabStates();
     void this.persistOpenConversations();
   }
@@ -1610,6 +1618,7 @@ export default class ClaudianPlugin extends Plugin {
 
     this.projectService = new ProjectService(this.app.vault);
     this.agenticMemoryService = new AgenticMemoryService(this.app.vault);
+    this.cachedMemoryStore = new CachedMemoryStore(this.app.vault);
     this.multiAgentService = new MultiAgentService();
     this.missionStateStorage = new MissionStateStorage(this.storage.getAdapter());
     this.visionService = new VisionService(this.app.vault);
