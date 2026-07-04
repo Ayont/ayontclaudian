@@ -7,6 +7,7 @@ import {
 } from '../../../core/commands/builtInCommands';
 import { applyGoalPrefix, parseGoalArgs } from '../../../core/conversation/goalPrompt';
 import { providerErrorRecoveryService } from '../../../core/diagnostics/errorRecovery';
+import { perfMark, perfSince } from '../../../core/diagnostics/perfLog';
 import { ensureProviderHealthy } from '../../../core/diagnostics/providerHealthCheck';
 import { buildDiffPreview } from '../../../core/diff/diffPreview';
 import type { VaultRAGService } from '../../../core/intelligence/rag/VaultRAGService';
@@ -468,6 +469,7 @@ export class InputController {
       // Use the cached store so the always-on auto-recall doesn't re-scan every
       // vault markdown file on each turn. Falls back to a direct load if the store
       // isn't initialized yet (defensive — it is created during plugin onload).
+      const recallStart = perfMark();
       const memoryNotes = plugin.cachedMemoryStore
         ? await plugin.cachedMemoryStore.getNotes(memoryFolder)
         : await loadMemoryNotes(plugin.app.vault, memoryFolder);
@@ -478,14 +480,17 @@ export class InputController {
       if (memoryContext) {
         turnRequest.text = `${memoryContext}\n\n${turnRequest.text}`;
       }
+      perfSince(recallStart, `memory recall (${memoryCandidates.length} matched, ${memoryNotes.length} notes)`);
 
       const ragService = this.deps.getVaultRAGService?.();
       if (ragService) {
+        const ragStart = perfMark();
         const ragChunks = await ragService.query(displayContent, { limit: 3 });
         if (ragChunks.length > 0) {
           const ragContext = `<vault_context>\nRelevant vault knowledge:\n\n${ragChunks.map(chunk => `- From [[${chunk.path}]] (score ${(chunk.score * 100).toFixed(0)}%):\n  ${chunk.text.slice(0, 400)}`).join('\n\n')}\n</vault_context>`;
           turnRequest.text = `${ragContext}\n\n${turnRequest.text}`;
         }
+        perfSince(ragStart, `vault RAG (${ragChunks.length} chunks)`);
       }
     }
 

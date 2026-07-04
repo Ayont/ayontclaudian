@@ -4,18 +4,22 @@ import type { ProviderUIOption } from '../../../core/providers/types';
  * Grok (xAI) model catalog.
  *
  * The Grok CLI selects the model with `-m`/`--model` (value is a model id, or a
- * custom id from `~/.grok/config.toml`). The default `grok-build` powers the
- * CLI; reasoning and multi-agent variants are also available. We seed the
- * dropdown with these and merge any extra ids discovered from the user's config
- * via `modelOptions.ts`.
+ * custom id from `~/.grok/config.toml`). `grok models` reports the real default
+ * and available ids; the CLI's current default is `grok-composer-2.5-fast` with
+ * `grok-build` as the build-tier option. We seed the dropdown with these and
+ * merge any extra ids discovered from the user's config via `modelOptions.ts`.
+ *
+ * NOTE: a previous default of `grok-build-0.1` is no longer served by the CLI
+ * (`grok models` does not list it), so sending it could be rejected/misrouted.
+ * The primary model now mirrors the CLI's actual default.
  */
 export type GrokModel = string;
 
-/** Default `-m` value (the model that powers the Grok Build CLI). */
-export const DEFAULT_GROK_PRIMARY_MODEL: GrokModel = 'grok-build-0.1';
+/** Default `-m` value — mirrors `grok models`' reported default. */
+export const DEFAULT_GROK_PRIMARY_MODEL: GrokModel = 'grok-composer-2.5-fast';
 
 /** Display label for the default model. */
-const DEFAULT_GROK_PRIMARY_MODEL_LABEL = 'Grok Build 0.1';
+const DEFAULT_GROK_PRIMARY_MODEL_LABEL = 'Grok Composer 2.5 Fast';
 
 /** Grok context window (256K). */
 export const DEFAULT_GROK_CONTEXT_WINDOW = 256_000;
@@ -39,7 +43,8 @@ function createGrokModelOption(model: GrokModel, label: string, description: str
 
 /** Built-in default model options shown before any user/config additions. */
 export const DEFAULT_GROK_MODELS: ProviderUIOption[] = [
-  createGrokModelOption(DEFAULT_GROK_PRIMARY_MODEL, DEFAULT_GROK_PRIMARY_MODEL_LABEL, 'Standard CLI-Modell'),
+  createGrokModelOption(DEFAULT_GROK_PRIMARY_MODEL, DEFAULT_GROK_PRIMARY_MODEL_LABEL, 'CLI-Standardmodell (Default)'),
+  createGrokModelOption('grok-build', 'Grok Build', 'Build-Tier-Modell'),
   createGrokModelOption('grok-code-fast-1', 'Grok Code Fast', 'Schnelles Coding-Modell'),
 ];
 
