@@ -98,6 +98,16 @@ describe('builtInCommands', () => {
       expect(detectBuiltInCommand('/FORK')).not.toBeNull();
       expect(detectBuiltInCommand('/Fork')).not.toBeNull();
     });
+
+    it('detects /status and /claudian alias', () => {
+      const status = detectBuiltInCommand('/status');
+      expect(status).not.toBeNull();
+      expect(status?.command.action).toBe('status');
+
+      const alias = detectBuiltInCommand('/claudian');
+      expect(alias).not.toBeNull();
+      expect(alias?.command.action).toBe('status');
+    });
   });
 
   describe('getBuiltInCommandsForDropdown', () => {
@@ -153,6 +163,14 @@ describe('builtInCommands', () => {
       expect(forkCmd).toBeDefined();
       expect(forkCmd?.action).toBe('fork');
       expect(forkCmd?.hasArgs).toBeUndefined();
+    });
+
+    it('has status command with claudian alias', () => {
+      const statusCmd = BUILT_IN_COMMANDS.find((c) => c.name === 'status');
+      expect(statusCmd).toBeDefined();
+      expect(statusCmd?.action).toBe('status');
+      expect(statusCmd?.aliases).toContain('claudian');
+      expect(statusCmd?.hasArgs).toBeUndefined();
     });
 
     it('has goal command that accepts args and is universal', () => {
@@ -211,8 +229,8 @@ describe('builtInCommands', () => {
     it('returns only commands supported by codex capabilities', () => {
       const commands = getBuiltInCommandsForDropdown('codex');
       // Universal commands (no required capability) join the supported set.
-      expect(commands.length).toBe(10);
-      expect(commands.map(c => c.name)).toEqual(['clear', 'add-dir', 'resume', 'fork', 'goal', 'workflow', 'team', 'template', 'vault-health', 'artifact']);
+      expect(commands.length).toBe(11);
+      expect(commands.map(c => c.name)).toEqual(['clear', 'add-dir', 'resume', 'fork', 'goal', 'workflow', 'team', 'template', 'vault-health', 'artifact', 'status']);
     });
   });
 

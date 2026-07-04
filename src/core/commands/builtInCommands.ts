@@ -8,7 +8,7 @@
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import type { ProviderCapabilities, ProviderId } from '../providers/types';
 
-export type BuiltInCommandAction = 'clear' | 'add-dir' | 'resume' | 'fork' | 'goal' | 'workflow' | 'team' | 'template' | 'vault-health' | 'artifact';
+export type BuiltInCommandAction = 'clear' | 'add-dir' | 'resume' | 'fork' | 'goal' | 'workflow' | 'team' | 'template' | 'vault-health' | 'artifact' | 'status';
 type BuiltInCommandCapability = 'supportsNativeHistory' | 'supportsFork';
 type BuiltInCommandSupportContext = ProviderId | Pick<ProviderCapabilities, BuiltInCommandCapability>;
 
@@ -102,6 +102,12 @@ export const BUILT_IN_COMMANDS: BuiltInCommand[] = [
     action: 'artifact',
     hasArgs: true,
     argumentHint: '[description of what to build]',
+  },
+  {
+    name: 'status',
+    aliases: ['claudian'],
+    description: 'Show a Claudian status card (provider, model, context, memory, budget)',
+    action: 'status',
   },
 ];
 

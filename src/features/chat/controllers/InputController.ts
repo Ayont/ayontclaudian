@@ -7,7 +7,7 @@ import {
 } from '../../../core/commands/builtInCommands';
 import { applyGoalPrefix, parseGoalArgs } from '../../../core/conversation/goalPrompt';
 import { providerErrorRecoveryService } from '../../../core/diagnostics/errorRecovery';
-import { perfMark, perfSince } from '../../../core/diagnostics/perfLog';
+import { getLastPerf, perfMark, perfSince } from '../../../core/diagnostics/perfLog';
 import { ensureProviderHealthy } from '../../../core/diagnostics/providerHealthCheck';
 import { buildDiffPreview } from '../../../core/diff/diffPreview';
 import type { VaultRAGService } from '../../../core/intelligence/rag/VaultRAGService';
@@ -480,7 +480,7 @@ export class InputController {
       if (memoryContext) {
         turnRequest.text = `${memoryContext}\n\n${turnRequest.text}`;
       }
-      perfSince(recallStart, `memory recall (${memoryCandidates.length} matched, ${memoryNotes.length} notes)`);
+      perfSince(recallStart, 'memory-recall', `${memoryCandidates.length} matched, ${memoryNotes.length} notes`);
 
       const ragService = this.deps.getVaultRAGService?.();
       if (ragService) {
@@ -490,7 +490,7 @@ export class InputController {
           const ragContext = `<vault_context>\nRelevant vault knowledge:\n\n${ragChunks.map(chunk => `- From [[${chunk.path}]] (score ${(chunk.score * 100).toFixed(0)}%):\n  ${chunk.text.slice(0, 400)}`).join('\n\n')}\n</vault_context>`;
           turnRequest.text = `${ragContext}\n\n${turnRequest.text}`;
         }
-        perfSince(ragStart, `vault RAG (${ragChunks.length} chunks)`);
+        perfSince(ragStart, 'vault-rag', `${ragChunks.length} chunks`);
       }
     }
 
@@ -2493,6 +2493,85 @@ export class InputController {
           new Notice(`Artifact creation failed: ${message}`);
           await streamController.appendText(`\n\n**Artifact Error:** ${message}\n`);
         }
+        break;
+      }
+      case 'status': {
+        const { plugin, state, renderer } = this.deps;
+        const version = plugin.manifest?.version ?? 'unknown';
+        const providerId = this.getActiveProviderId();
+        const providerName = ProviderRegistry.getProviderDisplayName(providerId);
+        const model = this.deps.getActiveModel?.() ?? plugin.settings?.model ?? '—';
+        const usage = state.usage ?? null;
+
+        const memoryEnabled = plugin.settings.memoryEnabled !== false;
+        const memoryFolder = plugin.settings.memoryFolder ?? '.claudian/memory';
+        let memoryCount = 0;
+        try {
+          if (plugin.cachedMemoryStore) {
+            memoryCount = (await plugin.cachedMemoryStore.getNotes(memoryFolder)).length;
+          }
+        } catch {
+          // Best-effort count; leave at 0.
+        }
+        const ragService = this.deps.getVaultRAGService?.();
+        const lastRecall = getLastPerf('memory-recall');
+        const lastRag = getLastPerf('vault-rag');
+
+        const budgetEnabled = plugin.settings.tokenBudgetEnabled !== false;
+        let budgetState = '⬛ off';
+        try {
+          if (budgetEnabled && plugin.tokenBudgetTracker) {
+            const check = plugin.tokenBudgetTracker.checkBudget(plugin.settings);
+            budgetState = check?.ok === false
+              ? `✅ on · ⛔ ${check.reason ?? 'budget reached'}`
+              : '✅ on · ok';
+          }
+        } catch {
+          // Leave as "off" fallback.
+        }
+
+        const fmt = (n: number | undefined): string => (typeof n === 'number' ? n.toLocaleString() : '—');
+        const ctxLine = usage
+          ? `${fmt(usage.contextTokens)} / ${fmt(usage.contextWindow)} tokens · **${usage.percentage ?? 0}%**`
+          : '_no usage yet this session_';
+
+        const lines: string[] = [
+          '## 🟢 Claudian Status',
+          '',
+          `| | |`,
+          `|---|---|`,
+          `| **Version** | \`${version}\` |`,
+          `| **Provider** | ${providerName} |`,
+          `| **Model** | \`${model}\` |`,
+          `| **Context** | ${ctxLine} |`,
+          '',
+          '### 🧠 Memory & Context',
+          `- Auto-recall: ${memoryEnabled ? '✅ on' : '⬛ off'} · folder \`${memoryFolder}\` · **${memoryCount} notes**`,
+        ];
+        if (lastRecall) {
+          lines.push(`- Last recall: **${lastRecall.ms.toFixed(1)} ms**${lastRecall.detail ? ` (${lastRecall.detail})` : ''}`);
+        }
+        lines.push(
+          `- Vault RAG: ${ragService ? '✅ on' : '⬛ off'}${lastRag ? ` · last **${lastRag.ms.toFixed(1)} ms**` : ''}`,
+          '',
+          '### 💰 Budget',
+          `- Token budget: ${budgetState}`,
+          '',
+          '<sub>Toggle timing logs in the devtools console: `localStorage.setItem(\'claudian:perf\',\'1\')`</sub>',
+        );
+
+        const content = lines.join('\n');
+        const statusMsg: ChatMessage = {
+          id: this.deps.generateId(),
+          role: 'assistant',
+          content,
+          timestamp: Date.now(),
+          contentBlocks: [{ type: 'text', content }],
+          ...this.buildAgentStamp(),
+        };
+        state.addMessage(statusMsg);
+        renderer.addMessage(statusMsg);
+        state.hasPendingConversationSave = true;
         break;
       }
       default: {
