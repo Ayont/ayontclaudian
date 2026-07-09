@@ -44,6 +44,7 @@ function createMockImageContextManager() {
   return {
     hasImages: jest.fn().mockReturnValue(false),
     getAttachedImages: jest.fn().mockReturnValue([]),
+    getStagedAttachments: jest.fn().mockReturnValue([]),
     clearImages: jest.fn(),
     setImages: jest.fn(),
   };
@@ -1194,6 +1195,57 @@ describe('InputController - Message Queue', () => {
       expect(deps.conversationController.save).toHaveBeenCalledWith(true, undefined);
       expect((deps as any).mockAgentService.query).toHaveBeenCalled();
       expect(deps.state.isStreaming).toBe(false);
+    });
+
+    it('appends staged attachment @paths to the provider text but not the visible message', async () => {
+      deps = createSendableDeps();
+      const imageContextManager = deps.getImageContextManager()!;
+      (imageContextManager as any).getStagedAttachments = jest.fn().mockReturnValue([
+        { name: 'pasted-text-1.txt', relPath: '.claudian/attachments/pasted-text-1.txt' },
+      ]);
+
+      let textReachingProvider: string | undefined;
+      (deps as any).mockAgentService.query = jest.fn().mockImplementation((turn: any) => {
+        textReachingProvider = turn.request.text;
+        return createMockStream([{ type: 'done' }]);
+      });
+
+      inputEl = deps.getInputEl() as ReturnType<typeof createMockInputEl>;
+      inputEl.value = 'Fasse das zusammen';
+      controller = new InputController(deps);
+
+      await controller.sendMessage();
+
+      // The provider receives the invisible @path reference…
+      expect(textReachingProvider).toBe(
+        'Fasse das zusammen\n\n@.claudian/attachments/pasted-text-1.txt',
+      );
+      // …while the chat transcript shows only what the user typed.
+      expect(deps.state.messages[0].displayContent).toBe('Fasse das zusammen');
+      expect(deps.state.messages[0].displayContent).not.toContain('@.claudian');
+    });
+
+    it('allows attachment-only sends and renders a chip label as display content', async () => {
+      deps = createSendableDeps();
+      const imageContextManager = deps.getImageContextManager()!;
+      (imageContextManager as any).getStagedAttachments = jest.fn().mockReturnValue([
+        { name: 'pasted-text-1.txt', relPath: '.claudian/attachments/pasted-text-1.txt' },
+      ]);
+
+      let textReachingProvider: string | undefined;
+      (deps as any).mockAgentService.query = jest.fn().mockImplementation((turn: any) => {
+        textReachingProvider = turn.request.text;
+        return createMockStream([{ type: 'done' }]);
+      });
+
+      inputEl = deps.getInputEl() as ReturnType<typeof createMockInputEl>;
+      inputEl.value = '';
+      controller = new InputController(deps);
+
+      await controller.sendMessage();
+
+      expect(textReachingProvider).toBe('@.claudian/attachments/pasted-text-1.txt');
+      expect(deps.state.messages[0].displayContent).toBe('📎 pasted-text-1.txt');
     });
 
     it('keeps image base64 data alive for the provider after the pre-send save clears stored copies', async () => {

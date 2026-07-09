@@ -582,14 +582,19 @@ describe('ImageContextManager - Private Helpers', () => {
       expect(localManager.hasImages()).toBe(false);
       expect(contextRow.hasClass('has-content')).toBe(false);
 
-      const ok = await localManager['stageAndMentionFile']({ name: 'report.docx', size: 57400 } as File);
+      const ok = await localManager['stageFileAttachment']({ name: 'report.docx', size: 57400 } as File);
 
       expect(ok).toBe(true);
       expect(stageVaultAttachment).toHaveBeenCalledTimes(1);
       // The actual fix: the row reveals even though NO image was attached.
       expect(contextRow.hasClass('has-content')).toBe(true);
       expect(localManager['attachmentPreviewEl'].hasClass('claudian-visible-flex')).toBe(true);
-      expect(localInput.value).toContain('@.claudian/attachments/report-1.docx');
+      // The @path mention must NOT appear in the visible input — it travels
+      // invisibly with the send via getStagedAttachments().
+      expect(localInput.value).not.toContain('@.claudian/attachments/report-1.docx');
+      expect(localManager.getStagedAttachments()).toEqual([
+        { name: 'report.docx', relPath: '.claudian/attachments/report-1.docx' },
+      ]);
       expect(localManager.hasAttachments()).toBe(true);
 
       // Removing the only attachment hides the row again.

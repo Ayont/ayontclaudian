@@ -316,7 +316,12 @@ export class InputController {
     const hasImages = imageOverride !== undefined
       ? imageOverride.length > 0
       : (imageContextManager?.hasImages() ?? false);
-    if (!content && !hasImages) return;
+    // Staged file chips (e.g. large text pastes) carry their @path reference
+    // invisibly — an attachment-only send with an empty textarea is valid.
+    const stagedAttachments = shouldUseInput
+      ? (imageContextManager?.getStagedAttachments() ?? [])
+      : [];
+    if (!content && !hasImages && stagedAttachments.length === 0) return;
 
     // Check for built-in commands first (e.g., /clear, /new, /add-dir)
     const builtInCmd = detectBuiltInCommand(content);
@@ -387,6 +392,7 @@ export class InputController {
       const { displayContent, turnRequest } = this.buildTurnSubmission({
         content,
         images,
+        attachments: stagedAttachments,
         editorContextOverride: editorContext,
         browserContextOverride: browserContext,
         canvasContextOverride: canvasContext,
@@ -446,6 +452,7 @@ export class InputController {
       : this.buildTurnSubmission({
         content,
         images: imagesForMessage,
+        attachments: stagedAttachments,
         editorContextOverride: options?.editorContextOverride,
         browserContextOverride: options?.browserContextOverride,
         canvasContextOverride: options?.canvasContextOverride,
@@ -1082,6 +1089,8 @@ export class InputController {
   private buildTurnSubmission(options: {
     content: string;
     images?: ChatMessage['images'];
+    /** Staged file chips whose `@relPath` refs are appended invisibly. */
+    attachments?: { name: string; relPath: string }[];
     editorContextOverride?: EditorSelectionContext | null;
     browserContextOverride?: BrowserSelectionContext | null;
     canvasContextOverride?: CanvasSelectionContext | null;
@@ -1119,10 +1128,25 @@ export class InputController {
       : options.content;
     const enabledMcpServers = mcpServerSelector?.getEnabledServers();
 
+    // Staged file chips: append their @path references to the provider-bound
+    // text only. `displayContent` stays clean — the user sees their own words,
+    // the agent still receives the vault paths it needs to read the files.
+    const attachments = options.attachments ?? [];
+    const attachmentMentions = attachments.map((att) => `@${att.relPath}`).join('\n');
+    const textWithAttachments = attachmentMentions
+      ? (transformedText ? `${transformedText}\n\n${attachmentMentions}` : attachmentMentions)
+      : transformedText;
+
+    // An attachment-only send would otherwise render an empty user bubble.
+    const displayContent = options.content
+      || (attachments.length > 0
+        ? `📎 ${attachments.map((att) => att.name).join(', ')}`
+        : options.content);
+
     return {
-      displayContent: options.content,
+      displayContent,
       turnRequest: {
-        text: transformedText,
+        text: textWithAttachments,
         images: options.images,
         currentNotePath: shouldSendCurrentNote && currentNotePath ? currentNotePath : undefined,
         editorSelection: editorContext,

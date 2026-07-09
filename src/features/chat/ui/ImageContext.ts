@@ -110,6 +110,16 @@ export class ImageContextManager {
     return Array.from(this.attachedImages.values());
   }
 
+  /**
+   * Staged (non-image) file attachments for the next send. The send pipeline
+   * appends their `@relPath` references invisibly to the provider-bound prompt —
+   * they are deliberately NOT part of the visible input or chat transcript.
+   */
+  getStagedAttachments(): { name: string; relPath: string }[] {
+    return Array.from(this.stagedAttachments.values())
+      .map(({ name, relPath }) => ({ name, relPath }));
+  }
+
   hasImages(): boolean {
     return this.attachedImages.size > 0;
   }
@@ -257,9 +267,10 @@ export class ImageContextManager {
       } else if (isTextLikeFile(file.name, file.type)) {
         await this.insertDroppedTextFile(file);
       } else if (this.callbacks.stageVaultAttachment) {
-        // PDF / doc / binary: stage into the vault and @-mention it so ANY
-        // provider's agent can read it (all run with the vault as workspace).
-        const ok = await this.stageAndMentionFile(file);
+        // PDF / doc / binary: stage into the vault as a chip. The @path
+        // reference is appended invisibly at send time so ANY provider's agent
+        // can read it (all run with the vault as workspace).
+        const ok = await this.stageFileAttachment(file);
         if (!ok) unsupported++;
       } else {
         unsupported++;
@@ -274,11 +285,13 @@ export class ImageContextManager {
   }
 
   /**
-   * Stages a non-image/non-text dropped file into the vault and inserts an
-   * `@path` mention into the input, so every provider can read it. Returns false
-   * when staging is unavailable or fails.
+   * Stages a non-image/non-text file into the vault and tracks it as a chip.
+   * The `@path` reference is NOT inserted into the visible input — the send
+   * pipeline appends it invisibly to the outgoing prompt (see
+   * `getStagedAttachments`), so the chat stays clean while every provider can
+   * still read the file. Returns false when staging is unavailable or fails.
    */
-  private async stageAndMentionFile(file: File): Promise<boolean> {
+  private async stageFileAttachment(file: File): Promise<boolean> {
     if (!this.callbacks.stageVaultAttachment) return false;
 
     // Show an immediate "uploading" chip so the staging is visible. The
@@ -306,10 +319,9 @@ export class ImageContextManager {
       return false;
     }
 
-    // Track the staged attachment as a removable preview chip and inject the
-    // @path mention so any provider's agent can actually read the file.
+    // Track the staged attachment as a removable preview chip. The @path
+    // reference travels invisibly with the next send — no textarea noise.
     this.stagedAttachments.set(pendingId, { id: pendingId, name: file.name, relPath, size: file.size });
-    this.insertIntoInput(`\n\n@${relPath}\n`);
     this.updateAttachmentPreview();
     this.callbacks.onImagesChanged();
     new Notice(`„${file.name}" angehängt.`);
@@ -397,7 +409,7 @@ export class ImageContextManager {
     const file = new File([content], `pasted-text-${timestamp}.txt`, {
       type: 'text/plain',
     });
-    await this.stageAndMentionFile(file);
+    await this.stageFileAttachment(file);
   }
 
   private isImageFile(file: File): boolean {
