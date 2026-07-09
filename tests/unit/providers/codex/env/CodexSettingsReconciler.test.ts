@@ -81,7 +81,7 @@ describe('codexSettingsReconciler', () => {
     const result = codexSettingsReconciler.reconcileModelWithEnvironment(settings, []);
 
     expect(result.changed).toBe(true);
-    expect(settings.model).toBe('gpt-5.4-mini');
+    expect(settings.model).toBe(DEFAULT_CODEX_PRIMARY_MODEL);
     expect((settings.providerConfigs as any).codex.environmentHash).toBe(
       'OPENAI_BASE_URL=https://api.example.com/v1',
     );

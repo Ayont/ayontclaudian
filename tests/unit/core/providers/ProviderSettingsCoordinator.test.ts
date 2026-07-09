@@ -345,7 +345,7 @@ describe('ProviderSettingsCoordinator', () => {
 
       ProviderSettingsCoordinator.projectProviderState(settings, 'codex');
 
-      expect(settings.model).toBe('gpt-5.4-mini');
+      expect(settings.model).toBe('gpt-5.6-sol');
       expect(settings.effortLevel).toBe('medium');
       expect(settings.serviceTier).toBe('default');
     });

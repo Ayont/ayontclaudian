@@ -9,18 +9,25 @@ import { OPENAI_PROVIDER_ICON } from '../../../shared/icons';
 import { getCodexModelOptions } from '../modelOptions';
 import { applyCodexModelDefaults } from '../settings';
 import {
+  DEFAULT_CODEX_CONTEXT_WINDOW,
   DEFAULT_CODEX_MODEL_SET,
   DEFAULT_CODEX_PRIMARY_MODEL,
   FAST_TIER_CODEX_DESCRIPTION,
-  FAST_TIER_CODEX_MODEL,
+  getCodexModelContextWindow,
+  supportsCodexFastTier,
+  supportsCodexMaxEffort,
+  supportsCodexUltraEffort,
 } from '../types/models';
 
-const EFFORT_LEVELS: ProviderReasoningOption[] = [
+const BASE_EFFORT_LEVELS: ProviderReasoningOption[] = [
   { value: 'low', label: 'Low' },
   { value: 'medium', label: 'Medium' },
   { value: 'high', label: 'High' },
   { value: 'xhigh', label: 'XHigh' },
 ];
+
+const MAX_EFFORT_LEVEL: ProviderReasoningOption = { value: 'max', label: 'Max' };
+const ULTRA_EFFORT_LEVEL: ProviderReasoningOption = { value: 'ultra', label: 'Ultra' };
 
 const CODEX_PERMISSION_MODE_TOGGLE: ProviderPermissionModeToggleConfig = {
   inactiveValue: 'normal',
@@ -38,8 +45,6 @@ const CODEX_SERVICE_TIER_TOGGLE: ProviderServiceTierToggleConfig = {
   activeLabel: 'Fast',
   description: FAST_TIER_CODEX_DESCRIPTION,
 };
-
-const DEFAULT_CONTEXT_WINDOW = 200_000;
 
 function looksLikeCodexModel(model: string): boolean {
   return /^gpt-/i.test(model) || /^o\d/i.test(model);
@@ -62,16 +67,23 @@ export const codexChatUIConfig: ProviderChatUIConfig = {
     return true;
   },
 
-  getReasoningOptions(_model: string, _settings: Record<string, unknown>): ProviderReasoningOption[] {
-    return [...EFFORT_LEVELS];
+  getReasoningOptions(model: string, _settings: Record<string, unknown>): ProviderReasoningOption[] {
+    const options = [...BASE_EFFORT_LEVELS];
+    if (supportsCodexMaxEffort(model)) {
+      options.push(MAX_EFFORT_LEVEL);
+    }
+    if (supportsCodexUltraEffort(model)) {
+      options.push(ULTRA_EFFORT_LEVEL);
+    }
+    return options;
   },
 
   getDefaultReasoningValue(_model: string, _settings: Record<string, unknown>): string {
     return 'medium';
   },
 
-  getContextWindowSize(): number {
-    return DEFAULT_CONTEXT_WINDOW;
+  getContextWindowSize(model: string): number {
+    return model ? getCodexModelContextWindow(model) : DEFAULT_CODEX_CONTEXT_WINDOW;
   },
 
   isDefaultModel(model: string): boolean {
@@ -107,7 +119,9 @@ export const codexChatUIConfig: ProviderChatUIConfig = {
   },
 
   getServiceTierToggle(settings): ProviderServiceTierToggleConfig | null {
-    return settings.model === FAST_TIER_CODEX_MODEL ? CODEX_SERVICE_TIER_TOGGLE : null;
+    return supportsCodexFastTier(typeof settings.model === 'string' ? settings.model : undefined)
+      ? CODEX_SERVICE_TIER_TOGGLE
+      : null;
   },
 
   getProviderIcon() {

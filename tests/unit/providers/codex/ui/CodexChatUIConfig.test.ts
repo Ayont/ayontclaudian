@@ -1,13 +1,26 @@
-import { CODEX_SPARK_MODEL, DEFAULT_CODEX_PRIMARY_MODEL } from '@/providers/codex/types/models';
+import {
+  CODEX_GPT_55_MODEL,
+  CODEX_GPT_56_LUNA_MODEL,
+  CODEX_GPT_56_SOL_MODEL,
+  CODEX_GPT_56_TERRA_MODEL,
+  CODEX_SPARK_MODEL,
+  DEFAULT_CODEX_MINI_MODEL,
+  DEFAULT_CODEX_PRIMARY_MODEL,
+} from '@/providers/codex/types/models';
 import { codexChatUIConfig } from '@/providers/codex/ui/CodexChatUIConfig';
 
 describe('CodexChatUIConfig', () => {
   describe('getModelOptions', () => {
     it('should return default models when no env vars', () => {
       const options = codexChatUIConfig.getModelOptions({});
-      expect(options).toHaveLength(2);
-      expect(options.map(o => o.value)).toContain(DEFAULT_CODEX_PRIMARY_MODEL);
-      expect(options.map(o => o.value)).toContain('gpt-5.4-mini');
+      expect(options).toHaveLength(5);
+      expect(options.map(o => o.value)).toEqual([
+        DEFAULT_CODEX_PRIMARY_MODEL,
+        CODEX_GPT_56_TERRA_MODEL,
+        CODEX_GPT_56_LUNA_MODEL,
+        CODEX_GPT_55_MODEL,
+        DEFAULT_CODEX_MINI_MODEL,
+      ]);
     });
 
     it('appends settings-defined custom models after the built-in options', () => {
@@ -21,14 +34,29 @@ describe('CodexChatUIConfig', () => {
 
       expect(options).toEqual([
         {
-          value: 'gpt-5.4-mini',
-          label: 'GPT-5.4 Mini',
-          description: 'Fast',
+          value: CODEX_GPT_56_SOL_MODEL,
+          label: 'GPT-5.6 Sol',
+          description: 'Flagship GPT-5.6 model for complex coding',
         },
         {
-          value: DEFAULT_CODEX_PRIMARY_MODEL,
+          value: CODEX_GPT_56_TERRA_MODEL,
+          label: 'GPT-5.6 Terra',
+          description: 'Balanced GPT-5.6 model for everyday work',
+        },
+        {
+          value: CODEX_GPT_56_LUNA_MODEL,
+          label: 'GPT-5.6 Luna',
+          description: 'Fast and cost-efficient GPT-5.6 model',
+        },
+        {
+          value: CODEX_GPT_55_MODEL,
           label: 'GPT-5.5',
-          description: 'Latest',
+          description: 'Previous frontier model',
+        },
+        {
+          value: DEFAULT_CODEX_MINI_MODEL,
+          label: 'GPT-5.4 Mini',
+          description: 'Fast legacy mini model',
         },
         {
           value: 'gpt-5.6-preview',
@@ -49,7 +77,7 @@ describe('CodexChatUIConfig', () => {
       });
       expect(options[0].value).toBe('my-custom-model');
       expect(options[0].description).toBe('Custom (env)');
-      expect(options.length).toBe(3);
+      expect(options.length).toBe(6);
     });
 
     it('deduplicates env and settings-defined custom models', () => {
@@ -64,8 +92,11 @@ describe('CodexChatUIConfig', () => {
 
       expect(options.map(option => option.value)).toEqual([
         'my-custom-model',
-        'gpt-5.4-mini',
         DEFAULT_CODEX_PRIMARY_MODEL,
+        CODEX_GPT_56_TERRA_MODEL,
+        CODEX_GPT_56_LUNA_MODEL,
+        CODEX_GPT_55_MODEL,
+        DEFAULT_CODEX_MINI_MODEL,
         'second-custom-model',
       ]);
     });
@@ -74,7 +105,7 @@ describe('CodexChatUIConfig', () => {
       const options = codexChatUIConfig.getModelOptions({
         environmentVariables: `OPENAI_MODEL=${DEFAULT_CODEX_PRIMARY_MODEL}`,
       });
-      expect(options.length).toBe(2);
+      expect(options.length).toBe(5);
     });
   });
 
@@ -86,9 +117,18 @@ describe('CodexChatUIConfig', () => {
   });
 
   describe('getReasoningOptions', () => {
-    it('should return effort levels', () => {
+    it('adds max and ultra effort levels for GPT-5.6 Sol/Terra', () => {
       const options = codexChatUIConfig.getReasoningOptions(DEFAULT_CODEX_PRIMARY_MODEL, {});
-      expect(options).toHaveLength(4);
+      expect(options.map(o => o.value)).toEqual(['low', 'medium', 'high', 'xhigh', 'max', 'ultra']);
+    });
+
+    it('adds max but not ultra for GPT-5.6 Luna', () => {
+      const options = codexChatUIConfig.getReasoningOptions(CODEX_GPT_56_LUNA_MODEL, {});
+      expect(options.map(o => o.value)).toEqual(['low', 'medium', 'high', 'xhigh', 'max']);
+    });
+
+    it('keeps legacy effort levels for pre-GPT-5.6 models', () => {
+      const options = codexChatUIConfig.getReasoningOptions(CODEX_GPT_55_MODEL, {});
       expect(options.map(o => o.value)).toEqual(['low', 'medium', 'high', 'xhigh']);
     });
   });
@@ -100,8 +140,14 @@ describe('CodexChatUIConfig', () => {
   });
 
   describe('getContextWindowSize', () => {
-    it('should return 200000 for all models', () => {
-      expect(codexChatUIConfig.getContextWindowSize(DEFAULT_CODEX_PRIMARY_MODEL)).toBe(200_000);
+    it('should return 1.05M for GPT-5.6 models', () => {
+      expect(codexChatUIConfig.getContextWindowSize(DEFAULT_CODEX_PRIMARY_MODEL)).toBe(1_050_000);
+      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_56_TERRA_MODEL)).toBe(1_050_000);
+      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_56_LUNA_MODEL)).toBe(1_050_000);
+    });
+
+    it('should return 200000 for legacy models', () => {
+      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_55_MODEL)).toBe(200_000);
     });
   });
 
@@ -150,7 +196,7 @@ describe('CodexChatUIConfig', () => {
   describe('isDefaultModel', () => {
     it('should return true for built-in models', () => {
       expect(codexChatUIConfig.isDefaultModel(DEFAULT_CODEX_PRIMARY_MODEL)).toBe(true);
-      expect(codexChatUIConfig.isDefaultModel('gpt-5.4-mini')).toBe(true);
+      expect(codexChatUIConfig.isDefaultModel(DEFAULT_CODEX_MINI_MODEL)).toBe(true);
     });
 
     it('should return false for custom models', () => {
