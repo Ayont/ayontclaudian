@@ -816,11 +816,16 @@ export class MessageRenderer {
   renderMessageImages(containerEl: HTMLElement, images: ImageAttachment[]): void {
     const imagesEl = containerEl.createDiv({ cls: 'claudian-message-images' });
 
-    for (const image of images) {
+    images.forEach((image, index) => {
       const imageWrapper = imagesEl.createDiv({ cls: 'claudian-message-image' });
+      imageWrapper.setAttribute('role', 'button');
+      imageWrapper.setAttribute('tabindex', '0');
+      imageWrapper.setAttribute('aria-label', `${image.name} in Großansicht öffnen`);
       const imgEl = imageWrapper.createEl('img', {
         attr: {
           alt: image.name,
+          loading: 'lazy',
+          decoding: 'async',
         },
       });
 
@@ -828,24 +833,38 @@ export class MessageRenderer {
 
       // Click to view full size
       imgEl.addEventListener('click', () => {
-        void this.showFullImage(image);
+        if (images.length > 1) {
+          this.showFullImage(image, images, index);
+        } else {
+          this.showFullImage(image);
+        }
       });
-    }
+      imageWrapper.addEventListener('keydown', (event: KeyboardEvent) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          if (images.length > 1) {
+            this.showFullImage(image, images, index);
+          } else {
+            this.showFullImage(image);
+          }
+        }
+      });
+    });
   }
 
   /**
    * Shows full-size image in modal overlay.
    */
-  showFullImage(image: ImageAttachment): void {
-    const dataUri = `data:${image.mediaType};base64,${image.data}`;
-
+  showFullImage(
+    image: ImageAttachment,
+    gallery: ImageAttachment[] = [image],
+    initialIndex = 0,
+  ): void {
     const ownerDocument = this.messagesEl.ownerDocument ?? window.document;
     const overlay = ownerDocument.body.createDiv({ cls: 'claudian-image-modal-overlay' });
     const modal = overlay.createDiv({ cls: 'claudian-image-modal' });
-
-    modal.createEl('img', {
+    const imageEl = modal.createEl('img', {
       attr: {
-        src: dataUri,
         alt: image.name,
       },
     });
@@ -853,9 +872,44 @@ export class MessageRenderer {
     const closeBtn = modal.createDiv({ cls: 'claudian-image-modal-close' });
     closeBtn.setText('\u00D7');
 
+    const caption = modal.createDiv({ cls: 'claudian-image-modal-caption' });
+    let activeIndex = Math.max(0, Math.min(initialIndex, gallery.length - 1));
+    const showAt = (index: number) => {
+      activeIndex = (index + gallery.length) % gallery.length;
+      const activeImage = gallery[activeIndex];
+      imageEl.setAttribute('src', `data:${activeImage.mediaType};base64,${activeImage.data}`);
+      imageEl.setAttribute('alt', activeImage.name);
+      caption.setText(gallery.length > 1
+        ? `${activeImage.name} · ${activeIndex + 1} von ${gallery.length}`
+        : activeImage.name);
+    };
+    showAt(activeIndex);
+
+    if (gallery.length > 1) {
+      const previous = modal.createDiv({ cls: 'claudian-image-modal-nav claudian-image-modal-nav--previous' });
+      previous.setText('‹');
+      previous.setAttribute('aria-label', 'Vorheriges Bild');
+      previous.addEventListener('click', (event) => {
+        event.stopPropagation();
+        showAt(activeIndex - 1);
+      });
+
+      const next = modal.createDiv({ cls: 'claudian-image-modal-nav claudian-image-modal-nav--next' });
+      next.setText('›');
+      next.setAttribute('aria-label', 'Nächstes Bild');
+      next.addEventListener('click', (event) => {
+        event.stopPropagation();
+        showAt(activeIndex + 1);
+      });
+    }
+
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         close();
+      } else if (gallery.length > 1 && e.key === 'ArrowLeft') {
+        showAt(activeIndex - 1);
+      } else if (gallery.length > 1 && e.key === 'ArrowRight') {
+        showAt(activeIndex + 1);
       }
     };
 

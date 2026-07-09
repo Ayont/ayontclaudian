@@ -20,6 +20,8 @@ interface StagedAttachment {
 }
 
 const MAX_IMAGE_SIZE = 25 * 1024 * 1024;
+/** Paste text above this size as a vault-backed .txt attachment, not a huge prompt. */
+export const LARGE_PASTED_TEXT_THRESHOLD = 24 * 1024;
 
 const IMAGE_EXTENSIONS: Record<string, ImageMediaType> = {
   '.jpg': 'image/jpeg',
@@ -95,7 +97,6 @@ export class ImageContextManager {
 
     this.setupDragAndDrop();
     this.setupPasteHandler();
-    void this.restoreFromStaging();
   }
 
   setEnabled(enabled: boolean): void {
@@ -129,34 +130,10 @@ export class ImageContextManager {
   }
 
   /**
-   * Restores staged draft images for the CURRENT conversation only. Scoped by
-   * conversation id so a restart never dumps every past chat's images at once.
-   */
-  private async restoreFromStaging(): Promise<void> {
-    if (!this.stagingService) return;
-    try {
-      const conversationId = this.callbacks.getConversationId?.() ?? null;
-      const entries = await this.stagingService.listImagesForConversation(conversationId);
-      for (const entry of entries) {
-        const loaded = await this.stagingService.loadImage(entry.id);
-        if (loaded) {
-          this.attachedImages.set(loaded.id, loaded);
-        }
-      }
-      if (this.attachedImages.size > 0) {
-        this.updateImagePreview();
-        this.callbacks.onImagesChanged();
-      }
-    } catch {
-      // Best-effort restore.
-    }
-  }
-
-  /**
-   * Switches the input's attachments to a (possibly different) conversation:
-   * drops the in-memory images of the previous conversation (their data is
-   * already persisted in staging) and restores the target conversation's
-   * staged draft images. Call this after the active conversation id changes.
+   * Clears compose attachments when switching conversations. Deliberately does
+   * not restore prior draft images: reopening Obsidian must never re-paste old
+   * images into the input. Sent images remain available in the chat history via
+   * the durable image archive.
    */
   async reloadForConversation(): Promise<void> {
     this.attachedImages.clear();
@@ -165,8 +142,7 @@ export class ImageContextManager {
     this.pendingUploads.clear();
     this.updateImagePreview();
     this.updateAttachmentPreview();
-    await this.restoreFromStaging();
-    // Always notify so context-row visibility reflects the (possibly empty) set.
+    // Always notify so context-row visibility reflects the empty compose state.
     this.callbacks.onImagesChanged();
   }
 
@@ -394,8 +370,34 @@ export class ImageContextManager {
           return;
         }
       }
+
+      // Keep normal pastes fast and editable. For large clipboard text, mirror
+      // Claude Desktop's attachment behavior: write a .txt file to the vault,
+      // show a chip, and mention its path rather than flooding the textarea and
+      // the provider context with tens of thousands of characters.
+      const clipboard = e.clipboardData;
+      const pastedText = typeof clipboard?.getData === 'function'
+        ? clipboard.getData('text/plain')
+        : '';
+      if (pastedText && new Blob([pastedText]).size > LARGE_PASTED_TEXT_THRESHOLD) {
+        e.preventDefault();
+        await this.attachLargePastedText(pastedText);
+      }
       })();
     });
+  }
+
+  private async attachLargePastedText(content: string): Promise<void> {
+    if (!this.callbacks.stageVaultAttachment) {
+      new Notice('Großer Text kann in dieser Ansicht nicht als Datei angehängt werden.');
+      return;
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const file = new File([content], `pasted-text-${timestamp}.txt`, {
+      type: 'text/plain',
+    });
+    await this.stageAndMentionFile(file);
   }
 
   private isImageFile(file: File): boolean {

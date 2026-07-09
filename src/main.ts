@@ -93,6 +93,7 @@ import {
 import { MetadataStore } from './core/storage/metadata/MetadataStore';
 import { formatRunTimelineMarkdown, getLastRunTimeline } from './core/timeline/runTimeline';
 import type {
+  ChatMessage,
   ClaudianSettings,
   Conversation,
   ConversationMeta,
@@ -175,7 +176,7 @@ export default class ClaudianPlugin extends Plugin {
     await this.loadSettings();
     await this.initializeClaudianOSServices();
 
-    // Initialize image staging service and clean up old entries (7-day TTL).
+    // Initialize image staging service and clean up stale compose drafts.
     this.imageStagingService = new ImageStagingService(this.app.vault);
     void this.imageStagingService.cleanup(7).catch(() => {
       // Best-effort cleanup on startup.
@@ -1980,9 +1981,48 @@ export default class ClaudianPlugin extends Plugin {
   }
 
   private async loadSdkMessagesForConversation(conversation: Conversation): Promise<void> {
+    // Session metadata keeps image ids but intentionally omits base64. Preserve
+    // it before provider hydration so images can be restored from the local
+    // archive for CLIs whose transcript format drops binary attachments.
+    const cachedMessages = conversation.messages;
     await ProviderRegistry
       .getConversationHistoryService(conversation.providerId)
       .hydrateConversationHistory(conversation, getVaultPath(this.app));
+    await this.restoreConversationImageData(conversation, cachedMessages);
+  }
+
+  /** Restores archived user images after native conversation hydration. */
+  private async restoreConversationImageData(
+    conversation: Conversation,
+    cachedMessages: ChatMessage[],
+  ): Promise<void> {
+    const cachedUserMessages = cachedMessages.filter(
+      (message) => message.role === 'user' && (message.images?.length ?? 0) > 0,
+    );
+    if (cachedUserMessages.length === 0) return;
+
+    const hydratedUserMessages = conversation.messages.filter(
+      (message) => message.role === 'user',
+    );
+
+    for (const cachedMessage of cachedUserMessages) {
+      const cachedIndex = cachedMessages
+        .filter((message) => message.role === 'user')
+        .indexOf(cachedMessage);
+      const targetMessage = hydratedUserMessages[cachedIndex] ?? cachedMessage;
+
+      // Claude's own transcript includes image bytes. Prefer those rather than
+      // duplicating the image from the local archive.
+      if (targetMessage.images?.some((image) => image.data)) continue;
+
+      const restored = await Promise.all(
+        (cachedMessage.images ?? []).map((image) => this.imageStagingService.loadImage(image.id)),
+      );
+      const images = restored.filter((image): image is ImageAttachment => image !== null);
+      if (images.length > 0) {
+        targetMessage.images = images;
+      }
+    }
   }
 
   async createConversation(options?: {
@@ -2076,7 +2116,9 @@ export default class ClaudianPlugin extends Plugin {
       this.storage.sessions.toSessionMetadata(conversation)
     );
 
-    // Clear image data from memory after save (data is persisted by SDK).
+    // Clear image data from memory after save. The durable image archive keeps
+    // historic thumbnails available even for providers whose SDK transcript
+    // does not retain base64 image content.
     // Skip for pending forks: their deep-cloned images aren't in SDK storage yet.
     if (!ProviderRegistry.getConversationHistoryService(conversation.providerId).isPendingForkConversation(conversation)) {
       for (const msg of conversation.messages) {

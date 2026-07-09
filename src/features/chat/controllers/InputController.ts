@@ -528,6 +528,20 @@ export class InputController {
     // placeholder assistant turn) so the chat survives plugin reloads, crashes,
     // or mid-stream closures for every model and provider.
     await this.deps.conversationController.save();
+
+    // Promote the pre-send image staging files to durable conversation media.
+    // Provider-native transcripts do not all preserve raw image bytes, so this
+    // archive is what lets historical image thumbnails survive a restart.
+    if (imagesForMessage?.length && state.currentConversationId) {
+      const imageArchive = plugin.imageStagingService;
+      await imageArchive?.archiveMessageImages(
+        imagesForMessage.map((image) => image.id),
+        state.currentConversationId,
+        userMsg.id,
+      ).catch(() => {
+        // The current turn can still continue when archival is unavailable.
+      });
+    }
     // Clone the image attachments bound to `pendingProviderUserMessages`. The
     // save() above clears `img.data = ''` on every stored message's images to
     // free memory, and `imagesForMessage` shares those exact object references.

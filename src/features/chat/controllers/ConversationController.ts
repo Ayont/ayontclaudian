@@ -222,7 +222,7 @@ export class ConversationController {
       this.deps.setWelcomeEl(welcomeEl);
       this.updateWelcomeVisibility();
 
-      // Restore the "new chat" (null-scoped) draft images, if any survived a restart.
+      // Clear any compose-only images; restart must not re-paste old images.
       void this.deps.getImageContextManager()?.reloadForConversation();
 
       this.callbacks.onConversationLoaded?.();
@@ -501,8 +501,8 @@ export class ConversationController {
     );
     this.deps.setWelcomeEl(welcomeEl);
 
-    // Restore only THIS conversation's staged draft images (scoped) so switching
-    // or restarting never dumps every past chat's attachments into the input.
+    // Clear compose-only images when changing chats. Sent images render from the
+    // message archive instead of being reinserted into the input.
     void this.deps.getImageContextManager()?.reloadForConversation();
   }
 

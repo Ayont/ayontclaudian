@@ -21,6 +21,12 @@ export interface StagedImageEntry {
    * they never reappear as a global dump across all chats.
    */
   conversationId?: string | null;
+  /**
+   * Set once the image has been sent as part of a user message. Sent images are
+   * part of the chat record, not a disposable compose draft, and are retained
+   * so their thumbnails still work after a restart.
+   */
+  messageId?: string;
 }
 
 interface StagingManifest {
@@ -37,7 +43,10 @@ const DEFAULT_MAX_AGE_DAYS = 7;
  * survive Obsidian restarts. Images are stored as binary files under
  * `.claudian/staging/images/` with a JSON manifest tracking metadata.
  *
- * Old entries (older than `DEFAULT_MAX_AGE_DAYS`) are cleaned up on startup.
+ * Compose drafts are cleaned up after `DEFAULT_MAX_AGE_DAYS`. Images that were
+ * sent in a conversation are retained as a lightweight local chat-media archive
+ * and used to restore history thumbnails for providers whose native transcript
+ * does not keep the raw image bytes.
  */
 export class ImageStagingService {
   constructor(private readonly vault: Vault) {}
@@ -212,8 +221,40 @@ export class ImageStagingService {
   }
 
   /**
-   * Removes entries older than `maxAgeDays` (default 7) and entries whose
-   * backing file no longer exists. Called on plugin startup.
+   * Promotes already-staged compose images to durable chat media. The image
+   * binary is written at paste/drop time, so this only updates manifest data.
+   */
+  async archiveMessageImages(
+    ids: string[],
+    conversationId: string,
+    messageId: string,
+  ): Promise<void> {
+    if (ids.length === 0) return;
+    return this.enqueue(async () => {
+      const manifest = await this.readManifest();
+      const idSet = new Set(ids);
+      let changed = false;
+
+      for (const entry of manifest.images) {
+        if (!idSet.has(entry.id)) continue;
+        if (entry.conversationId !== conversationId || entry.messageId !== messageId) {
+          entry.conversationId = conversationId;
+          entry.messageId = messageId;
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        await this.writeManifest(manifest);
+      }
+    });
+  }
+
+  /**
+   * Removes stale compose drafts (default 7 days) and entries whose backing
+   * file no longer exists. Conversation-scoped entries from earlier versions
+   * are also retained: they may be sent images written before `messageId` was
+   * introduced, and retaining them avoids breaking existing chat history.
    */
   async cleanup(maxAgeDays = DEFAULT_MAX_AGE_DAYS): Promise<number> {
     return this.enqueue(async () => {
@@ -230,7 +271,9 @@ export class ImageStagingService {
         // conversationId field — purge them so they never reappear as a global
         // dump of every past chat's images on startup.
         const isLegacyUnscoped = !('conversationId' in entry);
-        if (!exists || entry.createdAt < cutoff || isLegacyUnscoped) {
+        const isDurableConversationImage = typeof entry.conversationId === 'string';
+        const isExpiredDraft = !isDurableConversationImage && entry.createdAt < cutoff;
+        if (!exists || isExpiredDraft || isLegacyUnscoped) {
           try {
             if (exists) {
               await this.vault.adapter.remove(filePath);

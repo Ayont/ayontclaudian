@@ -2,7 +2,10 @@ import { createMockEl } from '@test/helpers/mockElement';
 import { Notice } from 'obsidian';
 
 import type { ImageAttachment } from '@/core/types';
-import { ImageContextManager } from '@/features/chat/ui/ImageContext';
+import {
+  ImageContextManager,
+  LARGE_PASTED_TEXT_THRESHOLD,
+} from '@/features/chat/ui/ImageContext';
 
 jest.mock('obsidian', () => ({
   Notice: jest.fn(),
@@ -662,6 +665,25 @@ describe('ImageContextManager - Private Helpers', () => {
       expect(pasteEvent.preventDefault).not.toHaveBeenCalled();
       expect(addImageSpy).not.toHaveBeenCalled();
       addImageSpy.mockRestore();
+    });
+
+    it('turns large pasted text into a vault-backed txt attachment', async () => {
+      const attachSpy = jest.spyOn(manager as any, 'attachLargePastedText').mockResolvedValue(undefined);
+      const pasteEvent = {
+        type: 'paste',
+        preventDefault: jest.fn(),
+        clipboardData: {
+          items: { length: 1, 0: { type: 'text/plain', getAsFile: () => null } },
+          getData: jest.fn(() => 'x'.repeat(LARGE_PASTED_TEXT_THRESHOLD + 1)),
+        },
+      };
+
+      manager['inputEl'].dispatchEvent(pasteEvent);
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(pasteEvent.preventDefault).toHaveBeenCalled();
+      expect(attachSpy).toHaveBeenCalledWith('x'.repeat(LARGE_PASTED_TEXT_THRESHOLD + 1));
+      attachSpy.mockRestore();
     });
 
     it('paste handler should handle null clipboardData', async () => {

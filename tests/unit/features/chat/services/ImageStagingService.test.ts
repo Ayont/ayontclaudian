@@ -178,6 +178,31 @@ describe('ImageStagingService', () => {
     expect((await service.listImagesForConversation('conv-new')).map((i) => i.id)).toEqual(['img-draft']);
   });
 
+  it('retains sent conversation images beyond the draft cleanup window', async () => {
+    await service.saveImage(
+      {
+        id: 'img-history',
+        name: 'history.png',
+        mediaType: 'image/png' as const,
+        data: Buffer.from('history').toString('base64'),
+        size: 10,
+        source: 'paste' as const,
+      },
+      'conv-history',
+    );
+    await service.archiveMessageImages(['img-history'], 'conv-history', 'msg-history');
+
+    const manifestPath = '.claudian/staging/images/manifest.json';
+    const raw = await vault.adapter.read(manifestPath);
+    const manifest = JSON.parse(raw);
+    manifest.images[0].createdAt = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    await vault.adapter.write(manifestPath, JSON.stringify(manifest, null, 2));
+
+    expect(await service.cleanup(7)).toBe(0);
+    expect(await service.loadImage('img-history')).not.toBeNull();
+    expect((await service.listImages())[0].messageId).toBe('msg-history');
+  });
+
   it('purges legacy unscoped entries on cleanup so they never dump globally', async () => {
     // Simulate a pre-scoping manifest: an entry with NO conversationId field.
     const manifestPath = '.claudian/staging/images/manifest.json';
