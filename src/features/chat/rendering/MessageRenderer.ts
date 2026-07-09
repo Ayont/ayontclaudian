@@ -874,14 +874,32 @@ export class MessageRenderer {
 
     const caption = modal.createDiv({ cls: 'claudian-image-modal-caption' });
     let activeIndex = Math.max(0, Math.min(initialIndex, gallery.length - 1));
+    let showRequestToken = 0;
     const showAt = (index: number) => {
       activeIndex = (index + gallery.length) % gallery.length;
+      const requestToken = ++showRequestToken;
       const activeImage = gallery[activeIndex];
-      imageEl.setAttribute('src', `data:${activeImage.mediaType};base64,${activeImage.data}`);
       imageEl.setAttribute('alt', activeImage.name);
       caption.setText(gallery.length > 1
         ? `${activeImage.name} · ${activeIndex + 1} von ${gallery.length}`
         : activeImage.name);
+      // `image.data` may have been cleared by save() to free memory. Resolve
+      // the bytes (from the durable archive if needed) before setting src so
+      // the modal never renders a `data:...;base64,` URI with empty data.
+      modal.classList.add('is-loading');
+      void this.resolveImageData(activeImage).then((resolved) => {
+        // Stale request (user already navigated on) or modal already closed.
+        if (requestToken !== showRequestToken || overlay.isConnected === false) return;
+        modal.classList.remove('is-loading');
+        if (resolved) {
+          modal.classList.remove('has-error');
+          imageEl.setAttribute('src', `data:${resolved.mediaType};base64,${resolved.data}`);
+        } else {
+          modal.classList.add('has-error');
+          imageEl.removeAttribute('src');
+          caption.setText(`${activeImage.name} — Bild nicht mehr verfügbar`);
+        }
+      });
     };
     showAt(activeIndex);
 
@@ -926,11 +944,37 @@ export class MessageRenderer {
   }
 
   /**
-   * Sets image src from attachment data.
+   * Sets image src from attachment data, restoring cleared bytes on demand.
    */
-  setImageSrc(imgEl: HTMLImageElement, image: ImageAttachment): void {
-    const dataUri = `data:${image.mediaType};base64,${image.data}`;
-    imgEl.setAttribute('src', dataUri);
+  async setImageSrc(imgEl: HTMLImageElement, image: ImageAttachment): Promise<void> {
+    const resolved = await this.resolveImageData(image);
+    if (resolved) {
+      imgEl.setAttribute('src', `data:${resolved.mediaType};base64,${resolved.data}`);
+    } else {
+      imgEl.removeAttribute('src');
+      imgEl.closest?.('.claudian-message-image')?.classList.add('is-unavailable');
+    }
+  }
+
+  /**
+   * Returns the attachment with populated base64 data. `save()` clears
+   * `image.data` on stored messages to free memory while rendered messages
+   * still reference those exact objects — so empty data is an expected state,
+   * recoverable from the durable image archive via the attachment id. The
+   * restored bytes are cached back onto the attachment for later renders.
+   */
+  private async resolveImageData(image: ImageAttachment): Promise<ImageAttachment | null> {
+    if (image.data) return image;
+    try {
+      const restored = await this.plugin.imageStagingService?.loadImage(image.id);
+      if (restored?.data) {
+        image.data = restored.data;
+        return image;
+      }
+    } catch {
+      // Archive unavailable — fall through to the unavailable state.
+    }
+    return null;
   }
 
   // ============================================

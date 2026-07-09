@@ -88,3 +88,23 @@
 
 .claudian-image-modal-nav--previous { left: 14px; }
 .claudian-image-modal-nav--next { right: 14px; }
+
+/* Image bytes are resolved asynchronously (archive restore) — soften the
+   in-between frame instead of flashing a broken-image glyph. */
+.claudian-image-modal.is-loading img {
+  opacity: 0.35;
+}
+
+.claudian-image-modal img:not([src]) {
+  visibility: hidden;
+  min-width: 160px;
+  min-height: 120px;
+}
+
+.claudian-image-modal.has-error img {
+  display: none;
+}
+
+.claudian-image-modal.has-error .claudian-image-modal-caption {
+  color: var(--text-error, #ff6b6b);
+}

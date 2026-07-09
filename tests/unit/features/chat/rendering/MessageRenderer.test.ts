@@ -1151,7 +1151,7 @@ describe('MessageRenderer', () => {
   it('renderMessageImages creates image elements', () => {
     const containerEl = createMockEl();
     const { renderer } = createRenderer();
-    jest.spyOn(renderer, 'setImageSrc').mockImplementation(() => {});
+    jest.spyOn(renderer, 'setImageSrc').mockResolvedValue(undefined);
 
     const images: ImageAttachment[] = [
       { id: 'img-1', name: 'photo.png', mediaType: 'image/png', data: 'base64data1', size: 200, source: 'file' },
@@ -1167,7 +1167,7 @@ describe('MessageRenderer', () => {
     expect(imagesContainer.children.length).toBe(2);
   });
 
-  it('setImageSrc sets data URI on image element', () => {
+  it('setImageSrc sets data URI on image element', async () => {
     const { renderer } = createRenderer();
     const imgEl = createMockEl('img');
 
@@ -1180,9 +1180,62 @@ describe('MessageRenderer', () => {
       source: 'file',
     };
 
-    renderer.setImageSrc(imgEl as any, image);
+    await renderer.setImageSrc(imgEl as any, image);
 
     expect(imgEl.getAttribute('src')).toBe('data:image/png;base64,abc123');
+  });
+
+  it('setImageSrc restores cleared image data from the archive', async () => {
+    const { renderer } = createRenderer();
+    const imgEl = createMockEl('img');
+    const loadImage = jest.fn().mockResolvedValue({
+      id: 'img-1',
+      name: 'test.png',
+      mediaType: 'image/png',
+      data: 'restored-bytes',
+      size: 100,
+      source: 'paste',
+    });
+    (renderer as any).plugin.imageStagingService = { loadImage };
+
+    // save() clears data on stored messages; rendered messages share the object.
+    const image: ImageAttachment = {
+      id: 'img-1',
+      name: 'test.png',
+      mediaType: 'image/png',
+      data: '',
+      size: 100,
+      source: 'paste',
+    };
+
+    await renderer.setImageSrc(imgEl as any, image);
+
+    expect(loadImage).toHaveBeenCalledWith('img-1');
+    expect(imgEl.getAttribute('src')).toBe('data:image/png;base64,restored-bytes');
+    // Bytes are cached back so the next render skips the archive round-trip.
+    expect(image.data).toBe('restored-bytes');
+  });
+
+  it('setImageSrc marks thumbnail unavailable when archive has no bytes', async () => {
+    const { renderer } = createRenderer();
+    const imgEl = createMockEl('img');
+    imgEl.closest = jest.fn().mockReturnValue(null);
+    (renderer as any).plugin.imageStagingService = {
+      loadImage: jest.fn().mockResolvedValue(null),
+    };
+
+    const image: ImageAttachment = {
+      id: 'img-gone',
+      name: 'gone.png',
+      mediaType: 'image/png',
+      data: '',
+      size: 100,
+      source: 'paste',
+    };
+
+    await renderer.setImageSrc(imgEl as any, image);
+
+    expect(imgEl.getAttribute('src')).toBeFalsy();
   });
 
   it('showFullImage creates overlay with image', () => {
@@ -1205,6 +1258,47 @@ describe('MessageRenderer', () => {
     try {
       renderer.showFullImage(image);
       expect(mockBody.createDiv).toHaveBeenCalledWith({ cls: 'claudian-image-modal-overlay' });
+    } finally {
+      (globalThis as any).document = origDocument;
+    }
+  });
+
+  it('showFullImage restores cleared image data before setting modal src', async () => {
+    const { renderer } = createRenderer();
+    (renderer as any).plugin.imageStagingService = {
+      loadImage: jest.fn().mockResolvedValue({
+        id: 'img-1',
+        name: 'test.png',
+        mediaType: 'image/png',
+        data: 'archived-bytes',
+        size: 100,
+        source: 'paste',
+      }),
+    };
+
+    // Post-save state: message object kept, base64 cleared to free memory.
+    const image: ImageAttachment = {
+      id: 'img-1',
+      name: 'test.png',
+      mediaType: 'image/png',
+      data: '',
+      size: 100,
+      source: 'paste',
+    };
+
+    const overlayEl = createMockEl();
+    const mockBody = { createDiv: jest.fn().mockReturnValue(overlayEl) };
+    const origDocument = globalThis.document;
+    (globalThis as any).document = { body: mockBody, addEventListener: jest.fn(), removeEventListener: jest.fn() };
+
+    try {
+      renderer.showFullImage(image);
+      // Resolve the async archive lookup.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const modal = overlayEl.children[0];
+      const imgEl = modal.children[0];
+      expect(imgEl.getAttribute('src')).toBe('data:image/png;base64,archived-bytes');
     } finally {
       (globalThis as any).document = origDocument;
     }
@@ -1896,7 +1990,7 @@ describe('MessageRenderer', () => {
       const containerEl = createMockEl();
       const { renderer } = createRenderer();
       const showFullImageSpy = jest.spyOn(renderer, 'showFullImage').mockImplementation(() => {});
-      jest.spyOn(renderer, 'setImageSrc').mockImplementation(() => {});
+      jest.spyOn(renderer, 'setImageSrc').mockResolvedValue(undefined);
 
       const images: ImageAttachment[] = [
         { id: 'img-1', name: 'photo.png', mediaType: 'image/png', data: 'base64data', size: 200, source: 'file' },

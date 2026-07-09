@@ -327,3 +327,17 @@
   object-fit: cover;
   display: block;
 }
+
+/* Thumbnail whose bytes could not be restored from the image archive. */
+.claudian-message-image.is-unavailable {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.claudian-message-image.is-unavailable img {
+  visibility: hidden;
+}
+
+.claudian-message-image img:not([src]) {
+  visibility: hidden;
+}
