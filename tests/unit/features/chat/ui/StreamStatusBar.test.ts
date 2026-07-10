@@ -1,4 +1,4 @@
-import { formatElapsed } from '@/features/chat/ui/StreamStatusBar';
+import { appendActivity, formatElapsed, type StreamActivity } from '@/features/chat/ui/StreamStatusBar';
 
 describe('formatElapsed', () => {
   it('shows seconds under a minute', () => {
@@ -15,5 +15,37 @@ describe('formatElapsed', () => {
 
   it('clamps negative input to 0s', () => {
     expect(formatElapsed(-1000)).toBe('0s');
+  });
+});
+
+describe('appendActivity', () => {
+  const activity = (primary: string, meta = '', at = 0): StreamActivity => ({ primary, meta, at });
+
+  it('keeps distinct provider transitions in chronological order', () => {
+    const activities = appendActivity(
+      appendActivity([], activity('Model is reasoning', 'Thinking stream', 10)),
+      activity('Read file', 'CLAUDE.md', 20),
+    );
+
+    expect(activities).toEqual([
+      activity('Model is reasoning', 'Thinking stream', 10),
+      activity('Read file', 'CLAUDE.md', 20),
+    ]);
+  });
+
+  it('deduplicates repetitive streaming events', () => {
+    const first = appendActivity([], activity('Writing response', 'Assistant text stream', 10));
+    const next = appendActivity(first, activity('Writing response', 'Assistant text stream', 20));
+
+    expect(next).toEqual([activity('Writing response', 'Assistant text stream', 10)]);
+  });
+
+  it('keeps the newest activities within the requested bound', () => {
+    const activities = ['one', 'two', 'three'].reduce(
+      (history, primary, index) => appendActivity(history, activity(primary, '', index), 2),
+      [] as StreamActivity[],
+    );
+
+    expect(activities.map(entry => entry.primary)).toEqual(['two', 'three']);
   });
 });

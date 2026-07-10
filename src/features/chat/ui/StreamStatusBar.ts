@@ -9,6 +9,13 @@ import { setIcon } from 'obsidian';
 
 const TICK_MS = 1000;
 const SECONDS_PER_MINUTE = 60;
+export const MAX_ACTIVITY_HISTORY = 8;
+
+export interface StreamActivity {
+  primary: string;
+  meta: string;
+  at: number;
+}
 
 /** Formats an elapsed duration (ms) as `Xs` under a minute, else `M:SS`. */
 export function formatElapsed(ms: number): string {
@@ -21,6 +28,27 @@ export function formatElapsed(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
+/**
+ * Appends a distinct activity while keeping the live inspector intentionally
+ * small. Provider streams can emit many identical text/thinking chunks; those
+ * must not cause DOM churn or bury the actual tool and workflow transitions.
+ */
+export function appendActivity(
+  activities: readonly StreamActivity[],
+  activity: StreamActivity,
+  limit = MAX_ACTIVITY_HISTORY,
+): StreamActivity[] {
+  const previous = activities.at(-1);
+  if (previous?.primary === activity.primary && previous.meta === activity.meta) {
+    return [...activities];
+  }
+  return [...activities, activity].slice(-Math.max(1, limit));
+}
+
+function formatActivityOffset(startedAt: number, at: number): string {
+  return `+${formatElapsed(Math.max(0, at - startedAt))}`;
+}
+
 export class StreamStatusBar {
   private readonly el: HTMLElement;
   private readonly toggleEl: HTMLButtonElement;
@@ -30,6 +58,7 @@ export class StreamStatusBar {
   private readonly detailEl: HTMLElement;
   private readonly detailPrimaryEl: HTMLElement;
   private readonly detailMetaEl: HTMLElement;
+  private readonly activityHistoryEl: HTMLElement;
   private intervalId: number | null = null;
   private startedAt = 0;
   private readonly now: () => number;
@@ -37,6 +66,7 @@ export class StreamStatusBar {
   private currentPhrase = 'working';
   private currentActivity = 'Waiting for provider events';
   private currentMeta = 'No tool activity yet';
+  private activities: StreamActivity[] = [];
   private isOpen = false;
 
   constructor(parentEl: HTMLElement, now: () => number = () => Date.now()) {
@@ -64,6 +94,7 @@ export class StreamStatusBar {
     this.detailEl = this.el.createDiv({ cls: 'claudian-stream-status-detail' });
     this.detailPrimaryEl = this.detailEl.createDiv({ cls: 'claudian-stream-status-detail-primary' });
     this.detailMetaEl = this.detailEl.createDiv({ cls: 'claudian-stream-status-detail-meta' });
+    this.activityHistoryEl = this.detailEl.createDiv({ cls: 'claudian-stream-status-history' });
     this.renderDetail();
 
     this.toggleEl.addEventListener('click', () => this.toggleOpen());
@@ -94,8 +125,18 @@ export class StreamStatusBar {
 
   /** Updates the expandable live detail row with the latest provider activity. */
   setActivity(primary: string, meta = ''): void {
-    this.currentActivity = primary || 'Working';
-    this.currentMeta = meta || this.currentLabel;
+    const nextPrimary = primary || 'Working';
+    const nextMeta = meta || this.currentLabel;
+    const wasCurrentActivity = this.currentActivity === nextPrimary && this.currentMeta === nextMeta;
+    this.currentActivity = nextPrimary;
+    this.currentMeta = nextMeta;
+    if (!wasCurrentActivity) {
+      this.activities = appendActivity(this.activities, {
+        primary: nextPrimary,
+        meta: nextMeta,
+        at: this.now(),
+      });
+    }
     this.renderDetail();
   }
 
@@ -107,8 +148,14 @@ export class StreamStatusBar {
 
   private start(): void {
     this.startedAt = this.now();
+    this.activities = [];
     this.currentActivity = 'Starting provider turn';
     this.currentMeta = this.currentLabel;
+    this.activities = appendActivity(this.activities, {
+      primary: this.currentActivity,
+      meta: this.currentMeta,
+      at: this.startedAt,
+    });
     this.renderDetail();
     this.renderTimer();
     this.el.removeClass('claudian-hidden');
@@ -126,6 +173,7 @@ export class StreamStatusBar {
     this.setPhrase('working');
     this.currentActivity = 'Waiting for provider events';
     this.currentMeta = 'No tool activity yet';
+    this.activities = [];
     this.renderDetail();
   }
 
@@ -136,6 +184,24 @@ export class StreamStatusBar {
   private renderDetail(): void {
     this.detailPrimaryEl.setText(this.currentActivity);
     this.detailMetaEl.setText(`${this.currentLabel} · ${this.currentPhrase}${this.currentMeta ? ` · ${this.currentMeta}` : ''}`);
+    this.activityHistoryEl.empty();
+    if (this.activities.length === 0) return;
+
+    const heading = this.activityHistoryEl.createDiv({ cls: 'claudian-stream-status-history-heading' });
+    heading.setText(`Live activity · ${this.activities.length}`);
+    const list = this.activityHistoryEl.createEl('ol', { cls: 'claudian-stream-status-history-list' });
+    for (const activity of this.activities) {
+      const row = list.createEl('li', { cls: 'claudian-stream-status-history-item' });
+      row.createSpan({
+        cls: 'claudian-stream-status-history-time',
+        text: formatActivityOffset(this.startedAt, activity.at),
+      });
+      const content = row.createSpan({ cls: 'claudian-stream-status-history-content' });
+      content.createSpan({ cls: 'claudian-stream-status-history-primary', text: activity.primary });
+      if (activity.meta) {
+        content.createSpan({ cls: 'claudian-stream-status-history-meta', text: activity.meta });
+      }
+    }
   }
 
   private clearTimer(): void {

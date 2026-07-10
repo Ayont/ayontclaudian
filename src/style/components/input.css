@@ -444,6 +444,80 @@
   text-overflow: ellipsis;
 }
 
+/* A compact operator-style trace: transparent without turning the composer
+   into a noisy log console. The bounded list is only rendered while expanded. */
+.claudian-stream-status-history {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(var(--claudian-brand-rgb), 0.25);
+}
+
+.claudian-stream-status-history-heading {
+  margin-bottom: 5px;
+  color: var(--cl-accent);
+  font-family: var(--cl-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.claudian-stream-status-history-list {
+  display: grid;
+  gap: 2px;
+  max-height: 160px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.claudian-stream-status-history-item {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 7px;
+  align-items: baseline;
+  padding: 3px 0;
+  border-inline-start: 2px solid rgba(var(--claudian-brand-rgb), 0.28);
+  padding-inline-start: 7px;
+}
+
+.claudian-stream-status-history-time {
+  color: var(--text-faint);
+  font-family: var(--cl-font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.claudian-stream-status-history-content {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.claudian-stream-status-history-primary {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-normal);
+  font-size: var(--cl-text-xs);
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claudian-stream-status-history-meta {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--cl-text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @keyframes claudian-stream-scan {
   0% { transform: translateX(-100%); opacity: 0; }
   18% { opacity: 1; }
