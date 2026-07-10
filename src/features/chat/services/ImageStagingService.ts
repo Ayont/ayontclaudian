@@ -74,25 +74,51 @@ export class ImageStagingService {
     return folder;
   }
 
+  /**
+   * Short-lived manifest cache. Restoring a conversation's images or rendering
+   * a gallery triggers bursts of reads — without the cache every single image
+   * re-reads and re-parses the same JSON file. Writes update the cache
+   * (write-through); the TTL keeps externally synced changes from going stale
+   * for long.
+   */
+  private manifestCache: { manifest: StagingManifest; readAt: number } | null = null;
+  private static readonly MANIFEST_CACHE_TTL_MS = 10_000;
+
+  /**
+   * Drops the cached manifest so the next read hits disk. Call after the
+   * manifest file was modified outside this service (e.g. sync, manual edit).
+   */
+  invalidateManifestCache(): void {
+    this.manifestCache = null;
+  }
+
   private async readManifest(): Promise<StagingManifest> {
+    const cached = this.manifestCache;
+    if (cached && Date.now() - cached.readAt < ImageStagingService.MANIFEST_CACHE_TTL_MS) {
+      return cached.manifest;
+    }
+
     const folder = await this.ensureStagingFolder();
     const manifestPath = normalizePath(`${folder}/${MANIFEST_FILE}`);
+    let manifest: StagingManifest = { version: 1, images: [] };
     try {
       const raw = await this.vault.adapter.read(manifestPath);
       const parsed = JSON.parse(raw) as StagingManifest;
       if (parsed && parsed.version === 1 && Array.isArray(parsed.images)) {
-        return parsed;
+        manifest = parsed;
       }
     } catch {
       // Missing or corrupt manifest — start fresh.
     }
-    return { version: 1, images: [] };
+    this.manifestCache = { manifest, readAt: Date.now() };
+    return manifest;
   }
 
   private async writeManifest(manifest: StagingManifest): Promise<void> {
     const folder = await this.ensureStagingFolder();
     const manifestPath = normalizePath(`${folder}/${MANIFEST_FILE}`);
     await this.vault.adapter.write(manifestPath, JSON.stringify(manifest, null, 2));
+    this.manifestCache = { manifest, readAt: Date.now() };
   }
 
   /**
@@ -179,6 +205,41 @@ export class ImageStagingService {
       await this.deleteImage(id);
       return null;
     }
+  }
+
+  /**
+   * Batch-loads several staged images with ONE manifest read and parallel
+   * binary reads. Used for conversation restore where per-image `loadImage`
+   * calls would multiply manifest parsing by the number of images.
+   */
+  async loadImages(ids: string[]): Promise<Map<string, ImageAttachment>> {
+    const result = new Map<string, ImageAttachment>();
+    if (ids.length === 0) return result;
+
+    const manifest = await this.readManifest();
+    const entryById = new Map(manifest.images.map((entry) => [entry.id, entry]));
+    const folder = await this.ensureStagingFolder();
+
+    await Promise.all(ids.map(async (id) => {
+      const entry = entryById.get(id);
+      if (!entry) return;
+      const filePath = normalizePath(`${folder}/${entry.filename}`);
+      try {
+        const buffer = await this.vault.adapter.readBinary(filePath);
+        result.set(id, {
+          id: entry.id,
+          name: entry.name,
+          mediaType: entry.mediaType,
+          data: Buffer.from(buffer).toString('base64'),
+          size: entry.size,
+          source: entry.source,
+        });
+      } catch {
+        // Missing/unreadable binary — skip; cleanup() purges stale entries.
+      }
+    }));
+
+    return result;
   }
 
   /** Returns all staged image entries (metadata only, no binary data). */

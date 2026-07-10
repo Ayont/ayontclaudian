@@ -11,6 +11,7 @@
   justify-content: center;
   z-index: 10000;
   cursor: pointer;
+  animation: claudian-modal-overlay-in 160ms ease-out;
 }
 
 .claudian-image-modal {
@@ -21,6 +22,30 @@
   max-width: min(94vw, 1500px);
   max-height: 94vh;
   cursor: default;
+  animation: claudian-modal-zoom-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes claudian-modal-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes claudian-modal-zoom-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-image-modal-overlay,
+  .claudian-image-modal {
+    animation: none;
+  }
 }
 
 .claudian-image-modal img {

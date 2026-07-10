@@ -45,6 +45,7 @@ import { BangBashService } from '../services/BangBashService';
 import { SubagentManager } from '../services/SubagentManager';
 import { ChatState } from '../state/ChatState';
 import { BangBashModeManager as BangBashModeManagerClass } from '../ui/BangBashModeManager';
+import { ChatSearchController } from '../ui/ChatSearch';
 import { CommitBar } from '../ui/CommitBar';
 import { buildVaultAttachmentPath, parentFolder } from '../ui/file-drop/vaultAttachment';
 import { FileContextManager } from '../ui/FileContext';
@@ -709,6 +710,7 @@ export function createTab(options: TabCreateOptions): TabData {
       contextUsageMeter: null,
       statusPanel: null,
       navigationSidebar: null,
+      chatSearch: null,
       streamStatusBar,
       swarmPanel,
       multiAgentButton: null,
@@ -1341,6 +1343,28 @@ export function initializeTabUI(
       plugin,
     );
     tab.ui.filePreviewPanel.render();
+
+    // Floating in-chat search (Cmd/Ctrl+F while focus is inside this tab).
+    tab.ui.chatSearch = new ChatSearchController(
+      dom.messagesEl.parentElement,
+      dom.messagesEl,
+    );
+    const searchKeyHandler = (event: KeyboardEvent) => {
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === 'f'
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        tab.ui.chatSearch?.open();
+      }
+    };
+    dom.contentEl.addEventListener('keydown', searchKeyHandler, true);
+    dom.eventCleanups.push(() =>
+      dom.contentEl.removeEventListener('keydown', searchKeyHandler, true),
+    );
   }
 
   initializeInstructionAndTodo(tab, plugin);
@@ -2031,6 +2055,8 @@ export async function destroyTab(tab: TabData): Promise<void> {
   tab.ui.statusPanel = null;
   tab.ui.navigationSidebar?.destroy();
   tab.ui.navigationSidebar = null;
+  tab.ui.chatSearch?.destroy();
+  tab.ui.chatSearch = null;
   tab.ui.filePreviewPanel?.destroy();
   tab.ui.filePreviewPanel = null;
   tab.ui.swarmPanel?.destroy();

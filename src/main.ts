@@ -341,6 +341,19 @@ export default class ClaudianPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: 'search-in-chat',
+      name: 'Search in current chat',
+      checkCallback: (checking: boolean) => {
+        const tab = this.getView()?.getActiveTab();
+        if (!tab?.ui.chatSearch) return false;
+        if (!checking) {
+          tab.ui.chatSearch.toggle();
+        }
+        return true;
+      },
+    });
+
+    this.addCommand({
       id: 'check-provider-health',
       name: 'Check provider health',
       callback: () => {
@@ -1996,31 +2009,40 @@ export default class ClaudianPlugin extends Plugin {
     conversation: Conversation,
     cachedMessages: ChatMessage[],
   ): Promise<void> {
-    const cachedUserMessages = cachedMessages.filter(
-      (message) => message.role === 'user' && (message.images?.length ?? 0) > 0,
-    );
-    if (cachedUserMessages.length === 0) return;
-
+    // Positional pairing: the Nth cached user message corresponds to the Nth
+    // hydrated user message. Computed once — O(messages), not O(messages²).
+    const cachedUserMessages = cachedMessages.filter((message) => message.role === 'user');
     const hydratedUserMessages = conversation.messages.filter(
       (message) => message.role === 'user',
     );
 
-    for (const cachedMessage of cachedUserMessages) {
-      const cachedIndex = cachedMessages
-        .filter((message) => message.role === 'user')
-        .indexOf(cachedMessage);
-      const targetMessage = hydratedUserMessages[cachedIndex] ?? cachedMessage;
+    // Collect every message still missing bytes, then batch-load all image ids
+    // with a single manifest read and parallel binary reads.
+    const pending: { target: ChatMessage; imageIds: string[] }[] = [];
+    cachedUserMessages.forEach((cachedMessage, userIndex) => {
+      if ((cachedMessage.images?.length ?? 0) === 0) return;
+      const targetMessage = hydratedUserMessages[userIndex] ?? cachedMessage;
 
       // Claude's own transcript includes image bytes. Prefer those rather than
       // duplicating the image from the local archive.
-      if (targetMessage.images?.some((image) => image.data)) continue;
+      if (targetMessage.images?.some((image) => image.data)) return;
 
-      const restored = await Promise.all(
-        (cachedMessage.images ?? []).map((image) => this.imageStagingService.loadImage(image.id)),
-      );
-      const images = restored.filter((image): image is ImageAttachment => image !== null);
+      pending.push({
+        target: targetMessage,
+        imageIds: (cachedMessage.images ?? []).map((image) => image.id),
+      });
+    });
+    if (pending.length === 0) return;
+
+    const loaded = await this.imageStagingService.loadImages(
+      pending.flatMap((item) => item.imageIds),
+    );
+    for (const { target, imageIds } of pending) {
+      const images = imageIds
+        .map((id) => loaded.get(id))
+        .filter((image): image is ImageAttachment => image !== undefined);
       if (images.length > 0) {
-        targetMessage.images = images;
+        target.images = images;
       }
     }
   }

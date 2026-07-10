@@ -127,6 +127,7 @@ describe('ImageStagingService', () => {
     const oldEntry = manifest.images.find((i: { id: string }) => i.id === 'img-old');
     oldEntry.createdAt = Date.now() - 10 * 24 * 60 * 60 * 1000;
     await vault.adapter.write(manifestPath, JSON.stringify(manifest, null, 2));
+    service.invalidateManifestCache();
 
     const removed = await service.cleanup(7);
 
@@ -197,6 +198,7 @@ describe('ImageStagingService', () => {
     const manifest = JSON.parse(raw);
     manifest.images[0].createdAt = Date.now() - 30 * 24 * 60 * 60 * 1000;
     await vault.adapter.write(manifestPath, JSON.stringify(manifest, null, 2));
+    service.invalidateManifestCache();
 
     expect(await service.cleanup(7)).toBe(0);
     expect(await service.loadImage('img-history')).not.toBeNull();
@@ -252,5 +254,64 @@ describe('ImageStagingService', () => {
 
     expect(removed).toBe(1);
     expect(await service.loadImage('img-orphan')).toBeNull();
+  });
+
+  describe('manifest cache & batch loading', () => {
+    const makeAttachment = (id: string) => ({
+      id,
+      name: `${id}.png`,
+      mediaType: 'image/png' as const,
+      data: Buffer.from(id).toString('base64'),
+      size: 10,
+      source: 'paste' as const,
+    });
+
+    it('serves repeated reads from the manifest cache (single disk read)', async () => {
+      await service.saveImage(makeAttachment('img-a'));
+      await service.saveImage(makeAttachment('img-b'));
+
+      (vault.adapter.read as jest.Mock).mockClear();
+      await service.loadImage('img-a');
+      await service.loadImage('img-b');
+      await service.listImages();
+
+      // saveImage populated the cache via write-through; none of the reads
+      // above should have re-read manifest.json from disk.
+      expect(vault.adapter.read).not.toHaveBeenCalled();
+    });
+
+    it('invalidateManifestCache forces the next read to hit disk', async () => {
+      await service.saveImage(makeAttachment('img-a'));
+      (vault.adapter.read as jest.Mock).mockClear();
+
+      service.invalidateManifestCache();
+      await service.listImages();
+
+      expect(vault.adapter.read).toHaveBeenCalledTimes(1);
+    });
+
+    it('loadImages batch-loads with one manifest read and skips unknown ids', async () => {
+      await service.saveImage(makeAttachment('img-a'));
+      await service.saveImage(makeAttachment('img-b'));
+      service.invalidateManifestCache();
+      (vault.adapter.read as jest.Mock).mockClear();
+
+      const loaded = await service.loadImages(['img-a', 'img-b', 'img-missing']);
+
+      expect(vault.adapter.read).toHaveBeenCalledTimes(1);
+      expect(loaded.size).toBe(2);
+      expect(loaded.get('img-a')?.data).toBe(Buffer.from('img-a').toString('base64'));
+      expect(loaded.get('img-b')?.name).toBe('img-b.png');
+      expect(loaded.has('img-missing')).toBe(false);
+    });
+
+    it('loadImages skips entries whose binary is unreadable', async () => {
+      await service.saveImage(makeAttachment('img-a'));
+      await vault.adapter.remove('.claudian/staging/images/img-a.png');
+
+      const loaded = await service.loadImages(['img-a']);
+
+      expect(loaded.size).toBe(0);
+    });
   });
 });

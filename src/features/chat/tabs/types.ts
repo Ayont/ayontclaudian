@@ -15,6 +15,7 @@ import type { SwarmPanel } from '../rendering/SwarmPanel';
 import type { SubagentManager } from '../services/SubagentManager';
 import type { ChatState } from '../state/ChatState';
 import type { BangBashModeManager } from '../ui/BangBashModeManager';
+import type { ChatSearchController } from '../ui/ChatSearch';
 import type { FileContextManager } from '../ui/FileContext';
 import type { FilePreviewPanel } from '../ui/FilePreviewPanel';
 import type { GoalBanner } from '../ui/GoalBanner';
@@ -131,6 +132,8 @@ export interface TabUIComponents {
   contextUsageMeter: ContextUsageMeter | null;
   statusPanel: StatusPanel | null;
   navigationSidebar: NavigationSidebar | null;
+  /** Floating in-chat search bar (Cmd/Ctrl+F) over the transcript. */
+  chatSearch: ChatSearchController | null;
   streamStatusBar: StreamStatusBar | null;
   swarmPanel: SwarmPanel | null;
   /** Claudian OS "Multi-Agent" action button; visibility is gated by provider capabilities. */
