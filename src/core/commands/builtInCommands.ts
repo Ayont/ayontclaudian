@@ -8,7 +8,7 @@
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import type { ProviderCapabilities, ProviderId } from '../providers/types';
 
-export type BuiltInCommandAction = 'clear' | 'add-dir' | 'resume' | 'fork' | 'goal' | 'workflow' | 'team' | 'template' | 'vault-health' | 'artifact' | 'document' | 'status';
+export type BuiltInCommandAction = 'clear' | 'add-dir' | 'resume' | 'fork' | 'goal' | 'workflow' | 'team' | 'template' | 'vault-health' | 'artifact' | 'document' | 'packet-tracer' | 'status';
 type BuiltInCommandCapability = 'supportsNativeHistory' | 'supportsFork';
 type BuiltInCommandSupportContext = ProviderId | Pick<ProviderCapabilities, BuiltInCommandCapability>;
 
@@ -110,6 +110,14 @@ export const BUILT_IN_COMMANDS: BuiltInCommand[] = [
     action: 'document',
     hasArgs: true,
     argumentHint: '[document request]',
+  },
+  {
+    name: 'packet-tracer',
+    aliases: ['pkt'],
+    description: 'Create, read, or export Cisco Packet Tracer lab material',
+    action: 'packet-tracer',
+    hasArgs: true,
+    argumentHint: '[create|read|export] [request or vault path]',
   },
   {
     name: 'status',

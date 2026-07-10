@@ -62,6 +62,14 @@ describe('systemPrompt', () => {
       expect(prompt).toContain('[To be completed]');
     });
 
+    it('should give Packet Tracer lab instructions to every provider', () => {
+      const prompt = buildSystemPrompt();
+
+      expect(prompt).toContain('## Cisco Packet Tracer Labs');
+      expect(prompt).toContain('device/port/cable inventory');
+      expect(prompt).toContain('Packet Tracer XML');
+    });
+
   });
 
   describe('userName in system prompt', () => {

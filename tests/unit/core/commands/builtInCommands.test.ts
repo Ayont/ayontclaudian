@@ -118,6 +118,16 @@ describe('builtInCommands', () => {
       expect(alias?.command.action).toBe('document');
       expect(alias?.args).toBe('Build an SOP');
     });
+
+    it('detects /packet-tracer and /pkt with operation arguments', () => {
+      const command = detectBuiltInCommand('/packet-tracer read labs/router.pkt');
+      expect(command?.command.action).toBe('packet-tracer');
+      expect(command?.args).toBe('read labs/router.pkt');
+
+      const alias = detectBuiltInCommand('/pkt create vlan practice lab');
+      expect(alias?.command.action).toBe('packet-tracer');
+      expect(alias?.args).toBe('create vlan practice lab');
+    });
   });
 
   describe('getBuiltInCommandsForDropdown', () => {
@@ -239,8 +249,8 @@ describe('builtInCommands', () => {
     it('returns only commands supported by codex capabilities', () => {
       const commands = getBuiltInCommandsForDropdown('codex');
       // Universal commands (no required capability) join the supported set.
-      expect(commands.length).toBe(12);
-      expect(commands.map(c => c.name)).toEqual(['clear', 'add-dir', 'resume', 'fork', 'goal', 'workflow', 'team', 'template', 'vault-health', 'artifact', 'document', 'status']);
+      expect(commands.length).toBe(13);
+      expect(commands.map(c => c.name)).toEqual(['clear', 'add-dir', 'resume', 'fork', 'goal', 'workflow', 'team', 'template', 'vault-health', 'artifact', 'document', 'packet-tracer', 'status']);
     });
   });
 

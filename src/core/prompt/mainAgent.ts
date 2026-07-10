@@ -214,6 +214,14 @@ Rules:
 - Keep the document editable as Markdown; do not output raw HTML inside the block.`;
 }
 
+function getPacketTracerInstructions(): string {
+  return `
+
+## Cisco Packet Tracer Labs
+
+When the user asks to create, inspect, repair, or explain a Cisco Packet Tracer lab, provide an exact, buildable lab plan. Include a \`network-map\` block, a device/port/cable inventory, an IP and VLAN table, per-device Cisco CLI blocks, and verification commands. For an attached decoded Packet Tracer XML file, use its real device names and topology; never claim that an arbitrary modern encrypted \`.pkt\` file was decoded unless readable XML context is present. Explain Packet Tracer steps for wireless access points, routers, switches, DHCP, DNS, ACLs, routing, and VLANs where relevant.`;
+}
+
 function getAppendixSections(appendices?: string[]): string {
   if (!appendices || appendices.length === 0) {
     return '';
@@ -239,6 +247,7 @@ export function buildSystemPrompt(
   prompt += getImageInstructions(settings.mediaFolder || '');
   prompt += getNetworkDiagramInstructions();
   prompt += getLiveDocumentInstructions();
+  prompt += getPacketTracerInstructions();
   prompt += getAppendixSections(options.appendices);
 
   if (settings.customPrompt?.trim()) {

@@ -115,6 +115,7 @@ import { ArtifactService } from './features/artifacts/ArtifactService';
 import { ClaudianView } from './features/chat/ClaudianView';
 import { exportConversationToNote } from './features/chat/export/ConversationExportWriter';
 import { ImageStagingService } from './features/chat/services/ImageStagingService';
+import { PacketTracerService } from './features/chat/services/PacketTracerService';
 import type { TabData } from './features/chat/tabs/types';
 import { ModelSelectModal } from './features/chat/ui/ModelSelectModal';
 import { ProviderStatusBar } from './features/chat/ui/ProviderStatusBar';
@@ -168,6 +169,7 @@ export default class ClaudianPlugin extends Plugin {
   missionStateStorage!: IMissionStateStorage;
   visionService!: VisionService;
   imageStagingService!: ImageStagingService;
+  packetTracerService!: PacketTracerService;
   promptTemplateService!: PromptTemplateService;
   vaultHealthService!: VaultHealthService;
   artifactService!: ArtifactService;
@@ -181,6 +183,7 @@ export default class ClaudianPlugin extends Plugin {
     void this.imageStagingService.cleanup(7).catch(() => {
       // Best-effort cleanup on startup.
     });
+    this.packetTracerService = new PacketTracerService(this.app.vault);
 
     // Initialize prompt templates and vault health services.
     this.promptTemplateService = new PromptTemplateService(

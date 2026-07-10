@@ -943,6 +943,24 @@ function initializeContextManagers(tab: TabData, plugin: ClaudianPlugin): void {
           return null;
         }
       },
+      stagePacketTracerAttachment: async (file: File): Promise<string | null> => {
+        try {
+          const buffer = await file.arrayBuffer();
+          const relPath = buildVaultAttachmentPath(file.name, String(Date.now()));
+          const adapter = plugin.app.vault.adapter;
+          const folder = parentFolder(relPath);
+          if (folder && !(await adapter.exists(folder))) {
+            await adapter.mkdir(folder);
+          }
+          await adapter.writeBinary(relPath, buffer);
+          const inspection = await plugin.packetTracerService.decodeVaultFile(relPath);
+          new Notice(`Packet Tracer gelesen: ${inspection.deviceCount} Geräte → XML-Kontext angehängt.`);
+          return inspection.xmlPath;
+        } catch (error) {
+          new Notice(`Packet Tracer konnte nicht dekodiert werden: ${error instanceof Error ? error.message : String(error)}`);
+          return null;
+        }
+      },
     },
     dom.contextRowEl,
     plugin.imageStagingService,

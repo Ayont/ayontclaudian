@@ -2548,6 +2548,58 @@ export class InputController {
         });
         break;
       }
+      case 'packet-tracer': {
+        const [operation = 'create', ...rest] = args.trim().split(/\s+/);
+        const payload = rest.join(' ').trim();
+        const plugin = this.deps.plugin;
+
+        if (operation === 'read') {
+          if (!payload) {
+            new Notice('Usage: /pkt read <vault-path-to-file.pkt>');
+            return;
+          }
+          try {
+            const inspection = await plugin.packetTracerService.decodeVaultFile(payload.replace(/^@/, ''));
+            await this.sendMessage({
+              content:
+                `Analysiere die dekodierte Cisco-Packet-Tracer-Topologie in @${inspection.xmlPath}. `
+                + `Erstelle eine genaue Netzwerkkarte, nenne die ${inspection.deviceCount} erkannten Geräte und liefere `
+                + 'konkrete Packet-Tracer-Konfigurations- und Testschritte.',
+            });
+          } catch (error) {
+            new Notice(`Packet Tracer konnte nicht gelesen werden: ${error instanceof Error ? error.message : String(error)}`);
+          }
+          return;
+        }
+
+        if (operation === 'export') {
+          if (!payload) {
+            new Notice('Usage: /pkt export <vault-path-to-topology.xml>');
+            return;
+          }
+          try {
+            const packetPath = await plugin.packetTracerService.encodeVaultXml(payload.replace(/^@/, ''));
+            new Notice(`Legacy-PKT exportiert: ${packetPath}`);
+          } catch (error) {
+            new Notice(`PKT-Export fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`);
+          }
+          return;
+        }
+
+        const request = [operation, ...rest].join(' ').trim();
+        if (!request) {
+          new Notice('Usage: /pkt create <Netzwerk-Lab-Beschreibung>');
+          return;
+        }
+        await this.sendMessage({
+          content:
+            'Plane ein Cisco Packet Tracer Lab für diese Anforderung. Liefere eine exakte Geräte- und Verkabelungsliste, '
+            + 'eine network-map-Topologie, vollständige Cisco-CLI-Konfigurationen pro Gerät, IP/VLAN-Plan, Testfälle und '
+            + 'eine Schrittfolge zum manuellen Aufbau in Packet Tracer. Erfinde keine nicht genannten Anforderungen.\n\n'
+            + request,
+        });
+        break;
+      }
       case 'status': {
         const { plugin, state, renderer } = this.deps;
         const version = plugin.manifest?.version ?? 'unknown';

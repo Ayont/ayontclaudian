@@ -40,6 +40,8 @@ export interface ImageContextCallbacks {
    * mention. Optional: when absent, such files are reported as unsupported.
    */
   stageVaultAttachment?: (file: File) => Promise<string | null>;
+  /** Stages and decodes Cisco Packet Tracer files into readable XML context. */
+  stagePacketTracerAttachment?: (file: File) => Promise<string | null>;
   /**
    * Returns the id of the conversation the input currently belongs to, or null
    * for a not-yet-persisted "new chat". Used to scope staged draft images PER
@@ -266,6 +268,9 @@ export class ImageContextManager {
         await this.addImageFromFile(file, 'drop');
       } else if (isTextLikeFile(file.name, file.type)) {
         await this.insertDroppedTextFile(file);
+      } else if (this.isPacketTracerFile(file) && this.callbacks.stagePacketTracerAttachment) {
+        const ok = await this.stageFileAttachment(file, this.callbacks.stagePacketTracerAttachment);
+        if (!ok) unsupported++;
       } else if (this.callbacks.stageVaultAttachment) {
         // PDF / doc / binary: stage into the vault as a chip. The @path
         // reference is appended invisibly at send time so ANY provider's agent
@@ -291,8 +296,10 @@ export class ImageContextManager {
    * `getStagedAttachments`), so the chat stays clean while every provider can
    * still read the file. Returns false when staging is unavailable or fails.
    */
-  private async stageFileAttachment(file: File): Promise<boolean> {
-    if (!this.callbacks.stageVaultAttachment) return false;
+  private async stageFileAttachment(
+    file: File,
+    stageAttachment: (file: File) => Promise<string | null> = this.callbacks.stageVaultAttachment ?? (async () => null),
+  ): Promise<boolean> {
 
     // Show an immediate "uploading" chip so the staging is visible. The
     // onImagesChanged() call re-runs the parent context-row visibility check —
@@ -305,7 +312,7 @@ export class ImageContextManager {
 
     let relPath: string | null;
     try {
-      relPath = await this.callbacks.stageVaultAttachment(file);
+      relPath = await stageAttachment(file);
     } catch {
       relPath = null;
     }
@@ -414,6 +421,10 @@ export class ImageContextManager {
 
   private isImageFile(file: File): boolean {
     return file.type.startsWith('image/') && this.getMediaType(file.name) !== null;
+  }
+
+  private isPacketTracerFile(file: File): boolean {
+    return /\.(pkt|pka)$/i.test(file.name);
   }
 
   private getMediaType(filename: string): ImageMediaType | null {
