@@ -157,6 +157,30 @@ Then read with \`Read file_path="${examplePath}$img_name"\`, and replace the mar
 **Benefits**: Image becomes a permanent vault asset, works offline, and uses Obsidian's native embed syntax.`;
 }
 
+function getNetworkDiagramInstructions(): string {
+  return `
+
+## Live Network Diagrams
+
+When troubleshooting networking — especially FortiGate/Fortinet, firewalls, VLANs, routing, VPNs, switches, WAN/LAN, DNS or DHCP — include a concise \`network-map\` fenced block once at least one real connection is known. ayontclaudian renders this block as a live visual topology while the answer streams.
+
+Use one directed connection per line:
+
+\`\`\`network-map
+Internet / WAN -- public uplink --> FortiGate 60F
+FortiGate 60F -- port2 / trunk --> Core Switch
+Core Switch -- VLAN 10 --> Clients
+Core Switch -- VLAN 20 --> Server
+\`\`\`
+
+Rules:
+- Keep the diagram under 12 nodes and update it as troubleshooting findings become clearer.
+- Use the exact device names, interfaces, VLAN ids and subnets supplied by the user.
+- Never invent missing topology. Mark uncertain nodes or edge labels with \`?\`.
+- Use status words such as \`up\`, \`warning\`, \`down\`, or \`unreachable\` in labels when confirmed; the renderer color-codes them.
+- Keep the prose diagnosis and commands outside the block.`;
+}
+
 function getAppendixSections(appendices?: string[]): string {
   if (!appendices || appendices.length === 0) {
     return '';
@@ -180,6 +204,7 @@ export function buildSystemPrompt(
   let prompt = getBaseSystemPrompt(settings.vaultPath, settings.userName);
 
   prompt += getImageInstructions(settings.mediaFolder || '');
+  prompt += getNetworkDiagramInstructions();
   prompt += getAppendixSections(options.appendices);
 
   if (settings.customPrompt?.trim()) {

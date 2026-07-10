@@ -22,6 +22,7 @@ import { replaceImageEmbedsWithHtml } from '../../../utils/imageEmbed';
 import { escapeMathDelimitersForStreaming } from '../../../utils/markdownMath';
 import { findRewindContext } from '../rewind';
 import { detectStatusCard } from './errorClassification';
+import { renderNetworkMaps } from './NetworkMapRenderer';
 import { renderStatusCard } from './StatusCardRenderer';
 import { resolveSubagentLifecycleAdapter } from './subagentLifecycleResolution';
 import {
@@ -1017,6 +1018,11 @@ export class MessageRenderer {
         '',
         this.component
       );
+
+      // Network/FortiGate troubleshooting gets a live visual topology. Explicit
+      // `network-map` fences are replaced in place; otherwise a conservative
+      // best-effort map is inferred from the streaming answer.
+      renderNetworkMaps(el, renderMarkdown);
 
       // Wrap pre elements and move buttons outside scroll area
       el.querySelectorAll('pre').forEach((pre) => {

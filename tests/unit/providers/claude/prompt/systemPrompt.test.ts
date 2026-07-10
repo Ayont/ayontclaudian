@@ -44,6 +44,15 @@ describe('systemPrompt', () => {
       expect(prompt).not.toContain('### Skills');
     });
 
+    it('should teach every provider the live network-map syntax', () => {
+      const prompt = buildSystemPrompt();
+
+      expect(prompt).toContain('## Live Network Diagrams');
+      expect(prompt).toContain('```network-map');
+      expect(prompt).toContain('FortiGate 60F -- port2 / trunk --> Core Switch');
+      expect(prompt).toContain('Never invent missing topology');
+    });
+
   });
 
   describe('userName in system prompt', () => {
