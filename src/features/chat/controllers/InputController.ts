@@ -2533,6 +2533,21 @@ export class InputController {
         }
         break;
       }
+      case 'document': {
+        const request = args.trim();
+        if (!request) {
+          new Notice('Usage: /document <what should be created>');
+          return;
+        }
+        await this.sendMessage({
+          content:
+            'Create a polished live document for the following request. Return the complete result in one '
+            + '`claudian-document` block using the best matching theme. Keep assumptions explicit and use '
+            + '[To be completed] for missing facts.\n\n'
+            + request,
+        });
+        break;
+      }
       case 'status': {
         const { plugin, state, renderer } = this.deps;
         const version = plugin.manifest?.version ?? 'unknown';

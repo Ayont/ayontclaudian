@@ -53,6 +53,15 @@ describe('systemPrompt', () => {
       expect(prompt).toContain('Never invent missing topology');
     });
 
+    it('should teach every provider the live document canvas syntax', () => {
+      const prompt = buildSystemPrompt();
+
+      expect(prompt).toContain('## Live Document Builder');
+      expect(prompt).toContain('```claudian-document');
+      expect(prompt).toContain('theme: editorial');
+      expect(prompt).toContain('[To be completed]');
+    });
+
   });
 
   describe('userName in system prompt', () => {

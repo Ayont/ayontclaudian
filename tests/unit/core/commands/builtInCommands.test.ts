@@ -108,6 +108,16 @@ describe('builtInCommands', () => {
       expect(alias).not.toBeNull();
       expect(alias?.command.action).toBe('status');
     });
+
+    it('detects /document and /doc with the document request', () => {
+      const document = detectBuiltInCommand('/document Create a client proposal');
+      expect(document?.command.action).toBe('document');
+      expect(document?.args).toBe('Create a client proposal');
+
+      const alias = detectBuiltInCommand('/doc Build an SOP');
+      expect(alias?.command.action).toBe('document');
+      expect(alias?.args).toBe('Build an SOP');
+    });
   });
 
   describe('getBuiltInCommandsForDropdown', () => {
@@ -229,8 +239,8 @@ describe('builtInCommands', () => {
     it('returns only commands supported by codex capabilities', () => {
       const commands = getBuiltInCommandsForDropdown('codex');
       // Universal commands (no required capability) join the supported set.
-      expect(commands.length).toBe(11);
-      expect(commands.map(c => c.name)).toEqual(['clear', 'add-dir', 'resume', 'fork', 'goal', 'workflow', 'team', 'template', 'vault-health', 'artifact', 'status']);
+      expect(commands.length).toBe(12);
+      expect(commands.map(c => c.name)).toEqual(['clear', 'add-dir', 'resume', 'fork', 'goal', 'workflow', 'team', 'template', 'vault-health', 'artifact', 'document', 'status']);
     });
   });
 

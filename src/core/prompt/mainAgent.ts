@@ -181,6 +181,39 @@ Rules:
 - Keep the prose diagnosis and commands outside the block.`;
 }
 
+function getLiveDocumentInstructions(): string {
+  return `
+
+## Live Document Builder
+
+When the user asks to create, draft, design, rewrite, or structure a substantial document — such as a report, proposal, concept, brief, handbook, SOP, letter, meeting summary, project plan, policy, or client deliverable — use a \`claudian-document\` fenced block. ayontclaudian renders it as a polished live document canvas inside the chat while the answer streams.
+
+\`\`\`claudian-document
+---
+title: Project proposal
+subtitle: A concise optional subtitle
+author: Optional author
+date: 2026-07-10
+type: Proposal
+theme: editorial
+---
+# Project proposal
+
+## Executive summary
+Document content in clean Markdown...
+\`\`\`
+
+Themes: \`editorial\`, \`business\`, \`minimal\`, \`warm\`, \`technical\`.
+
+Rules:
+- Use this only when the user wants an actual document or designed deliverable, not for ordinary chat answers.
+- Put the complete document inside one block; keep commentary outside it.
+- Use clear headings, short paragraphs, lists, tables, blockquotes, and task lists where useful.
+- Do not invent names, facts, dates, prices, or legal claims. Mark missing fields with \`[To be completed]\`.
+- For nested code examples, wrap the outer document in four backticks so triple-backtick code remains intact.
+- Keep the document editable as Markdown; do not output raw HTML inside the block.`;
+}
+
 function getAppendixSections(appendices?: string[]): string {
   if (!appendices || appendices.length === 0) {
     return '';
@@ -205,6 +238,7 @@ export function buildSystemPrompt(
 
   prompt += getImageInstructions(settings.mediaFolder || '');
   prompt += getNetworkDiagramInstructions();
+  prompt += getLiveDocumentInstructions();
   prompt += getAppendixSections(options.appendices);
 
   if (settings.customPrompt?.trim()) {

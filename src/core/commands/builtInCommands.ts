@@ -8,7 +8,7 @@
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import type { ProviderCapabilities, ProviderId } from '../providers/types';
 
-export type BuiltInCommandAction = 'clear' | 'add-dir' | 'resume' | 'fork' | 'goal' | 'workflow' | 'team' | 'template' | 'vault-health' | 'artifact' | 'status';
+export type BuiltInCommandAction = 'clear' | 'add-dir' | 'resume' | 'fork' | 'goal' | 'workflow' | 'team' | 'template' | 'vault-health' | 'artifact' | 'document' | 'status';
 type BuiltInCommandCapability = 'supportsNativeHistory' | 'supportsFork';
 type BuiltInCommandSupportContext = ProviderId | Pick<ProviderCapabilities, BuiltInCommandCapability>;
 
@@ -102,6 +102,14 @@ export const BUILT_IN_COMMANDS: BuiltInCommand[] = [
     action: 'artifact',
     hasArgs: true,
     argumentHint: '[description of what to build]',
+  },
+  {
+    name: 'document',
+    aliases: ['doc'],
+    description: 'Build a designed live document directly in chat',
+    action: 'document',
+    hasArgs: true,
+    argumentHint: '[document request]',
   },
   {
     name: 'status',

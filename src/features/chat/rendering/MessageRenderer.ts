@@ -22,6 +22,7 @@ import { replaceImageEmbedsWithHtml } from '../../../utils/imageEmbed';
 import { escapeMathDelimitersForStreaming } from '../../../utils/markdownMath';
 import { findRewindContext } from '../rewind';
 import { detectStatusCard } from './errorClassification';
+import { renderLiveDocuments } from './LiveDocumentRenderer';
 import { renderNetworkMaps } from './NetworkMapRenderer';
 import { renderStatusCard } from './StatusCardRenderer';
 import { resolveSubagentLifecycleAdapter } from './subagentLifecycleResolution';
@@ -1023,6 +1024,14 @@ export class MessageRenderer {
       // `network-map` fences are replaced in place; otherwise a conservative
       // best-effort map is inferred from the streaming answer.
       renderNetworkMaps(el, renderMarkdown);
+
+      // Claude-style live document canvas. The document fence is replaced with
+      // a designed page that updates on every streaming render and offers theme,
+      // copy, save-to-vault, and full-screen controls.
+      await renderLiveDocuments(el, renderMarkdown, {
+        app: this.app,
+        component: this.component,
+      });
 
       // Wrap pre elements and move buttons outside scroll area
       el.querySelectorAll('pre').forEach((pre) => {

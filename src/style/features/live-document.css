@@ -1,0 +1,318 @@
+/* Claude-style live document canvas rendered directly inside chat. */
+.claudian-live-document,
+.claudian-live-document-expanded {
+  --doc-accent: #a86a3d;
+  --doc-paper: #f7f4ed;
+  --doc-ink: #25211d;
+  --doc-muted: #746d63;
+  --doc-rule: rgba(37, 33, 29, 0.14);
+  margin: 16px 0 10px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--doc-accent) 24%, var(--background-modifier-border));
+  border-radius: 16px;
+  background: var(--background-secondary);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.16);
+}
+
+.claudian-live-document.theme-business,
+.claudian-live-document-expanded.theme-business {
+  --doc-accent: #255ca8;
+  --doc-paper: #f4f7fb;
+  --doc-ink: #152238;
+  --doc-muted: #647086;
+  --doc-rule: rgba(21, 34, 56, 0.14);
+}
+
+.claudian-live-document.theme-minimal,
+.claudian-live-document-expanded.theme-minimal {
+  --doc-accent: #555;
+  --doc-paper: #fafafa;
+  --doc-ink: #171717;
+  --doc-muted: #737373;
+  --doc-rule: rgba(0, 0, 0, 0.11);
+}
+
+.claudian-live-document.theme-warm,
+.claudian-live-document-expanded.theme-warm {
+  --doc-accent: #b04b3b;
+  --doc-paper: #fff5e9;
+  --doc-ink: #38231d;
+  --doc-muted: #8b6f63;
+  --doc-rule: rgba(56, 35, 29, 0.13);
+}
+
+.claudian-live-document.theme-technical,
+.claudian-live-document-expanded.theme-technical {
+  --doc-accent: #2a8f78;
+  --doc-paper: #f1f6f4;
+  --doc-ink: #142b27;
+  --doc-muted: #5b7771;
+  --doc-rule: rgba(20, 43, 39, 0.14);
+}
+
+.claudian-live-document-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 10px 8px 13px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: color-mix(in srgb, var(--background-primary) 88%, transparent);
+}
+
+.claudian-live-document-identity,
+.claudian-live-document-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.claudian-live-document-icon {
+  display: inline-flex;
+  color: var(--doc-accent);
+}
+
+.claudian-live-document-icon svg { width: 17px; height: 17px; }
+.claudian-live-document-label { color: var(--text-normal); font-size: 12px; font-weight: 650; }
+
+.claudian-live-document-live {
+  padding: 2px 6px;
+  border: 1px solid color-mix(in srgb, var(--doc-accent) 35%, transparent);
+  border-radius: 999px;
+  color: var(--doc-accent);
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+}
+
+.claudian-live-document-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.claudian-live-document-action:hover {
+  background: var(--background-modifier-hover);
+  color: var(--doc-accent);
+}
+
+.claudian-live-document-action svg { width: 15px; height: 15px; }
+
+.claudian-live-document-viewport {
+  overflow: auto;
+  max-height: 680px;
+  padding: clamp(12px, 3vw, 28px);
+  background:
+    radial-gradient(circle at 20% 0%, color-mix(in srgb, var(--doc-accent) 9%, transparent), transparent 32%),
+    color-mix(in srgb, var(--background-secondary) 88%, #000);
+}
+
+.claudian-live-document-page {
+  width: min(100%, 760px);
+  min-height: 640px;
+  margin: 0 auto;
+  padding: clamp(28px, 7vw, 72px);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  background: var(--doc-paper);
+  color: var(--doc-ink);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.24);
+}
+
+.claudian-live-document-masthead {
+  margin-bottom: 38px;
+  padding-bottom: 26px;
+  border-bottom: 1px solid var(--doc-rule);
+}
+
+.claudian-live-document-type {
+  display: block;
+  margin-bottom: 18px;
+  color: var(--doc-accent);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.claudian-live-document-masthead h1 {
+  margin: 0;
+  color: var(--doc-ink);
+  font-family: ui-serif, Georgia, Cambria, 'Times New Roman', serif;
+  font-size: clamp(30px, 5vw, 52px);
+  font-weight: 560;
+  letter-spacing: -0.04em;
+  line-height: 1.02;
+}
+
+.theme-business .claudian-live-document-masthead h1,
+.theme-minimal .claudian-live-document-masthead h1,
+.theme-technical .claudian-live-document-masthead h1 {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-weight: 680;
+}
+
+.claudian-live-document-subtitle {
+  max-width: 600px;
+  margin: 16px 0 0;
+  color: var(--doc-muted);
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.claudian-live-document-byline {
+  display: flex;
+  gap: 8px;
+  margin-top: 22px;
+  color: var(--doc-muted);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+}
+
+.claudian-live-document-body {
+  color: var(--doc-ink);
+  font-family: ui-serif, Georgia, Cambria, 'Times New Roman', serif;
+  font-size: 15px;
+  line-height: 1.72;
+}
+
+.theme-business .claudian-live-document-body,
+.theme-minimal .claudian-live-document-body,
+.theme-technical .claudian-live-document-body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.claudian-live-document-body h1:first-child { display: none; }
+.claudian-live-document-body h2 {
+  margin: 34px 0 12px;
+  color: var(--doc-ink);
+  font-size: 22px;
+  letter-spacing: -0.025em;
+}
+
+.claudian-live-document-body h3 {
+  margin: 24px 0 8px;
+  color: var(--doc-accent);
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+.claudian-live-document-body p { margin: 0 0 14px; }
+.claudian-live-document-body strong { color: var(--doc-ink); }
+.claudian-live-document-body a { color: var(--doc-accent); }
+.claudian-live-document-body blockquote {
+  margin: 22px 0;
+  padding: 12px 18px;
+  border-left: 3px solid var(--doc-accent);
+  background: color-mix(in srgb, var(--doc-accent) 7%, transparent);
+  color: var(--doc-muted);
+}
+
+.claudian-live-document-body table {
+  width: 100%;
+  margin: 22px 0;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.claudian-live-document-body th,
+.claudian-live-document-body td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--doc-rule);
+  text-align: left;
+}
+
+.claudian-live-document-body th { color: var(--doc-accent); font-weight: 700; }
+.claudian-live-document-body code {
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--doc-ink) 7%, transparent);
+  color: var(--doc-ink);
+}
+
+.claudian-live-document-body pre {
+  border: 1px solid var(--doc-rule);
+  background: color-mix(in srgb, var(--doc-ink) 5%, var(--doc-paper));
+}
+
+.claudian-live-document-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 13px;
+  border-top: 1px solid var(--background-modifier-border);
+  color: var(--text-faint);
+  font-size: 9px;
+}
+
+.claudian-live-document-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10020;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(8, 9, 11, 0.88);
+  backdrop-filter: blur(10px);
+}
+
+.claudian-live-document-expanded {
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 1120px);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: #202124;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.55);
+}
+
+.claudian-live-document-expanded-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 10px 18px;
+  color: #ececec;
+}
+
+.claudian-live-document-expanded-title {
+  flex: 1;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claudian-live-document-expanded > .claudian-live-document-page {
+  flex: 1;
+  width: min(calc(100% - 32px), 860px);
+  min-height: 0;
+  margin-bottom: 16px;
+  overflow: auto;
+}
+
+@media (max-width: 620px) {
+  .claudian-live-document-label { display: none; }
+  .claudian-live-document-page { padding: 28px 22px; min-height: 520px; }
+  .claudian-live-document-footer span:last-child { display: none; }
+  .claudian-live-document-overlay { padding: 0; }
+  .claudian-live-document-expanded { border: 0; border-radius: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-live-document-action { transition: none; }
+}

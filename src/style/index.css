@@ -42,6 +42,7 @@
 @import "./features/image-embed.css";
 @import "./features/image-modal.css";
 @import "./features/network-map.css";
+@import "./features/live-document.css";
 @import "./features/inline-edit.css";
 @import "./features/diff.css";
 @import "./features/slash-commands.css";
