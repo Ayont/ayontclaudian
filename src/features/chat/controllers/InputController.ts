@@ -940,6 +940,14 @@ export class InputController {
         runTimeline,
         wasInvalidated ? 'invalidated' : wasInterrupted || state.cancelRequested ? 'interrupted' : 'success',
       );
+      // Persist a compact, provider-neutral activity trace once the turn is
+      // complete. It deliberately runs in the background so a vault write
+      // cannot add latency before the next queued turn starts.
+      const timelineWrite = plugin.runTimelineStore?.save(runTimeline);
+      void timelineWrite?.catch(() => {
+        // Observability is strictly best-effort; a vault write must never turn
+        // an otherwise completed AI response into an error.
+      });
       this.activeStreamingAssistantMessage = null;
       this.resetProviderMessageBoundaryState();
     }

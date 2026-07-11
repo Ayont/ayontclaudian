@@ -12,7 +12,11 @@ import {
   TOOL_WAIT_AGENT,
 } from '@/core/tools/toolNames';
 import type { ChatMessage } from '@/core/types';
-import { StreamController, type StreamControllerDeps } from '@/features/chat/controllers/StreamController';
+import {
+  getAdaptiveStreamRenderDelay,
+  StreamController,
+  type StreamControllerDeps,
+} from '@/features/chat/controllers/StreamController';
 import { ChatState } from '@/features/chat/state/ChatState';
 import { DEFAULT_CODEX_PRIMARY_MODEL } from '@/providers/codex/types/models';
 
@@ -2361,6 +2365,19 @@ describe('StreamController - Text Content', () => {
       // Timer should still be set (interval not cleared by the null check)
       expect(deps.state.flavorTimerInterval).not.toBeNull();
     });
+  });
+});
+
+describe('getAdaptiveStreamRenderDelay', () => {
+  it('keeps small active streams frame-fast and backs off progressively for long Markdown', () => {
+    expect(getAdaptiveStreamRenderDelay(200)).toBe(16);
+    expect(getAdaptiveStreamRenderDelay(8_000)).toBe(48);
+    expect(getAdaptiveStreamRenderDelay(32_000)).toBe(96);
+    expect(getAdaptiveStreamRenderDelay(100_000)).toBe(160);
+  });
+
+  it('coalesces rendering more aggressively when the document is hidden', () => {
+    expect(getAdaptiveStreamRenderDelay(200, false)).toBe(250);
   });
 });
 

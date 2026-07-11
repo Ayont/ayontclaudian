@@ -56,4 +56,20 @@ describe('animationFrame scheduling', () => {
     expect(ownerClearTimeout).toHaveBeenCalledWith(456);
     expect(globalClearTimeout).not.toHaveBeenCalled();
   });
+
+  it('uses a delayed owner-window timeout to coalesce heavy render work', () => {
+    const callback = jest.fn();
+    const ownerSetTimeout = jest.fn<ReturnType<Window['setTimeout']>, Parameters<Window['setTimeout']>>()
+      .mockReturnValue(789);
+    const ownerWindow = {
+      requestAnimationFrame: jest.fn(),
+      setTimeout: ownerSetTimeout,
+    } as unknown as Window;
+
+    const frame = scheduleAnimationFrame(callback, ownerWindow, 96);
+
+    expect(frame).toEqual({ kind: 'timeout', id: 789, ownerWindow });
+    expect(ownerSetTimeout).toHaveBeenCalledWith(callback, 96);
+    expect(ownerWindow.requestAnimationFrame).not.toHaveBeenCalled();
+  });
 });

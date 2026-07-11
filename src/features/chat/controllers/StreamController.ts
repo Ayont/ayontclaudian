@@ -78,6 +78,19 @@ export interface StreamControllerDeps {
   updateLiveActivity?: (activity: { primary: string; meta?: string; phrase?: string }) => void;
 }
 
+/**
+ * Adaptive frame budget for all streaming providers. Markdown rendering is
+ * cumulative, so a long response must render less often than short token
+ * bursts to avoid O(n²)-like DOM churn while still feeling immediate.
+ */
+export function getAdaptiveStreamRenderDelay(contentLength: number, isDocumentVisible = true): number {
+  if (!isDocumentVisible) return 250;
+  if (contentLength < 8_000) return 16;
+  if (contentLength < 32_000) return 48;
+  if (contentLength < 100_000) return 96;
+  return 160;
+}
+
 export class StreamController {
   private static readonly ASYNC_SUBAGENT_RESULT_RETRY_DELAYS_MS = [200, 600, 1500] as const;
 
@@ -788,6 +801,7 @@ export class StreamController {
   }
 
   private scheduleCurrentTextRender(): Promise<void> {
+    const { state } = this.deps;
     if (!this.pendingTextRenderPromise) {
       this.pendingTextRenderPromise = new Promise(resolve => {
         this.resolvePendingTextRender = resolve;
@@ -798,7 +812,7 @@ export class StreamController {
       this.pendingTextRenderFrame = scheduleAnimationFrame(() => {
         this.pendingTextRenderFrame = null;
         void this.renderPendingText();
-      }, this.getStreamingRenderWindow());
+      }, this.getStreamingRenderWindow(), this.getAdaptiveRenderDelay(state.currentTextContent));
     }
 
     return this.pendingTextRenderPromise;
@@ -845,7 +859,7 @@ export class StreamController {
       this.pendingTextRenderFrame = scheduleAnimationFrame(() => {
         this.pendingTextRenderFrame = null;
         void this.renderPendingText();
-      }, this.getStreamingRenderWindow());
+      }, this.getStreamingRenderWindow(), this.getAdaptiveRenderDelay(state.currentTextContent));
       return;
     }
 
@@ -938,6 +952,7 @@ export class StreamController {
   }
 
   private scheduleCurrentThinkingRender(): Promise<void> {
+    const { state } = this.deps;
     if (!this.pendingThinkingRenderPromise) {
       this.pendingThinkingRenderPromise = new Promise(resolve => {
         this.resolvePendingThinkingRender = resolve;
@@ -948,7 +963,7 @@ export class StreamController {
       this.pendingThinkingRenderFrame = scheduleAnimationFrame(() => {
         this.pendingThinkingRenderFrame = null;
         void this.renderPendingThinking();
-      }, this.getThinkingRenderWindow());
+      }, this.getThinkingRenderWindow(), this.getAdaptiveRenderDelay(state.currentThinkingState?.content ?? ''));
     }
 
     return this.pendingThinkingRenderPromise;
@@ -995,7 +1010,7 @@ export class StreamController {
       this.pendingThinkingRenderFrame = scheduleAnimationFrame(() => {
         this.pendingThinkingRenderFrame = null;
         void this.renderPendingThinking();
-      }, this.getThinkingRenderWindow());
+      }, this.getThinkingRenderWindow(), this.getAdaptiveRenderDelay(thinkingState.content));
       return;
     }
 
@@ -1628,6 +1643,11 @@ export class StreamController {
     return state.currentThinkingState?.contentEl.ownerDocument?.defaultView
       ?? state.currentContentEl?.ownerDocument?.defaultView
       ?? this.getMessagesWindow();
+  }
+
+  private getAdaptiveRenderDelay(content: string): number {
+    const document = this.deps.getMessagesEl().ownerDocument;
+    return getAdaptiveStreamRenderDelay(content.length, document.visibilityState !== 'hidden');
   }
 
   resetStreamingState(): void {

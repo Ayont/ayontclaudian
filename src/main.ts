@@ -91,7 +91,8 @@ import {
   normalizeRouterRules,
 } from './core/routing/modelRouterRules';
 import { MetadataStore } from './core/storage/metadata/MetadataStore';
-import { formatRunTimelineMarkdown, getLastRunTimeline } from './core/timeline/runTimeline';
+import { clearRunTimelines, formatRunTimelineMarkdown, getLastRunTimeline } from './core/timeline/runTimeline';
+import { RunTimelineStore } from './core/timeline/RunTimelineStore';
 import type {
   ChatMessage,
   ClaudianSettings,
@@ -170,6 +171,7 @@ export default class ClaudianPlugin extends Plugin {
   visionService!: VisionService;
   imageStagingService!: ImageStagingService;
   packetTracerService!: PacketTracerService;
+  runTimelineStore!: RunTimelineStore;
   promptTemplateService!: PromptTemplateService;
   vaultHealthService!: VaultHealthService;
   artifactService!: ArtifactService;
@@ -184,6 +186,7 @@ export default class ClaudianPlugin extends Plugin {
       // Best-effort cleanup on startup.
     });
     this.packetTracerService = new PacketTracerService(this.app.vault);
+    this.runTimelineStore = new RunTimelineStore(this.storage.getAdapter());
 
     // Initialize prompt templates and vault health services.
     this.promptTemplateService = new PromptTemplateService(
@@ -385,6 +388,14 @@ export default class ClaudianPlugin extends Plugin {
       name: 'Show last run timeline',
       callback: () => {
         void this.showLastRunTimeline();
+      },
+    });
+
+    this.addCommand({
+      id: 'clear-run-timeline-history',
+      name: 'Clear persisted run timeline history',
+      callback: () => {
+        void this.clearRunTimelineHistory();
       },
     });
 
@@ -1144,7 +1155,7 @@ export default class ClaudianPlugin extends Plugin {
   }
 
   async showLastRunTimeline(): Promise<void> {
-    const timeline = getLastRunTimeline();
+    const timeline = getLastRunTimeline() ?? await this.runTimelineStore.getLatest();
     if (!timeline) {
       new Notice('Noch keine Run Timeline vorhanden.');
       return;
@@ -1156,6 +1167,16 @@ export default class ClaudianPlugin extends Plugin {
       formatRunTimelineMarkdown(timeline),
     );
     new Notice('Run Timeline geöffnet.');
+  }
+
+  private async clearRunTimelineHistory(): Promise<void> {
+    try {
+      await this.runTimelineStore.clear();
+      clearRunTimelines();
+      new Notice('Persistente Run Timelines gelöscht.');
+    } catch {
+      new Notice('Run Timelines konnten nicht gelöscht werden.');
+    }
   }
 
   private defaultRouterRulesFromModels(): ModelRouterRule[] {

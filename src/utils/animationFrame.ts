@@ -11,11 +11,23 @@ function getRendererWindow(): Window | null {
 export function scheduleAnimationFrame(
   callback: () => void,
   ownerWindow: Window | null = getRendererWindow(),
+  delayMs = 0,
 ): ScheduledAnimationFrame {
   const targetWindow = ownerWindow ?? getRendererWindow();
   if (!targetWindow) {
     callback();
     return { kind: 'timeout', id: 0, ownerWindow: null };
+  }
+
+  // For large streaming payloads, rendering every frame repeatedly parses an
+  // ever-growing Markdown string. A short timeout intentionally coalesces
+  // bursts before handing the DOM work back to the browser.
+  if (delayMs > 16) {
+    return {
+      kind: 'timeout',
+      id: targetWindow.setTimeout(callback, delayMs),
+      ownerWindow: targetWindow,
+    };
   }
 
   if (typeof targetWindow.requestAnimationFrame === 'function') {

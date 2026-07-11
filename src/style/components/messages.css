@@ -62,6 +62,16 @@
   word-wrap: break-word;
 }
 
+/* Modern Chromium can skip layout/paint for distant conversation turns. This
+   keeps large multi-provider chats responsive while the active stream remains
+   fully rendered by the controller above the fold. */
+@supports (content-visibility: auto) {
+  .claudian-message {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 280px;
+  }
+}
+
 /* User bubble — a raised surface with a hairline border and a whisper of accent
    on the trailing edge, so the user's turn reads as a distinct, contained card. */
 .claudian-message-user {
