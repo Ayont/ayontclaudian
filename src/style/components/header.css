@@ -30,6 +30,51 @@
   letter-spacing: -0.02em;
   color: var(--text-normal);
   transition: color var(--cl-dur) var(--cl-ease);
+  flex-shrink: 0;
+}
+
+/* Slanted hairline between the plugin name and the active chat title. */
+.claudian-title-divider {
+  flex-shrink: 0;
+  width: 1px;
+  height: 15px;
+  margin: 0 2px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(var(--claudian-brand-rgb), 0.65) 30%,
+    rgba(var(--claudian-brand-rgb), 0.65) 70%,
+    transparent
+  );
+  transform: rotate(14deg);
+}
+
+/* Active conversation title — quieter than the brand, ellipsized, and gently
+   fading in whenever the (auto-generated) title changes. */
+.claudian-title-chat {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--cl-text-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: -0.01em;
+}
+
+.claudian-title-chat.is-updated {
+  animation: claudian-title-chat-fade var(--cl-dur) var(--cl-ease-out);
+}
+
+@keyframes claudian-title-chat-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-title-chat.is-updated {
+    animation: none;
+  }
 }
 
 .claudian-logo {
@@ -65,12 +110,24 @@
   cursor: pointer;
   color: var(--text-faint);
   transition: color var(--cl-dur-fast) var(--cl-ease),
-    background var(--cl-dur-fast) var(--cl-ease);
+    background var(--cl-dur-fast) var(--cl-ease),
+    transform var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-header-btn:hover {
   color: var(--cl-accent);
   background: var(--cl-accent-soft);
+}
+
+/* Tactile press feedback — buttons respond, not just recolor. */
+.claudian-header-btn:active {
+  transform: scale(0.92);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-header-btn:active {
+    transform: none;
+  }
 }
 
 .claudian-header-btn:focus-visible {

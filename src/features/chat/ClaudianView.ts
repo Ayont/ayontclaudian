@@ -16,6 +16,7 @@ import {
 import type { HistoryConversationOpenState } from './controllers/ConversationController';
 import {
   getTabProviderId,
+  getTabTitle,
   onProviderAvailabilityChanged,
   sendTabInputMessageFromExplicitEnterShortcut,
   updatePlanModeUI,
@@ -46,6 +47,8 @@ export class ClaudianView extends ItemView {
   private titleSlotEl: HTMLElement | null = null;
   private logoEl: HTMLElement | null = null;
   private titleTextEl: HTMLElement | null = null;
+  private chatTitleDividerEl: HTMLElement | null = null;
+  private chatTitleEl: HTMLElement | null = null;
   private headerActionsEl: HTMLElement | null = null;
   private headerActionsContent: HTMLElement | null = null;
   private newTabButtonEl: HTMLElement | null = null;
@@ -262,6 +265,12 @@ export class ClaudianView extends ItemView {
     // Title text (hidden in header mode when 2+ tabs)
     this.titleTextEl = this.titleSlotEl.createEl('h4', { text: 'ayontclaudian', cls: 'claudian-title-text' });
 
+    // Active chat title: "ayontclaudian ⟋ <Chat-Titel>" — divider + title of the
+    // current conversation, kept in sync via the tab lifecycle callbacks.
+    this.chatTitleDividerEl = this.titleSlotEl.createSpan({ cls: 'claudian-title-divider claudian-hidden' });
+    this.chatTitleDividerEl.setAttribute('aria-hidden', 'true');
+    this.chatTitleEl = this.titleSlotEl.createSpan({ cls: 'claudian-title-chat claudian-hidden' });
+
     // Header actions container (for header mode - initially hidden)
     this.headerActionsEl = header.createDiv({ cls: 'claudian-header-actions claudian-header-actions-slot claudian-hidden' });
   }
@@ -446,6 +455,33 @@ export class ClaudianView extends ItemView {
     }, this.containerEl.ownerDocument.defaultView ?? null);
   }
 
+  /**
+   * Syncs the header's chat-title segment ("ayontclaudian ⟋ Titel") with the
+   * active tab's conversation. Hidden for unnamed chats and whenever the
+   * branding itself is hidden (header-mode tab badges).
+   */
+  private updateHeaderChatTitle(): void {
+    if (!this.chatTitleEl || !this.chatTitleDividerEl) return;
+
+    const activeTab = this.tabManager?.getActiveTab() ?? null;
+    const title = activeTab ? getTabTitle(activeTab, this.plugin) : null;
+    const brandingHidden = this.titleTextEl?.hasClass('claudian-hidden') ?? false;
+    const shouldShow = !!title && title !== 'New Chat' && !brandingHidden;
+
+    this.chatTitleDividerEl.toggleClass('claudian-hidden', !shouldShow);
+    this.chatTitleEl.toggleClass('claudian-hidden', !shouldShow);
+    if (!shouldShow) return;
+
+    if (this.chatTitleEl.textContent !== title) {
+      this.chatTitleEl.setText(title);
+      this.chatTitleEl.setAttribute('title', title);
+      // Re-trigger the entrance fade so title changes feel alive.
+      this.chatTitleEl.removeClass('is-updated');
+      void this.chatTitleEl.offsetWidth;
+      this.chatTitleEl.addClass('is-updated');
+    }
+  }
+
   private updateTabBarVisibility(): void {
     if (!this.tabBarContainerEl || !this.tabManager) return;
 
@@ -465,6 +501,10 @@ export class ClaudianView extends ItemView {
     if (this.titleTextEl) {
       this.titleTextEl.toggleClass('claudian-hidden', hideBranding);
     }
+
+    // Chat-title segment follows every tab lifecycle event: all callbacks
+    // funnel through updateTabBar() → here (rAF-debounced).
+    this.updateHeaderChatTitle();
 
     this.updateNewTabButtonVisibility();
   }
