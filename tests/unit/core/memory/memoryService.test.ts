@@ -1,12 +1,49 @@
-import type { TFile } from 'obsidian';
+import type { TFile, Vault } from 'obsidian';
 
 import type { MemoryNote } from '../../../../src/core/memory/memoryService';
 import {
   formatMemoryContext,
+  loadMemoryNotes,
   parseMemoryNote,
   rankMemoryNotes,
+  storeMemory,
   tokenizeMemoryQuery,
 } from '../../../../src/core/memory/memoryService';
+
+/**
+ * Adapter-based vault mock — mirrors real Obsidian behavior where the vault
+ * index NEVER exposes hidden `.claudian/` folders. Memory storage must work
+ * purely via `vault.adapter`.
+ */
+function createAdapterVault(): Vault & { __files: Map<string, string> } {
+  const files = new Map<string, string>();
+  return {
+    __files: files,
+    getAbstractFileByPath: () => null,
+    getMarkdownFiles: () => [],
+    adapter: {
+      exists: async (path: string) =>
+        files.has(path) || Array.from(files.keys()).some(p => p.startsWith(`${path}/`)),
+      mkdir: async () => {},
+      read: async (path: string) => {
+        const content = files.get(path);
+        if (content === undefined) throw new Error(`Not found: ${path}`);
+        return content;
+      },
+      write: async (path: string, content: string) => {
+        files.set(path, content);
+      },
+      remove: async (path: string) => {
+        files.delete(path);
+      },
+      list: async (folder: string) => ({
+        files: Array.from(files.keys()).filter(p => p.startsWith(`${folder}/`)),
+        folders: [],
+      }),
+      stat: async () => ({ mtime: 1_700_000_000_000, ctime: 0, size: 0, type: 'file' }),
+    },
+  } as unknown as Vault & { __files: Map<string, string> };
+}
 
 describe('tokenizeMemoryQuery', () => {
   it('removes stopwords and short tokens', () => {
@@ -125,5 +162,57 @@ describe('formatMemoryContext', () => {
     expect(output).toContain('**Obsidian**');
     expect(output).toContain('Use relative paths.');
     expect(output).toContain('tags: tips');
+  });
+});
+
+describe('storeMemory & loadMemoryNotes (hidden dot-folder)', () => {
+  it('stores via adapter and loads it back from .claudian/memory', async () => {
+    // Regression: memory lived in a hidden folder the vault index can't see —
+    // loadMemoryNotes used getMarkdownFiles() and ALWAYS returned []. It must
+    // enumerate via vault.adapter instead.
+    const vault = createAdapterVault();
+
+    const path = await storeMemory(vault, '.claudian/memory', 'Veylor Setup', 'MongoDB via en2do.', ['veylor']);
+    expect(path).toBe('.claudian/memory/veylor-setup.md');
+
+    const notes = await loadMemoryNotes(vault, '.claudian/memory');
+    expect(notes).toHaveLength(1);
+    expect(notes[0].topic).toBe('Veylor Setup');
+    expect(notes[0].content).toBe('MongoDB via en2do.');
+    expect(notes[0].tags).toEqual(['veylor']);
+  });
+
+  it('loadMemoryNotes never consults the vault index', async () => {
+    const vault = createAdapterVault();
+    const indexSpy = jest.spyOn(vault, 'getMarkdownFiles');
+    await storeMemory(vault, '.claudian/memory', 'A', 'a');
+
+    await loadMemoryNotes(vault, '.claudian/memory');
+
+    expect(indexSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns empty array for a missing folder', async () => {
+    const vault = createAdapterVault();
+    expect(await loadMemoryNotes(vault, '.claudian/memory')).toEqual([]);
+  });
+
+  it('storeMemory overwrites an existing memory with the same topic', async () => {
+    const vault = createAdapterVault();
+    await storeMemory(vault, '.claudian/memory', 'Topic', 'old');
+    await storeMemory(vault, '.claudian/memory', 'Topic', 'new');
+
+    const notes = await loadMemoryNotes(vault, '.claudian/memory');
+    expect(notes).toHaveLength(1);
+    expect(notes[0].content).toBe('new');
+  });
+
+  it('ignores non-markdown files in the memory folder', async () => {
+    const vault = createAdapterVault();
+    await storeMemory(vault, '.claudian/memory', 'Real', 'content');
+    vault.__files.set('.claudian/memory/manifest.json', '{}');
+
+    const notes = await loadMemoryNotes(vault, '.claudian/memory');
+    expect(notes).toHaveLength(1);
   });
 });

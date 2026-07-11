@@ -1,11 +1,25 @@
 import { type App, normalizePath, TFile, type Vault } from 'obsidian';
 
+import { globalEventBus } from '../events/EventBus';
+
 export interface MemoryNote {
   path: string;
   topic: string;
   content: string;
   tags: string[];
   mtime: number;
+}
+
+/**
+ * Structural stand-in for the bits of `TFile` the parser needs. Memory notes
+ * live in a hidden `.claudian/` folder that Obsidian's vault index never
+ * surfaces, so files are enumerated via `vault.adapter` and described with
+ * this shape instead of real `TFile`s.
+ */
+export interface MemoryNoteSource {
+  path: string;
+  basename: string;
+  stat: { mtime: number };
 }
 
 export interface MemoryCandidate {
@@ -31,7 +45,7 @@ export function tokenizeMemoryQuery(query: string): string[] {
   ).slice(0, 24);
 }
 
-export function parseMemoryNote(file: TFile, raw: string): MemoryNote {
+export function parseMemoryNote(file: MemoryNoteSource, raw: string): MemoryNote {
   const lines = raw.split('\n');
   let topic = file.basename;
   let tags: string[] = [];
@@ -69,17 +83,34 @@ export async function loadMemoryNotes(
   vault: Vault,
   folderPath: string,
 ): Promise<MemoryNote[]> {
+  // Memory folders default to `.claudian/memory` — a hidden dot-folder that
+  // Obsidian's vault index (getMarkdownFiles/getAbstractFileByPath) NEVER
+  // returns. Enumerate via the low-level adapter instead, which sees hidden
+  // paths. This is what makes recall actually find stored memories.
   const normalized = normalizePath(folderPath);
-  const folder = vault.getAbstractFileByPath(normalized);
-  if (!folder) return [];
+  const adapter = vault.adapter;
 
-  const files = vault.getMarkdownFiles().filter(file => file.path.startsWith(`${normalized}/`));
+  const exists = await adapter.exists(normalized).catch(() => false);
+  if (!exists) return [];
+
+  let listing: { files: string[] };
+  try {
+    listing = await adapter.list(normalized);
+  } catch {
+    return [];
+  }
+
   const notes: MemoryNote[] = [];
-
-  for (const file of files) {
-    const raw = await vault.cachedRead(file).catch(() => '');
+  for (const filePath of listing.files) {
+    if (!filePath.endsWith('.md')) continue;
+    const raw = await adapter.read(filePath).catch(() => '');
     if (!raw.trim()) continue;
-    notes.push(parseMemoryNote(file, raw));
+    const stat = await adapter.stat(filePath).catch(() => null);
+    const basename = filePath.split('/').pop()?.replace(/\.md$/, '') ?? filePath;
+    notes.push(parseMemoryNote(
+      { path: filePath, basename, stat: { mtime: stat?.mtime ?? 0 } },
+      raw,
+    ));
   }
 
   return notes.sort((a, b) => b.mtime - a.mtime);
@@ -160,32 +191,44 @@ export async function storeMemory(
   });
 
   const filePath = normalizePath(`${normalized}/${safeTopic}.md`);
-  const existing = vault.getAbstractFileByPath(filePath);
-
   const tagLine = tags.length > 0 ? `\ntags: ${tags.join(', ')}` : '';
   const frontmatter = `---\ntopic: ${topic}${tagLine}\n---\n\n${content.trim()}`;
 
-  if (existing instanceof TFile) {
-    await vault.modify(existing, frontmatter);
-  } else {
-    await vault.create(filePath, frontmatter);
+  // adapter.write creates or overwrites and — unlike vault.create/modify —
+  // works inside hidden dot-folders where the memory store lives.
+  await vault.adapter.write(filePath, frontmatter);
+
+  // Vault file events don't fire for hidden paths, so notify the cache layer
+  // explicitly; CachedMemoryStore listens for this signal.
+  try {
+    globalEventBus.emit('memory:updated', { topic });
+  } catch {
+    // Event bus is optional in some contexts.
   }
 
   return filePath;
 }
 
 export async function deleteMemory(app: App, filePath: string): Promise<void> {
-  const file = app.vault.getAbstractFileByPath(normalizePath(filePath));
+  const normalized = normalizePath(filePath);
+  const file = app.vault.getAbstractFileByPath(normalized);
   if (file instanceof TFile) {
     await app.fileManager.trashFile(file);
+  } else {
+    // Hidden-path memory files never appear in the vault index — remove via
+    // the adapter directly.
+    await app.vault.adapter.remove(normalized).catch(() => {});
+  }
+  try {
+    globalEventBus.emit('memory:updated', {});
+  } catch {
+    // Event bus is optional in some contexts.
   }
 }
 
 export async function ensureMemoryFolder(vault: Vault, folderPath: string): Promise<void> {
   const normalized = normalizePath(folderPath);
-  if (!vault.getAbstractFileByPath(normalized)) {
-    await vault.createFolder(normalized).catch(() => {
-      // Folder may already exist or platform doesn't allow creation.
-    });
-  }
+  await vault.adapter.mkdir(normalized).catch(() => {
+    // Folder may already exist.
+  });
 }

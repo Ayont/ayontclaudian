@@ -1,4 +1,4 @@
-import type { TFile, Vault } from 'obsidian';
+import type { Vault } from 'obsidian';
 
 function normalizePath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/^\//, '').replace(/\/$/, '');
@@ -30,12 +30,12 @@ export class AgenticMemoryService {
   constructor(private readonly vault: Vault) {}
 
   async ensureFolder(): Promise<void> {
-    const folder = normalizePath(MEMORY_FOLDER);
-    if (!this.vault.getAbstractFileByPath(folder)) {
-      await this.vault.createFolder(folder).catch(() => {
-        // May already exist.
-      });
-    }
+    // `.claudian/memory-v2` is a hidden dot-folder. The vault index
+    // (getAbstractFileByPath/createFolder/getMarkdownFiles) never sees hidden
+    // paths — every operation here MUST go through `vault.adapter`.
+    await this.vault.adapter.mkdir(normalizePath(MEMORY_FOLDER)).catch(() => {
+      // May already exist.
+    });
   }
 
   async remember(fact: Omit<MemoryFact, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
@@ -44,27 +44,40 @@ export class AgenticMemoryService {
     const now = Date.now();
     const full: MemoryFact = { ...fact, id, createdAt: now, updatedAt: now };
     const path = normalizePath(`${MEMORY_FOLDER}/${id}.md`);
-    const content = this.serializeFact(full);
 
-    const existing = this.vault.getAbstractFileByPath(path);
-    if (existing) {
-      await this.vault.modify(existing as TFile, content);
-    } else {
-      await this.vault.create(path, content);
-    }
+    // adapter.write creates or overwrites — works inside hidden folders.
+    await this.vault.adapter.write(path, this.serializeFact(full));
 
     globalEventBus.emit('memory:updated', { id, topic: full.topic });
     return id;
   }
 
-  async recall(query: MemoryQuery = {}): Promise<MemoryFact[]> {
+  /** Lists the markdown fact files via the adapter (dot-folder capable). */
+  private async listFactFiles(): Promise<string[]> {
     const folder = normalizePath(MEMORY_FOLDER);
-    const files = this.vault.getMarkdownFiles().filter(file => file.path.startsWith(`${folder}/`));
+    try {
+      if (!(await this.vault.adapter.exists(folder))) return [];
+      const listing = await this.vault.adapter.list(folder);
+      return listing.files.filter((file) => file.endsWith('.md'));
+    } catch {
+      return [];
+    }
+  }
+
+  /** Total number of stored facts — cheap listing, no file reads. */
+  async count(): Promise<number> {
+    return (await this.listFactFiles()).length;
+  }
+
+  async recall(query: MemoryQuery = {}): Promise<MemoryFact[]> {
+    const files = await this.listFactFiles();
     const facts: MemoryFact[] = [];
 
-    for (const file of files) {
-      const raw = await this.vault.cachedRead(file).catch(() => '');
-      const fact = this.parseFact(file.basename, raw);
+    for (const filePath of files) {
+      const raw = await this.vault.adapter.read(filePath).catch(() => '');
+      if (!raw.trim()) continue;
+      const basename = filePath.split('/').pop()?.replace(/\.md$/, '') ?? filePath;
+      const fact = this.parseFact(basename, raw);
       if (this.matchesQuery(fact, query)) {
         facts.push(fact);
       }

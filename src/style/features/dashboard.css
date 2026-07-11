@@ -1562,6 +1562,101 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
   margin: 0;
 }
 
+/* ── Memory Browser ─────────────────────────────────────────────────────────── */
+
+.claudian-browser-header-count {
+  margin-left: auto;
+  font-size: 0.8em;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--claudian-accent);
+  background: rgba(var(--claudian-accent-rgb), 0.12);
+  padding: 3px 12px;
+  border-radius: 100px;
+}
+
+.claudian-memory-card .claudian-browser-card-head {
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+.claudian-memory-card .claudian-browser-card-badge {
+  margin-left: auto;
+}
+
+.claudian-memory-source {
+  flex-shrink: 0;
+  font-size: 0.68em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.claudian-memory-source--chat {
+  background: rgba(var(--claudian-accent-rgb), 0.14);
+  color: var(--claudian-accent);
+}
+
+.claudian-memory-source--fact {
+  background: rgba(var(--color-green-rgb, 52, 211, 153), 0.14);
+  color: var(--color-green, #34d399);
+}
+
+.claudian-memory-card-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.claudian-memory-tag {
+  font-size: 0.7em;
+  color: var(--claudian-muted);
+  background: var(--background-modifier-hover, rgba(128, 128, 128, 0.1));
+  border: 1px solid var(--claudian-border);
+  padding: 1px 8px;
+  border-radius: 100px;
+}
+
+.claudian-memory-date {
+  margin-left: auto;
+  font-size: 0.72em;
+  font-variant-numeric: tabular-nums;
+  color: var(--claudian-muted);
+}
+
+.claudian-browser-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 24px 0;
+}
+
+.claudian-browser-empty-icon {
+  color: var(--claudian-muted);
+  opacity: 0.5;
+}
+
+.claudian-browser-empty-icon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.claudian-browser-empty-state .claudian-browser-empty {
+  padding: 0;
+}
+
+.claudian-browser-empty-hint {
+  margin: 0;
+  font-size: 0.8em;
+  color: var(--claudian-muted);
+  text-align: center;
+}
+
 /* ── Mission Cards ──────────────────────────────────────────────────────────── */
 
 .claudian-mission-card {

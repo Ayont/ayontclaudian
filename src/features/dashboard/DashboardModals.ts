@@ -2,6 +2,7 @@ import type { App } from 'obsidian';
 import { Modal, Notice, setIcon } from 'obsidian';
 
 import type { MissionEvent, MissionState } from '../../core/intelligence/multiAgent/MissionStateStorage';
+import { loadMemoryNotes } from '../../core/memory/memoryService';
 import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
 import type ClaudianPlugin from '../../main';
 
@@ -21,16 +22,23 @@ function applyProviderTheme(modalEl: HTMLElement, plugin: ClaudianPlugin): void 
 
 // ── Memory Browser Modal ──────────────────────────────────────────────────────
 
-interface MemoryFact {
+/** Unified view over both memory stores: chat notes (v1) and agentic facts (v2). */
+interface MemoryBrowserEntry {
+  source: 'chat' | 'fact';
   topic: string;
   content: string;
-  confidence: number;
+  tags: string[];
+  /** Only facts carry a confidence. */
+  confidence?: number;
+  /** Epoch ms; 0 when unknown. */
+  updatedAt: number;
 }
 
 export class MemoryBrowserModal extends Modal {
-  private facts: MemoryFact[] = [];
+  private entries: MemoryBrowserEntry[] = [];
   private listEl: HTMLElement | null = null;
   private searchEl: HTMLInputElement | null = null;
+  private countEl: HTMLElement | null = null;
 
   constructor(app: App, private readonly plugin: ClaudianPlugin) {
     super(app);
@@ -45,11 +53,12 @@ export class MemoryBrowserModal extends Modal {
     const header = contentEl.createDiv({ cls: 'claudian-browser-header' });
     setIcon(header.createSpan({ cls: 'claudian-browser-icon' }), 'brain-circuit');
     header.createEl('h2', { text: 'Memory Browser' });
+    this.countEl = header.createSpan({ cls: 'claudian-browser-header-count' });
 
     const searchWrap = contentEl.createDiv({ cls: 'claudian-browser-search' });
     this.searchEl = searchWrap.createEl('input', {
       type: 'text',
-      placeholder: 'Search memories...',
+      placeholder: 'Memories durchsuchen…',
       cls: 'claudian-browser-search-input',
     });
     this.searchEl.addEventListener('input', () => this.renderList());
@@ -57,13 +66,38 @@ export class MemoryBrowserModal extends Modal {
     this.listEl = contentEl.createDiv({ cls: 'claudian-browser-list' });
 
     const loadingEl = this.listEl.createEl('p', { cls: 'claudian-browser-empty', text: 'Loading...' });
-    try {
-      this.facts = await this.plugin.agenticMemoryService.recall({ limit: 50 });
-    } catch {
-      this.facts = [];
-    }
+    this.entries = await this.loadEntries();
     loadingEl.remove();
     this.renderList();
+  }
+
+  /** Merges chat memory notes and agentic facts, newest first. */
+  private async loadEntries(): Promise<MemoryBrowserEntry[]> {
+    const memoryFolder = this.plugin.settings.memoryFolder ?? '.claudian/memory';
+    const [facts, chatNotes] = await Promise.all([
+      this.plugin.agenticMemoryService.recall({ limit: 200 }).catch(() => []),
+      loadMemoryNotes(this.app.vault, memoryFolder).catch(() => []),
+    ]);
+
+    const entries: MemoryBrowserEntry[] = [
+      ...facts.map((fact): MemoryBrowserEntry => ({
+        source: 'fact',
+        topic: fact.topic,
+        content: fact.content,
+        tags: fact.tags,
+        confidence: fact.confidence,
+        updatedAt: fact.updatedAt,
+      })),
+      ...chatNotes.map((note): MemoryBrowserEntry => ({
+        source: 'chat',
+        topic: note.topic,
+        content: note.content,
+        tags: note.tags,
+        updatedAt: note.mtime,
+      })),
+    ];
+
+    return entries.sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
   private renderList(): void {
@@ -72,23 +106,65 @@ export class MemoryBrowserModal extends Modal {
 
     const query = this.searchEl?.value.toLowerCase().trim() ?? '';
     const filtered = query
-      ? this.facts.filter(f =>
-          f.topic.toLowerCase().includes(query) || f.content.toLowerCase().includes(query))
-      : this.facts;
+      ? this.entries.filter(e =>
+          e.topic.toLowerCase().includes(query)
+          || e.content.toLowerCase().includes(query)
+          || e.tags.some(tag => tag.toLowerCase().includes(query)))
+      : this.entries;
+
+    this.countEl?.setText(query
+      ? `${filtered.length}/${this.entries.length}`
+      : `${this.entries.length}`);
 
     if (filtered.length === 0) {
-      this.listEl.createEl('p', { cls: 'claudian-browser-empty', text: query ? 'No matches.' : 'No memories yet.' });
+      const empty = this.listEl.createDiv({ cls: 'claudian-browser-empty-state' });
+      setIcon(empty.createSpan({ cls: 'claudian-browser-empty-icon' }), query ? 'search-x' : 'brain-circuit');
+      empty.createEl('p', {
+        cls: 'claudian-browser-empty',
+        text: query ? 'Keine Treffer.' : 'Noch keine Memories.',
+      });
+      if (!query) {
+        empty.createEl('p', {
+          cls: 'claudian-browser-empty-hint',
+          text: 'Text markieren → Command „Store memory" oder „Remember fact".',
+        });
+      }
       return;
     }
 
-    for (const fact of filtered) {
-      const card = this.listEl.createDiv({ cls: 'claudian-browser-card' });
+    for (const entry of filtered) {
+      const card = this.listEl.createDiv({ cls: 'claudian-browser-card claudian-memory-card' });
       const head = card.createDiv({ cls: 'claudian-browser-card-head' });
-      head.createEl('span', { cls: 'claudian-browser-card-title', text: fact.topic });
-      const conf = head.createSpan({ cls: 'claudian-browser-card-badge' });
-      conf.setText(`${(fact.confidence * 100).toFixed(0)}%`);
-      if (fact.confidence > 0.8) conf.addClass('claudian-browser-card-badge--high');
-      card.createEl('p', { cls: 'claudian-browser-card-content', text: fact.content.slice(0, 300) });
+
+      const sourceBadge = head.createSpan({
+        cls: `claudian-memory-source claudian-memory-source--${entry.source}`,
+      });
+      sourceBadge.setText(entry.source === 'fact' ? 'Fact' : 'Chat');
+
+      head.createEl('span', { cls: 'claudian-browser-card-title', text: entry.topic });
+
+      if (entry.confidence !== undefined) {
+        const conf = head.createSpan({ cls: 'claudian-browser-card-badge' });
+        conf.setText(`${(entry.confidence * 100).toFixed(0)}%`);
+        if (entry.confidence > 0.8) conf.addClass('claudian-browser-card-badge--high');
+      }
+
+      card.createEl('p', { cls: 'claudian-browser-card-content', text: entry.content.slice(0, 300) });
+
+      if (entry.tags.length > 0 || entry.updatedAt > 0) {
+        const meta = card.createDiv({ cls: 'claudian-memory-card-meta' });
+        for (const tag of entry.tags.slice(0, 6)) {
+          meta.createSpan({ cls: 'claudian-memory-tag', text: tag });
+        }
+        if (entry.updatedAt > 0) {
+          meta.createSpan({
+            cls: 'claudian-memory-date',
+            text: new Date(entry.updatedAt).toLocaleDateString('de-DE', {
+              day: '2-digit', month: '2-digit', year: 'numeric',
+            }),
+          });
+        }
+      }
     }
   }
 }

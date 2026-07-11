@@ -1,6 +1,7 @@
 import { ItemView, Notice, setIcon, type WorkspaceLeaf } from 'obsidian';
 
 import { type ClaudianEvent, type ClaudianEventType, globalEventBus } from '../../core/events/EventBus';
+import { loadMemoryNotes } from '../../core/memory/memoryService';
 import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
 import type { ProviderCapabilities, ProviderId } from '../../core/providers/types';
 import type ClaudianPlugin from '../../main';
@@ -245,7 +246,17 @@ export class ClaudianDashboardView extends ItemView {
     grid.empty();
 
     const projects = await this.plugin.projectService.listProjects();
-    const memories = await this.plugin.agenticMemoryService.recall({ limit: 1 });
+    // Memories live in two stores: chat memory notes (v1, settings.memoryFolder)
+    // and agentic facts (v2). The card shows the REAL combined total — not the
+    // length of a limit-1 recall.
+    const memoryFolder = this.plugin.settings.memoryFolder ?? '.claudian/memory';
+    const [memories, factCount, chatNotes] = await Promise.all([
+      this.plugin.agenticMemoryService.recall({ limit: 1 }),
+      this.plugin.agenticMemoryService.count(),
+      loadMemoryNotes(this.app.vault, memoryFolder).catch(() => []),
+    ]);
+    const memoryTotal = factCount + chatNotes.length;
+    const latestMemoryTopic = memories[0]?.topic ?? chatNotes[0]?.topic ?? null;
     const usage = this.plugin.tokenBudgetTracker.getState();
     const ragSize = this.plugin.vectorStore.size();
     const workflows = this.plugin.workflowEngine.list();
@@ -261,9 +272,9 @@ export class ClaudianDashboardView extends ItemView {
       },
       {
         id: 'memory', title: 'Memory', icon: 'brain-circuit',
-        value: `${memories.length}+`,
-        subtitle: memories[0] ? `Latest: ${memories[0].topic}` : 'No memories yet',
-        status: memories.length > 0 ? 'ok' : 'info', action: 'Recall',
+        value: String(memoryTotal),
+        subtitle: latestMemoryTopic ? `Latest: ${latestMemoryTopic}` : 'No memories yet',
+        status: memoryTotal > 0 ? 'ok' : 'info', action: 'Browse',
         onClick: () => this.openMemoryBrowser(),
       },
       {

@@ -62,15 +62,12 @@
   word-wrap: break-word;
 }
 
-/* Modern Chromium can skip layout/paint for distant conversation turns. This
-   keeps large multi-provider chats responsive while the active stream remains
-   fully rendered by the controller above the fold. */
-@supports (content-visibility: auto) {
-  .claudian-message {
-    content-visibility: auto;
-    contain-intrinsic-size: auto 280px;
-  }
-}
+/* NOTE: `content-visibility: auto` was removed here on purpose. The 280px
+   intrinsic-size estimate rarely matched real message heights, so as bubbles
+   entered/left the render window the scroll container's height jumped and the
+   viewport got shoved upward ("wird nach oben geschoben"). Correct scrolling
+   beats the paint savings — do not reintroduce without a per-message measured
+   contain-intrinsic-size. */
 
 /* User bubble — a raised surface with a hairline border and a whisper of accent
    on the trailing edge, so the user's turn reads as a distinct, contained card. */
