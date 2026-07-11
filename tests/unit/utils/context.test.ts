@@ -4,6 +4,7 @@ import {
   extractContentBeforeXmlContext,
   extractUserDisplayContent,
   extractUserQuery,
+  extractVaultContextPrompt,
   formatCurrentNote,
   stripCurrentNoteContext,
   XML_CONTEXT_PATTERN,
@@ -200,6 +201,37 @@ describe('extractUserDisplayContent', () => {
 
   it('does not hide ordinary XML-like user text', () => {
     expect(extractUserDisplayContent('What does <xml> mean?')).toBeUndefined();
+  });
+
+  it('extracts the real prompt after prepended vault context', () => {
+    const prompt = '<vault_context>\nRelevant vault knowledge:\n- From [[BRAT-log.md]]\n</vault_context>\n\nWhy is the chat slow?';
+    expect(extractUserDisplayContent(prompt)).toBe('Why is the chat slow?');
+  });
+});
+
+describe('extractVaultContextPrompt', () => {
+  it('separates persisted RAG context from the user prompt and trailing XML', () => {
+    const prompt = [
+      '<vault_context>',
+      'Relevant vault knowledge:',
+      '- From [[BRAT-log.md]] (score 80%): update log',
+      '</vault_context>',
+      '',
+      'Why is the chat slow?',
+      '',
+      '<current_note>',
+      '02-Projekte/ayontclaudian/ayontclaudian.md',
+      '</current_note>',
+    ].join('\n');
+
+    expect(extractVaultContextPrompt(prompt)).toEqual({
+      context: 'Relevant vault knowledge:\n- From [[BRAT-log.md]] (score 80%): update log',
+      userContent: 'Why is the chat slow?',
+    });
+  });
+
+  it('returns undefined for an ordinary prompt', () => {
+    expect(extractVaultContextPrompt('Just a normal prompt')).toBeUndefined();
   });
 });
 

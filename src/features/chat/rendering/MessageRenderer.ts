@@ -15,7 +15,7 @@ import { extractToolResultContent } from '../../../core/tools/toolResultContent'
 import type { ChatMessage, ImageAttachment, SubagentInfo, ToolCallInfo } from '../../../core/types';
 import { t } from '../../../i18n/i18n';
 import type ClaudianPlugin from '../../../main';
-import { extractUserDisplayContent } from '../../../utils/context';
+import { extractUserDisplayContent, extractVaultContextPrompt } from '../../../utils/context';
 import { formatDurationMmSs } from '../../../utils/date';
 import { processFileLinks, registerFileLinkHandler } from '../../../utils/fileLink';
 import { replaceImageEmbedsWithHtml } from '../../../utils/imageEmbed';
@@ -190,8 +190,33 @@ export class MessageRenderer {
     return this.plugin.settings?.expandFileEditsByDefault === true;
   }
 
+  private getUserMessagePresentation(msg: ChatMessage): { text: string; vaultContext?: string } {
+    const vaultContext = extractVaultContextPrompt(msg.content);
+    return {
+      text: msg.displayContent ?? vaultContext?.userContent ?? extractUserDisplayContent(msg.content) ?? msg.content,
+      ...(vaultContext?.context ? { vaultContext: vaultContext.context } : {}),
+    };
+  }
+
+  /** Compatibility helper for live user-message update paths. */
   private getUserMessageTextToShow(msg: ChatMessage): string {
-    return msg.displayContent ?? extractUserDisplayContent(msg.content) ?? msg.content;
+    return this.getUserMessagePresentation(msg).text;
+  }
+
+  private renderVaultContextCard(parentEl: HTMLElement, markdown: string): void {
+    const sourceCount = (markdown.match(/^\s*(?:[-*]\s+)?From \[\[/gm) ?? []).length;
+    const detailsEl = parentEl.createEl('details', { cls: 'claudian-vault-context-card' });
+    detailsEl.setAttribute('aria-label', 'Vault context used for this message');
+    const summaryEl = detailsEl.createEl('summary', { cls: 'claudian-vault-context-summary' });
+    const iconEl = summaryEl.createSpan({ cls: 'claudian-vault-context-icon' });
+    setIcon(iconEl, 'library-big');
+    summaryEl.createSpan({
+      cls: 'claudian-vault-context-title',
+      text: sourceCount === 1 ? '1 Vault-Quelle als Kontext' : `${sourceCount || 'Vault'} Quellen als Kontext`,
+    });
+    summaryEl.createSpan({ cls: 'claudian-vault-context-hint', text: 'anzeigen' });
+    const bodyEl = detailsEl.createDiv({ cls: 'claudian-vault-context-body' });
+    void this.renderContent(bodyEl, markdown);
   }
 
   // ============================================
@@ -475,9 +500,9 @@ export class MessageRenderer {
     }
 
     // Skip empty bubble for image-only messages
+    const userPresentation = msg.role === 'user' ? this.getUserMessagePresentation(msg) : null;
     if (msg.role === 'user') {
-      const textToShow = this.getUserMessageTextToShow(msg);
-      if (!textToShow) {
+      if (!userPresentation?.text && !userPresentation?.vaultContext) {
         return;
       }
     }
@@ -500,11 +525,13 @@ export class MessageRenderer {
     const contentEl = msgEl.createDiv({ cls: 'claudian-message-content', attr: { dir: 'auto' } });
 
     if (msg.role === 'user') {
-      const textToShow = this.getUserMessageTextToShow(msg);
-      if (textToShow) {
+      if (userPresentation?.vaultContext) {
+        this.renderVaultContextCard(contentEl, userPresentation.vaultContext);
+      }
+      if (userPresentation?.text) {
         const textEl = contentEl.createDiv({ cls: 'claudian-text-block' });
-        void this.renderContent(textEl, textToShow);
-        this.addUserCopyButton(msgEl, textToShow);
+        void this.renderContent(textEl, userPresentation.text);
+        this.addUserCopyButton(msgEl, userPresentation.text);
       }
       if (msg.userMessageId && this.isRewindEligible(allMessages, index)) {
         if (this.rewindCallback) {

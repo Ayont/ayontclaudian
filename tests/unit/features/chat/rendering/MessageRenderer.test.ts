@@ -283,6 +283,36 @@ describe('MessageRenderer', () => {
     expect(renderContentSpy).toHaveBeenCalledWith(expect.anything(), 'Explain this');
   });
 
+  it('renders persisted vault context as a collapsed context card instead of raw prompt text', () => {
+    const messagesEl = createMockEl();
+    const { renderer } = createRenderer(messagesEl);
+    const renderContentSpy = jest.spyOn(renderer, 'renderContent').mockResolvedValue(undefined);
+    const msg: ChatMessage = {
+      id: 'vault-context-user',
+      role: 'user',
+      content: [
+        '<vault_context>',
+        'Relevant vault knowledge:',
+        '- From [[BRAT-log.md]] (score 80%): plugin update log',
+        '</vault_context>',
+        '',
+        'Why is the chat slow?',
+      ].join('\n'),
+      timestamp: Date.now(),
+    };
+
+    renderer.renderStoredMessage(msg);
+
+    const contentEl = messagesEl.children[0].children[0];
+    expect(contentEl.children[0].hasClass('claudian-vault-context-card')).toBe(true);
+    expect(renderContentSpy).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      'Relevant vault knowledge:\n- From [[BRAT-log.md]] (score 80%): plugin update log',
+    );
+    expect(renderContentSpy).toHaveBeenNthCalledWith(2, expect.anything(), 'Why is the chat slow?');
+  });
+
   it('skips empty user message bubble (image-only)', () => {
     const messagesEl = createMockEl();
     const { renderer } = createRenderer(messagesEl);

@@ -138,6 +138,70 @@
   unicode-bidi: plaintext; /* Proper BiDi text handling for mixed RTL/LTR */
 }
 
+/* Provider-native histories can contain the exact RAG prompt. Keep its useful
+   provenance available, but never let a raw `<vault_context>` wall dominate a
+   rehydrated user bubble. */
+.claudian-vault-context-card {
+  margin: 0 0 var(--cl-space-3);
+  overflow: hidden;
+  border: 1px solid rgba(var(--claudian-brand-rgb), 0.25);
+  border-radius: var(--cl-radius-md);
+  background: color-mix(in srgb, var(--cl-accent-soft) 46%, var(--cl-surface-raised));
+}
+
+.claudian-vault-context-summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 7px 10px;
+  color: var(--text-normal);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.claudian-vault-context-summary::-webkit-details-marker { display: none; }
+
+.claudian-vault-context-summary::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cl-accent);
+  box-shadow: 0 0 0 3px rgba(var(--claudian-brand-rgb), 0.13);
+  content: '';
+}
+
+.claudian-vault-context-icon {
+  display: inline-flex;
+  color: var(--cl-accent);
+}
+
+.claudian-vault-context-icon svg { width: 14px; height: 14px; }
+
+.claudian-vault-context-title { font-size: var(--cl-text-xs); font-weight: 700; }
+
+.claudian-vault-context-hint {
+  margin-inline-start: auto;
+  color: var(--text-muted);
+  font-size: var(--cl-text-xs);
+}
+
+.claudian-vault-context-card[open] .claudian-vault-context-hint { font-size: 0; }
+.claudian-vault-context-card[open] .claudian-vault-context-hint::after { content: 'ausblenden'; font-size: var(--cl-text-xs); }
+
+.claudian-vault-context-body {
+  max-height: 340px;
+  padding: 0 12px 12px;
+  overflow: auto;
+  border-top: 1px solid rgba(var(--claudian-brand-rgb), 0.18);
+  color: var(--text-muted);
+  font-size: var(--cl-text-xs);
+  line-height: 1.5;
+}
+
+.claudian-vault-context-body > :first-child { margin-top: var(--cl-space-2); }
+
 /* Safety net: nothing inside a message may exceed the column width. Wide media
    is capped; pre/code/tables scroll inside their own box (never the page). */
 .claudian-message-content :is(img, video, canvas, svg, table) {

@@ -15,8 +15,16 @@ const CURRENT_NOTE_SUFFIX_REGEX = /\n\n<current_note>\n[\s\S]*?<\/current_note>$
  * Matches: current_note, editor_selection (with attributes), editor_cursor (with attributes),
  * context_files, canvas_selection, browser_selection
  */
-export const XML_CONTEXT_PATTERN = /\n\n<(?:current_note|editor_selection|editor_cursor|context_files|canvas_selection|browser_selection)[\s>]/;
+export const XML_CONTEXT_PATTERN = /\n\n<(?:vault_context|current_note|editor_selection|editor_cursor|context_files|canvas_selection|browser_selection)[\s>]/;
 const BRACKET_CONTEXT_PATTERN = /\n\[(?:Current note|Editor selection from|Browser selection from|Canvas selection from)\b/;
+const VAULT_CONTEXT_PATTERN = /<vault_context>\s*([\s\S]*?)\s*<\/vault_context>/i;
+
+export interface VaultContextPrompt {
+  /** Markdown inside the machine-facing `<vault_context>` tag. */
+  context: string;
+  /** The actual human prompt, with trailing XML context removed when present. */
+  userContent: string;
+}
 
 export function formatCurrentNote(notePath: string): string {
   return `<current_note>\n${notePath}\n</current_note>`;
@@ -65,8 +73,34 @@ export function extractContentBeforeXmlContext(text: string): string | undefined
   return undefined;
 }
 
+/**
+ * Separates the automatically injected vault context from a prompt that was
+ * persisted by a provider-native transcript. RAG context is prepended to the
+ * real user message, so the old "content before XML" rule cannot recover it.
+ */
+export function extractVaultContextPrompt(text: string): VaultContextPrompt | undefined {
+  if (!text) return undefined;
+  const match = text.match(VAULT_CONTEXT_PATTERN);
+  if (!match || match.index === undefined) return undefined;
+
+  const before = text.slice(0, match.index).trim();
+  const after = text.slice(match.index + match[0].length).trim();
+  const candidate = before || after;
+  const userContent = extractContentBeforeXmlContext(candidate) ?? candidate;
+
+  return {
+    context: (match[1] ?? '').trim(),
+    userContent: userContent.trim(),
+  };
+}
+
 export function extractUserDisplayContent(text: string): string | undefined {
   if (!text) return undefined;
+
+  const vaultContext = extractVaultContextPrompt(text);
+  if (vaultContext) {
+    return vaultContext.userContent;
+  }
 
   const xmlDisplayContent = extractContentBeforeXmlContext(text);
   if (xmlDisplayContent !== undefined) {
@@ -91,6 +125,11 @@ export function extractUserDisplayContent(text: string): string | undefined {
 export function extractUserQuery(prompt: string): string {
   if (!prompt) return '';
 
+  const vaultContext = extractVaultContextPrompt(prompt);
+  if (vaultContext) {
+    return vaultContext.userContent;
+  }
+
   // Try to extract content before XML context
   const extracted = extractContentBeforeXmlContext(prompt);
   if (extracted !== undefined) {
@@ -105,6 +144,7 @@ export function extractUserQuery(prompt: string): string {
     .replace(/<context_files>[\s\S]*?<\/context_files>\s*/g, '')
     .replace(/<canvas_selection[\s\S]*?<\/canvas_selection>\s*/g, '')
     .replace(/<browser_selection[\s\S]*?<\/browser_selection>\s*/g, '')
+    .replace(/<vault_context>[\s\S]*?<\/vault_context>\s*/g, '')
     .trim();
 }
 
