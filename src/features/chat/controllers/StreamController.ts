@@ -145,8 +145,8 @@ export class StreamController {
     switch (chunk.type) {
       case 'thinking':
         this.deps.updateLiveActivity?.({
-          primary: 'Model is reasoning',
-          meta: 'Thinking stream',
+          primary: 'Modell denkt nach',
+          meta: 'Thinking-Stream',
           phrase: 'reasoning',
         });
         // Flush pending tools before rendering new content type
@@ -159,8 +159,8 @@ export class StreamController {
 
       case 'text':
         this.deps.updateLiveActivity?.({
-          primary: 'Writing response',
-          meta: 'Assistant text stream',
+          primary: 'Schreibe Antwort',
+          meta: 'Antwort-Stream',
           phrase: 'writing',
         });
         // Flush pending tools before rendering new content type
@@ -175,7 +175,7 @@ export class StreamController {
       case 'tool_use': {
         this.deps.updateLiveActivity?.({
           primary: getToolName(chunk.name, chunk.input),
-          meta: getToolSummary(chunk.name, chunk.input) || 'Tool call started',
+          meta: getToolSummary(chunk.name, chunk.input) || 'Tool-Aufruf gestartet',
           phrase: 'running tool',
         });
         if (state.currentThinkingState) {
@@ -211,8 +211,8 @@ export class StreamController {
 
       case 'tool_result': {
         this.deps.updateLiveActivity?.({
-          primary: 'Tool result received',
-          meta: chunk.isError ? 'Tool reported an error' : 'Tool completed',
+          primary: 'Tool-Ergebnis erhalten',
+          meta: chunk.isError ? 'Tool meldet einen Fehler' : 'Tool abgeschlossen',
           phrase: chunk.isError ? 'checking error' : 'reading output',
         });
         await this.handleToolResult(chunk, msg);
@@ -222,7 +222,7 @@ export class StreamController {
       case 'subagent_tool_use':
       case 'subagent_tool_result':
         this.deps.updateLiveActivity?.({
-          primary: chunk.type === 'subagent_tool_use' ? chunk.name : 'Subagent tool result',
+          primary: chunk.type === 'subagent_tool_use' ? chunk.name : 'Subagent-Tool-Ergebnis',
           meta: `Subagent ${chunk.subagentId}`,
           phrase: 'agent swarm',
         });
@@ -237,7 +237,7 @@ export class StreamController {
         this.deps.subagentManager.handleWorkflowTaskStarted(chunk);
         this.deps.updateLiveActivity?.({
           primary: chunk.workflowName ? `Workflow: ${chunk.workflowName}` : chunk.description,
-          meta: 'Claude Code workflow started',
+          meta: 'Workflow gestartet',
           phrase: 'orchestrating workflow',
         });
         this.showThinkingIndicator();
@@ -255,7 +255,7 @@ export class StreamController {
       case 'background_task_result':
         this.deps.subagentManager.handleWorkflowTaskResult(chunk);
         this.deps.updateLiveActivity?.({
-          primary: chunk.status === 'completed' ? 'Workflow completed' : 'Workflow stopped',
+          primary: chunk.status === 'completed' ? 'Workflow abgeschlossen' : 'Workflow gestoppt',
           meta: chunk.summary || `Task ${chunk.taskId}`,
           phrase: chunk.status === 'completed' ? 'continuing automatically' : 'workflow ended',
         });
@@ -268,7 +268,7 @@ export class StreamController {
 
       case 'notice':
         this.deps.updateLiveActivity?.({
-          primary: chunk.level === 'warning' ? 'Provider warning' : 'Provider notice',
+          primary: chunk.level === 'warning' ? 'Provider-Warnung' : 'Provider-Hinweis',
           meta: chunk.content,
           phrase: 'needs attention',
         });
@@ -282,7 +282,7 @@ export class StreamController {
       case 'error': {
         const providerId = this.getActiveProviderId();
         this.deps.updateLiveActivity?.({
-          primary: 'Provider error',
+          primary: 'Provider-Fehler',
           meta: chunk.content,
           phrase: 'error',
         });
@@ -1485,7 +1485,7 @@ export class StreamController {
       state.thinkingEl = state.currentContentEl.createDiv({ cls });
       const text = overrideText || FLAVOR_TEXTS[Math.floor(Math.random() * FLAVOR_TEXTS.length)];
       this.deps.updateLiveActivity?.({
-        primary: 'Waiting for next provider event',
+        primary: 'Warte auf nächsten Provider-Event',
         meta: text,
         phrase: text.replace(/\.\.\.$/, ''),
       });

@@ -1,4 +1,9 @@
-import { appendActivity, formatElapsed, type StreamActivity } from '@/features/chat/ui/StreamStatusBar';
+import {
+  appendActivity,
+  formatActivityOffset,
+  formatElapsed,
+  type StreamActivity,
+} from '@/features/chat/ui/StreamStatusBar';
 
 describe('formatElapsed', () => {
   it('shows seconds under a minute', () => {
@@ -47,5 +52,25 @@ describe('appendActivity', () => {
     );
 
     expect(activities.map(entry => entry.primary)).toEqual(['two', 'three']);
+  });
+});
+
+describe('formatActivityOffset', () => {
+  it('shows one decimal below 10 seconds (preflight bursts are sub-second)', () => {
+    // Regression: second-granularity rendered every preflight step as `+0s`,
+    // which read as a broken timer instead of a fast preflight.
+    expect(formatActivityOffset(1000, 1000)).toBe('+0.0s');
+    expect(formatActivityOffset(1000, 1400)).toBe('+0.4s');
+    expect(formatActivityOffset(1000, 3600)).toBe('+2.6s');
+    expect(formatActivityOffset(1000, 10_900)).toBe('+9.9s');
+  });
+
+  it('switches to whole seconds and M:SS beyond 10 seconds', () => {
+    expect(formatActivityOffset(0, 12_000)).toBe('+12s');
+    expect(formatActivityOffset(0, 75_000)).toBe('+1:15');
+  });
+
+  it('clamps negative offsets', () => {
+    expect(formatActivityOffset(5000, 1000)).toBe('+0.0s');
   });
 });

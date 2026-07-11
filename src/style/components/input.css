@@ -339,6 +339,11 @@
   align-items: center;
   gap: var(--cl-space-2);
   width: 100%;
+  /* Obsidian themes give <button> a fixed height — with the two-line text
+     column that made the activity line spill under the pill border and paint
+     THROUGH the detail separator ("durchgestrichene" doppelte Zeile). */
+  height: auto;
+  min-height: 0;
   padding: 7px 10px;
   border: none;
   background: transparent;
@@ -409,6 +414,12 @@
   white-space: nowrap;
 }
 
+/* Expanded inspector already leads with the same text as its primary line —
+   hide the header copy so the operation never appears twice in a row. */
+.claudian-stream-status.is-open .claudian-stream-status-activity {
+  display: none;
+}
+
 .claudian-stream-status-timer {
   font-family: var(--cl-font-mono);
   font-variant-numeric: tabular-nums;
@@ -445,7 +456,20 @@
 
 .claudian-stream-status.is-open .claudian-stream-status-detail {
   display: block;
-  animation: cl-rise var(--cl-dur-fast) var(--cl-ease-out);
+  /* Opacity-only: cl-rise translates upward and briefly painted the detail
+     text OVER the toggle row (doubled, overlapping lines while expanding). */
+  animation: claudian-stream-detail-fade var(--cl-dur-fast) var(--cl-ease-out);
+}
+
+@keyframes claudian-stream-detail-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-stream-status.is-open .claudian-stream-status-detail {
+    animation: none;
+  }
 }
 
 .claudian-stream-status-detail-primary {

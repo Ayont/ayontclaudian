@@ -45,8 +45,17 @@ export function appendActivity(
   return [...activities, activity].slice(-Math.max(1, limit));
 }
 
-function formatActivityOffset(startedAt: number, at: number): string {
-  return `+${formatElapsed(Math.max(0, at - startedAt))}`;
+/**
+ * Formats an activity's offset from stream start. Preflight bursts land within
+ * the first second — plain second-granularity rendered a wall of identical
+ * `+0s` rows that read as a timing bug. Sub-10s offsets keep one decimal.
+ */
+export function formatActivityOffset(startedAt: number, at: number): string {
+  const ms = Math.max(0, at - startedAt);
+  if (ms < 10_000) {
+    return `+${(ms / 1000).toFixed(1)}s`;
+  }
+  return `+${formatElapsed(ms)}`;
 }
 
 export class StreamStatusBar {
@@ -64,9 +73,9 @@ export class StreamStatusBar {
   private startedAt = 0;
   private readonly now: () => number;
   private currentLabel = 'Generiert…';
-  private currentPhrase = 'working';
-  private currentActivity = 'Waiting for provider events';
-  private currentMeta = 'No tool activity yet';
+  private currentPhrase = 'arbeitet';
+  private currentActivity = 'Warte auf Provider-Events';
+  private currentMeta = 'Noch keine Tool-Aktivität';
   private activities: StreamActivity[] = [];
   private isOpen = false;
 
@@ -80,7 +89,7 @@ export class StreamStatusBar {
     this.toggleEl = this.el.createEl('button', { cls: 'claudian-stream-status-toggle' });
     this.toggleEl.setAttribute('type', 'button');
     this.toggleEl.setAttribute('aria-expanded', 'false');
-    this.toggleEl.setAttribute('aria-label', 'Show live activity details');
+    this.toggleEl.setAttribute('aria-label', 'Live-Aktivität anzeigen');
 
     this.toggleEl.createSpan({ cls: 'claudian-stream-status-dot' });
     const textEl = this.toggleEl.createSpan({ cls: 'claudian-stream-status-text' });
@@ -129,7 +138,7 @@ export class StreamStatusBar {
 
   /** Updates the expandable live detail row with the latest provider activity. */
   setActivity(primary: string, meta = ''): void {
-    const nextPrimary = primary || 'Working';
+    const nextPrimary = primary || 'Arbeitet';
     const nextMeta = meta || this.currentLabel;
     const wasCurrentActivity = this.currentActivity === nextPrimary && this.currentMeta === nextMeta;
     this.currentActivity = nextPrimary;
@@ -142,7 +151,7 @@ export class StreamStatusBar {
       });
     }
     this.activityEl.setText(this.currentActivity);
-    this.toggleEl.setAttribute('aria-label', `Show live activity details: ${this.currentActivity}`);
+    this.toggleEl.setAttribute('aria-label', `Live-Aktivität anzeigen: ${this.currentActivity}`);
     this.renderDetail();
   }
 
@@ -155,7 +164,7 @@ export class StreamStatusBar {
   private start(): void {
     this.startedAt = this.now();
     this.activities = [];
-    this.currentActivity = 'Starting provider turn';
+    this.currentActivity = 'Starte Provider-Turn';
     this.currentMeta = this.currentLabel;
     this.activities = appendActivity(this.activities, {
       primary: this.currentActivity,
@@ -176,9 +185,9 @@ export class StreamStatusBar {
     this.isOpen = false;
     this.toggleEl.setAttribute('aria-expanded', 'false');
     this.setLabel('Generiert…');
-    this.setPhrase('working');
-    this.currentActivity = 'Waiting for provider events';
-    this.currentMeta = 'No tool activity yet';
+    this.setPhrase('arbeitet');
+    this.currentActivity = 'Warte auf Provider-Events';
+    this.currentMeta = 'Noch keine Tool-Aktivität';
     this.activities = [];
     this.renderDetail();
   }
@@ -195,7 +204,7 @@ export class StreamStatusBar {
     if (this.activities.length === 0) return;
 
     const heading = this.activityHistoryEl.createDiv({ cls: 'claudian-stream-status-history-heading' });
-    heading.setText(`Live activity · ${this.activities.length}`);
+    heading.setText(`Live-Aktivität · ${this.activities.length}`);
     const list = this.activityHistoryEl.createEl('ol', { cls: 'claudian-stream-status-history-list' });
     for (const activity of this.activities) {
       const row = list.createEl('li', { cls: 'claudian-stream-status-history-item' });
