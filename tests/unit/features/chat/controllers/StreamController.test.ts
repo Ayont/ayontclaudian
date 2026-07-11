@@ -2381,6 +2381,26 @@ describe('getAdaptiveStreamRenderDelay', () => {
   });
 });
 
+describe('StreamController pre-flight feedback', () => {
+  it('forwards preparation phases to the same live activity channel as stream chunks', () => {
+    const deps = createMockDeps();
+    deps.updateLiveActivity = jest.fn();
+    const controller = new StreamController(deps);
+
+    controller.reportLiveActivity({
+      primary: 'Durchsuche Vault-Kontext',
+      meta: 'Memory + RAG',
+      phrase: 'Kontext wird geladen',
+    });
+
+    expect(deps.updateLiveActivity).toHaveBeenCalledWith({
+      primary: 'Durchsuche Vault-Kontext',
+      meta: 'Memory + RAG',
+      phrase: 'Kontext wird geladen',
+    });
+  });
+});
+
 describe('StreamController - Plan Mode', () => {
   let controller: StreamController;
   let deps: StreamControllerDeps;

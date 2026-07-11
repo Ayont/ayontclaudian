@@ -194,6 +194,14 @@ export class InputController {
     return this.deps.getAgentService?.() ?? null;
   }
 
+  /** Optional bridge keeps pre-flight feedback compatible with lightweight test/runtime stubs. */
+  private reportLiveActivity(activity: { primary: string; meta?: string; phrase?: string }): void {
+    const reporter = (this.deps.streamController as StreamController & {
+      reportLiveActivity?: (next: typeof activity) => void;
+    }).reportLiveActivity;
+    reporter?.call(this.deps.streamController, activity);
+  }
+
   /** Consecutive auto-resolutions allowed before auto mode pauses for a human. */
   private autoModePauseThreshold(): number {
     const configured = this.deps.plugin.settings.autoModePauseAfter;
@@ -423,6 +431,16 @@ export class InputController {
     this.deps.getSubagentManager().resetSpawnedCount();
     state.autoScrollEnabled = plugin.settings.enableAutoScroll ?? true; // Reset auto-scroll based on setting
     const streamGeneration = state.bumpStreamGeneration();
+    // Cold provider startup can take seconds for an app-server/ACP runtime.
+    // Start it immediately and overlap it with vault context preparation below.
+    const serviceInitialization = this.deps.ensureServiceInitialized
+      ? this.deps.ensureServiceInitialized()
+      : Promise.resolve(true);
+    this.reportLiveActivity({
+      primary: 'Starte Provider-Runtime',
+      meta: 'Initialisierung läuft parallel zur Kontextvorbereitung',
+      phrase: 'Provider wird gestartet',
+    });
 
     // Hide welcome message when sending first message
     const welcomeEl = this.deps.getWelcomeEl();
@@ -476,10 +494,21 @@ export class InputController {
       // Use the cached store so the always-on auto-recall doesn't re-scan every
       // vault markdown file on each turn. Falls back to a direct load if the store
       // isn't initialized yet (defensive — it is created during plugin onload).
+      this.reportLiveActivity({
+        primary: 'Durchsuche Vault-Kontext',
+        meta: 'Memory-Abruf und semantische Suche laufen parallel',
+        phrase: 'Kontext wird geladen',
+      });
       const recallStart = perfMark();
-      const memoryNotes = plugin.cachedMemoryStore
-        ? await plugin.cachedMemoryStore.getNotes(memoryFolder)
-        : await loadMemoryNotes(plugin.app.vault, memoryFolder);
+      const ragStart = perfMark();
+      const ragService = this.deps.getVaultRAGService?.();
+      const memoryNotesPromise = plugin.cachedMemoryStore
+        ? plugin.cachedMemoryStore.getNotes(memoryFolder)
+        : loadMemoryNotes(plugin.app.vault, memoryFolder);
+      const ragChunksPromise = ragService
+        ? ragService.query(displayContent, { limit: 3 }).catch(() => [])
+        : Promise.resolve([]);
+      const [memoryNotes, ragChunks] = await Promise.all([memoryNotesPromise, ragChunksPromise]);
       const memoryCandidates = rankMemoryNotes(displayContent, memoryNotes, {
         limit: plugin.settings.memoryMaxNotes ?? 5,
       });
@@ -489,16 +518,18 @@ export class InputController {
       }
       perfSince(recallStart, 'memory-recall', `${memoryCandidates.length} matched, ${memoryNotes.length} notes`);
 
-      const ragService = this.deps.getVaultRAGService?.();
       if (ragService) {
-        const ragStart = perfMark();
-        const ragChunks = await ragService.query(displayContent, { limit: 3 });
         if (ragChunks.length > 0) {
           const ragContext = `<vault_context>\nRelevant vault knowledge:\n\n${ragChunks.map(chunk => `- From [[${chunk.path}]] (score ${(chunk.score * 100).toFixed(0)}%):\n  ${chunk.text.slice(0, 400)}`).join('\n\n')}\n</vault_context>`;
           turnRequest.text = `${ragContext}\n\n${turnRequest.text}`;
         }
         perfSince(ragStart, 'vault-rag', `${ragChunks.length} chunks`);
       }
+      this.reportLiveActivity({
+        primary: 'Vault-Kontext bereit',
+        meta: `${memoryCandidates.length} Memory-Notizen · ${ragChunks.length} RAG-Treffer`,
+        phrase: 'Anfrage wird vorbereitet',
+      });
     }
 
     fileContextManager?.markCurrentNoteSent();
@@ -516,6 +547,11 @@ export class InputController {
     state.hasPendingConversationSave = true;
     renderer.addMessage(userMsg);
 
+    this.reportLiveActivity({
+      primary: 'Erstelle Unterhaltung',
+      meta: 'Sichere Gespräch und Titel lokal',
+      phrase: 'Unterhaltung wird angelegt',
+    });
     await this.triggerTitleGeneration();
 
     const assistantMsg: ChatMessage = {
@@ -534,6 +570,11 @@ export class InputController {
     // Persist the conversation immediately after the user message (and its
     // placeholder assistant turn) so the chat survives plugin reloads, crashes,
     // or mid-stream closures for every model and provider.
+    this.reportLiveActivity({
+      primary: 'Sichere Unterhaltung',
+      meta: 'Lokaler Wiederherstellungspunkt wird geschrieben',
+      phrase: 'Gespräch wird gesichert',
+    });
     await this.deps.conversationController.save();
 
     // Promote the pre-send image staging files to durable conversation media.
@@ -541,7 +582,7 @@ export class InputController {
     // archive is what lets historical image thumbnails survive a restart.
     if (imagesForMessage?.length && state.currentConversationId) {
       const imageArchive = plugin.imageStagingService;
-      await imageArchive?.archiveMessageImages(
+      void imageArchive?.archiveMessageImages(
         imagesForMessage.map((image) => image.id),
         state.currentConversationId,
         userMsg.id,
@@ -575,17 +616,16 @@ export class InputController {
     let didEnqueueToSdk = false;
     let planCompleted = false;
 
-    // Lazy initialization: ensure service is ready before first query
-    if (this.deps.ensureServiceInitialized) {
-      const ready = await this.deps.ensureServiceInitialized();
-      if (!ready) {
-        new Notice('Failed to initialize agent service. Please try again.');
-        streamController.hideThinkingIndicator();
-        state.isStreaming = false;
-        this.activeStreamingAssistantMessage = null;
-        this.resetProviderMessageBoundaryState();
-        return;
-      }
+    // Provider startup began before the context work above, so awaiting it here
+    // only waits for any remaining cold-start time instead of the full sum.
+    const ready = await serviceInitialization;
+    if (!ready) {
+      new Notice('Failed to initialize agent service. Please try again.');
+      streamController.hideThinkingIndicator();
+      state.isStreaming = false;
+      this.activeStreamingAssistantMessage = null;
+      this.resetProviderMessageBoundaryState();
+      return;
     }
 
     const agentService = this.getAgentService();
@@ -596,10 +636,17 @@ export class InputController {
       return;
     }
 
+    this.reportLiveActivity({
+      primary: 'Prüfe Provider-Verbindung',
+      meta: 'Schneller CLI-Check; erfolgreiche Prüfungen werden 60 Sekunden wiederverwendet',
+      phrase: 'Verbindung wird geprüft',
+    });
+    const healthStart = perfMark();
     const health = await ensureProviderHealthy(
       agentService.providerId,
       plugin.settings as unknown as Record<string, unknown>,
     );
+    perfSince(healthStart, 'provider-health-check', agentService.providerId);
     if (!health.ok) {
       new Notice(health.error ?? 'Provider is not reachable.');
       this.activeStreamingAssistantMessage = null;
@@ -607,6 +654,12 @@ export class InputController {
       state.isStreaming = false;
       return;
     }
+
+    this.reportLiveActivity({
+      primary: 'Sende Anfrage an das Modell',
+      meta: 'Warte auf ersten Provider-Event',
+      phrase: 'Antwort wird angefordert',
+    });
 
     const activeModelForTimeline = this.deps.getActiveModel?.() ?? null;
     const timelineModel = activeModelForTimeline === AUTO_MODEL_VALUE

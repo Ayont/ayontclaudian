@@ -369,6 +369,13 @@
 
 .claudian-stream-status-text {
   display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.claudian-stream-status-identity {
+  display: flex;
   align-items: baseline;
   gap: 7px;
   min-width: 0;
@@ -387,6 +394,19 @@
   font-style: italic;
   white-space: nowrap;
   animation: claudian-status-phrase 1.6s ease-in-out infinite;
+}
+
+/* The current operation stays visible even while the inspector is collapsed.
+   This makes the pre-flight time explain itself instead of looking frozen. */
+.claudian-stream-status-activity {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-normal);
+  font-size: var(--cl-text-xs);
+  font-weight: 600;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .claudian-stream-status-timer {

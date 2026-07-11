@@ -114,6 +114,15 @@ export class StreamController {
     this.deps = deps;
   }
 
+  /**
+   * Reports a pre-flight phase before the provider can emit stream chunks.
+   * This keeps the same transparent activity surface for vault preparation,
+   * cold runtime startup and the actual model stream.
+   */
+  reportLiveActivity(activity: { primary: string; meta?: string; phrase?: string }): void {
+    this.deps.updateLiveActivity?.(activity);
+  }
+
   private getActiveProviderId(): ProviderId {
     return this.deps.getAgentService?.()?.providerId ?? DEFAULT_CHAT_PROVIDER_ID;
   }

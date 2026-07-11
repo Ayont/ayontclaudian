@@ -54,6 +54,7 @@ export class StreamStatusBar {
   private readonly toggleEl: HTMLButtonElement;
   private readonly labelEl: HTMLElement;
   private readonly phraseEl: HTMLElement;
+  private readonly activityEl: HTMLElement;
   private readonly timerEl: HTMLElement;
   private readonly detailEl: HTMLElement;
   private readonly detailPrimaryEl: HTMLElement;
@@ -83,10 +84,13 @@ export class StreamStatusBar {
 
     this.toggleEl.createSpan({ cls: 'claudian-stream-status-dot' });
     const textEl = this.toggleEl.createSpan({ cls: 'claudian-stream-status-text' });
-    this.labelEl = textEl.createSpan({ cls: 'claudian-stream-status-label' });
+    const identityEl = textEl.createSpan({ cls: 'claudian-stream-status-identity' });
+    this.labelEl = identityEl.createSpan({ cls: 'claudian-stream-status-label' });
     this.labelEl.setText(this.currentLabel);
-    this.phraseEl = textEl.createSpan({ cls: 'claudian-stream-status-phrase' });
+    this.phraseEl = identityEl.createSpan({ cls: 'claudian-stream-status-phrase' });
     this.phraseEl.setText(this.currentPhrase);
+    this.activityEl = textEl.createSpan({ cls: 'claudian-stream-status-activity' });
+    this.activityEl.setText(this.currentActivity);
     this.timerEl = this.toggleEl.createSpan({ cls: 'claudian-stream-status-timer' });
     const chevronEl = this.toggleEl.createSpan({ cls: 'claudian-stream-status-chevron' });
     setIcon(chevronEl, 'chevron-up');
@@ -137,6 +141,8 @@ export class StreamStatusBar {
         at: this.now(),
       });
     }
+    this.activityEl.setText(this.currentActivity);
+    this.toggleEl.setAttribute('aria-label', `Show live activity details: ${this.currentActivity}`);
     this.renderDetail();
   }
 
@@ -182,6 +188,7 @@ export class StreamStatusBar {
   }
 
   private renderDetail(): void {
+    this.activityEl.setText(this.currentActivity);
     this.detailPrimaryEl.setText(this.currentActivity);
     this.detailMetaEl.setText(`${this.currentLabel} · ${this.currentPhrase}${this.currentMeta ? ` · ${this.currentMeta}` : ''}`);
     this.activityHistoryEl.empty();

@@ -162,7 +162,10 @@ interface CachedHealthResult {
   expiresAt: number;
 }
 
-const HEALTH_CHECK_CACHE_TTL_MS = 10_000;
+// A successful chat turn already proves that the provider is healthy. Keep the
+// inexpensive CLI probe cached long enough that normal back-to-back prompts do
+// not keep paying a subprocess startup penalty, while still rechecking often.
+const HEALTH_CHECK_CACHE_TTL_MS = 60_000;
 const healthCheckCache = new Map<ProviderId, CachedHealthResult>();
 
 export function clearHealthCheckCache(): void {
@@ -190,7 +193,7 @@ function setCachedResult(providerId: ProviderId, result: ProviderHealthCheckResu
 
 /**
  * Probe a single provider's CLI with `--version`. Caches the result for
- * 10 seconds so rapid UI calls do not spawn repeatedly.
+ * 60 seconds so normal chat turns do not spawn repeatedly.
  */
 export async function checkProviderHealth(
   providerId: ProviderId,
