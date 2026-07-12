@@ -222,6 +222,30 @@ function getPacketTracerInstructions(): string {
 When the user asks to create, inspect, repair, or explain a Cisco Packet Tracer lab, provide an exact, buildable lab plan. Include a \`network-map\` block, a device/port/cable inventory, an IP and VLAN table, per-device Cisco CLI blocks, and verification commands. For an attached decoded Packet Tracer XML file, use its real device names and topology; never claim that an arbitrary modern encrypted \`.pkt\` file was decoded unless readable XML context is present. Explain Packet Tracer steps for wireless access points, routers, switches, DHCP, DNS, ACLs, routing, and VLANs where relevant.`;
 }
 
+function getAutoMemoryInstructions(): string {
+  return `
+
+## Auto-Memory
+
+When the user shares a DURABLE fact, preference, decision, or correction that will matter in future sessions — infrastructure details, project conventions, personal preferences, standing decisions — append exactly ONE fenced block at the very END of your answer:
+
+\`\`\`claudian-memory
+topic: Kurzer prägnanter Titel
+tags: tag1, tag2
+---
+1–3 Sätze Inhalt auf Deutsch. Nur das dauerhaft Merkenswerte, keine Aufgaben-Details.
+\`\`\`
+
+ayontclaudian stores the block automatically in the memory system and renders it as a small chip.
+
+Rules:
+- Use this SPARINGLY. Most answers need no memory block at all.
+- Only genuinely durable, session-transcending information — never ephemeral task state, never things already stored unchanged.
+- Never store secrets, credentials, tokens, or keys.
+- If the new information updates an existing memory, reuse the same topic so it overwrites cleanly.
+- At most one block per answer.`;
+}
+
 function getAppendixSections(appendices?: string[]): string {
   if (!appendices || appendices.length === 0) {
     return '';
@@ -248,6 +272,7 @@ export function buildSystemPrompt(
   prompt += getNetworkDiagramInstructions();
   prompt += getLiveDocumentInstructions();
   prompt += getPacketTracerInstructions();
+  prompt += getAutoMemoryInstructions();
   prompt += getAppendixSections(options.appendices);
 
   if (settings.customPrompt?.trim()) {

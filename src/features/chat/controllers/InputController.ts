@@ -11,6 +11,7 @@ import { getLastPerf, perfMark, perfSince } from '../../../core/diagnostics/perf
 import { ensureProviderHealthy } from '../../../core/diagnostics/providerHealthCheck';
 import { buildDiffPreview } from '../../../core/diff/diffPreview';
 import type { VaultRAGService } from '../../../core/intelligence/rag/VaultRAGService';
+import { persistAutoMemories } from '../../../core/memory/autoMemory';
 import {
   formatMemoryContext,
   loadMemoryNotes,
@@ -908,6 +909,27 @@ export class InputController {
         await streamController.finalizeCurrentThinkingBlock(finalAssistantMsg);
         await streamController.finalizeCurrentTextBlock(finalAssistantMsg);
         this.deps.getSubagentManager().resetStreamingState();
+
+        // Auto-Memory: persist any claudian-memory blocks the model emitted.
+        // Runs exactly once per completed turn (never on history reload) and
+        // is idempotent per topic slug. storeMemory() emits `memory:updated`,
+        // which refreshes the recall cache and the dashboard automatically.
+        if (
+          !didCancelThisTurn &&
+          plugin.settings.memoryEnabled !== false &&
+          finalAssistantMsg.content?.includes('```claudian-memory')
+        ) {
+          const memoryFolder = plugin.settings.memoryFolder ?? '.claudian/memory';
+          void persistAutoMemories(plugin.app.vault, memoryFolder, finalAssistantMsg.content)
+            .then((stored) => {
+              if (stored.length > 0) {
+                new Notice(`🧠 ${stored.length === 1 ? 'Memory' : `${stored.length} Memories`} gespeichert`);
+              }
+            })
+            .catch(() => {
+              // Memory persistence must never break the turn.
+            });
+        }
 
         // Auto-hide completed todo panel on response end
         // Panel reappears only when new TodoWrite tool is called

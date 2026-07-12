@@ -35,6 +35,7 @@
 @import "./toolbar/mcp-selector.css";
 
 /* Features */
+@import "./features/auto-memory.css";
 @import "./features/chat-search.css";
 @import "./features/file-context.css";
 @import "./features/file-link.css";

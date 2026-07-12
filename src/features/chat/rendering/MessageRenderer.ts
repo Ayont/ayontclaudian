@@ -21,6 +21,7 @@ import { processFileLinks, registerFileLinkHandler } from '../../../utils/fileLi
 import { replaceImageEmbedsWithHtml } from '../../../utils/imageEmbed';
 import { escapeMathDelimitersForStreaming } from '../../../utils/markdownMath';
 import { findRewindContext } from '../rewind';
+import { renderAutoMemoryChips } from './AutoMemoryChip';
 import { detectStatusCard } from './errorClassification';
 import { renderLiveDocuments } from './LiveDocumentRenderer';
 import { renderNetworkMaps } from './NetworkMapRenderer';
@@ -1059,6 +1060,9 @@ export class MessageRenderer {
         app: this.app,
         component: this.component,
       });
+
+      // Auto-Memory fences render as a compact chip instead of raw code.
+      renderAutoMemoryChips(el);
 
       // Wrap pre elements and move buttons outside scroll area
       el.querySelectorAll('pre').forEach((pre) => {
