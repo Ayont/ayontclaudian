@@ -16,6 +16,7 @@ import {
   getAssistantMessageMetrics,
   getCodeLineCount,
   MessageRenderer,
+  shouldGroupStoredToolCalls,
 } from '@/features/chat/rendering/MessageRenderer';
 import { renderStoredAsyncSubagent, renderStoredSubagent } from '@/features/chat/rendering/SubagentRenderer';
 import { renderStoredThinkingBlock } from '@/features/chat/rendering/ThinkingBlockRenderer';
@@ -118,6 +119,14 @@ describe('MessageRenderer', () => {
         { id: 't2', name: 'Edit', input: {}, status: 'completed' },
       ],
     })).toEqual({ words: 3, tools: 2 });
+  });
+
+  it('groups only noisy persisted tool runs above the threshold', () => {
+    const exec = (id: string) => ({ id, name: 'exec', input: {}, status: 'completed' } as any);
+    expect(shouldGroupStoredToolCalls([exec('1'), exec('2'), exec('3')])).toBe(false);
+    expect(shouldGroupStoredToolCalls([exec('1'), exec('2'), exec('3'), exec('4')])).toBe(true);
+    expect(shouldGroupStoredToolCalls([exec('1'), exec('2'), exec('3'), { ...exec('4'), name: 'Read' }]))
+      .toBe(false);
   });
 
   // ============================================
@@ -763,6 +772,40 @@ describe('MessageRenderer', () => {
       { initiallyExpanded: false },
     );
     expect(messagesEl.children).toHaveLength(1);
+  });
+
+  it('collapses a long persisted exec run into one lazy activity group', () => {
+    const messagesEl = createMockEl();
+    const { renderer } = createRenderer(messagesEl, 'codex');
+    const tools = Array.from({ length: 8 }, (_, index) => ({
+      id: `exec-${index}`,
+      name: 'exec',
+      input: { command: `step ${index}` },
+      status: 'completed',
+      result: 'ok',
+    })) as any[];
+    const msg: ChatMessage = {
+      id: 'exec-run',
+      role: 'assistant',
+      content: 'Fertig.',
+      timestamp: Date.now(),
+      toolCalls: tools,
+      contentBlocks: [
+        ...tools.map((tool) => ({ type: 'tool_use' as const, toolId: tool.id })),
+        { type: 'text', content: 'Fertig.' },
+      ],
+    };
+
+    renderer.renderStoredMessage(msg);
+
+    const contentEl = messagesEl.children[0].children[0];
+    const groupEl = contentEl.children.find((child: any) => child.hasClass('claudian-tool-run-group'));
+    expect(groupEl).toBeDefined();
+    expect(renderStoredToolCall).not.toHaveBeenCalled();
+
+    groupEl.open = true;
+    groupEl.dispatchEvent('toggle');
+    expect(renderStoredToolCall).toHaveBeenCalledTimes(8);
   });
 
   it('passes expanded file-edit default to stored apply_patch renderer', () => {

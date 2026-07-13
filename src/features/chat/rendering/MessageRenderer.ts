@@ -58,6 +58,13 @@ function runRendererAction(action: () => Promise<void>): void {
 const CODE_COPY_FEEDBACK_MS = 1500;
 export const CODE_COLLAPSE_LINE_THRESHOLD = 18;
 export const MAX_CODE_GUTTER_LINES = 300;
+export const STORED_TOOL_GROUP_THRESHOLD = 4;
+const LOW_SIGNAL_STORED_TOOLS = new Set(['exec', 'wait', 'wait_agent']);
+
+export function shouldGroupStoredToolCalls(toolCalls: readonly ToolCallInfo[]): boolean {
+  return toolCalls.length >= STORED_TOOL_GROUP_THRESHOLD
+    && toolCalls.every((toolCall) => LOW_SIGNAL_STORED_TOOLS.has(toolCall.name.toLowerCase()));
+}
 
 export function getCodeLineCount(code: string): number {
   if (!code) return 1;
@@ -777,7 +784,8 @@ export class MessageRenderer {
   private renderAssistantContent(msg: ChatMessage, contentEl: HTMLElement): void {
     if (msg.contentBlocks && msg.contentBlocks.length > 0) {
       const renderedToolIds = new Set<string>();
-      for (const block of msg.contentBlocks) {
+      for (let blockIndex = 0; blockIndex < msg.contentBlocks.length; blockIndex += 1) {
+        const block = msg.contentBlocks[blockIndex];
         if (block.type === 'thinking') {
           renderStoredThinkingBlock(
             contentEl,
@@ -796,8 +804,25 @@ export class MessageRenderer {
         } else if (block.type === 'tool_use') {
           const toolCall = msg.toolCalls?.find(tc => tc.id === block.toolId);
           if (toolCall) {
-            this.renderToolCall(contentEl, toolCall, msg);
-            renderedToolIds.add(toolCall.id);
+            const groupedRun: ToolCallInfo[] = [];
+            let nextIndex = blockIndex;
+            while (nextIndex < msg.contentBlocks.length) {
+              const candidateBlock = msg.contentBlocks[nextIndex];
+              if (candidateBlock.type !== 'tool_use') break;
+              const candidate = msg.toolCalls?.find(tc => tc.id === candidateBlock.toolId);
+              if (!candidate || !LOW_SIGNAL_STORED_TOOLS.has(candidate.name.toLowerCase())) break;
+              if (this.shouldRenderToolCall(candidate)) groupedRun.push(candidate);
+              renderedToolIds.add(candidate.id);
+              nextIndex += 1;
+            }
+
+            if (shouldGroupStoredToolCalls(groupedRun)) {
+              this.renderStoredToolGroup(contentEl, groupedRun, msg);
+              blockIndex = nextIndex - 1;
+            } else {
+              this.renderToolCall(contentEl, toolCall, msg);
+              renderedToolIds.add(toolCall.id);
+            }
           }
         } else if (block.type === 'context_compacted') {
           const boundaryEl = contentEl.createDiv({ cls: 'claudian-compact-boundary' });
@@ -829,8 +854,13 @@ export class MessageRenderer {
         this.addTextCopyButton(textEl, msg.content);
       }
       if (msg.toolCalls) {
-        for (const toolCall of msg.toolCalls) {
-          this.renderToolCall(contentEl, toolCall, msg);
+        const visibleTools = msg.toolCalls.filter((toolCall) => this.shouldRenderToolCall(toolCall));
+        if (shouldGroupStoredToolCalls(visibleTools)) {
+          this.renderStoredToolGroup(contentEl, visibleTools, msg);
+        } else {
+          for (const toolCall of visibleTools) {
+            this.renderToolCall(contentEl, toolCall, msg);
+          }
         }
       }
     }
@@ -955,6 +985,50 @@ export class MessageRenderer {
         initiallyExpanded: toolCall.name === TOOL_APPLY_PATCH && this.shouldExpandFileEditsByDefault(),
       });
     }
+  }
+
+  private renderStoredToolGroup(
+    contentEl: HTMLElement,
+    toolCalls: ToolCallInfo[],
+    msg: ChatMessage,
+  ): void {
+    const groupEl = contentEl.createEl('details', { cls: 'claudian-tool-run-group' });
+    const hasError = toolCalls.some((toolCall) => toolCall.status === 'error' || toolCall.status === 'blocked');
+    const isRunning = toolCalls.some((toolCall) => toolCall.status === 'running');
+    groupEl.toggleClass('has-error', hasError);
+    groupEl.toggleClass('is-running', isRunning);
+
+    const summaryEl = groupEl.createEl('summary', { cls: 'claudian-tool-run-summary' });
+    const iconEl = summaryEl.createSpan({ cls: 'claudian-tool-run-icon' });
+    setIcon(iconEl, 'terminal-square');
+    const titleEl = summaryEl.createSpan({ cls: 'claudian-tool-run-title' });
+    titleEl.createSpan({ text: `${toolCalls.length} Ausführungen` });
+
+    const counts = new Map<string, number>();
+    toolCalls.forEach((toolCall) => counts.set(toolCall.name, (counts.get(toolCall.name) ?? 0) + 1));
+    titleEl.createSpan({
+      cls: 'claudian-tool-run-breakdown',
+      text: Array.from(counts, ([name, count]) => `${count}× ${name}`).join(' · '),
+    });
+
+    const statusEl = summaryEl.createSpan({ cls: 'claudian-tool-run-status' });
+    setIcon(statusEl, hasError ? 'alert-triangle' : isRunning ? 'loader-circle' : 'check');
+    statusEl.setAttribute(
+      'aria-label',
+      hasError ? 'Mindestens eine Ausführung fehlgeschlagen' : isRunning ? 'Ausführungen laufen' : 'Alle Ausführungen abgeschlossen',
+    );
+    const chevronEl = summaryEl.createSpan({ cls: 'claudian-tool-run-chevron' });
+    setIcon(chevronEl, 'chevron-down');
+
+    const bodyEl = groupEl.createDiv({ cls: 'claudian-tool-run-body' });
+    bodyEl.createDiv({ cls: 'claudian-tool-run-loading', text: 'Details beim Öffnen laden …' });
+    let hydrated = false;
+    groupEl.addEventListener('toggle', () => {
+      if (!groupEl.open || hydrated) return;
+      hydrated = true;
+      bodyEl.empty();
+      for (const toolCall of toolCalls) this.renderToolCall(bodyEl, toolCall, msg);
+    });
   }
 
   private shouldRenderToolCall(toolCall: ToolCallInfo): boolean {

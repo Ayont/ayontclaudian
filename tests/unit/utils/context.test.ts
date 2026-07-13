@@ -8,6 +8,7 @@ import {
   extractVaultContextPrompt,
   formatCurrentNote,
   stripCurrentNoteContext,
+  stripInternalImageTags,
   XML_CONTEXT_PATTERN,
 } from '../../../src/utils/context';
 
@@ -212,6 +213,24 @@ describe('extractUserDisplayContent', () => {
   it('extracts the real prompt after prepended vault context', () => {
     const prompt = '<vault_context>\nRelevant vault knowledge:\n- From [[BRAT-log.md]]\n</vault_context>\n\nWhy is the chat slow?';
     expect(extractUserDisplayContent(prompt)).toBe('Why is the chat slow?');
+  });
+
+  it('removes Codex image transport tags from rehydrated user messages', () => {
+    const prompt = '<image name=[Image #1] path="/tmp/claudian-codex-images-a/1-image-1.png"></image>'
+      + '<image name=[Image #2] path="/tmp/claudian-codex-images-a/2-image-2.png"></image>'
+      + 'Bitte behebe den Darstellungsfehler.';
+    expect(extractUserDisplayContent(prompt)).toBe('Bitte behebe den Darstellungsfehler.');
+  });
+
+  it('removes image transport before extracting injected vault context', () => {
+    const prompt = '<image name=[Image #1] path="/tmp/1.png"></image>'
+      + '<vault_context>Vault intern</vault_context>\n\nEigentliche Frage';
+    expect(extractUserDisplayContent(prompt)).toBe('Eigentliche Frage');
+  });
+
+  it('keeps ordinary user-authored image XML untouched', () => {
+    expect(stripInternalImageTags('Was bedeutet <image src="demo.png">?'))
+      .toBe('Was bedeutet <image src="demo.png">?');
   });
 });
 

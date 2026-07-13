@@ -2,6 +2,106 @@
   margin: var(--cl-space-2) 0;
 }
 
+/* Persisted providers can reconstruct dozens of low-level exec events for one
+   completed turn. Collapse that transport noise into one lazy activity stack. */
+.claudian-tool-run-group {
+  margin: var(--cl-space-3) 0;
+  overflow: hidden;
+  border: 1px solid rgba(var(--claudian-brand-rgb), 0.2);
+  border-radius: var(--cl-radius-lg);
+  background:
+    radial-gradient(circle at 0 0, rgba(var(--claudian-brand-rgb), 0.1), transparent 44%),
+    color-mix(in srgb, var(--cl-surface-sunken) 88%, transparent);
+  box-shadow: var(--cl-shadow-sm);
+}
+
+.claudian-tool-run-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 9px;
+  align-items: center;
+  min-height: 44px;
+  padding: 7px 11px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  transition: background var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-tool-run-summary::-webkit-details-marker { display: none; }
+.claudian-tool-run-summary:hover { background: rgba(var(--claudian-brand-rgb), 0.07); }
+
+.claudian-tool-run-icon {
+  display: inline-flex;
+  color: var(--cl-accent);
+}
+
+.claudian-tool-run-icon svg { width: 16px; height: 16px; }
+
+.claudian-tool-run-title {
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+  align-items: baseline;
+  color: var(--text-normal);
+  font-size: var(--cl-text-sm);
+  font-weight: 680;
+}
+
+.claudian-tool-run-breakdown {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--cl-font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claudian-tool-run-status,
+.claudian-tool-run-chevron {
+  display: inline-flex;
+  color: var(--color-green);
+}
+
+.claudian-tool-run-group.has-error .claudian-tool-run-status { color: var(--color-red); }
+.claudian-tool-run-group.is-running .claudian-tool-run-status { color: var(--cl-accent); }
+.claudian-tool-run-group.is-running .claudian-tool-run-status svg { animation: spin 1s linear infinite; }
+
+.claudian-tool-run-status svg,
+.claudian-tool-run-chevron svg { width: 14px; height: 14px; }
+
+.claudian-tool-run-chevron {
+  color: var(--text-faint);
+  transition: transform var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-tool-run-group[open] .claudian-tool-run-chevron { transform: rotate(180deg); }
+
+.claudian-tool-run-body {
+  max-height: min(52vh, 520px);
+  padding: 7px 11px 11px;
+  overflow: auto;
+  border-top: 1px solid rgba(var(--claudian-brand-rgb), 0.16);
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.claudian-tool-run-body > .claudian-tool-call { margin: 2px 0; }
+
+.claudian-tool-run-loading {
+  padding: 8px 0;
+  color: var(--text-muted);
+  font-size: var(--cl-text-xs);
+}
+
+@media (max-width: 560px) {
+  .claudian-tool-run-breakdown { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-tool-run-group.is-running .claudian-tool-run-status svg { animation: none; }
+}
+
 .claudian-tool-header {
   display: flex;
   align-items: center;
