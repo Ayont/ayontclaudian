@@ -1,10 +1,10 @@
-/* Compact email-template canvas: editorial mail preview, not a generic document page. */
+/* One compact, selectable plain-text workspace for every generated email variant. */
 .claudian-email-template {
-  --email-accent: #4262a8;
-  --email-accent-soft: color-mix(in srgb, var(--email-accent) 10%, transparent);
+  --email-accent: #4e6579;
+  --email-accent-soft: color-mix(in srgb, var(--email-accent) 11%, transparent);
   margin: 14px 0 10px;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--email-accent) 28%, var(--background-modifier-border));
+  border: 1px solid color-mix(in srgb, var(--email-accent) 30%, var(--background-modifier-border));
   border-radius: 14px;
   background: var(--background-secondary);
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.13);
@@ -12,20 +12,20 @@
 
 .claudian-email-template.template-concise { --email-accent: #607080; }
 .claudian-email-template.template-business { --email-accent: #315da8; }
-.claudian-email-template.template-friendly { --email-accent: #b45868; }
-.claudian-email-template.template-follow-up { --email-accent: #a56a22; }
-.claudian-email-template.template-sales { --email-accent: #b64f2c; }
-.claudian-email-template.template-support { --email-accent: #208276; }
+.claudian-email-template.template-friendly { --email-accent: #a95062; }
+.claudian-email-template.template-follow-up { --email-accent: #9b661f; }
+.claudian-email-template.template-sales { --email-accent: #ad4e2e; }
+.claudian-email-template.template-support { --email-accent: #207d72; }
 
 .claudian-email-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  min-height: 44px;
+  min-height: 48px;
   padding: 7px 9px 7px 12px;
   border-bottom: 1px solid var(--background-modifier-border);
-  background: color-mix(in srgb, var(--background-primary) 90%, var(--email-accent) 2%);
+  background: color-mix(in srgb, var(--background-primary) 94%, var(--email-accent) 6%);
 }
 
 .claudian-email-identity,
@@ -38,14 +38,15 @@
 
 .claudian-email-icon {
   display: inline-flex;
+  flex: 0 0 auto;
   color: var(--email-accent);
 }
 
-.claudian-email-icon svg { width: 16px; height: 16px; }
+.claudian-email-icon svg { width: 17px; height: 17px; }
 .claudian-email-label {
   color: var(--text-normal);
   font-size: 12px;
-  font-weight: 680;
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -62,19 +63,26 @@
   white-space: nowrap;
 }
 
+.claudian-email-action,
+.claudian-email-copy-primary,
+.claudian-email-tab {
+  height: auto;
+  margin: 0;
+  box-shadow: none;
+}
+
 .claudian-email-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 29px;
-  height: 29px;
-  margin: 0;
+  width: 30px;
+  min-width: 30px;
+  min-height: 30px;
   padding: 0;
   border: 0;
   border-radius: 8px;
   background: transparent;
   color: var(--text-muted);
-  box-shadow: none;
   cursor: pointer;
   transition: background-color 120ms ease, color 120ms ease, transform 120ms ease;
 }
@@ -87,100 +95,151 @@
 
 .claudian-email-action svg { width: 15px; height: 15px; }
 
-.claudian-email-sheet {
-  position: relative;
-  max-height: 620px;
-  overflow: auto;
-  padding: clamp(18px, 3vw, 30px);
-  background:
-    linear-gradient(90deg, var(--email-accent) 0 4px, transparent 4px),
-    color-mix(in srgb, var(--background-primary) 96%, var(--email-accent) 4%);
+.claudian-email-copy-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--email-accent) 55%, transparent);
+  border-radius: 8px;
+  background: var(--email-accent);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 120ms ease, transform 120ms ease;
 }
 
-.claudian-email-field {
-  display: grid;
-  grid-template-columns: 62px minmax(0, 1fr);
-  align-items: baseline;
-  gap: 10px;
-  padding: 0 0 10px;
+.claudian-email-copy-primary:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.claudian-email-copy-primary-icon { display: inline-flex; }
+.claudian-email-copy-primary-icon svg { width: 14px; height: 14px; }
+
+.claudian-email-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  scrollbar-width: thin;
+}
+
+.claudian-email-tab {
+  flex: 0 0 auto;
+  min-height: 29px;
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
   color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 630;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
-.claudian-email-field.is-subject {
-  padding-bottom: 16px;
+.claudian-email-tab:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.claudian-email-tab.is-active {
+  border-color: color-mix(in srgb, var(--email-accent) 34%, transparent);
+  background: var(--email-accent-soft);
+  color: var(--email-accent);
+}
+
+.claudian-email-editor {
+  padding: clamp(16px, 2.8vw, 26px);
+  background: color-mix(in srgb, var(--background-primary) 97%, var(--email-accent) 3%);
+}
+
+.claudian-email-editor-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  min-height: 38px;
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.claudian-email-field-label {
+.claudian-email-editor-row > label {
   color: var(--email-accent);
-  font-size: 8px;
-  font-weight: 780;
-  letter-spacing: 0.13em;
-}
-
-.claudian-email-recipient {
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.claudian-email-field h3 {
-  margin: 0;
-  color: var(--text-normal);
-  font-size: clamp(16px, 2.4vw, 21px);
-  font-weight: 690;
-  letter-spacing: -0.022em;
-  line-height: 1.2;
-}
-
-.claudian-email-preheader {
-  margin: 14px 0 0 72px;
-  padding: 8px 10px;
-  border-left: 2px solid color-mix(in srgb, var(--email-accent) 50%, transparent);
-  background: var(--email-accent-soft);
-}
-
-.claudian-email-preheader > span {
-  display: block;
-  margin-bottom: 2px;
-  color: var(--email-accent);
-  font-size: 8px;
-  font-weight: 750;
-  letter-spacing: 0.08em;
+  font-size: 9px;
+  font-weight: 760;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 
-.claudian-email-preheader p {
+.claudian-email-input {
+  width: 100%;
+  height: auto;
+  min-height: 34px;
   margin: 0;
-  color: var(--text-muted);
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-.claudian-email-body {
-  max-width: 720px;
-  margin: 24px 0 2px 72px;
+  padding: 5px 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--text-normal);
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: 12px;
+  box-shadow: none;
 }
 
-.claudian-email-body > :first-child { margin-top: 0; }
-.claudian-email-body > :last-child { margin-bottom: 0; }
-.claudian-email-body p { margin: 0 0 13px; }
-.claudian-email-body ul,
-.claudian-email-body ol { margin: 9px 0 14px; padding-left: 20px; }
-.claudian-email-body a { color: var(--email-accent); }
+.claudian-email-input:focus {
+  border: 0;
+  box-shadow: none;
+}
 
-.claudian-email-placeholder {
-  padding: 1px 4px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--email-accent) 15%, transparent);
-  color: var(--email-accent);
-  font: inherit;
-  font-weight: 650;
+.claudian-email-subject-input {
+  font-size: 15px;
+  font-weight: 680;
+  letter-spacing: -0.012em;
+}
+
+.claudian-email-text-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 18px 0 7px;
+  color: var(--text-faint);
+  font-size: 8px;
+  font-weight: 680;
+  letter-spacing: 0.08em;
+}
+
+.claudian-email-text-label span:last-child {
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.claudian-email-body-input {
+  display: block;
+  width: 100%;
+  min-height: 245px;
+  max-height: 560px;
+  margin: 0;
+  padding: 14px 15px;
+  resize: vertical;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 9px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-family: var(--font-text);
+  font-size: 13px;
+  line-height: 1.62;
+  white-space: pre-wrap;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.claudian-email-body-input:focus {
+  border-color: color-mix(in srgb, var(--email-accent) 60%, var(--background-modifier-border));
+  box-shadow: 0 0 0 2px var(--email-accent-soft);
 }
 
 .claudian-email-footer {
@@ -195,14 +254,18 @@
 
 @media (max-width: 620px) {
   .claudian-email-label { display: none; }
-  .claudian-email-sheet { padding: 18px 16px 20px; }
-  .claudian-email-field { grid-template-columns: 48px minmax(0, 1fr); }
-  .claudian-email-preheader,
-  .claudian-email-body { margin-left: 58px; }
+  .claudian-email-kind { max-width: 110px; }
+  .claudian-email-copy-primary-label { display: none; }
+  .claudian-email-copy-primary { width: 30px; min-width: 30px; min-height: 30px; padding: 0; }
+  .claudian-email-editor { padding: 14px 12px 18px; }
+  .claudian-email-editor-row { grid-template-columns: 54px minmax(0, 1fr); }
   .claudian-email-footer span:last-child { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .claudian-email-action { transition: none; }
-  .claudian-email-action:hover { transform: none; }
+  .claudian-email-action,
+  .claudian-email-copy-primary,
+  .claudian-email-tab { transition: none; }
+  .claudian-email-action:hover,
+  .claudian-email-copy-primary:hover { transform: none; }
 }

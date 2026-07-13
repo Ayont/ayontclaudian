@@ -15,7 +15,7 @@ import { extractToolResultContent } from '../../../core/tools/toolResultContent'
 import type { ChatMessage, ImageAttachment, MessageAttachment, SubagentInfo, ToolCallInfo } from '../../../core/types';
 import { t } from '../../../i18n/i18n';
 import type ClaudianPlugin from '../../../main';
-import { extractUserDisplayContent, extractVaultContextPrompt } from '../../../utils/context';
+import { extractInjectedContextPrompt, extractUserDisplayContent } from '../../../utils/context';
 import { formatDurationMmSs } from '../../../utils/date';
 import { processFileLinks, registerFileLinkHandler } from '../../../utils/fileLink';
 import { replaceImageEmbedsWithHtml } from '../../../utils/imageEmbed';
@@ -193,33 +193,58 @@ export class MessageRenderer {
     return this.plugin.settings?.expandFileEditsByDefault === true;
   }
 
-  private getUserMessagePresentation(msg: ChatMessage): { text: string; vaultContext?: string } {
-    const vaultContext = extractVaultContextPrompt(msg.content);
+  private getUserMessagePresentation(msg: ChatMessage): {
+    text: string;
+    vaultContext?: string;
+    memoryContext?: string;
+  } {
+    const injectedContext = extractInjectedContextPrompt(msg.content);
+    const displayContent = msg.displayContent
+      ? extractUserDisplayContent(msg.displayContent) ?? msg.displayContent
+      : undefined;
     return {
-      text: msg.displayContent ?? vaultContext?.userContent ?? extractUserDisplayContent(msg.content) ?? msg.content,
-      ...(vaultContext?.context ? { vaultContext: vaultContext.context } : {}),
+      text: displayContent ?? injectedContext?.userContent ?? extractUserDisplayContent(msg.content) ?? msg.content,
+      ...(injectedContext?.vaultContext ? { vaultContext: injectedContext.vaultContext } : {}),
+      ...(injectedContext?.memoryContext ? { memoryContext: injectedContext.memoryContext } : {}),
     };
   }
 
-  /** Compatibility helper for live user-message update paths. */
-  private getUserMessageTextToShow(msg: ChatMessage): string {
-    return this.getUserMessagePresentation(msg).text;
-  }
-
-  private renderVaultContextCard(parentEl: HTMLElement, markdown: string): void {
-    const sourceCount = (markdown.match(/^\s*(?:[-*]\s+)?From \[\[/gm) ?? []).length;
+  private renderInjectedContextCard(
+    parentEl: HTMLElement,
+    vaultContext?: string,
+    memoryContext?: string,
+  ): void {
+    const sourceCount = vaultContext
+      ? (vaultContext.match(/^\s*(?:[-*]\s+)?From \[\[/gm) ?? []).length
+      : 0;
+    const memoryCount = memoryContext
+      ? (memoryContext.match(/^\s*[-*]\s+\*\*/gm) ?? []).length
+      : 0;
+    const summaryParts = [
+      ...(vaultContext ? [`${sourceCount || 'Vault'} Vault-Quelle${sourceCount === 1 ? '' : 'n'}`] : []),
+      ...(memoryContext ? [`${memoryCount || 'KI'} Erinnerung${memoryCount === 1 ? '' : 'en'}`] : []),
+    ];
     const detailsEl = parentEl.createEl('details', { cls: 'claudian-vault-context-card' });
-    detailsEl.setAttribute('aria-label', 'Vault context used for this message');
+    detailsEl.setAttribute('aria-label', 'Verwendeten KI-Kontext anzeigen');
     const summaryEl = detailsEl.createEl('summary', { cls: 'claudian-vault-context-summary' });
     const iconEl = summaryEl.createSpan({ cls: 'claudian-vault-context-icon' });
-    setIcon(iconEl, 'library-big');
+    setIcon(iconEl, memoryContext ? 'brain' : 'library-big');
     summaryEl.createSpan({
       cls: 'claudian-vault-context-title',
-      text: sourceCount === 1 ? '1 Vault-Quelle als Kontext' : `${sourceCount || 'Vault'} Quellen als Kontext`,
+      text: summaryParts.join(' · ') || 'Verwendeter KI-Kontext',
     });
     summaryEl.createSpan({ cls: 'claudian-vault-context-hint', text: 'anzeigen' });
     const bodyEl = detailsEl.createDiv({ cls: 'claudian-vault-context-body' });
-    void this.renderContent(bodyEl, markdown);
+    if (vaultContext) {
+      bodyEl.createDiv({ cls: 'claudian-vault-context-section-title', text: 'Vault-Wissen' });
+      const vaultBodyEl = bodyEl.createDiv({ cls: 'claudian-vault-context-section' });
+      void this.renderContent(vaultBodyEl, vaultContext);
+    }
+    if (memoryContext) {
+      bodyEl.createDiv({ cls: 'claudian-vault-context-section-title', text: 'Erinnerungen' });
+      const memoryBodyEl = bodyEl.createDiv({ cls: 'claudian-vault-context-section' });
+      void this.renderContent(memoryBodyEl, memoryContext);
+    }
   }
 
   // ============================================
@@ -366,8 +391,8 @@ export class MessageRenderer {
 
     // Skip empty bubble for image-only messages
     if (msg.role === 'user') {
-      const textToShow = this.getUserMessageTextToShow(msg);
-      if (!textToShow) {
+      const presentation = this.getUserMessagePresentation(msg);
+      if (!presentation.text && !presentation.vaultContext && !presentation.memoryContext) {
         this.scrollToBottom();
         const lastChild = this.messagesEl.lastElementChild as HTMLElement;
         return lastChild ?? this.messagesEl;
@@ -392,11 +417,18 @@ export class MessageRenderer {
     const contentEl = msgEl.createDiv({ cls: 'claudian-message-content', attr: { dir: 'auto' } });
 
     if (msg.role === 'user') {
-      const textToShow = this.getUserMessageTextToShow(msg);
-      if (textToShow) {
+      const presentation = this.getUserMessagePresentation(msg);
+      if (presentation.vaultContext || presentation.memoryContext) {
+        this.renderInjectedContextCard(
+          contentEl,
+          presentation.vaultContext,
+          presentation.memoryContext,
+        );
+      }
+      if (presentation.text) {
         const textEl = contentEl.createDiv({ cls: 'claudian-text-block' });
-        void this.renderContent(textEl, textToShow);
-        this.addUserCopyButton(msgEl, textToShow);
+        void this.renderContent(textEl, presentation.text);
+        this.addUserCopyButton(msgEl, presentation.text);
       }
       if (this.rewindCallback || this.forkCallback) {
         this.liveMessageEls.set(msg.id, msgEl);
@@ -425,10 +457,17 @@ export class MessageRenderer {
 
     contentEl.empty();
 
-    const textToShow = this.getUserMessageTextToShow(msg);
-    if (textToShow) {
+    const presentation = this.getUserMessagePresentation(msg);
+    if (presentation.vaultContext || presentation.memoryContext) {
+      this.renderInjectedContextCard(
+        contentEl,
+        presentation.vaultContext,
+        presentation.memoryContext,
+      );
+    }
+    if (presentation.text) {
       const textEl = contentEl.createDiv({ cls: 'claudian-text-block' });
-      void this.renderContent(textEl, textToShow);
+      void this.renderContent(textEl, presentation.text);
     }
 
     const toolbar = msgEl.querySelector<HTMLElement>('.claudian-user-msg-actions');
@@ -436,8 +475,8 @@ export class MessageRenderer {
       toolbar.querySelectorAll('.claudian-user-msg-copy-btn').forEach((el) => el.remove());
     }
 
-    if (textToShow) {
-      this.addUserCopyButton(msgEl, textToShow);
+    if (presentation.text) {
+      this.addUserCopyButton(msgEl, presentation.text);
     }
   }
 
@@ -511,7 +550,7 @@ export class MessageRenderer {
     // Skip empty bubble for image-only messages
     const userPresentation = msg.role === 'user' ? this.getUserMessagePresentation(msg) : null;
     if (msg.role === 'user') {
-      if (!userPresentation?.text && !userPresentation?.vaultContext) {
+      if (!userPresentation?.text && !userPresentation?.vaultContext && !userPresentation?.memoryContext) {
         return;
       }
     }
@@ -534,8 +573,12 @@ export class MessageRenderer {
     const contentEl = msgEl.createDiv({ cls: 'claudian-message-content', attr: { dir: 'auto' } });
 
     if (msg.role === 'user') {
-      if (userPresentation?.vaultContext) {
-        this.renderVaultContextCard(contentEl, userPresentation.vaultContext);
+      if (userPresentation?.vaultContext || userPresentation?.memoryContext) {
+        this.renderInjectedContextCard(
+          contentEl,
+          userPresentation.vaultContext,
+          userPresentation.memoryContext,
+        );
       }
       if (userPresentation?.text) {
         const textEl = contentEl.createDiv({ cls: 'claudian-text-block' });

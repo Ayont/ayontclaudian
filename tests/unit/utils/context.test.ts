@@ -2,6 +2,7 @@ import {
   appendContextFiles,
   appendCurrentNote,
   extractContentBeforeXmlContext,
+  extractInjectedContextPrompt,
   extractUserDisplayContent,
   extractUserQuery,
   extractVaultContextPrompt,
@@ -78,6 +79,11 @@ describe('stripCurrentNoteContext', () => {
 describe('XML_CONTEXT_PATTERN', () => {
   it('matches current_note tag', () => {
     const text = 'Query\n\n<current_note>\ntest.md\n</current_note>';
+    expect(XML_CONTEXT_PATTERN.test(text)).toBe(true);
+  });
+
+  it('matches injected memory context', () => {
+    const text = 'Query\n\n<memory_context>\nRemembered facts\n</memory_context>';
     expect(XML_CONTEXT_PATTERN.test(text)).toBe(true);
   });
 
@@ -232,6 +238,47 @@ describe('extractVaultContextPrompt', () => {
 
   it('returns undefined for an ordinary prompt', () => {
     expect(extractVaultContextPrompt('Just a normal prompt')).toBeUndefined();
+  });
+});
+
+describe('extractInjectedContextPrompt', () => {
+  it('removes vault and memory envelopes while preserving the real user prompt', () => {
+    const prompt = [
+      '<vault_context>',
+      'Relevant vault knowledge:',
+      '- From [[Network.md]]: VLAN notes',
+      '</vault_context>',
+      '',
+      '<memory_context>',
+      'Relevant things I remember:',
+      '- **Preferred tone**: concise',
+      '</memory_context>',
+      '',
+      'Write a business email.',
+    ].join('\n');
+
+    expect(extractInjectedContextPrompt(prompt)).toEqual({
+      vaultContext: 'Relevant vault knowledge:\n- From [[Network.md]]: VLAN notes',
+      memoryContext: 'Relevant things I remember:\n- **Preferred tone**: concise',
+      userContent: 'Write a business email.',
+    });
+    expect(extractUserDisplayContent(prompt)).toBe('Write a business email.');
+    expect(extractUserQuery(prompt)).toBe('Write a business email.');
+  });
+
+  it('also handles context envelopes appended after the user text', () => {
+    const prompt = [
+      'Fix the compact context display.',
+      '',
+      '<memory_context>',
+      '- **UI preference**: compact',
+      '</memory_context>',
+    ].join('\n');
+
+    expect(extractInjectedContextPrompt(prompt)).toEqual({
+      memoryContext: '- **UI preference**: compact',
+      userContent: 'Fix the compact context display.',
+    });
   });
 });
 

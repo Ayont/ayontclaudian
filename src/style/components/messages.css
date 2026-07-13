@@ -199,6 +199,28 @@
 
 .claudian-vault-context-body > :first-child { margin-top: var(--cl-space-2); }
 
+.claudian-vault-context-section-title {
+  margin: var(--cl-space-3) 0 var(--cl-space-1);
+  color: var(--cl-accent);
+  font-size: 9px;
+  font-weight: 760;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.claudian-vault-context-section-title:first-child { margin-top: var(--cl-space-2); }
+
+.claudian-vault-context-section {
+  padding: 0 var(--cl-space-2);
+  overflow: hidden;
+  border-inline-start: 2px solid rgba(var(--claudian-brand-rgb), 0.2);
+}
+
+.claudian-vault-context-section + .claudian-vault-context-section-title {
+  padding-top: var(--cl-space-2);
+  border-top: 1px solid rgba(var(--claudian-brand-rgb), 0.14);
+}
+
 /* Safety net: nothing inside a message may exceed the column width. Wide media
    is capped; pre/code/tables scroll inside their own box (never the page). */
 .claudian-message-content :is(img, video, canvas, svg, table) {

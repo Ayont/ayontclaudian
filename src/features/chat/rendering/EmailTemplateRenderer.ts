@@ -1,5 +1,5 @@
 import type { App, Component } from 'obsidian';
-import { MarkdownRenderer, Notice, setIcon } from 'obsidian';
+import { Notice, setIcon } from 'obsidian';
 
 export type EmailTemplateKind =
   | 'concise'
@@ -45,7 +45,7 @@ const TEMPLATE_LABELS: Record<EmailTemplateKind, string> = {
   friendly: 'Freundlich',
   'follow-up': 'Follow-up',
   sales: 'Vertrieb',
-  support: 'Support',
+  support: 'Support / Ticket',
 };
 
 function sanitizeMetaValue(value: string): string {
@@ -106,6 +106,21 @@ export function parseEmailTemplateBlocks(markdown: string): EmailTemplateBlock[]
   return blocks;
 }
 
+/** Turns accidental provider Markdown into copy-ready plain email text. */
+export function emailBodyToPlainText(body: string): string {
+  return body
+    .replace(/\r\n/g, '\n')
+    .replace(/^```[^\n]*$/gm, '')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^>\s?/gm, '')
+    .replace(/^[ \t]*[*+][ \t]+/gm, '- ')
+    .replace(/\[([^\]]+)]\(([^)]+)\)/g, '$1 ($2)')
+    .replace(/\*\*|__|~~|`/g, '')
+    .replace(/[ \t]+$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function slugify(value: string): string {
   return value
     .toLowerCase()
@@ -116,12 +131,7 @@ function slugify(value: string): string {
 }
 
 function wordCount(body: string): number {
-  const plain = body
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/[#>*_`()]/g, ' ')
-    .replaceAll('[', ' ')
-    .replaceAll(']', ' ')
-    .trim();
+  const plain = emailBodyToPlainText(body).trim();
   return plain ? plain.split(/\s+/).length : 0;
 }
 
@@ -136,7 +146,7 @@ function serializeEmailTemplate(template: EmailTemplate): string {
     'created_by: ayontclaudian',
     '---',
     '',
-    template.body.trim(),
+    emailBodyToPlainText(template.body),
     '',
   ].join('\n');
 }
@@ -146,7 +156,7 @@ function plainEmailText(template: EmailTemplate): string {
     ...(template.recipient ? [`An: ${template.recipient}`] : []),
     `Betreff: ${template.subject}`,
     '',
-    template.body.trim(),
+    emailBodyToPlainText(template.body),
   ].join('\n');
 }
 
@@ -188,7 +198,7 @@ function createIconButton(
   return button;
 }
 
-function flashSuccess(button: HTMLButtonElement, originalIcon: string): void {
+function flashIconSuccess(button: HTMLButtonElement, originalIcon: string): void {
   button.empty();
   setIcon(button, 'check');
   window.setTimeout(() => {
@@ -197,29 +207,203 @@ function flashSuccess(button: HTMLButtonElement, originalIcon: string): void {
   }, 1400);
 }
 
-function highlightPlaceholders(root: HTMLElement): void {
-  const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  const nodes: Text[] = [];
-  while (walker.nextNode()) {
-    const node = walker.currentNode as Text;
-    if (/\[[^\]\n]{2,80}\]/.test(node.data)) nodes.push(node);
-  }
+function createPrimaryCopyButton(parent: HTMLElement): HTMLButtonElement {
+  const button = parent.createEl('button', {
+    cls: 'claudian-email-copy-primary',
+    attr: { type: 'button', 'aria-label': 'Aktive Mail komplett kopieren' },
+  });
+  const icon = button.createSpan({ cls: 'claudian-email-copy-primary-icon' });
+  setIcon(icon, 'copy');
+  button.createSpan({ cls: 'claudian-email-copy-primary-label', text: 'Mail kopieren' });
+  return button;
+}
 
-  for (const node of nodes) {
-    const fragment = root.ownerDocument.createDocumentFragment();
-    const parts = node.data.split(/(\[[^\]\n]{2,80}\])/g);
-    for (const part of parts) {
-      if (/^\[[^\]\n]{2,80}\]$/.test(part)) {
-        const mark = root.ownerDocument.createElement('mark');
-        mark.className = 'claudian-email-placeholder';
-        mark.textContent = part;
-        fragment.appendChild(mark);
-      } else if (part) {
-        fragment.appendChild(root.ownerDocument.createTextNode(part));
-      }
-    }
-    node.parentNode?.replaceChild(fragment, node);
+function flashPrimarySuccess(button: HTMLButtonElement): void {
+  const icon = button.querySelector('.claudian-email-copy-primary-icon');
+  const label = button.querySelector('.claudian-email-copy-primary-label');
+  if (icon instanceof HTMLElement) {
+    icon.empty();
+    setIcon(icon, 'check');
   }
+  label?.setText('Kopiert');
+  window.setTimeout(() => {
+    if (icon instanceof HTMLElement) {
+      icon.empty();
+      setIcon(icon, 'copy');
+    }
+    label?.setText('Mail kopieren');
+  }, 1400);
+}
+
+function cloneAsPlainTemplate(template: EmailTemplate): EmailTemplate {
+  return {
+    ...template,
+    body: emailBodyToPlainText(template.body),
+  };
+}
+
+function buildTabLabels(templates: EmailTemplate[]): string[] {
+  const totals = new Map<EmailTemplateKind, number>();
+  const seen = new Map<EmailTemplateKind, number>();
+  for (const template of templates) totals.set(template.kind, (totals.get(template.kind) ?? 0) + 1);
+  return templates.map((template) => {
+    const number = (seen.get(template.kind) ?? 0) + 1;
+    seen.set(template.kind, number);
+    const base = TEMPLATE_LABELS[template.kind];
+    return (totals.get(template.kind) ?? 0) > 1 ? `${base} ${number}` : base;
+  });
+}
+
+export async function renderEmailTemplateWorkspace(
+  container: HTMLElement,
+  sourceTemplates: EmailTemplate[],
+  context: EmailTemplateRenderContext,
+): Promise<HTMLElement> {
+  const drafts = sourceTemplates.map(cloneAsPlainTemplate);
+  let activeIndex = 0;
+  let activeKind = drafts[0].kind;
+  const labels = buildTabLabels(drafts);
+
+  const card = container.createDiv({
+    cls: `claudian-email-template template-${activeKind}`,
+  });
+
+  const toolbar = card.createDiv({ cls: 'claudian-email-toolbar' });
+  const identity = toolbar.createDiv({ cls: 'claudian-email-identity' });
+  const icon = identity.createSpan({ cls: 'claudian-email-icon' });
+  setIcon(icon, 'mails');
+  identity.createSpan({ cls: 'claudian-email-label', text: 'E-Mail-Editor' });
+  const counter = identity.createSpan({
+    cls: 'claudian-email-kind',
+    text: `${labels[0]} · 1/${drafts.length}`,
+  });
+
+  const actions = toolbar.createDiv({ cls: 'claudian-email-actions' });
+  const selectButton = createIconButton(actions, 'text-select', 'Mailtext vollständig markieren');
+  const saveButton = createIconButton(actions, 'save', 'Aktive Vorlage im Vault speichern');
+  const copyButton = createPrimaryCopyButton(actions);
+
+  const tabs = card.createDiv({
+    cls: 'claudian-email-tabs',
+    attr: { role: 'tablist', 'aria-label': 'E-Mail-Variante auswählen' },
+  });
+  const tabButtons = drafts.map((template, index) => {
+    const button = tabs.createEl('button', {
+      cls: `claudian-email-tab${index === 0 ? ' is-active' : ''}`,
+      text: labels[index],
+      attr: {
+        type: 'button',
+        role: 'tab',
+        'aria-selected': index === 0 ? 'true' : 'false',
+        'data-kind': template.kind,
+      },
+    });
+    return button;
+  });
+
+  const editor = card.createDiv({ cls: 'claudian-email-editor' });
+  const recipientRow = editor.createDiv({ cls: 'claudian-email-editor-row' });
+  recipientRow.createEl('label', { text: 'An' });
+  const recipientInput = recipientRow.createEl('input', {
+    cls: 'claudian-email-input',
+    attr: {
+      type: 'text',
+      placeholder: '[Empfänger]',
+      autocomplete: 'off',
+      'aria-label': 'Empfänger',
+    },
+  });
+
+  const subjectRow = editor.createDiv({ cls: 'claudian-email-editor-row is-subject' });
+  subjectRow.createEl('label', { text: 'Betreff' });
+  const subjectInput = subjectRow.createEl('input', {
+    cls: 'claudian-email-input claudian-email-subject-input',
+    attr: {
+      type: 'text',
+      placeholder: 'Betreff eingeben',
+      autocomplete: 'off',
+      'aria-label': 'Betreff',
+    },
+  });
+
+  const textLabel = editor.createDiv({ cls: 'claudian-email-text-label' });
+  textLabel.createSpan({ text: 'MAILTEXT' });
+  textLabel.createSpan({ text: 'Klartext · direkt bearbeitbar' });
+  const bodyInput = editor.createEl('textarea', {
+    cls: 'claudian-email-body-input',
+    attr: {
+      rows: '12',
+      spellcheck: 'true',
+      'aria-label': 'E-Mail-Text',
+    },
+  });
+
+  const footer = card.createDiv({ cls: 'claudian-email-footer' });
+  const stats = footer.createSpan();
+  footer.createSpan({ text: 'Änderungen bleiben beim Wechsel der Varianten erhalten' });
+
+  const syncDraft = () => {
+    const draft = drafts[activeIndex];
+    draft.recipient = recipientInput.value.trim() || undefined;
+    draft.subject = subjectInput.value;
+    draft.body = bodyInput.value;
+  };
+
+  const renderDraft = (index: number) => {
+    activeIndex = index;
+    const draft = drafts[index];
+    card.removeClass(`template-${activeKind}`);
+    activeKind = draft.kind;
+    card.addClass(`template-${activeKind}`);
+    recipientInput.value = draft.recipient ?? '';
+    subjectInput.value = draft.subject;
+    bodyInput.value = draft.body;
+    counter.setText(`${labels[index]} · ${index + 1}/${drafts.length}`);
+    stats.setText(`${wordCount(draft.body).toLocaleString()} Wörter · ${labels[index]}`);
+    tabButtons.forEach((button, buttonIndex) => {
+      const selected = buttonIndex === index;
+      button.classList.toggle('is-active', selected);
+      button.setAttribute('aria-selected', selected ? 'true' : 'false');
+    });
+  };
+
+  tabButtons.forEach((button, index) => {
+    button.addEventListener('click', () => {
+      if (index === activeIndex) return;
+      syncDraft();
+      renderDraft(index);
+    });
+  });
+
+  recipientInput.addEventListener('input', syncDraft);
+  subjectInput.addEventListener('input', syncDraft);
+  bodyInput.addEventListener('input', () => {
+    syncDraft();
+    stats.setText(`${wordCount(bodyInput.value).toLocaleString()} Wörter · ${labels[activeIndex]}`);
+  });
+
+  selectButton.addEventListener('click', () => {
+    bodyInput.focus();
+    bodyInput.select();
+  });
+  copyButton.addEventListener('click', () => {
+    syncDraft();
+    void navigator.clipboard.writeText(plainEmailText(drafts[activeIndex]))
+      .then(() => flashPrimarySuccess(copyButton))
+      .catch(() => new Notice('Mail konnte nicht kopiert werden.'));
+  });
+  saveButton.addEventListener('click', () => {
+    syncDraft();
+    void saveEmailTemplate(context.app, drafts[activeIndex]).then((path) => {
+      new Notice(`E-Mail-Vorlage gespeichert: ${path}`);
+      flashIconSuccess(saveButton, 'save');
+    }).catch((error) => {
+      new Notice(`E-Mail-Vorlage konnte nicht gespeichert werden: ${error instanceof Error ? error.message : String(error)}`);
+    });
+  });
+
+  renderDraft(0);
+  return card;
 }
 
 export async function renderEmailTemplate(
@@ -227,98 +411,40 @@ export async function renderEmailTemplate(
   template: EmailTemplate,
   context: EmailTemplateRenderContext,
 ): Promise<HTMLElement> {
-  const card = container.createDiv({
-    cls: `claudian-email-template template-${template.kind}`,
-  });
-
-  const toolbar = card.createDiv({ cls: 'claudian-email-toolbar' });
-  const identity = toolbar.createDiv({ cls: 'claudian-email-identity' });
-  const icon = identity.createSpan({ cls: 'claudian-email-icon' });
-  setIcon(icon, 'mail');
-  identity.createSpan({ cls: 'claudian-email-label', text: 'E-Mail-Vorlage' });
-  identity.createSpan({
-    cls: 'claudian-email-kind',
-    text: TEMPLATE_LABELS[template.kind],
-  });
-
-  const actions = toolbar.createDiv({ cls: 'claudian-email-actions' });
-  const subjectButton = createIconButton(actions, 'text-cursor-input', 'Nur Betreff kopieren');
-  const copyButton = createIconButton(actions, 'copy', 'Komplette E-Mail kopieren');
-  const saveButton = createIconButton(actions, 'save', 'Vorlage im Vault speichern');
-
-  const sheet = card.createDiv({ cls: 'claudian-email-sheet' });
-  if (template.recipient) {
-    const recipient = sheet.createDiv({ cls: 'claudian-email-field' });
-    recipient.createSpan({ cls: 'claudian-email-field-label', text: 'AN' });
-    recipient.createSpan({ cls: 'claudian-email-recipient', text: template.recipient });
-  }
-  const subject = sheet.createDiv({ cls: 'claudian-email-field is-subject' });
-  subject.createSpan({ cls: 'claudian-email-field-label', text: 'BETREFF' });
-  subject.createEl('h3', { text: template.subject });
-  if (template.preheader) {
-    const preheader = sheet.createDiv({ cls: 'claudian-email-preheader' });
-    preheader.createSpan({ text: 'Vorschautext' });
-    preheader.createEl('p', { text: template.preheader });
-  }
-
-  const body = sheet.createDiv({ cls: 'claudian-email-body' });
-  await MarkdownRenderer.render(context.app, template.body, body, '', context.component);
-  highlightPlaceholders(body);
-
-  const footer = card.createDiv({ cls: 'claudian-email-footer' });
-  footer.createSpan({
-    text: `${wordCount(template.body).toLocaleString()} Wörter · ${TEMPLATE_LABELS[template.kind]}`,
-  });
-  footer.createSpan({ text: 'Platzhalter sind markiert' });
-
-  subjectButton.addEventListener('click', () => {
-    void navigator.clipboard.writeText(template.subject)
-      .then(() => flashSuccess(subjectButton, 'text-cursor-input'))
-      .catch(() => new Notice('Betreff konnte nicht kopiert werden.'));
-  });
-  copyButton.addEventListener('click', () => {
-    void navigator.clipboard.writeText(plainEmailText(template))
-      .then(() => flashSuccess(copyButton, 'copy'))
-      .catch(() => new Notice('Mail konnte nicht kopiert werden.'));
-  });
-  saveButton.addEventListener('click', () => {
-    void saveEmailTemplate(context.app, template).then((path) => {
-      new Notice(`E-Mail-Vorlage gespeichert: ${path}`);
-      flashSuccess(saveButton, 'save');
-    }).catch((error) => {
-      new Notice(`E-Mail-Vorlage konnte nicht gespeichert werden: ${error instanceof Error ? error.message : String(error)}`);
-    });
-  });
-
-  return card;
+  return renderEmailTemplateWorkspace(container, [template], context);
 }
 
-/** Replaces email-template code fences with compact, designed mail cards. */
+/** Groups every email fence in one selectable, plain-text editor. */
 export async function renderEmailTemplates(
   root: HTMLElement,
   markdown: string,
   context: EmailTemplateRenderContext,
 ): Promise<boolean> {
   const blocks = parseEmailTemplateBlocks(markdown);
+  const templates = blocks
+    .map((block) => block.template)
+    .filter((template): template is EmailTemplate => template !== null);
+  if (templates.length === 0) return false;
+
   const codeBlocks = Array.from(root.querySelectorAll(
     'pre code.language-claudian-email, pre code.language-email-template',
   ));
-  let rendered = false;
+  const pres = codeBlocks
+    .map((code) => code.closest('pre'))
+    .filter((pre): pre is HTMLPreElement => pre !== null);
+  const firstPre = pres[0];
 
-  for (let index = 0; index < blocks.length; index++) {
-    const block = blocks[index];
-    if (!block.template) continue;
-    const code = codeBlocks[index];
-    const pre = code?.closest('pre');
-    if (pre?.parentElement) {
-      const host = root.ownerDocument.createElement('div');
-      pre.parentElement.replaceChild(host, pre);
-      await renderEmailTemplate(host, block.template, context);
-      rendered = true;
-    } else if (!block.closed) {
-      await renderEmailTemplate(root, block.template, context);
-      rendered = true;
-    }
+  if (firstPre?.parentElement) {
+    const host = root.ownerDocument.createElement('div');
+    firstPre.parentElement.replaceChild(host, firstPre);
+    for (const pre of pres.slice(1)) pre.remove();
+    await renderEmailTemplateWorkspace(host, templates, context);
+    return true;
   }
-  return rendered;
+
+  if (blocks.some((block) => !block.closed)) {
+    await renderEmailTemplateWorkspace(root, templates, context);
+    return true;
+  }
+  return false;
 }

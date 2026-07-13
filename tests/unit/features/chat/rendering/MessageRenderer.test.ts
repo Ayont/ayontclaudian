@@ -313,6 +313,71 @@ describe('MessageRenderer', () => {
     expect(renderContentSpy).toHaveBeenNthCalledWith(2, expect.anything(), 'Why is the chat slow?');
   });
 
+  it('combines vault and memory context in one collapsed card and hides both raw envelopes', () => {
+    const messagesEl = createMockEl();
+    const { renderer } = createRenderer(messagesEl);
+    const renderContentSpy = jest.spyOn(renderer, 'renderContent').mockResolvedValue(undefined);
+    const msg: ChatMessage = {
+      id: 'combined-context-user',
+      role: 'user',
+      content: [
+        '<vault_context>',
+        'Relevant vault knowledge:',
+        '- From [[Network.md]] (score 80%): VLAN notes',
+        '</vault_context>',
+        '',
+        '<memory_context>',
+        'Relevant things I remember:',
+        '- **UI preference**: compact cards',
+        '</memory_context>',
+        '',
+        'Please fix this display.',
+      ].join('\n'),
+      displayContent: [
+        '<vault_context>',
+        'raw vault',
+        '</vault_context>',
+        '',
+        '<memory_context>',
+        'raw memory',
+        '</memory_context>',
+        '',
+        'Please fix this display.',
+      ].join('\n'),
+      timestamp: Date.now(),
+    };
+
+    renderer.renderStoredMessage(msg);
+
+    const contentEl = messagesEl.children[0].children[0];
+    expect(contentEl.children[0].hasClass('claudian-vault-context-card')).toBe(true);
+    expect(contentEl.children[0].children[0].children[1].textContent)
+      .toBe('1 Vault-Quelle · 1 Erinnerung');
+    expect(renderContentSpy).toHaveBeenCalledWith(expect.anything(), 'Relevant vault knowledge:\n- From [[Network.md]] (score 80%): VLAN notes');
+    expect(renderContentSpy).toHaveBeenCalledWith(expect.anything(), 'Relevant things I remember:\n- **UI preference**: compact cards');
+    expect(renderContentSpy).toHaveBeenCalledWith(expect.anything(), 'Please fix this display.');
+    expect(renderContentSpy).not.toHaveBeenCalledWith(expect.anything(), expect.stringContaining('<memory_context>'));
+  });
+
+  it('uses the same collapsed context presentation for live user messages', () => {
+    const messagesEl = createMockEl();
+    const { renderer } = createRenderer(messagesEl);
+    const renderContentSpy = jest.spyOn(renderer, 'renderContent').mockResolvedValue(undefined);
+    const msg: ChatMessage = {
+      id: 'live-context-user',
+      role: 'user',
+      content: '<memory_context>\n- **Tone**: business\n</memory_context>\n\nWrite the reply.',
+      timestamp: Date.now(),
+    };
+
+    renderer.addMessage(msg);
+
+    const contentEl = messagesEl.children[0].children[0];
+    expect(contentEl.children[0].hasClass('claudian-vault-context-card')).toBe(true);
+    expect(renderContentSpy).toHaveBeenCalledWith(expect.anything(), '- **Tone**: business');
+    expect(renderContentSpy).toHaveBeenCalledWith(expect.anything(), 'Write the reply.');
+  });
+
   it('skips empty user message bubble (image-only)', () => {
     const messagesEl = createMockEl();
     const { renderer } = createRenderer(messagesEl);

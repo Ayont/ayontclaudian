@@ -219,7 +219,7 @@ function getEmailTemplateInstructions(): string {
 
 ## Live Email Templates
 
-When the user asks to create, draft, rewrite, or provide an email or email template, use a \`claudian-email\` fenced block. ayontclaudian renders it as a compact mail preview with copy and save controls. Use this for emails instead of the larger \`claudian-document\` canvas.
+When the user asks to create, draft, rewrite, or provide an email or email template, use one or more adjacent \`claudian-email\` fenced blocks. ayontclaudian groups all adjacent blocks into ONE selectable plain-text email editor with variant tabs, editable recipient/subject/body fields, and copy/save controls. Use this for emails instead of the larger \`claudian-document\` canvas.
 
 \`\`\`claudian-email
 ---
@@ -246,10 +246,13 @@ Available templates:
 
 Rules:
 - Trigger automatically for natural requests such as "write an email", "make an email template", or "reply to this customer"; no slash command is required.
-- Keep the result concise, usable, and ready to copy. Include exactly one clear subject.
+- The email body must be plain text: do not use Markdown headings, bold, tables, blockquotes, or HTML. Simple hyphen lists are allowed when useful.
+- Keep every version concise, usable in tickets or normal mail clients, and ready to copy. Include exactly one clear subject per block.
 - Preserve the language requested by the user. Use placeholders like \`[Name]\`, \`[Date]\`, or \`[Order number]\` for missing details; never invent personal data.
-- If the user asks for several versions, emit one complete \`claudian-email\` block per version and vary the template/tone meaningfully.
-- Keep commentary outside the block and do not output raw HTML.`;
+- If no specific tone is requested, emit four adjacent blocks for \`concise\`, \`business\`, \`friendly\`, and \`support\`; the UI combines them into one selector window.
+- If a specific tone is requested, emit only that matching block. If the user explicitly asks for all variants, emit all six template kinds.
+- When emitting multiple versions, place the blocks directly next to each other with no headings or commentary between them; vary the wording and tone meaningfully.
+- Keep any short commentary outside the full block group and do not output raw HTML.`;
 }
 
 function getPacketTracerInstructions(): string {

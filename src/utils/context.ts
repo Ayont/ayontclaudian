@@ -15,14 +15,23 @@ const CURRENT_NOTE_SUFFIX_REGEX = /\n\n<current_note>\n[\s\S]*?<\/current_note>$
  * Matches: current_note, editor_selection (with attributes), editor_cursor (with attributes),
  * context_files, canvas_selection, browser_selection
  */
-export const XML_CONTEXT_PATTERN = /\n\n<(?:vault_context|current_note|editor_selection|editor_cursor|context_files|canvas_selection|browser_selection)[\s>]/;
+export const XML_CONTEXT_PATTERN = /\n\n<(?:vault_context|memory_context|current_note|editor_selection|editor_cursor|context_files|canvas_selection|browser_selection)[\s>]/;
 const BRACKET_CONTEXT_PATTERN = /\n\[(?:Current note|Editor selection from|Browser selection from|Canvas selection from)\b/;
 const VAULT_CONTEXT_PATTERN = /<vault_context>\s*([\s\S]*?)\s*<\/vault_context>/i;
+const MEMORY_CONTEXT_PATTERN = /<memory_context>\s*([\s\S]*?)\s*<\/memory_context>/i;
+const INJECTED_CONTEXT_PATTERN = /<(vault_context|memory_context)>\s*([\s\S]*?)\s*<\/\1>/gi;
 
 export interface VaultContextPrompt {
   /** Markdown inside the machine-facing `<vault_context>` tag. */
   context: string;
   /** The actual human prompt, with trailing XML context removed when present. */
+  userContent: string;
+}
+
+export interface InjectedContextPrompt {
+  vaultContext?: string;
+  memoryContext?: string;
+  /** Human-authored prompt after all internal context envelopes are removed. */
   userContent: string;
 }
 
@@ -79,17 +88,33 @@ export function extractContentBeforeXmlContext(text: string): string | undefined
  * real user message, so the old "content before XML" rule cannot recover it.
  */
 export function extractVaultContextPrompt(text: string): VaultContextPrompt | undefined {
-  if (!text) return undefined;
-  const match = text.match(VAULT_CONTEXT_PATTERN);
-  if (!match || match.index === undefined) return undefined;
-
-  const before = text.slice(0, match.index).trim();
-  const after = text.slice(match.index + match[0].length).trim();
-  const candidate = before || after;
-  const userContent = extractContentBeforeXmlContext(candidate) ?? candidate;
+  const injected = extractInjectedContextPrompt(text);
+  if (!injected?.vaultContext) return undefined;
 
   return {
-    context: (match[1] ?? '').trim(),
+    context: injected.vaultContext,
+    userContent: injected.userContent,
+  };
+}
+
+/**
+ * Removes every internal RAG/memory envelope regardless of whether a provider
+ * persisted it before or after the human prompt. This is the canonical display
+ * sanitizer for both live messages and rehydrated provider history.
+ */
+export function extractInjectedContextPrompt(text: string): InjectedContextPrompt | undefined {
+  if (!text) return undefined;
+  const vaultMatch = text.match(VAULT_CONTEXT_PATTERN);
+  const memoryMatch = text.match(MEMORY_CONTEXT_PATTERN);
+  if (!vaultMatch && !memoryMatch) return undefined;
+
+  const withoutInjectedContext = text.replace(INJECTED_CONTEXT_PATTERN, '').trim();
+  const userContent = extractContentBeforeXmlContext(withoutInjectedContext)
+    ?? withoutInjectedContext;
+
+  return {
+    ...(vaultMatch?.[1]?.trim() ? { vaultContext: vaultMatch[1].trim() } : {}),
+    ...(memoryMatch?.[1]?.trim() ? { memoryContext: memoryMatch[1].trim() } : {}),
     userContent: userContent.trim(),
   };
 }
@@ -97,9 +122,9 @@ export function extractVaultContextPrompt(text: string): VaultContextPrompt | un
 export function extractUserDisplayContent(text: string): string | undefined {
   if (!text) return undefined;
 
-  const vaultContext = extractVaultContextPrompt(text);
-  if (vaultContext) {
-    return vaultContext.userContent;
+  const injectedContext = extractInjectedContextPrompt(text);
+  if (injectedContext) {
+    return injectedContext.userContent;
   }
 
   const xmlDisplayContent = extractContentBeforeXmlContext(text);
@@ -125,9 +150,9 @@ export function extractUserDisplayContent(text: string): string | undefined {
 export function extractUserQuery(prompt: string): string {
   if (!prompt) return '';
 
-  const vaultContext = extractVaultContextPrompt(prompt);
-  if (vaultContext) {
-    return vaultContext.userContent;
+  const injectedContext = extractInjectedContextPrompt(prompt);
+  if (injectedContext) {
+    return injectedContext.userContent;
   }
 
   // Try to extract content before XML context
@@ -145,6 +170,7 @@ export function extractUserQuery(prompt: string): string {
     .replace(/<canvas_selection[\s\S]*?<\/canvas_selection>\s*/g, '')
     .replace(/<browser_selection[\s\S]*?<\/browser_selection>\s*/g, '')
     .replace(/<vault_context>[\s\S]*?<\/vault_context>\s*/g, '')
+    .replace(/<memory_context>[\s\S]*?<\/memory_context>\s*/g, '')
     .trim();
 }
 

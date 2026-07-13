@@ -2642,9 +2642,10 @@ export class InputController {
         }
         await this.sendMessage({
           content:
-            'Erstelle eine kurze, direkt nutzbare E-Mail-Vorlage für den folgenden Wunsch. Gib das vollständige '
-            + 'Ergebnis in genau einem `claudian-email`-Block aus, wähle den passenden Vorlagentyp und markiere '
-            + 'fehlende Angaben mit klaren Platzhaltern.\n\n'
+            'Erstelle direkt nutzbare Klartext-E-Mail-Vorlagen für den folgenden Wunsch. Wenn kein bestimmter Ton '
+            + 'genannt ist, liefere die vier Varianten kurz, geschäftlich, freundlich und Support als direkt '
+            + 'aufeinanderfolgende `claudian-email`-Blöcke; sie erscheinen gemeinsam in einem Auswahlfenster. '
+            + 'Markiere fehlende Angaben mit klaren Platzhaltern und verwende keine Markdown-Formatierung.\n\n'
             + request,
         });
         break;

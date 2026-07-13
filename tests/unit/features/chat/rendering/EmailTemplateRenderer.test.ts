@@ -1,6 +1,7 @@
 /** @jest-environment jsdom */
 
 import {
+  emailBodyToPlainText,
   parseEmailTemplate,
   parseEmailTemplateBlocks,
   renderEmailTemplate,
@@ -32,6 +33,15 @@ function installObsidianDomHelpers(): void {
   (HTMLElement.prototype as any).empty = function empty() {
     this.replaceChildren();
     return this;
+  };
+  (HTMLElement.prototype as any).setText = function setText(value: string) {
+    this.textContent = value;
+  };
+  (HTMLElement.prototype as any).addClass = function addClass(value: string) {
+    this.classList.add(value);
+  };
+  (HTMLElement.prototype as any).removeClass = function removeClass(value: string) {
+    this.classList.remove(value);
   };
 }
 
@@ -111,7 +121,27 @@ describe('EmailTemplateRenderer', () => {
     expect(blocks[1].template?.kind).toBe('friendly');
   });
 
-  it('renders subject, type, recipient, and actions', async () => {
+  it('normalizes provider Markdown into copy-ready plain text', () => {
+    expect(emailBodyToPlainText([
+      '## Antwort',
+      '',
+      'Hallo **[Name]**,',
+      '',
+      '> Ihr Ticket ist bearbeitet.',
+      '',
+      '* [Status öffnen](https://example.com/ticket)',
+    ].join('\n'))).toBe([
+      'Antwort',
+      '',
+      'Hallo [Name],',
+      '',
+      'Ihr Ticket ist bearbeitet.',
+      '',
+      '- Status öffnen (https://example.com/ticket)',
+    ].join('\n'));
+  });
+
+  it('renders editable plain-text fields and copy controls', async () => {
     const root = document.createElement('div');
     const email = parseEmailTemplate([
       '---',
@@ -121,21 +151,28 @@ describe('EmailTemplateRenderer', () => {
       '---',
       'Hallo [Name],',
       '',
-      'gerne sende ich Ihnen unser Angebot.',
+      'gerne sende ich Ihnen unser **Angebot**.',
     ].join('\n'))!;
 
     await renderEmailTemplate(root, email, createContext());
 
     expect(root.querySelector('.claudian-email-template.template-sales')).not.toBeNull();
-    expect(root.querySelector('.claudian-email-field h3')?.textContent).toBe('Angebot für [Projekt]');
-    expect(root.querySelector('.claudian-email-kind')?.textContent).toBe('Vertrieb');
-    expect(root.querySelector('.claudian-email-recipient')?.textContent).toBe('[Name]');
-    expect(root.querySelectorAll('.claudian-email-action')).toHaveLength(3);
+    expect((root.querySelector('.claudian-email-subject-input') as HTMLInputElement).value)
+      .toBe('Angebot für [Projekt]');
+    expect((root.querySelector('[aria-label="Empfänger"]') as HTMLInputElement).value).toBe('[Name]');
+    expect((root.querySelector('.claudian-email-body-input') as HTMLTextAreaElement).value)
+      .toContain('unser Angebot.');
+    expect(root.querySelector('.claudian-email-kind')?.textContent).toBe('Vertrieb · 1/1');
+    expect(root.querySelectorAll('.claudian-email-action')).toHaveLength(2);
+    expect(root.querySelector('.claudian-email-copy-primary')).not.toBeNull();
   });
 
-  it('replaces a rendered email fence with the designed card', async () => {
+  it('groups multiple rendered fences into one selectable editor', async () => {
     const root = document.createElement('div');
-    root.innerHTML = '<pre><code class="language-claudian-email">email</code></pre>';
+    root.innerHTML = [
+      '<pre><code class="language-claudian-email">email A</code></pre>',
+      '<pre><code class="language-claudian-email">email B</code></pre>',
+    ].join('');
     const markdown = [
       '```claudian-email',
       '---',
@@ -144,10 +181,24 @@ describe('EmailTemplateRenderer', () => {
       '---',
       'Hallo, wir kümmern uns darum.',
       '```',
+      '```claudian-email',
+      '---',
+      'subject: Freundliche Antwort',
+      'template: friendly',
+      '---',
+      'Hallo, danke für deine Nachricht.',
+      '```',
     ].join('\n');
 
     expect(await renderEmailTemplates(root, markdown, createContext())).toBe(true);
     expect(root.querySelector('pre')).toBeNull();
     expect(root.querySelector('.claudian-email-template.template-support')).not.toBeNull();
+    expect(root.querySelectorAll('.claudian-email-template')).toHaveLength(1);
+    expect(root.querySelectorAll('.claudian-email-tab')).toHaveLength(2);
+
+    (root.querySelectorAll('.claudian-email-tab')[1] as HTMLButtonElement).click();
+    expect(root.querySelector('.claudian-email-template.template-friendly')).not.toBeNull();
+    expect((root.querySelector('.claudian-email-subject-input') as HTMLInputElement).value)
+      .toBe('Freundliche Antwort');
   });
 });

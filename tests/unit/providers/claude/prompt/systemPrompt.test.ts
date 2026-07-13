@@ -69,7 +69,9 @@ describe('systemPrompt', () => {
       expect(prompt).toContain('```claudian-email');
       expect(prompt).toContain('template: concise');
       expect(prompt).toContain('no slash command is required');
-      expect(prompt).toContain('one complete `claudian-email` block per version');
+      expect(prompt).toContain('ONE selectable plain-text email editor');
+      expect(prompt).toContain('emit four adjacent blocks');
+      expect(prompt).toContain('do not use Markdown headings');
     });
 
     it('should give Packet Tracer lab instructions to every provider', () => {
