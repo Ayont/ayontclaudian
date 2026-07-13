@@ -62,10 +62,17 @@ async function fileExists(p: string): Promise<boolean> {
   }
 }
 
+async function mlxWhisperAvailable(): Promise<boolean> {
+  const r = await run('python3', ['-m', 'mlx_whisper', '--help'], { timeoutMs: 10_000 });
+  return r.ok;
+}
+
 export interface SetupResult {
   ffmpegOk: boolean;
   whisperOk: boolean;
   modelOk: boolean;
+  /** True if mlx_whisper is available on macOS. */
+  mlxOk: boolean;
   /** Human-readable summary of what was done / what failed. */
   message: string;
 }
@@ -76,7 +83,7 @@ export interface SetupResult {
  * @param model Whisper model name (tiny/base/small/medium/large). Downloads that specific model.
  */
 export async function ensureVoiceDependencies(model = 'base'): Promise<SetupResult> {
-  const result: SetupResult = { ffmpegOk: false, whisperOk: false, modelOk: false, message: '' };
+  const result: SetupResult = { ffmpegOk: false, whisperOk: false, modelOk: false, mlxOk: false, message: '' };
   const steps: string[] = [];
   const modelPath = `${MODEL_DIR}/ggml-${model}.bin`;
   const modelUrl = MODEL_URL.replace('{model}', model);
@@ -135,6 +142,22 @@ export async function ensureVoiceDependencies(model = 'base'): Promise<SetupResu
     }
   }
 
+  // ── 4. mlx-whisper (macOS fast backend) ────────────────────────────
+  if (process.platform === 'darwin') {
+    if (await mlxWhisperAvailable()) {
+      result.mlxOk = true;
+    } else {
+      steps.push('Installiere mlx-whisper für schnelle Transkription…');
+      const install = await run('python3', ['-m', 'pip', 'install', 'mlx-whisper'], { timeoutMs: 300_000 });
+      if (install.ok && (await mlxWhisperAvailable())) {
+        result.mlxOk = true;
+        steps.push('mlx-whisper installiert.');
+      } else {
+        steps.push(`mlx-whisper-Installation fehlgeschlagen: ${install.stderr.slice(0, 200)}`);
+      }
+    }
+  }
+
   result.message = steps.join(' ');
   return result;
 }
@@ -143,13 +166,15 @@ export async function ensureVoiceDependencies(model = 'base'): Promise<SetupResu
  * Quick check — true if everything is ready, false if setup is needed.
  * Used by the UI to decide whether to show a setup spinner.
  * @param model Whisper model name to check for.
+ * @param preferFastBackend If true on macOS, also require mlx_whisper to be available.
  */
-export async function areVoiceDependenciesReady(model = 'base'): Promise<boolean> {
+export async function areVoiceDependenciesReady(model = 'base', preferFastBackend = false): Promise<boolean> {
   const modelPath = `${MODEL_DIR}/ggml-${model}.bin`;
-  const [ffmpegOk, whisperOk, modelOk] = await Promise.all([
+  const [ffmpegOk, whisperOk, modelOk, mlxOk] = await Promise.all([
     run('which', ['ffmpeg']).then((r) => r.ok && r.stdout.trim().length > 0),
     run('which', ['whisper-cli']).then((r) => r.ok && r.stdout.trim().length > 0),
     fileExists(modelPath),
+    preferFastBackend && process.platform === 'darwin' ? mlxWhisperAvailable() : Promise.resolve(true),
   ]);
-  return ffmpegOk && whisperOk && modelOk;
+  return ffmpegOk && whisperOk && modelOk && mlxOk;
 }
