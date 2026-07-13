@@ -113,6 +113,29 @@ describe('MlxWhisperTranscriber', () => {
     expect(capturedArgs).toContain('mlx-community/whisper-large-v3-mlx');
   });
 
+  it('strips mlx_whisper timestamp brackets from the transcript', async () => {
+    // Regression: mlx_whisper's default CLI output prints one
+    // `[00:00.000 --> 00:04.000]  text` line per segment — without stripping,
+    // those brackets used to leak straight into the composer text.
+    const stdout = '[00:00.000 --> 00:02.500]  Hallo Welt\n[00:02.500 --> 00:05.000]  wie geht es dir';
+    const { spawn } = createSpySpawn(stdout, 0);
+    const transcriber = new MlxWhisperTranscriber(spawn);
+    const result = await transcriber.transcribe('/tmp/test.wav', { language: 'de', model: 'base' });
+    expect(result.text).toBe('Hallo Welt wie geht es dir');
+  });
+
+  it('confines mlx_whisper output files to a temp dir instead of the vault cwd', async () => {
+    // Regression: mlx_whisper's CLI writes txt/vtt/srt/tsv/json files into the
+    // current working directory by default — without --output_dir/--output_format
+    // that would silently dump stray files into the vault on every recording.
+    const { spawn, capturedArgs } = createSpySpawn('Hallo', 0);
+    const transcriber = new MlxWhisperTranscriber(spawn);
+    await transcriber.transcribe('/tmp/test.wav', { language: 'de', model: 'base' });
+    expect(capturedArgs).toContain('--output_dir');
+    expect(capturedArgs).toContain('--output_format');
+    expect(capturedArgs).toContain('txt');
+  });
+
   it('aborts when signal is triggered', async () => {
     const { spawn } = createDelayedSpawn('Hallo', 0);
     const transcriber = new MlxWhisperTranscriber(spawn);

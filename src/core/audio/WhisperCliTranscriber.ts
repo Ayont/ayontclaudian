@@ -1,7 +1,9 @@
 import { spawn } from 'node:child_process';
+import { cpus } from 'node:os';
 
 import { getEnhancedPath } from '../../utils/env';
 import type { TranscriberOptions, TranscriptionResult, VoiceTranscriber } from './VoiceTranscriber';
+import { resolveThreadCount } from './WhisperServerManager';
 
 export type SpawnLike = typeof spawn;
 
@@ -92,7 +94,10 @@ export class WhisperCliTranscriber implements VoiceTranscriber {
           // -mc 0 disables cross-segment context (prevents "you" hallucinations on silence).
           // -sns suppresses non-speech tokens. We intentionally do NOT pass -ml 1,
           // because that caps each segment to 1 character and destroys sentences.
-          ['-m', modelPath, '-l', language, '-nt', '-mc', '0', '-sns', wavPath],
+          // -t: whisper-cli's own default is a hardcoded 4 threads regardless of
+          // the machine — pass the actual usable core count so decode isn't
+          // artificially throttled on 8+ core Macs.
+          ['-m', modelPath, '-l', language, '-nt', '-mc', '0', '-sns', '-t', String(resolveThreadCount(cpus().length)), wavPath],
           {
             env: { ...process.env, PATH: getEnhancedPath(process.env.PATH) },
             windowsHide: true,

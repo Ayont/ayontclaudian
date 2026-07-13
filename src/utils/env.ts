@@ -207,13 +207,19 @@ function getExtraBinaryPaths(): string[] {
 
     return paths;
   } else {
-    // Unix paths
-    const paths = [
-      '/usr/local/bin',
-      '/opt/homebrew/bin',  // macOS ARM Homebrew
-      '/usr/bin',
-      '/bin',
-    ];
+    // Unix paths. On Apple Silicon, `/opt/homebrew/bin` (native ARM64 Homebrew)
+    // MUST come before `/usr/local/bin`: the latter is the Intel/Rosetta
+    // Homebrew prefix, and a CLI installed there (e.g. leftover from an
+    // Intel-Mac migration, or `arch -x86_64 brew install ...`) silently runs
+    // translated under Rosetta — no Apple Accelerate/Metal, generic SSE SIMD
+    // only. For CPU-bound tools like whisper.cpp this is several times slower
+    // than the native build, with no visible error to explain why. On Intel
+    // Macs and Linux, `/opt/homebrew` doesn't exist, so the historical order
+    // (`/usr/local/bin` first) is kept.
+    const isAppleSilicon = process.platform === 'darwin' && process.arch === 'arm64';
+    const paths = isAppleSilicon
+      ? ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin']
+      : ['/usr/local/bin', '/opt/homebrew/bin', '/usr/bin', '/bin'];
 
     const voltaHome = process.env.VOLTA_HOME;
     if (voltaHome) {

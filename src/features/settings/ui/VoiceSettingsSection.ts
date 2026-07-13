@@ -1,6 +1,6 @@
 import { Notice, Setting } from 'obsidian';
 
-import { areVoiceDependenciesReady, ensureVoiceDependencies } from '../../../core/audio/voiceSetup';
+import { areVoiceDependenciesReady, diagnoseVoiceSetup, ensureVoiceDependencies } from '../../../core/audio/voiceSetup';
 import type ClaudianPlugin from '../../../main';
 
 /**
@@ -77,8 +77,31 @@ function renderInto(section: HTMLElement, plugin: ClaudianPlugin): void {
   new Setting(section).setName('Spracheingabe').setHeading();
   section.createEl('p', {
     cls: 'claudian-voice-settings-hint',
-    text: 'Lokale Spracherkennung über whisper-cpp — keine Cloud, kein Netzwerk. Erstmalige Einrichtung installiert ffmpeg, whisper-cpp und das Modell automatisch via Homebrew.',
+    text: 'Lokale Spracherkennung über whisper-cpp — keine Cloud, kein Netzwerk. Erstmalige Einrichtung installiert ffmpeg, whisper-cpp und das Modell automatisch via Homebrew. Ein warmgehaltener whisper-server hält das Modell zwischen Aufnahmen geladen, damit jede Transkription nach der ersten deutlich schneller ist.',
   });
+
+  // ── Apple Silicon architecture warning ─────────────────────────────
+  // A whisper-cli/ffmpeg resolved from /usr/local (Intel Homebrew) runs
+  // translated under Rosetta on Apple Silicon — several times slower, with no
+  // visible error. Surface this explicitly since it otherwise looks like
+  // "voice input is just slow" with no actionable cause.
+  if (process.platform === 'darwin' && process.arch === 'arm64') {
+    const archWarningEl = section.createEl('p', { cls: 'claudian-voice-model-info' });
+    void diagnoseVoiceSetup().then((diag) => {
+      if (diag.whisperCliNative && diag.ffmpegNative) {
+        archWarningEl.remove();
+        return;
+      }
+      const wrong = [
+        !diag.whisperCliNative ? 'whisper-cli' : null,
+        !diag.ffmpegNative ? 'ffmpeg' : null,
+      ].filter(Boolean).join(' und ');
+      archWarningEl.addClass('claudian-voice-status-missing');
+      archWarningEl.setText(
+        `⚠ ${wrong} läuft aktuell unter Rosetta (Intel-Build via /usr/local) statt nativ auf Apple Silicon — mehrfach langsamer. „Alle installieren" weiter unten installiert die native Version über /opt/homebrew.`,
+      );
+    });
+  }
 
   // ── Enable / Disable ──────────────────────────────────────────────
   new Setting(section)
@@ -132,8 +155,8 @@ function renderInto(section: HTMLElement, plugin: ClaudianPlugin): void {
   // ── Fast Backend Toggle ───────────────────────────────────────────
   if (process.platform === 'darwin') {
     new Setting(section)
-      .setName('Schnelles Backend bevorzugen')
-      .setDesc('mlx-whisper auf Apple Silicon nutzen (deutlich schneller als whisper-cli)')
+      .setName('mlx-whisper als Alternativ-Backend')
+      .setDesc('Zusätzlich mlx-whisper auf Apple Silicon anbieten. Meist unnötig: der warmgehaltene whisper-server ist bereits die schnellste Option und wird immer bevorzugt, wenn verfügbar.')
       .addToggle((toggle) =>
         toggle
           .setValue(vs.preferFastBackend)
@@ -176,7 +199,7 @@ function renderInto(section: HTMLElement, plugin: ClaudianPlugin): void {
     });
 
   // ── Microphone Picker ────────────────────────────────────────────
-  const micSetting = new Setting(section)
+  new Setting(section)
     .setName('Mikrofon')
     .setDesc('Audioeingabe-Gerät auswählen (Systemstandard, wenn leer)')
     .addDropdown((dropdown) => {
@@ -198,7 +221,7 @@ function renderInto(section: HTMLElement, plugin: ClaudianPlugin): void {
     });
 
   // Hint for microphone permission
-  const micHintEl = section.createEl('p', {
+  section.createEl('p', {
     cls: 'claudian-voice-model-info',
     text: 'Erlaube den Mikrofon-Zugriff, wenn Obsidian danach fragt. Geräte erscheinen nach der ersten Berechtigung.',
   });

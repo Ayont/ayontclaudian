@@ -1,9 +1,10 @@
+import type { TranscriberFactory } from './VoiceBackendResolver';
 import { VoiceBackendResolver } from './VoiceBackendResolver';
 import type { TranscriberOptions, TranscriptionResult, VoiceTranscriber } from './VoiceTranscriber';
 
 export type { TranscriberOptions, TranscriptionResult, VoiceTranscriber };
-export { WhisperCliTranscriber, parseWhisperOutput } from './WhisperCliTranscriber';
 export type { TranscriberFactory } from './VoiceBackendResolver';
+export { parseWhisperOutput, WhisperCliTranscriber } from './WhisperCliTranscriber';
 
 /** Maps Claudian UI locales to whisper.cpp language codes. */
 const LOCALE_TO_WHISPER: Record<string, string> = {
@@ -33,7 +34,7 @@ export interface TranscribeOptions extends TranscriberOptions {
   /** If true, prefer the fast backend (mlx_whisper on macOS). */
   preferFastBackend?: boolean;
   /** Optional backend factories for testing or custom backends. */
-  backendFactories?: import('./VoiceBackendResolver').TranscriberFactory[];
+  backendFactories?: TranscriberFactory[];
 }
 
 /**

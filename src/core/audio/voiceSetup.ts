@@ -67,6 +67,57 @@ async function mlxWhisperAvailable(): Promise<boolean> {
   return r.ok;
 }
 
+const NATIVE_BREW_PATH = '/opt/homebrew/bin/brew';
+
+/**
+ * True on an Apple Silicon Mac. On these machines `/usr/local/bin` is the
+ * Intel/Rosetta Homebrew prefix — a CLI installed there runs translated, with
+ * generic SSE SIMD only (no Apple Accelerate/Metal), which is dramatically
+ * slower for CPU-bound tools like whisper.cpp. `/opt/homebrew/bin` is the
+ * native ARM64 prefix and must be preferred for every install/lookup here.
+ */
+function isAppleSilicon(): boolean {
+  return process.platform === 'darwin' && process.arch === 'arm64';
+}
+
+/**
+ * Resolves the Homebrew binary to use for installs. On Apple Silicon, always
+ * prefer the native `/opt/homebrew/bin/brew` when present — this guarantees
+ * `brew install` writes native ARM64 binaries even if a stray Intel `brew`
+ * happens to resolve first on PATH.
+ */
+async function resolveBrewCommand(): Promise<string> {
+  if (isAppleSilicon() && (await fileExists(NATIVE_BREW_PATH))) {
+    return NATIVE_BREW_PATH;
+  }
+  return 'brew';
+}
+
+/**
+ * On Apple Silicon, checks whether the binary `which` resolved is actually a
+ * native arm64 build rather than an x86_64 one running translated under
+ * Rosetta. Non-Apple-Silicon platforms always report "native" (no check
+ * applies there).
+ */
+async function isNativeBinary(resolvedPath: string): Promise<boolean> {
+  if (!isAppleSilicon()) return true;
+  const check = await run('file', ['-b', resolvedPath], { timeoutMs: 5_000 });
+  if (!check.ok) return true; // Best-effort: don't block setup if `file` is missing.
+  return !/x86_64/.test(check.stdout) || /arm64/.test(check.stdout);
+}
+
+/**
+ * Checks a CLI both for presence AND correct architecture (Apple Silicon
+ * only). Returns false for a Rosetta-translated binary even if `which` finds
+ * it, so the caller reinstalls it natively via `/opt/homebrew`.
+ */
+async function checkNativeCli(bin: string): Promise<boolean> {
+  const found = await run('which', [bin]);
+  const resolvedPath = found.stdout.trim();
+  if (!found.ok || !resolvedPath) return false;
+  return isNativeBinary(resolvedPath);
+}
+
 export interface SetupResult {
   ffmpegOk: boolean;
   whisperOk: boolean;
@@ -89,13 +140,18 @@ export async function ensureVoiceDependencies(model = 'base'): Promise<SetupResu
   const modelUrl = MODEL_URL.replace('{model}', model);
   const modelSize = MODEL_SIZES[model] ?? '~142 MB';
 
+  const brew = await resolveBrewCommand();
+
   // ── 1. ffmpeg ──────────────────────────────────────────────────────
-  const ffmpegCheck = await run('which', ['ffmpeg']);
-  if (ffmpegCheck.ok && ffmpegCheck.stdout.trim()) {
+  if (await checkNativeCli('ffmpeg')) {
     result.ffmpegOk = true;
   } else {
-    steps.push('Installiere ffmpeg via Homebrew…');
-    const install = await run('brew', ['install', 'ffmpeg'], { timeoutMs: 300_000 });
+    steps.push(
+      isAppleSilicon()
+        ? 'Installiere natives (Apple-Silicon) ffmpeg via Homebrew…'
+        : 'Installiere ffmpeg via Homebrew…',
+    );
+    const install = await run(brew, ['install', 'ffmpeg'], { timeoutMs: 300_000 });
     if (install.ok) {
       result.ffmpegOk = true;
       steps.push('ffmpeg installiert.');
@@ -105,15 +161,21 @@ export async function ensureVoiceDependencies(model = 'base'): Promise<SetupResu
   }
 
   // ── 2. whisper-cli ─────────────────────────────────────────────────
-  const whisperCheck = await run('which', ['whisper-cli']);
-  if (whisperCheck.ok && whisperCheck.stdout.trim()) {
+  if (await checkNativeCli('whisper-cli')) {
     result.whisperOk = true;
   } else {
-    steps.push('Installiere whisper-cpp via Homebrew…');
-    const install = await run('brew', ['install', 'whisper-cpp'], { timeoutMs: 600_000 });
+    steps.push(
+      isAppleSilicon()
+        // A Rosetta-translated whisper-cli (found via `which` but wrong arch)
+        // is many times slower — no Apple Accelerate, no Metal, generic SSE
+        // only. Reinstalling natively via /opt/homebrew fixes this silently.
+        ? 'Installiere natives (Apple-Silicon) whisper-cpp via Homebrew…'
+        : 'Installiere whisper-cpp via Homebrew…',
+    );
+    const install = await run(brew, ['install', 'whisper-cpp'], { timeoutMs: 600_000 });
     if (install.ok) {
       result.whisperOk = true;
-      steps.push('whisper-cpp installiert.');
+      steps.push('whisper-cpp installiert (nativ, mit Metal/Accelerate-Beschleunigung).');
     } else {
       steps.push(`whisper-cpp-Installation fehlgeschlagen: ${install.stderr.slice(0, 200)}`);
     }
@@ -171,10 +233,32 @@ export async function ensureVoiceDependencies(model = 'base'): Promise<SetupResu
 export async function areVoiceDependenciesReady(model = 'base', preferFastBackend = false): Promise<boolean> {
   const modelPath = `${MODEL_DIR}/ggml-${model}.bin`;
   const [ffmpegOk, whisperOk, modelOk, mlxOk] = await Promise.all([
-    run('which', ['ffmpeg']).then((r) => r.ok && r.stdout.trim().length > 0),
-    run('which', ['whisper-cli']).then((r) => r.ok && r.stdout.trim().length > 0),
+    checkNativeCli('ffmpeg'),
+    checkNativeCli('whisper-cli'),
     fileExists(modelPath),
     preferFastBackend && process.platform === 'darwin' ? mlxWhisperAvailable() : Promise.resolve(true),
   ]);
   return ffmpegOk && whisperOk && modelOk && mlxOk;
+}
+
+/**
+ * Diagnoses why voice input is slow/unavailable — surfaces the Apple Silicon
+ * architecture mismatch specifically, since it produces no error (the tool
+ * "works", just several times slower) and is otherwise invisible to the user.
+ */
+export interface VoiceDiagnostics {
+  appleSilicon: boolean;
+  whisperCliNative: boolean;
+  ffmpegNative: boolean;
+}
+
+export async function diagnoseVoiceSetup(): Promise<VoiceDiagnostics> {
+  if (!isAppleSilicon()) {
+    return { appleSilicon: false, whisperCliNative: true, ffmpegNative: true };
+  }
+  const [whisperCliNative, ffmpegNative] = await Promise.all([
+    checkNativeCli('whisper-cli'),
+    checkNativeCli('ffmpeg'),
+  ]);
+  return { appleSilicon: true, whisperCliNative, ffmpegNative };
 }

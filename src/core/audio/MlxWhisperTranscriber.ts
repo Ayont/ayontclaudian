@@ -1,8 +1,9 @@
 import { spawn } from 'node:child_process';
+import { tmpdir } from 'node:os';
 
 import { getEnhancedPath } from '../../utils/env';
 import type { TranscriberOptions, TranscriptionResult, VoiceTranscriber } from './VoiceTranscriber';
-import type { SpawnLike } from './WhisperCliTranscriber';
+import { parseWhisperOutput, type SpawnLike } from './WhisperCliTranscriber';
 
 /** Maps the user-facing model size to the MLX Hugging Face model identifier. */
 const MLX_MODEL_MAP: Record<string, string> = {
@@ -71,7 +72,17 @@ export class MlxWhisperTranscriber implements VoiceTranscriber {
       try {
         proc = this.spawnImpl(
           'python3',
-          ['-m', 'mlx_whisper', wavPath, '--model', model, '--language', language],
+          [
+            '-m', 'mlx_whisper', wavPath,
+            '--model', model,
+            '--language', language,
+            // mlx_whisper's CLI writes txt/vtt/srt/tsv/json files to the
+            // current working directory by default — without these flags
+            // that would silently dump stray files into the vault (the
+            // Obsidian process's cwd) on every single recording.
+            '--output_dir', tmpdir(),
+            '--output_format', 'txt',
+          ],
           {
             env: { ...process.env, PATH: getEnhancedPath(process.env.PATH) },
             windowsHide: true,
@@ -102,13 +113,10 @@ export class MlxWhisperTranscriber implements VoiceTranscriber {
         });
       });
       proc.on('close', (code: number | null) => {
-        const text = stdout
-          .split('\n')
-          .map((line) => line.trim())
-          .filter((line) => line.length > 0)
-          .join(' ')
-          .replace(/\s+/g, ' ')
-          .trim();
+        // mlx_whisper's CLI prints one `[00:00.000 --> 00:04.000]  text` line
+        // per segment by default — reuse the same stripping logic as
+        // whisper-cli so timestamps never leak into the composer text.
+        const text = parseWhisperOutput(stdout);
         if (code === 0) {
           finish({ ok: true, text });
         } else {

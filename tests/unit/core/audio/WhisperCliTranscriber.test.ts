@@ -1,6 +1,6 @@
 import type { ChildProcess } from 'node:child_process';
 
-import { WhisperCliTranscriber, type SpawnLike } from '@/core/audio/WhisperCliTranscriber';
+import { type SpawnLike,WhisperCliTranscriber } from '@/core/audio/WhisperCliTranscriber';
 
 function createFakeSpawn(stdout: string, code: number, stderr = ''): SpawnLike {
   const handlers: Record<string, ((...args: unknown[]) => void)[]> = {};
@@ -107,6 +107,17 @@ describe('WhisperCliTranscriber', () => {
     const transcriber = new WhisperCliTranscriber(spawn);
     await transcriber.transcribe('/tmp/test.wav', { language: 'de', model: 'base' });
     expect(capturedArgs).not.toContain('-ml');
+  });
+
+  it('passes a thread count derived from the machine instead of whisper-cli\'s hardcoded default of 4', async () => {
+    const { spawn, capturedArgs } = createSpySpawn('Hallo', 0);
+    const transcriber = new WhisperCliTranscriber(spawn);
+    await transcriber.transcribe('/tmp/test.wav', { language: 'de', model: 'base' });
+    const threadFlagIndex = capturedArgs.indexOf('-t');
+    expect(threadFlagIndex).toBeGreaterThanOrEqual(0);
+    const threadValue = Number(capturedArgs[threadFlagIndex + 1]);
+    expect(threadValue).toBeGreaterThanOrEqual(4);
+    expect(threadValue).toBeLessThanOrEqual(8);
   });
 
   it('aborts when signal is triggered', async () => {

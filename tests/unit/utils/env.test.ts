@@ -1227,6 +1227,69 @@ describe('getExtraBinaryPaths (Windows branches)', () => {
   });
 });
 
+describe('getExtraBinaryPaths (Apple Silicon path order)', () => {
+  const originalPlatform = process.platform;
+  const originalArch = process.arch;
+  const originalEnv = { ...process.env };
+
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: originalPlatform });
+    Object.defineProperty(process, 'arch', { value: originalArch });
+    Object.keys(process.env).forEach(key => delete process.env[key]);
+    Object.assign(process.env, originalEnv);
+    jest.resetModules();
+  });
+
+  function loadWithPlatformArch(platform: NodeJS.Platform, arch: NodeJS.Architecture): typeof env {
+    jest.resetModules();
+    Object.defineProperty(process, 'platform', { value: platform, writable: true });
+    Object.defineProperty(process, 'arch', { value: arch, writable: true });
+    // Dynamic require needed to re-evaluate module with mocked platform/arch
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require('../../../src/utils/env');
+  }
+
+  // Regression: on Apple Silicon, a CLI resolved from `/usr/local/bin` (the
+  // Intel/Rosetta Homebrew prefix) runs translated — generic SSE SIMD only,
+  // no Apple Accelerate/Metal — several times slower than the native ARM64
+  // build in `/opt/homebrew/bin`, with no visible error. `/opt/homebrew/bin`
+  // must be searched first so the native build always wins when both exist.
+  it('puts /opt/homebrew/bin before /usr/local/bin on darwin arm64', () => {
+    process.env.PATH = '';
+    const mod = loadWithPlatformArch('darwin', 'arm64');
+    const result = mod.getEnhancedPath();
+    const segments = result.split(':');
+
+    const homebrewIndex = segments.indexOf('/opt/homebrew/bin');
+    const usrLocalIndex = segments.indexOf('/usr/local/bin');
+    expect(homebrewIndex).toBeGreaterThanOrEqual(0);
+    expect(usrLocalIndex).toBeGreaterThanOrEqual(0);
+    expect(homebrewIndex).toBeLessThan(usrLocalIndex);
+  });
+
+  it('keeps /usr/local/bin before /opt/homebrew/bin on darwin x64 (Intel Mac)', () => {
+    process.env.PATH = '';
+    const mod = loadWithPlatformArch('darwin', 'x64');
+    const result = mod.getEnhancedPath();
+    const segments = result.split(':');
+
+    const homebrewIndex = segments.indexOf('/opt/homebrew/bin');
+    const usrLocalIndex = segments.indexOf('/usr/local/bin');
+    expect(usrLocalIndex).toBeLessThan(homebrewIndex);
+  });
+
+  it('keeps /usr/local/bin first on linux regardless of arch', () => {
+    process.env.PATH = '';
+    const mod = loadWithPlatformArch('linux', 'arm64');
+    const result = mod.getEnhancedPath();
+    const segments = result.split(':');
+
+    const homebrewIndex = segments.indexOf('/opt/homebrew/bin');
+    const usrLocalIndex = segments.indexOf('/usr/local/bin');
+    expect(usrLocalIndex).toBeLessThan(homebrewIndex);
+  });
+});
+
 describe('Obsidian CLI path integration', () => {
   const originalPlatform = process.platform;
   const originalExecPath = process.execPath;

@@ -7,11 +7,12 @@ import './providers';
 import * as path from 'node:path';
 
 import type { Editor, WorkspaceLeaf } from 'obsidian';
-import { MarkdownView, Notice, Plugin, TFile, FuzzySuggestModal } from 'obsidian';
+import { FuzzySuggestModal,MarkdownView, Notice, Plugin, TFile } from 'obsidian';
 
 import { DEFAULT_CLAUDIAN_SETTINGS } from './app/settings/defaultSettings';
 import { SharedStorageService } from './app/storage/SharedStorageService';
 import { PluginUpdater } from './app/update/PluginUpdater';
+import { whisperServerManager } from './core/audio/WhisperServerManager';
 import type { SharedAppStorage } from './core/bootstrap/storage';
 import { TokenBudgetTracker } from './core/budget/tokenBudget';
 import {
@@ -69,11 +70,6 @@ import {
   rankMemoryNotes,
   storeMemory,
 } from './core/memory/memoryService';
-import {
-  listSnippets,
-  saveSnippet,
-  type Snippet,
-} from './core/snippets/snippetService';
 import { getProviderForModel } from './core/providers/modelRouting';
 import {
   getEnvironmentVariablesForScope as getScopedEnvironmentVariables,
@@ -95,6 +91,11 @@ import {
   type ModelRouterTask,
   normalizeRouterRules,
 } from './core/routing/modelRouterRules';
+import {
+  listSnippets,
+  saveSnippet,
+  type Snippet,
+} from './core/snippets/snippetService';
 import { MetadataStore } from './core/storage/metadata/MetadataStore';
 import { clearRunTimelines, formatRunTimelineMarkdown, getLastRunTimeline } from './core/timeline/runTimeline';
 import { RunTimelineStore } from './core/timeline/RunTimelineStore';
@@ -742,6 +743,10 @@ export default class ClaudianPlugin extends Plugin {
   }
 
   onunload(): void {
+    // Stop the warm whisper-server background process (if voice input ever
+    // started one this session) — otherwise it would keep running after the
+    // plugin unloads.
+    whisperServerManager.stop();
     this.providerStatusBar?.destroy();
     this.providerStatusBar = null;
     this.pluginUpdater = null;

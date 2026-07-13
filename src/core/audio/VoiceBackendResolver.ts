@@ -1,6 +1,7 @@
 import { MlxWhisperTranscriber } from './MlxWhisperTranscriber';
-import { WhisperCliTranscriber } from './WhisperCliTranscriber';
 import type { VoiceTranscriber } from './VoiceTranscriber';
+import { WhisperCliTranscriber } from './WhisperCliTranscriber';
+import { WhisperServerTranscriber } from './WhisperServerTranscriber';
 
 export type TranscriberFactory = () => VoiceTranscriber;
 
@@ -17,6 +18,12 @@ export class VoiceBackendResolver {
     if (this.factories) {
       candidates.push(...this.factories.map((f) => f()));
     } else {
+      // whisper-server keeps the model loaded in memory across every
+      // recording — no repeated multi-second reload per push-to-talk press.
+      // It ships in the same whisper-cpp package as whisper-cli, so it is
+      // preferred unconditionally (not gated by preferFastBackend, which is
+      // specifically the legacy mlx-whisper toggle).
+      candidates.push(new WhisperServerTranscriber());
       if (this.preferFastBackend && this.platform === 'darwin') {
         candidates.push(new MlxWhisperTranscriber());
       }
