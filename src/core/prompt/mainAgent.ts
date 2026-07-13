@@ -236,10 +236,39 @@ When the user attaches a video file (an \`@path\` reference to \`.claudian/attac
    - READ the extracted frames as images and describe what happens over time.
    - If the video has speech and a transcription tool is available, transcribe the audio track.
 3. Synthesize a timeline summary (German): what happens when, key scenes, on-screen text, notable details.
-4. Delete the extracted frames afterwards (\`rm -rf .claudian/staging/video-frames\`).
-5. If ffmpeg is not installed, say so clearly and suggest \`brew install ffmpeg\` instead of guessing.
+4. Make the analysis VISIBLE: copy the 2–3 most representative keyframes into the vault media folder (descriptive names like \`video-analyse-<thema>-0m32s.jpg\`) and embed them in your answer via \`![[path]]\` with their timestamps — the user should see what you saw.
+5. Delete the remaining extracted frames afterwards (\`rm -rf .claudian/staging/video-frames\`).
+6. If ffmpeg is not installed, say so clearly and suggest \`brew install ffmpeg\` instead of guessing.
 
 Never invent video content you could not actually observe.`;
+}
+
+function getComputerControlInstructions(): string {
+  return `
+
+## Desktop Control (macOS & Windows)
+
+When the user asks you to control their computer — move the mouse, click, open/close/switch apps, type, take screenshots, automate a desktop task — you can drive the OS through the shell. Detect the platform first (\`uname\` → Darwin = macOS, else Windows), then use the native automation layer.
+
+### macOS (AppleScript / \`osascript\` — always available, no install)
+- Open / activate an app: \`osascript -e 'tell application "Safari" to activate'\`
+- Quit an app: \`osascript -e 'tell application "Notes" to quit'\`
+- Click / move via System Events: \`osascript -e 'tell application "System Events" to click at {400, 300}'\`
+- Keystrokes & hotkeys: \`osascript -e 'tell application "System Events" to keystroke "s" using {command down}'\`
+- Screenshot to inspect the screen, THEN read it back as an image: \`screencapture -x /tmp/claudian-shot.png\`
+- Faster/more precise mouse work when installed: \`cliclick\` (\`cliclick m:400,300 c:.\`) — suggest \`brew install cliclick\` if missing.
+
+### Windows (PowerShell)
+- Launch an app: \`powershell -c "Start-Process notepad"\`
+- Activate / close windows and send keys via \`System.Windows.Forms\` (\`[System.Windows.Forms.SendKeys]::SendWait('^s')\`) or \`WScript.Shell\` \`AppActivate\`/\`SendKeys\`.
+- Mouse via \`System.Windows.Forms.Cursor::Position\` + a small P/Invoke \`mouse_event\` call.
+- Screenshot: \`Graphics.CopyFromScreen\` to a bitmap, save to disk, then read it back as an image.
+
+Rules:
+- ALWAYS take and READ a screenshot before and after a non-trivial action so you act on the real screen state, not an assumption. Work in a see → act → verify loop and narrate each step.
+- Requires macOS Accessibility / Screen-Recording permission (System Settings → Privacy) for the controlling terminal; if a command is silently blocked, tell the user which permission to grant.
+- Be careful and explicit with destructive actions (closing unsaved windows, deleting). Confirm intent for anything irreversible.
+- Keep actions minimal and targeted; never invent UI coordinates — screenshot and locate first.`;
 }
 
 function getAutoMemoryInstructions(): string {
@@ -293,6 +322,7 @@ export function buildSystemPrompt(
   prompt += getLiveDocumentInstructions();
   prompt += getPacketTracerInstructions();
   prompt += getVideoAnalysisInstructions();
+  prompt += getComputerControlInstructions();
   prompt += getAutoMemoryInstructions();
   prompt += getAppendixSections(options.appendices);
 

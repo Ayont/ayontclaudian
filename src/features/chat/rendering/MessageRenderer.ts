@@ -12,7 +12,7 @@ import {
   TOOL_WRITE_STDIN,
 } from '../../../core/tools/toolNames';
 import { extractToolResultContent } from '../../../core/tools/toolResultContent';
-import type { ChatMessage, ImageAttachment, SubagentInfo, ToolCallInfo } from '../../../core/types';
+import type { ChatMessage, ImageAttachment, MessageAttachment, SubagentInfo, ToolCallInfo } from '../../../core/types';
 import { t } from '../../../i18n/i18n';
 import type ClaudianPlugin from '../../../main';
 import { extractUserDisplayContent, extractVaultContextPrompt } from '../../../utils/context';
@@ -21,6 +21,7 @@ import { processFileLinks, registerFileLinkHandler } from '../../../utils/fileLi
 import { replaceImageEmbedsWithHtml } from '../../../utils/imageEmbed';
 import { escapeMathDelimitersForStreaming } from '../../../utils/markdownMath';
 import { findRewindContext } from '../rewind';
+import { attachmentTypeMeta } from '../ui/file-drop/attachmentMeta';
 import { renderAutoMemoryChips } from './AutoMemoryChip';
 import { detectStatusCard } from './errorClassification';
 import { renderLiveDocuments } from './LiveDocumentRenderer';
@@ -358,6 +359,9 @@ export class MessageRenderer {
     if (msg.role === 'user' && msg.images && msg.images.length > 0) {
       this.renderMessageImages(this.messagesEl, msg.images);
     }
+    if (msg.role === 'user' && msg.attachments && msg.attachments.length > 0) {
+      this.renderMessageAttachments(this.messagesEl, msg.attachments);
+    }
 
     // Skip empty bubble for image-only messages
     if (msg.role === 'user') {
@@ -498,6 +502,9 @@ export class MessageRenderer {
     // Render images above bubble for user messages
     if (msg.role === 'user' && msg.images && msg.images.length > 0) {
       this.renderMessageImages(this.messagesEl, msg.images);
+    }
+    if (msg.role === 'user' && msg.attachments && msg.attachments.length > 0) {
+      this.renderMessageAttachments(this.messagesEl, msg.attachments);
     }
 
     // Skip empty bubble for image-only messages
@@ -880,6 +887,48 @@ export class MessageRenderer {
         }
       });
     });
+  }
+
+  /**
+   * Renders staged file attachments above a user message. Videos and audio get
+   * inline players (you can literally watch what the agent is analyzing);
+   * everything else renders as a compact file card.
+   */
+  renderMessageAttachments(containerEl: HTMLElement, attachments: MessageAttachment[]): void {
+    const wrap = containerEl.createDiv({ cls: 'claudian-message-attachments' });
+
+    for (const attachment of attachments) {
+      const meta = attachmentTypeMeta(attachment.name);
+      const card = wrap.createDiv({
+        cls: `claudian-message-attachment claudian-message-attachment--${meta.kind}`,
+      });
+
+      if (meta.kind === 'video' || meta.kind === 'audio') {
+        let resourcePath: string | null = null;
+        try {
+          resourcePath = this.app.vault.adapter.getResourcePath(attachment.relPath);
+        } catch {
+          resourcePath = null;
+        }
+        if (resourcePath) {
+          const media = card.createEl(meta.kind, {
+            attr: { src: resourcePath, controls: 'true', preload: 'metadata' },
+          });
+          media.addClass('claudian-message-attachment-media');
+        }
+      }
+
+      const info = card.createDiv({ cls: 'claudian-message-attachment-info' });
+      const iconEl = info.createSpan({ cls: 'claudian-message-attachment-icon' });
+      setIcon(iconEl, meta.icon);
+      const nameEl = info.createSpan({ cls: 'claudian-message-attachment-name' });
+      nameEl.setText(attachment.name);
+      nameEl.setAttribute('title', attachment.relPath);
+      info.createSpan({
+        cls: 'claudian-message-attachment-kind',
+        text: meta.typeClass.toUpperCase(),
+      });
+    }
   }
 
   /**

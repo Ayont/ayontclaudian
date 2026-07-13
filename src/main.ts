@@ -2044,8 +2044,16 @@ export default class ClaudianPlugin extends Plugin {
     // with a single manifest read and parallel binary reads.
     const pending: { target: ChatMessage; imageIds: string[] }[] = [];
     cachedUserMessages.forEach((cachedMessage, userIndex) => {
-      if ((cachedMessage.images?.length ?? 0) === 0) return;
       const targetMessage = hydratedUserMessages[userIndex] ?? cachedMessage;
+
+      // File attachments (video/PDF cards) live only in local session metadata —
+      // provider-native transcripts drop them. Carry them onto the hydrated
+      // message so the media cards survive restarts.
+      if ((cachedMessage.attachments?.length ?? 0) > 0 && !targetMessage.attachments?.length) {
+        targetMessage.attachments = cachedMessage.attachments;
+      }
+
+      if ((cachedMessage.images?.length ?? 0) === 0) return;
 
       // Claude's own transcript includes image bytes. Prefer those rather than
       // duplicating the image from the local archive.

@@ -285,6 +285,81 @@
   to { transform: rotate(360deg); }
 }
 
+/* File attachments in messages (video/audio players + file cards) */
+.claudian-message-attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+  margin: 2px 0 8px;
+  padding-right: 4px;
+  max-width: min(100%, 620px);
+  margin-inline-start: auto;
+}
+
+.claudian-message-attachment {
+  width: 100%;
+  max-width: 420px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--cl-surface-raised, var(--background-secondary));
+  border: 1px solid var(--background-modifier-border);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+}
+
+.claudian-message-attachment-media {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  background: #000;
+}
+
+.claudian-message-attachment--audio .claudian-message-attachment-media {
+  max-height: 54px;
+  background: transparent;
+}
+
+.claudian-message-attachment-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+}
+
+.claudian-message-attachment-icon {
+  display: flex;
+  align-items: center;
+  color: var(--cl-accent, var(--interactive-accent));
+  flex-shrink: 0;
+}
+
+.claudian-message-attachment-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.claudian-message-attachment-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--cl-text-sm);
+  font-weight: 500;
+  color: var(--text-normal);
+}
+
+.claudian-message-attachment-kind {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+  background: var(--background-modifier-hover);
+  padding: 2px 7px;
+  border-radius: 100px;
+}
+
 /* Images in Messages (displayed above user bubble) */
 
 /* Images container - right-aligned above user message */

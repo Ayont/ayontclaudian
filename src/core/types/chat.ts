@@ -28,6 +28,13 @@ export interface ImageAttachment {
   source: 'file' | 'paste' | 'drop';
 }
 
+/** Non-image file attachment (video, audio, PDF, doc, …) staged in the vault. */
+export interface MessageAttachment {
+  name: string;
+  /** Vault-relative path of the staged file (e.g. `.claudian/attachments/x.mp4`). */
+  relPath: string;
+}
+
 /** Content block for preserving streaming order in messages. */
 export type ContentBlock =
   | { type: 'text'; content: string }
@@ -48,6 +55,8 @@ export interface ChatMessage {
   contentBlocks?: ContentBlock[];
   currentNote?: string;
   images?: ImageAttachment[];
+  /** Staged file attachments (video/PDF/…) shown as media cards in the chat. */
+  attachments?: MessageAttachment[];
   /** True if this message represents a user interrupt (from SDK storage). */
   isInterrupt?: boolean;
   /** True if this message is rebuilt context sent to SDK on session reset (should be hidden). */

@@ -542,6 +542,9 @@ export class InputController {
       displayContent,                // Original user input (for UI display)
       timestamp: Date.now(),
       images: imagesForMessage,
+      // Persisted so video/PDF attachments render as media cards in the
+      // transcript (and survive restarts — the staged files stay in the vault).
+      attachments: stagedAttachments.length > 0 ? stagedAttachments : undefined,
       ...this.buildAgentStamp(),
     };
     state.addMessage(userMsg);

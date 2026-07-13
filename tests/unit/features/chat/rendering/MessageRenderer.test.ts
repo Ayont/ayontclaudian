@@ -1197,6 +1197,43 @@ describe('MessageRenderer', () => {
     expect(imagesContainer.children.length).toBe(2);
   });
 
+  it('renderMessageAttachments renders a video player for video files', () => {
+    const containerEl = createMockEl();
+    const { renderer } = createRenderer();
+    (renderer as any).app = {
+      vault: { adapter: { getResourcePath: (p: string) => `app://vault/${p}` } },
+    };
+
+    renderer.renderMessageAttachments(containerEl, [
+      { name: 'demo.mp4', relPath: '.claudian/attachments/demo.mp4' },
+    ]);
+
+    const wrap = containerEl.children[0];
+    expect(wrap.hasClass('claudian-message-attachments')).toBe(true);
+    const card = wrap.children[0];
+    expect(card.hasClass('claudian-message-attachment--video')).toBe(true);
+    const media = card.children.find((c: any) => c.tagName?.toLowerCase() === 'video');
+    expect(media).toBeTruthy();
+    expect(media.getAttribute('src')).toBe('app://vault/.claudian/attachments/demo.mp4');
+  });
+
+  it('renderMessageAttachments renders a plain card for non-media files', () => {
+    const containerEl = createMockEl();
+    const { renderer } = createRenderer();
+    (renderer as any).app = {
+      vault: { adapter: { getResourcePath: (p: string) => `app://vault/${p}` } },
+    };
+
+    renderer.renderMessageAttachments(containerEl, [
+      { name: 'report.pdf', relPath: '.claudian/attachments/report.pdf' },
+    ]);
+
+    const card = containerEl.children[0].children[0];
+    expect(card.hasClass('claudian-message-attachment--pdf')).toBe(true);
+    const hasVideo = card.children.some((c: any) => c.tagName?.toLowerCase() === 'video');
+    expect(hasVideo).toBe(false);
+  });
+
   it('setImageSrc sets data URI on image element', async () => {
     const { renderer } = createRenderer();
     const imgEl = createMockEl('img');

@@ -7,6 +7,7 @@ export {
   type ForkSource,
   type ImageAttachment,
   type ImageMediaType,
+  type MessageAttachment,
   type SessionMetadata,
   type StreamChunk,
   type UsageInfo,
