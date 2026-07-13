@@ -1048,10 +1048,13 @@ export class MessageRenderer {
         this.component
       );
 
-      // Network/FortiGate troubleshooting gets a live visual topology. Explicit
-      // `network-map` fences are replaced in place; otherwise a conservative
-      // best-effort map is inferred from the streaming answer.
-      renderNetworkMaps(el, renderMarkdown);
+      // Network/FortiGate troubleshooting gets a live visual topology for
+      // explicit `network-map` fences (prose inference was removed — it kept
+      // rendering half-guessed maps under unrelated answers).
+      renderNetworkMaps(el, renderMarkdown, {
+        app: this.app,
+        mediaFolder: this.plugin.settings.mediaFolder,
+      });
 
       // Claude-style live document canvas. The document fence is replaced with
       // a designed page that updates on every streaming render and offers theme,

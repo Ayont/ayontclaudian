@@ -174,11 +174,11 @@ Core Switch -- VLAN 20 --> Server
 \`\`\`
 
 Rules:
-- Keep the diagram under 12 nodes and update it as troubleshooting findings become clearer.
-- Use the exact device names, interfaces, VLAN ids and subnets supplied by the user.
-- Never invent missing topology. Mark uncertain nodes or edge labels with \`?\`.
-- Use status words such as \`up\`, \`warning\`, \`down\`, or \`unreachable\` in labels when confirmed; the renderer color-codes them.
-- Keep the prose diagnosis and commands outside the block.`;
+- Emit the block ONLY when the conversation is genuinely about a network topology — never for unrelated topics. There is no automatic fallback; the map exists exactly when you draw it.
+- Build the map up progressively: in a multi-step diagnosis, repeat the SAME block later in the answer with the newest confirmed state (added nodes, updated statuses) — the renderer replaces it live. One canonical map per answer, refined as findings land.
+- Keep the diagram under 12 nodes. Use the exact device names, interfaces, VLAN ids and subnets supplied by the user (e.g. \`port2 / VLAN 20 / 10.49.56.0/24\`).
+- Never invent missing topology. Mark uncertain nodes or edge labels with \`?\` and confirmed problems with status words: \`up\`, \`warning\`, \`down\`, \`unreachable\` — the renderer color-codes them.
+- Keep the prose diagnosis and commands outside the block. Users can export the rendered map as PNG into the vault and open it fullscreen from the map header.`;
 }
 
 function getLiveDocumentInstructions(): string {

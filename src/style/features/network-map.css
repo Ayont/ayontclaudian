@@ -161,6 +161,63 @@
   font-size: 9.5px;
 }
 
+/* Header actions: PNG export, copy SVG, fullscreen */
+.claudian-network-map-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.claudian-network-map-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+.claudian-network-map-action svg {
+  width: 14px;
+  height: 14px;
+}
+
+.claudian-network-map-action:hover {
+  color: var(--cl-accent, var(--interactive-accent));
+  background: var(--background-modifier-hover);
+}
+
+.claudian-network-map-action:active {
+  transform: scale(0.92);
+}
+
+.claudian-network-map-action:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 1px;
+}
+
+/* Fullscreen overlay: the cloned SVG scales to the viewport */
+.claudian-network-map-modal {
+  width: min(94vw, 1500px);
+}
+
+.claudian-network-map-svg--fullscreen {
+  width: 100%;
+  height: auto;
+  max-height: calc(94vh - 42px);
+  border-radius: 12px;
+  background: var(--background-primary);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
 @media (max-width: 600px) {
   .claudian-network-map-meta { display: none; }
   .claudian-network-map-svg { min-width: 500px; }
@@ -168,4 +225,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .claudian-network-map-live::before { animation: none; }
+  .claudian-network-map-action:active { transform: none; }
 }

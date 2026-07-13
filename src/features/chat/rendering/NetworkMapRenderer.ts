@@ -1,4 +1,12 @@
-import { setIcon } from 'obsidian';
+import type { App } from 'obsidian';
+import { Notice, setIcon } from 'obsidian';
+
+/** Optional integration context enabling map actions (export, fullscreen). */
+export interface NetworkMapRenderOptions {
+  app?: App;
+  /** Vault folder for exported PNGs; empty string = vault root. */
+  mediaFolder?: string;
+}
 
 export type NetworkNodeKind =
   | 'internet'
@@ -491,7 +499,11 @@ function renderTopologySvg(container: HTMLElement, topology: NetworkTopology): v
   container.appendChild(svg);
 }
 
-export function renderNetworkTopology(container: HTMLElement, topology: NetworkTopology): HTMLElement {
+export function renderNetworkTopology(
+  container: HTMLElement,
+  topology: NetworkTopology,
+  options?: NetworkMapRenderOptions,
+): HTMLElement {
   const card = container.createDiv({ cls: 'claudian-network-map' });
   card.setAttribute('data-source', topology.source);
   const header = card.createDiv({ cls: 'claudian-network-map-header' });
@@ -499,33 +511,205 @@ export function renderNetworkTopology(container: HTMLElement, topology: NetworkT
   const icon = titleArea.createSpan({ cls: 'claudian-network-map-icon' });
   setIcon(icon, 'network');
   titleArea.createSpan({ cls: 'claudian-network-map-title', text: topology.title });
-  titleArea.createSpan({
-    cls: 'claudian-network-map-live',
-    text: topology.source === 'explicit' ? 'LIVE' : 'AUTO',
-  });
+  titleArea.createSpan({ cls: 'claudian-network-map-live', text: 'LIVE' });
 
   const meta = header.createSpan({
     cls: 'claudian-network-map-meta',
     text: `${topology.nodes.length} Knoten · ${topology.edges.length} Verbindungen`,
   });
-  meta.setAttribute('title', topology.source === 'automatic'
-    ? 'Automatisch aus dem laufenden Chat erkannt'
-    : 'Vom Agenten als Netzwerkplan strukturiert');
+  meta.setAttribute('title', 'Vom Agenten als Netzwerkplan strukturiert');
 
   const canvas = card.createDiv({ cls: 'claudian-network-map-canvas' });
   renderTopologySvg(canvas, topology);
 
+  // Map actions (only with app context — plain renders stay untouched).
+  if (options?.app) {
+    const actions = header.createDiv({ cls: 'claudian-network-map-actions' });
+    const svgEl = () => canvas.querySelector('svg.claudian-network-map-svg') as SVGSVGElement | null;
+
+    createMapActionButton(actions, 'image-down', 'Als PNG im Vault speichern', () => {
+      const svg = svgEl();
+      if (!svg) return;
+      void exportNetworkMapPng(svg, topology.title, options.app as App, options.mediaFolder ?? '')
+        .then((path) => new Notice(`Netzwerkplan gespeichert: ${path}`))
+        .catch(() => new Notice('PNG-Export fehlgeschlagen.'));
+    });
+
+    createMapActionButton(actions, 'copy', 'SVG in die Zwischenablage kopieren', () => {
+      const svg = svgEl();
+      if (!svg) return;
+      void navigator.clipboard?.writeText(serializeStyledSvg(svg))
+        .then(() => new Notice('SVG kopiert.'))
+        .catch(() => new Notice('Kopieren fehlgeschlagen.'));
+    });
+
+    createMapActionButton(actions, 'maximize-2', 'Vollbild', () => {
+      const svg = svgEl();
+      if (!svg) return;
+      openNetworkMapFullscreen(svg, topology.title);
+    });
+  }
+
   const footer = card.createDiv({ cls: 'claudian-network-map-footer' });
   footer.createSpan({
-    text: topology.source === 'automatic'
-      ? 'Automatisch erkannt · unbekannte Verbindungen vor der Änderung prüfen'
-      : 'Pfeiltasten/Zoom des Obsidian-Fensters nutzen · Plan aktualisiert sich beim Streamen',
+    text: 'Plan aktualisiert sich beim Streamen · PNG-Export & Vollbild über die Kopfzeile',
   });
   return card;
 }
 
-/** Replaces `network-map` code fences and optionally appends an inferred live map. */
-export function renderNetworkMaps(root: HTMLElement, markdown: string): boolean {
+function createMapActionButton(
+  parent: HTMLElement,
+  icon: string,
+  label: string,
+  onClick: () => void,
+): void {
+  const btn = parent.createEl('button', {
+    cls: 'claudian-network-map-action',
+    attr: { type: 'button', 'aria-label': label, title: label },
+  });
+  setIcon(btn, icon);
+  btn.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onClick();
+  });
+}
+
+/**
+ * Serializes the SVG with all relevant computed styles inlined. The live SVG
+ * is styled via the plugin stylesheet — a raw serialization would export an
+ * unstyled skeleton, so fills/strokes/fonts are copied onto each element.
+ */
+export function serializeStyledSvg(svg: SVGSVGElement): string {
+  const clone = svg.cloneNode(true) as SVGSVGElement;
+  const win = svg.ownerDocument?.defaultView;
+  if (win?.getComputedStyle) {
+    inlineComputedStyles(svg, clone, win);
+  }
+  clone.setAttribute('xmlns', SVG_NS);
+  return new XMLSerializer().serializeToString(clone);
+}
+
+const INLINED_STYLE_PROPS = [
+  'fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-dasharray',
+  'stroke-linecap', 'stroke-linejoin', 'opacity', 'font-family', 'font-size',
+  'font-weight', 'letter-spacing', 'text-transform',
+] as const;
+
+function inlineComputedStyles(source: Element, target: Element, win: Window): void {
+  const computed = win.getComputedStyle(source);
+  const styleParts: string[] = [];
+  for (const prop of INLINED_STYLE_PROPS) {
+    const value = computed.getPropertyValue(prop);
+    if (value) styleParts.push(`${prop}:${value}`);
+  }
+  if (styleParts.length > 0) {
+    target.setAttribute('style', styleParts.join(';'));
+  }
+  const sourceChildren = Array.from(source.children);
+  const targetChildren = Array.from(target.children);
+  for (let i = 0; i < sourceChildren.length; i++) {
+    if (targetChildren[i]) inlineComputedStyles(sourceChildren[i], targetChildren[i], win);
+  }
+}
+
+const PNG_EXPORT_SCALE = 2;
+
+/** Rasterizes the styled SVG onto a canvas and writes a PNG into the vault. */
+async function exportNetworkMapPng(
+  svg: SVGSVGElement,
+  title: string,
+  app: App,
+  mediaFolder: string,
+): Promise<string> {
+  const viewBox = (svg.getAttribute('viewBox') ?? '0 0 800 400').split(/\s+/).map(Number);
+  const width = viewBox[2] || 800;
+  const height = viewBox[3] || 400;
+
+  const doc = svg.ownerDocument ?? window.document;
+  const win = doc.defaultView ?? window;
+  const source = serializeStyledSvg(svg);
+  const dataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}`;
+
+  const image = new win.Image();
+  await new Promise<void>((resolve, reject) => {
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error('SVG rasterization failed'));
+    image.src = dataUrl;
+  });
+
+  const canvas = doc.createElement('canvas');
+  canvas.width = width * PNG_EXPORT_SCALE;
+  canvas.height = height * PNG_EXPORT_SCALE;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas 2D context unavailable');
+
+  // Solid theme background — the live SVG floats on the card surface.
+  const background = win.getComputedStyle(doc.body).getPropertyValue('--background-primary').trim();
+  ctx.fillStyle = background || '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.scale(PNG_EXPORT_SCALE, PNG_EXPORT_SCALE);
+  ctx.drawImage(image, 0, 0, width, height);
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((result) => (result ? resolve(result) : reject(new Error('PNG encoding failed'))), 'image/png');
+  });
+
+  const safeTitle = title.toLowerCase().replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'netzwerkplan';
+  const folder = mediaFolder.trim().replace(/\/+$/, '');
+  const fileName = `${safeTitle}-${Date.now()}.png`;
+  const path = folder ? `${folder}/${fileName}` : fileName;
+
+  if (folder) {
+    await app.vault.adapter.mkdir(folder).catch(() => {});
+  }
+  await app.vault.adapter.writeBinary(path, await blob.arrayBuffer());
+  return path;
+}
+
+/** Shows the map in a full-viewport overlay (reuses the image modal chrome). */
+function openNetworkMapFullscreen(svg: SVGSVGElement, title: string): void {
+  const doc = svg.ownerDocument ?? window.document;
+  const overlay = doc.body.createDiv({ cls: 'claudian-image-modal-overlay' });
+  const modal = overlay.createDiv({ cls: 'claudian-image-modal claudian-network-map-modal' });
+
+  const clone = svg.cloneNode(true) as SVGSVGElement;
+  clone.classList.add('claudian-network-map-svg--fullscreen');
+  modal.appendChild(clone);
+
+  const caption = modal.createDiv({ cls: 'claudian-image-modal-caption' });
+  caption.setText(title);
+
+  const closeBtn = modal.createDiv({ cls: 'claudian-image-modal-close' });
+  closeBtn.setText('×');
+
+  const handleEsc = (event: KeyboardEvent) => {
+    if (event.key === 'Escape') close();
+  };
+  const close = () => {
+    doc.removeEventListener('keydown', handleEsc);
+    overlay.remove();
+  };
+  closeBtn.addEventListener('click', close);
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) close();
+  });
+  doc.addEventListener('keydown', handleEsc);
+}
+
+/**
+ * Replaces `network-map` code fences with the visual topology.
+ *
+ * NOTE: The former prose-based AUTO inference was removed on purpose — it
+ * kept surfacing half-guessed maps under unrelated answers ("kommt random").
+ * Maps now render ONLY for explicit fences; the system prompt instructs the
+ * model to emit one whenever the conversation is actually about a network.
+ */
+export function renderNetworkMaps(
+  root: HTMLElement,
+  markdown: string,
+  options?: NetworkMapRenderOptions,
+): boolean {
   const blocks = parseNetworkMapBlocks(markdown);
   const codeBlocks = Array.from(root.querySelectorAll('pre code.language-network-map'));
   let rendered = false;
@@ -539,20 +723,13 @@ export function renderNetworkMaps(root: HTMLElement, markdown: string): boolean 
       const doc = root.ownerDocument ?? window.document;
       const host = doc.createElement('div');
       pre.parentElement.replaceChild(host, pre);
-      renderNetworkTopology(host, topology);
+      renderNetworkTopology(host, topology, options);
       rendered = true;
     } else if (!block.closed) {
-      renderNetworkTopology(root, topology);
+      renderNetworkTopology(root, topology, options);
       rendered = true;
     }
   });
 
-  if (rendered) return true;
-
-  const isUserMessage = (root.closest?.('.claudian-message-user') ?? null) !== null;
-  if (isUserMessage) return false;
-  const inferred = inferNetworkTopology(markdown);
-  if (!inferred) return false;
-  renderNetworkTopology(root, inferred);
-  return true;
+  return rendered;
 }

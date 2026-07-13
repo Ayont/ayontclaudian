@@ -23,6 +23,19 @@ function installObsidianDomHelpers(): void {
     this.appendChild(element);
     return element;
   };
+  (HTMLElement.prototype as any).createEl = function createEl(
+    tag: string,
+    options?: { cls?: string; text?: string; attr?: Record<string, string> },
+  ) {
+    const element = document.createElement(tag);
+    if (options?.cls) element.className = options.cls;
+    if (options?.text) element.textContent = options.text;
+    for (const [name, value] of Object.entries(options?.attr ?? {})) {
+      element.setAttribute(name, value);
+    }
+    this.appendChild(element);
+    return element;
+  };
 }
 
 describe('NetworkMapRenderer', () => {
@@ -120,6 +133,28 @@ describe('NetworkMapRenderer', () => {
       expect(renderNetworkMaps(root, markdown)).toBe(true);
       expect(root.querySelector('pre')).toBeNull();
       expect(root.querySelector('.claudian-network-map')).not.toBeNull();
+    });
+
+    it('never renders a map from prose without an explicit fence', () => {
+      // Regression: the former AUTO inference kept surfacing half-guessed maps
+      // under unrelated answers. Only explicit blocks may render.
+      const root = document.createElement('div');
+      const markdown = 'Die FortiGate 60F hängt am WAN, dahinter der Core Switch mit VLAN 10 und VLAN 20.';
+
+      expect(renderNetworkMaps(root, markdown)).toBe(false);
+      expect(root.querySelector('.claudian-network-map')).toBeNull();
+    });
+
+    it('renders header actions only when an app context is provided', () => {
+      const topology = parseNetworkMapDsl('Internet -- WAN --> FortiGate 60F');
+
+      const plain = document.createElement('div');
+      renderNetworkTopology(plain, topology!);
+      expect(plain.querySelectorAll('.claudian-network-map-action')).toHaveLength(0);
+
+      const withApp = document.createElement('div');
+      renderNetworkTopology(withApp, topology!, { app: {} as never, mediaFolder: '' });
+      expect(withApp.querySelectorAll('.claudian-network-map-action')).toHaveLength(3);
     });
   });
 });
