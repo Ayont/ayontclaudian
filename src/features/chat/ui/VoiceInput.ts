@@ -19,6 +19,8 @@ export interface VoiceInputCallbacks {
   getModel?: () => string;
   /** Returns the selected microphone device ID (empty = system default). */
   getMicrophoneId?: () => string;
+  /** Whether to prefer the fast transcription backend (mlx_whisper on macOS). */
+  getPreferFastBackend?: () => boolean;
 }
 
 type VoiceState = 'idle' | 'recording' | 'processing';
@@ -39,6 +41,9 @@ export class VoiceInput {
   private chunks: Blob[] = [];
   private stream: MediaStream | null = null;
   private setupDone = false;
+  private abortController: AbortController | null = null;
+  private processingTimeout: number | null = null;
+  private static readonly TRANSCRIPTION_TIMEOUT_MS = 20_000;
 
   constructor(private readonly callbacks: VoiceInputCallbacks) {}
 
@@ -64,11 +69,11 @@ export class VoiceInput {
     this.button.toggleClass('is-recording', state === 'recording');
     this.button.toggleClass('is-processing', state === 'processing');
     this.button.empty();
-    setIcon(this.button, state === 'recording' ? 'square' : state === 'processing' ? 'loader-2' : 'mic');
+    setIcon(this.button, state === 'recording' ? 'square' : state === 'processing' ? 'x' : 'mic');
     const label = state === 'recording'
       ? 'Aufnahme stoppen'
       : state === 'processing'
-        ? 'Transkribiere…'
+        ? 'Transkription abbrechen'
         : 'Spracheingabe';
     this.button.setAttribute('aria-label', label);
     this.button.setAttribute('title', label);
@@ -84,8 +89,22 @@ export class VoiceInput {
       this.stopRecording();
       return;
     }
-    if (this.state === 'processing') return;
+    if (this.state === 'processing') {
+      this.cancelProcessing();
+      return;
+    }
     await this.startRecording();
+  }
+
+  private cancelProcessing(): void {
+    if (this.processingTimeout) {
+      window.clearTimeout(this.processingTimeout);
+      this.processingTimeout = null;
+    }
+    this.abortController?.abort();
+    this.abortController = null;
+    this.setState('idle');
+    new Notice('Transkription abgebrochen.');
   }
 
   private async ensureSetup(): Promise<boolean> {
@@ -190,17 +209,32 @@ export class VoiceInput {
     const stamp = `${tmpdir()}/claudian-voice-${this.uniqueSuffix()}`;
     const rawPath = `${stamp}.webm`;
     const wavPath = `${stamp}.wav`;
+
+    this.abortController = new AbortController();
+    this.processingTimeout = window.setTimeout(() => {
+      this.abortController?.abort();
+      new Notice('Transkription dauerte zu lange — bitte erneut versuchen.');
+    }, VoiceInput.TRANSCRIPTION_TIMEOUT_MS);
+
     try {
       const buffer = Buffer.from(await blob.arrayBuffer());
       await fs.writeFile(rawPath, buffer);
-      await this.convertToWav(rawPath, wavPath);
+      await this.convertToWav(rawPath, wavPath, this.abortController.signal);
+
+      if (this.abortController.signal.aborted) return;
 
       const model = this.callbacks.getModel?.() ?? 'base';
       const modelPath = `${homedir()}/.cache/whisper-cpp/ggml-${model}.bin`;
       const result = await transcribeAudioFile(wavPath, {
         language: this.callbacks.getLanguage?.() ?? 'auto',
+        model,
         modelPath,
+        preferFastBackend: this.callbacks.getPreferFastBackend?.() ?? true,
+        spawnImpl: spawn,
       });
+
+      if (this.abortController.signal.aborted) return;
+
       if (result.ok && result.text) {
         this.callbacks.onInsert(result.text);
       } else if (result.ok) {
@@ -209,8 +243,14 @@ export class VoiceInput {
         new Notice(`Transkription fehlgeschlagen: ${result.error ?? 'unbekannt'}`);
       }
     } catch (error) {
+      if (this.abortController.signal.aborted) return;
       new Notice(`Sprachaufnahme fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
+      if (this.processingTimeout) {
+        window.clearTimeout(this.processingTimeout);
+        this.processingTimeout = null;
+      }
+      this.abortController = null;
       await fs.rm(rawPath, { force: true }).catch(() => {});
       await fs.rm(wavPath, { force: true }).catch(() => {});
       this.setState('idle');
@@ -218,26 +258,49 @@ export class VoiceInput {
   }
 
   /** Converts the recorded blob to 16 kHz mono wav (whisper's preferred input). */
-  private convertToWav(input: string, output: string): Promise<void> {
+  private convertToWav(input: string, output: string, abortSignal?: AbortSignal): Promise<void> {
     return new Promise((resolve, reject) => {
       let proc;
+      let settled = false;
+
+      const onAbort = () => {
+        if (settled) return;
+        settled = true;
+        try {
+          proc?.kill('SIGTERM');
+        } catch {
+          // ignore
+        }
+        reject(new Error('Abgebrochen'));
+      };
+
+      abortSignal?.addEventListener('abort', onAbort, { once: true });
+
+      const finish = (error?: Error) => {
+        if (settled) return;
+        settled = true;
+        abortSignal?.removeEventListener('abort', onAbort);
+        if (error) reject(error);
+        else resolve();
+      };
+
       try {
         proc = spawn('ffmpeg', ['-v', 'error', '-i', input, '-ac', '1', '-ar', '16000', output, '-y'], {
           env: { ...process.env, PATH: getEnhancedPath(process.env.PATH) },
           windowsHide: true,
         });
       } catch (error) {
-        reject(error instanceof Error ? error : new Error('ffmpeg konnte nicht gestartet werden'));
+        finish(error instanceof Error ? error : new Error('ffmpeg konnte nicht gestartet werden'));
         return;
       }
-      proc.on('error', (error: Error) => reject(
+      proc.on('error', (error: Error) => finish(
         /ENOENT/.test(error.message)
           ? new Error('ffmpeg nicht gefunden — installiere es mit „brew install ffmpeg".')
           : error,
       ));
       proc.on('close', (code: number | null) => {
-        if (code === 0) resolve();
-        else reject(new Error(`ffmpeg endete mit Code ${code ?? -1}`));
+        if (code === 0) finish();
+        else finish(new Error(`ffmpeg endete mit Code ${code ?? -1}`));
       });
     });
   }
@@ -250,6 +313,12 @@ export class VoiceInput {
 
   destroy(): void {
     this.stopRecording();
+    if (this.processingTimeout) {
+      window.clearTimeout(this.processingTimeout);
+      this.processingTimeout = null;
+    }
+    this.abortController?.abort();
+    this.abortController = null;
     this.button?.remove();
     this.button = null;
   }
