@@ -80,8 +80,18 @@ describe('buildOpencodePromptBlocks', () => {
     });
 
     expect(blocks).toEqual([
-      { type: 'text', text: 'Inspect this image' },
+      {
+        type: 'text',
+        text: 'Inspect this image\n\n[Attached images — read and analyze these image files:]\n'
+          + '@.claudian/staging/images/img-1.png',
+      },
       { type: 'image', mimeType: 'image/png', data: 'base64-image' },
     ]);
+  });
+
+  it('keeps the text block untouched without images', () => {
+    const blocks = buildOpencodePromptBlocks({ text: 'Nur Text' });
+
+    expect(blocks).toEqual([{ type: 'text', text: 'Nur Text' }]);
   });
 });

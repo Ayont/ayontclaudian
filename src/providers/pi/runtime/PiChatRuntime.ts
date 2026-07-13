@@ -6,6 +6,7 @@ import {
   computeSystemPromptKey,
   type SystemPromptSettings,
 } from '../../../core/prompt/mainAgent';
+import { appendImagePathReferences } from '../../../core/providers/imagePathFallback';
 import { getRuntimeEnvironmentText } from '../../../core/providers/providerEnvironment';
 import { ProviderSettingsCoordinator } from '../../../core/providers/ProviderSettingsCoordinator';
 import type { ProviderCapabilities } from '../../../core/providers/types';
@@ -321,9 +322,14 @@ export class PiChatRuntime implements ChatRuntime {
     const shouldBootstrapHistory = (conversationHistory?.length ?? 0) > 0
       && !this.sessionId
       && !this.sessionFile;
-    const promptText = buildPiPromptText(
-      turn.request,
-      shouldBootstrapHistory ? conversationHistory : [],
+    // Native image payload + staged-path references in the text: the fallback
+    // keeps vision working even if the pi build ignores image parts.
+    const promptText = appendImagePathReferences(
+      buildPiPromptText(
+        turn.request,
+        shouldBootstrapHistory ? conversationHistory : [],
+      ),
+      turn.request.images,
     );
     const images = buildPiPromptImages(turn.request.images);
 

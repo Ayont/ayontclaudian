@@ -1,5 +1,6 @@
 import * as path from 'node:path';
 
+import { appendImagePathReferences } from '../../../core/providers/imagePathFallback';
 import { getRuntimeEnvironmentText } from '../../../core/providers/providerEnvironment';
 import type { ProviderCapabilities } from '../../../core/providers/types';
 import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
@@ -32,6 +33,7 @@ import { getVaultPath } from '../../../utils/path';
 import {
   AcpClientConnection,
   type AcpClientConnectionDelegate,
+  type AcpContentBlock,
   AcpJsonRpcTransport,
   type AcpRequestPermissionRequest,
   type AcpRequestPermissionResponse,
@@ -268,9 +270,21 @@ export class KimiAcpChatRuntime implements ChatRuntime {
       return;
     }
 
+    // Vision: ACP carries native image blocks; additionally reference the
+    // staged file paths in the text so vision survives even when the agent
+    // ignores the blocks (universal fallback).
+    const promptBlocks: AcpContentBlock[] = [{
+      text: appendImagePathReferences(turn.request.text, turn.request.images),
+      type: 'text',
+    }];
+    for (const image of turn.request.images ?? []) {
+      if (!image.data) continue;
+      promptBlocks.push({ data: image.data, mimeType: image.mediaType, type: 'image' });
+    }
+
     const promptPromise = this.connection
       .prompt({
-        prompt: [{ text: turn.request.text, type: 'text' }],
+        prompt: promptBlocks,
         sessionId,
       })
       .then((response) => {

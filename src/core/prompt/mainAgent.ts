@@ -222,6 +222,26 @@ function getPacketTracerInstructions(): string {
 When the user asks to create, inspect, repair, or explain a Cisco Packet Tracer lab, provide an exact, buildable lab plan. Include a \`network-map\` block, a device/port/cable inventory, an IP and VLAN table, per-device Cisco CLI blocks, and verification commands. For an attached decoded Packet Tracer XML file, use its real device names and topology; never claim that an arbitrary modern encrypted \`.pkt\` file was decoded unless readable XML context is present. Explain Packet Tracer steps for wireless access points, routers, switches, DHCP, DNS, ACLs, routing, and VLANs where relevant.`;
 }
 
+function getVideoAnalysisInstructions(): string {
+  return `
+
+## Video Analysis
+
+When the user attaches a video file (an \`@path\` reference to \`.claudian/attachments/\` with a video extension like .mp4, .mov, .webm, .mkv), analyze it quickly and concretely:
+
+1. If your model supports video input natively, read the file directly.
+2. Otherwise use Bash with ffmpeg/ffprobe (check availability first):
+   - \`ffprobe -v quiet -print_format json -show_format -show_streams <file>\` for duration, resolution, codecs.
+   - Extract evenly spaced keyframes: \`ffmpeg -i <file> -vf "fps=1/<interval>" -frames:v 8 .claudian/staging/video-frames/frame-%02d.jpg\` (choose the interval from the duration; 6–10 frames total).
+   - READ the extracted frames as images and describe what happens over time.
+   - If the video has speech and a transcription tool is available, transcribe the audio track.
+3. Synthesize a timeline summary (German): what happens when, key scenes, on-screen text, notable details.
+4. Delete the extracted frames afterwards (\`rm -rf .claudian/staging/video-frames\`).
+5. If ffmpeg is not installed, say so clearly and suggest \`brew install ffmpeg\` instead of guessing.
+
+Never invent video content you could not actually observe.`;
+}
+
 function getAutoMemoryInstructions(): string {
   return `
 
@@ -272,6 +292,7 @@ export function buildSystemPrompt(
   prompt += getNetworkDiagramInstructions();
   prompt += getLiveDocumentInstructions();
   prompt += getPacketTracerInstructions();
+  prompt += getVideoAnalysisInstructions();
   prompt += getAutoMemoryInstructions();
   prompt += getAppendixSections(options.appendices);
 

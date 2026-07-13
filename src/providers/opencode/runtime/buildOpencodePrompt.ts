@@ -1,3 +1,4 @@
+import { appendImagePathReferences } from '../../../core/providers/imagePathFallback';
 import type { ChatTurnRequest } from '../../../core/runtime/types';
 import type { ChatMessage } from '../../../core/types';
 import { appendBrowserContext } from '../../../utils/browser';
@@ -46,8 +47,17 @@ export function buildOpencodePromptBlocks(
   request: ChatTurnRequest,
   conversationHistory: ChatMessage[] = [],
 ): AcpContentBlock[] {
+  // Native image blocks below carry the pixels; the staged-path references in
+  // the text are the universal fallback for agents that ignore ACP image
+  // blocks — together this makes vision reliable instead of best-effort.
   const blocks: AcpContentBlock[] = [
-    { type: 'text', text: buildOpencodePromptText(request, conversationHistory) },
+    {
+      type: 'text',
+      text: appendImagePathReferences(
+        buildOpencodePromptText(request, conversationHistory),
+        request.images,
+      ),
+    },
   ];
 
   for (const image of request.images ?? []) {

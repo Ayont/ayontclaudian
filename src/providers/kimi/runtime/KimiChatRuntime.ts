@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { Notice } from 'obsidian';
 
 import { expandProviderCommandInput } from '../../../core/providers/commands/expandProviderCommandInput';
+import { appendImagePathReferences } from '../../../core/providers/imagePathFallback';
 import { syncProviderModelConfig } from '../../../core/providers/modelConfigSync';
 import { getRuntimeEnvironmentText } from '../../../core/providers/providerEnvironment';
 import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorkspaceRegistry';
@@ -316,6 +317,11 @@ export class KimiChatRuntime implements ChatRuntime {
     } catch {
       promptText = turn.request.text;
     }
+
+    // Universal vision fallback: this CLI's plain-text prompt cannot carry
+    // image blocks, but the staged image files on disk can be read by the
+    // agent's file tools. Reference them so vision works here too.
+    promptText = appendImagePathReferences(promptText, turn.request.images);
 
     // Mirror "/goal" locally so the standing objective survives across turns in
     // print mode. The raw `/goal` command is still sent to Kimi for confirmation.

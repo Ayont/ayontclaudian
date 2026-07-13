@@ -2,6 +2,7 @@ import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 import * as path from 'node:path';
 
 import { expandProviderCommandInput } from '../../../core/providers/commands/expandProviderCommandInput';
+import { appendImagePathReferences } from '../../../core/providers/imagePathFallback';
 import { getRuntimeEnvironmentText } from '../../../core/providers/providerEnvironment';
 import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorkspaceRegistry';
 import type { ProviderCapabilities } from '../../../core/providers/types';
@@ -185,6 +186,11 @@ export class VibeChatRuntime implements ChatRuntime {
     } catch {
       promptText = turn.request.text;
     }
+
+    // Universal vision fallback: this CLI's plain-text prompt cannot carry
+    // image blocks, but the staged image files on disk can be read by the
+    // agent's file tools. Reference them so vision works here too.
+    promptText = appendImagePathReferences(promptText, turn.request.images);
 
     // Vibe selects the model via the VIBE_ACTIVE_MODEL env var, not a CLI flag.
     if (model) {
