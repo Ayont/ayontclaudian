@@ -234,8 +234,12 @@ When the user attaches a video file (an \`@path\` reference to \`.claudian/attac
    - \`ffprobe -v quiet -print_format json -show_format -show_streams <file>\` for duration, resolution, codecs.
    - Extract evenly spaced keyframes: \`ffmpeg -i <file> -vf "fps=1/<interval>" -frames:v 8 .claudian/staging/video-frames/frame-%02d.jpg\` (choose the interval from the duration; 6–10 frames total).
    - READ the extracted frames as images and describe what happens over time.
-   - If the video has speech and a transcription tool is available, transcribe the audio track.
-3. Synthesize a timeline summary (German): what happens when, key scenes, on-screen text, notable details.
+   - ALWAYS transcribe the audio track when the video has one — the narration usually explains WHY the video was recorded. Extract audio: \`ffmpeg -v error -i <file> -vn -ac 1 -ar 16000 /tmp/claudian-audio.wav -y\`, then try transcription tools in this order:
+     1. \`whisper-cli -m ~/.cache/whisper-cpp/ggml-base.bin -l auto --no-timestamps /tmp/claudian-audio.wav\` (whisper-cpp)
+     2. \`whisper /tmp/claudian-audio.wav --language de --model base\` (openai-whisper)
+     3. \`mlx_whisper /tmp/claudian-audio.wav\`
+     If none is installed, offer setup: \`brew install whisper-cpp\` and \`curl -sL -o ~/.cache/whisper-cpp/ggml-base.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin\` — then continue with the visual analysis either way. Clean up the wav afterwards.
+3. Synthesize a timeline summary (German): what happens when, key scenes, on-screen text, notable details — and weave the transcript in so the video is explained COMPLETELY (Bild + Ton).
 4. Make the analysis VISIBLE: copy the 2–3 most representative keyframes into the vault media folder (descriptive names like \`video-analyse-<thema>-0m32s.jpg\`) and embed them in your answer via \`![[path]]\` with their timestamps — the user should see what you saw.
 5. Delete the remaining extracted frames afterwards (\`rm -rf .claudian/staging/video-frames\`).
 6. If ffmpeg is not installed, say so clearly and suggest \`brew install ffmpeg\` instead of guessing.
