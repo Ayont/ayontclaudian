@@ -26,6 +26,13 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
     model: 'nomic-embed-text',
   },
 
+  voiceSettings: {
+    enabled: true,
+    language: 'auto',
+    model: 'base',
+    autoSetup: true,
+  },
+
   model: 'haiku',
   thinkingBudget: 'off',
   effortLevel: 'high',

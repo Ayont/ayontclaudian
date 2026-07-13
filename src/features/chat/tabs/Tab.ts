@@ -1323,6 +1323,8 @@ function initializeInputToolbar(
       autoResizeTextarea(textarea);
       textarea.focus();
     },
+    getLanguage: () => plugin.settings.voiceSettings?.language ?? 'auto',
+    getModel: () => plugin.settings.voiceSettings?.model ?? 'base',
   });
   voiceInput.render(osActionsEl);
   dom.eventCleanups.push(() => voiceInput.destroy());

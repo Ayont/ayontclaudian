@@ -11,8 +11,15 @@ import { homedir } from 'node:os';
 import { getEnhancedPath } from '../../utils/env';
 
 const MODEL_DIR = `${homedir()}/.cache/whisper-cpp`;
-const MODEL_PATH = `${MODEL_DIR}/ggml-base.bin`;
-const MODEL_URL = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin';
+const MODEL_URL = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-{model}.bin';
+
+const MODEL_SIZES: Record<string, string> = {
+  tiny: '~75 MB',
+  base: '~142 MB',
+  small: '~466 MB',
+  medium: '~1.5 GB',
+  large: '~3 GB',
+};
 
 const env = (): NodeJS.ProcessEnv => ({
   ...process.env,
@@ -66,10 +73,14 @@ export interface SetupResult {
 /**
  * Ensures all voice dependencies are available. Runs silently on first use.
  * Returns a result so the caller can show a Notice if something went wrong.
+ * @param model Whisper model name (tiny/base/small/medium/large). Downloads that specific model.
  */
-export async function ensureVoiceDependencies(): Promise<SetupResult> {
+export async function ensureVoiceDependencies(model = 'base'): Promise<SetupResult> {
   const result: SetupResult = { ffmpegOk: false, whisperOk: false, modelOk: false, message: '' };
   const steps: string[] = [];
+  const modelPath = `${MODEL_DIR}/ggml-${model}.bin`;
+  const modelUrl = MODEL_URL.replace('{model}', model);
+  const modelSize = MODEL_SIZES[model] ?? '~142 MB';
 
   // ── 1. ffmpeg ──────────────────────────────────────────────────────
   const ffmpegCheck = await run('which', ['ffmpeg']);
@@ -101,19 +112,19 @@ export async function ensureVoiceDependencies(): Promise<SetupResult> {
     }
   }
 
-  // ── 3. ggml-base model ────────────────────────────────────────────
-  if (await fileExists(MODEL_PATH)) {
+  // ── 3. whisper model ──────────────────────────────────────────────
+  if (await fileExists(modelPath)) {
     result.modelOk = true;
   } else {
-    steps.push('Lade whisper-basismodell herunter (~142 MB)…');
+    steps.push(`Lade whisper-${model}-Modell herunter (${modelSize})…`);
     try {
       await fs.mkdir(MODEL_DIR, { recursive: true });
       const dl = await run('curl', [
         '-sL', '--progress-bar',
-        '-o', MODEL_PATH,
-        MODEL_URL,
+        '-o', modelPath,
+        modelUrl,
       ], { timeoutMs: 600_000 });
-      if (dl.ok && await fileExists(MODEL_PATH)) {
+      if (dl.ok && await fileExists(modelPath)) {
         result.modelOk = true;
         steps.push('Modell heruntergeladen.');
       } else {
@@ -131,12 +142,14 @@ export async function ensureVoiceDependencies(): Promise<SetupResult> {
 /**
  * Quick check — true if everything is ready, false if setup is needed.
  * Used by the UI to decide whether to show a setup spinner.
+ * @param model Whisper model name to check for.
  */
-export async function areVoiceDependenciesReady(): Promise<boolean> {
+export async function areVoiceDependenciesReady(model = 'base'): Promise<boolean> {
+  const modelPath = `${MODEL_DIR}/ggml-${model}.bin`;
   const [ffmpegOk, whisperOk, modelOk] = await Promise.all([
     run('which', ['ffmpeg']).then((r) => r.ok && r.stdout.trim().length > 0),
     run('which', ['whisper-cli']).then((r) => r.ok && r.stdout.trim().length > 0),
-    fileExists(MODEL_PATH),
+    fileExists(modelPath),
   ]);
   return ffmpegOk && whisperOk && modelOk;
 }

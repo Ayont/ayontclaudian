@@ -2,6 +2,8 @@ import { spawn } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 
+import { homedir } from 'node:os';
+
 import { Notice, setIcon } from 'obsidian';
 
 import { transcribeAudioFile } from '../../../core/audio/transcription';
@@ -13,6 +15,8 @@ export interface VoiceInputCallbacks {
   onInsert: (text: string) => void;
   /** Optional language hint for whisper ('auto' by default). */
   getLanguage?: () => string;
+  /** Returns the whisper model name (e.g. 'base', 'small') for the model path. */
+  getModel?: () => string;
 }
 
 type VoiceState = 'idle' | 'recording' | 'processing';
@@ -84,10 +88,11 @@ export class VoiceInput {
 
   private async ensureSetup(): Promise<boolean> {
     if (this.setupDone) return true;
+    const model = this.callbacks.getModel?.() ?? 'base';
     new Notice('Spracheingabe wird eingerichtet — erste Einrichtung kann 1–3 Minuten dauern…');
     this.setState('processing');
     try {
-      const result = await ensureVoiceDependencies();
+      const result = await ensureVoiceDependencies(model);
       if (result.ffmpegOk && result.whisperOk && result.modelOk) {
         this.setupDone = true;
         new Notice('Spracheingabe bereit!');
@@ -97,11 +102,11 @@ export class VoiceInput {
       const missing: string[] = [];
       if (!result.ffmpegOk) missing.push('ffmpeg');
       if (!result.whisperOk) missing.push('whisper-cpp');
-      if (!result.modelOk) missing.push('Basismodell');
+      if (!result.modelOk) missing.push(`whisper-${model}-Modell`);
       new Notice(
         `Spracheingabe nicht vollständig eingerichtet. Fehlend: ${missing.join(', ')}. ` +
-        `Bitte manuell installieren:\n• brew install ffmpeg whisper-cpp\n• curl -sL -o ~/.cache/whisper-cpp/ggml-base.bin ` +
-        `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin`,
+        `Bitte manuell installieren:\n• brew install ffmpeg whisper-cpp\n• curl -sL -o ~/.cache/whisper-cpp/ggml-${model}.bin ` +
+        `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-${model}.bin`,
         10_000,
       );
       return false;
@@ -176,8 +181,11 @@ export class VoiceInput {
       await fs.writeFile(rawPath, buffer);
       await this.convertToWav(rawPath, wavPath);
 
+      const model = this.callbacks.getModel?.() ?? 'base';
+      const modelPath = `${homedir()}/.cache/whisper-cpp/ggml-${model}.bin`;
       const result = await transcribeAudioFile(wavPath, {
         language: this.callbacks.getLanguage?.() ?? 'auto',
+        modelPath,
       });
       if (result.ok && result.text) {
         this.callbacks.onInsert(result.text);

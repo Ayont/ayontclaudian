@@ -150,6 +150,14 @@ export interface ClaudianSettings {
     model: string;
   };
 
+  /** Voice input (whisper-cli) configuration. */
+  voiceSettings?: {
+    enabled: boolean;
+    language: string;
+    model: 'tiny' | 'base' | 'small' | 'medium' | 'large';
+    autoSetup: boolean;
+  };
+
   // Model & thinking (provider interprets values)
   model: string;
   thinkingBudget: string;

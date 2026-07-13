@@ -16,6 +16,7 @@ import { formatContextLimit, parseContextLimit, parseEnvironmentVariables } from
 import { buildNavMappingText, parseNavMappings } from './keyboardNavigation';
 import { renderCliInstallSection } from './ui/CliInstallSection';
 import { renderEnvironmentSettingsSection } from './ui/EnvironmentSettingsSection';
+import { renderVoiceSettingsSection } from './ui/VoiceSettingsSection';
 
 type SettingsTabId = string;
 type ObsidianHotkey = { modifiers: string[]; key: string };
@@ -705,6 +706,10 @@ export class ClaudianSettingTab extends PluginSettingTab {
     addHotkeySettingRow(hotkeyGrid, this.app, 'claudian:new-session', 'settings.newSessionHotkey');
     addHotkeySettingRow(hotkeyGrid, this.app, 'claudian:new-tab', 'settings.newTabHotkey');
     addHotkeySettingRow(hotkeyGrid, this.app, 'claudian:close-current-tab', 'settings.closeTabHotkey');
+
+    // --- Voice Input ---
+
+    renderVoiceSettingsSection(container, this.plugin);
 
     // --- Environment ---
 

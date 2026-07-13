@@ -70,6 +70,7 @@
 @import "./settings/agent-settings.css";
 @import "./settings/provider-model-picker.css";
 @import "./settings/cli-install.css";
+@import "./settings/voice-settings.css";
 @import "./settings/kimi-features.css";
 @import "./settings/antigravity-ui.css";
 

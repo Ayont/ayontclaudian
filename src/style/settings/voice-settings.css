@@ -1,0 +1,38 @@
+.claudian-voice-settings-section .claudian-voice-settings-hint {
+  color: var(--text-muted);
+  font-size: 0.85em;
+  margin-bottom: 1em;
+  line-height: 1.5;
+}
+
+.claudian-voice-model-info {
+  color: var(--text-muted);
+  font-size: 0.8em;
+  font-style: italic;
+  margin-top: -0.5em;
+  padding-left: 0.5em;
+}
+
+.claudian-voice-install-status {
+  margin-top: 1em;
+  padding: 0.75em 1em;
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+}
+
+.claudian-voice-checking {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.claudian-voice-status-ok {
+  color: var(--text-success);
+  font-weight: 500;
+}
+
+.claudian-voice-status-missing {
+  color: var(--text-error);
+  font-weight: 500;
+  margin-bottom: 0.5em;
+}
