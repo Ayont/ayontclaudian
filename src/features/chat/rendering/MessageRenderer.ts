@@ -26,6 +26,7 @@ import { attachmentTypeMeta } from '../ui/file-drop/attachmentMeta';
 import { renderAutoMemoryChips } from './AutoMemoryChip';
 import { renderEmailTemplates } from './EmailTemplateRenderer';
 import { detectStatusCard } from './errorClassification';
+import { renderInlineImages } from './InlineImageRenderer';
 import { renderLiveDocuments } from './LiveDocumentRenderer';
 import { renderNetworkMaps } from './NetworkMapRenderer';
 import { renderSkillCards } from './SkillCardRenderer';
@@ -909,7 +910,20 @@ export class MessageRenderer {
     const actionsEl = footerEl.createDiv({ cls: 'claudian-response-actions' });
     if (copyContent) this.addAssistantCopyButton(actionsEl, copyContent);
     if (copyContent) this.addAssistantExportButton(actionsEl, msg);
+    this.addAgentUndoButton(actionsEl);
     this.addSwitchModelButton(actionsEl);
+  }
+
+  private addAgentUndoButton(actionsEl: HTMLElement): void {
+    const btn = actionsEl.createEl('button', { cls: 'claudian-response-action' });
+    btn.setAttribute('type', 'button');
+    btn.setAttribute('aria-label', 'Dateiänderungen des letzten Agent-Laufs rückgängig machen');
+    setIcon(btn.createSpan(), 'undo-2');
+    btn.createSpan({ text: 'Agent-Undo' });
+    btn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      void this.plugin.undoLastAgentTurn();
+    });
   }
 
   private addAssistantCopyButton(actionsEl: HTMLElement, content: string): void {
@@ -1440,6 +1454,8 @@ export class MessageRenderer {
         app: this.app,
         component: this.component,
       });
+
+      renderInlineImages(el, this.app, { mediaFolder: this.plugin.settings.mediaFolder });
 
       // Auto-Memory fences render as a compact chip instead of raw code.
       renderAutoMemoryChips(el);

@@ -15,8 +15,28 @@ describe('WorkflowEngine', () => {
       steps: [{ id: 's1', action: 'noop', params: {} }],
     });
 
-    // Event bus listeners are sync; no need to wait.
+    expect(engine.list()).toHaveLength(1);
     engine.stop();
+  });
+
+  it('loads, runs, toggles, and persists scheduled workflows', async () => {
+    const executed: string[] = [];
+    const save = jest.fn(async () => undefined);
+    const workflow = {
+      id: 'scheduled', name: 'Digest', enabled: true,
+      trigger: { type: 'schedule' as const, schedule: { cron: 'daily@08:00' } },
+      steps: [{ id: 'prompt', action: 'agent-prompt', params: { prompt: 'Digest' } }],
+    };
+    const engine = new WorkflowEngine(
+      async (step) => { executed.push(step.action); },
+      { load: async () => [workflow], save },
+    );
+    await engine.load();
+    expect(engine.list()[0].nextRun).toBeGreaterThan(Date.now());
+    expect(await engine.run('scheduled')).toBe(true);
+    expect(executed).toEqual(['agent-prompt']);
+    expect(engine.setEnabled('scheduled', false)).toBe(true);
+    expect(save).toHaveBeenCalled();
   });
 
   it('lists registered workflows', () => {

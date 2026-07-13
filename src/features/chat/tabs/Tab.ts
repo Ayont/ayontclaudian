@@ -1,6 +1,7 @@
 import type { Component } from 'obsidian';
 import { Notice, Platform, setIcon } from 'obsidian';
 
+import { resolveVoiceLanguage } from '../../../core/audio/transcription';
 import { buildConversationContextBootstrap, computeBootstrapCharCap } from '../../../core/conversation/ConversationContextBootstrap';
 import { computeProviderSessionHandoff } from '../../../core/conversation/providerSessionHandoff';
 import { GitService } from '../../../core/git/GitService';
@@ -11,7 +12,6 @@ import { getEnabledProviderForModel, getProviderForModel } from '../../../core/p
 import { ProviderRegistry } from '../../../core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '../../../core/providers/ProviderSettingsCoordinator';
 import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorkspaceRegistry';
-import { resolveVoiceLanguage } from '../../../core/audio/transcription';
 import type {
   ProviderCapabilities,
   ProviderChatUIConfig,
@@ -1255,6 +1255,13 @@ function initializeInputToolbar(
   tab.ui.mcpServerSelector = toolbarComponents.mcpServerSelector;
   tab.ui.permissionToggle = toolbarComponents.permissionToggle;
   tab.ui.serviceTierToggle = toolbarComponents.serviceTierToggle;
+
+  const commandCenterButton = inputToolbar.createEl('button', {
+    cls: 'claudian-command-center-trigger',
+    attr: { 'aria-label': 'Produktivitätszentrale öffnen', title: 'Produktivitätszentrale öffnen' },
+  });
+  setIcon(commandCenterButton, 'command');
+  commandCenterButton.addEventListener('click', () => plugin.openCommandCenter());
 
   tab.ui.mcpServerSelector.setMcpManager(getProviderMcpManager(getTabProviderId(tab, plugin)));
 

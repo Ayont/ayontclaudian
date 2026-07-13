@@ -1,12 +1,12 @@
 import { Modal, Notice, setIcon } from 'obsidian';
 
 import { globalEventBus } from '../../core/events/EventBus';
+import type { MissionState } from '../../core/intelligence/multiAgent/MissionStateStorage';
 import type {
   AgentProgress,
   MissionProgress,
   SynthesisContribution,
 } from '../../core/intelligence/multiAgent/MultiAgentService';
-import type { MissionState } from '../../core/intelligence/multiAgent/MissionStateStorage';
 import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
 import type ClaudianPlugin from '../../main';
 
@@ -42,7 +42,7 @@ export class MultiAgentModal extends Modal {
   /** If true, the modal is viewing a stored mission and should not allow editing the prompt. */
   private viewingStoredMission = false;
   /** Stored mission state restored on open, if any. */
-  private restoredState: import('../../core/intelligence/multiAgent/MissionStateStorage').MissionState | null = null;
+  private restoredState: MissionState | null = null;
   private eventUnsubscribers: (() => void)[] = [];
 
   constructor(

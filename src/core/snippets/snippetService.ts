@@ -51,7 +51,8 @@ export function parseSnippet(raw: string, _filePath: string): Snippet {
   const name = (fm.match(/^name:\s*(.+)$/m)?.[1] ?? 'snippet').trim().replace(/^["']|["']$/g, '');
   const tagsLine = fm.match(/^tags:\s*(.+)$/m)?.[1] ?? '';
   const tags = tagsLine
-    .replace(/[\[\]]/g, '')
+    .replaceAll('[', '')
+    .replaceAll(']', '')
     .split(',')
     .map((t) => t.trim().replace(/^["']|["']$/g, ''))
     .filter(Boolean);

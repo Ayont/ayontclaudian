@@ -1,8 +1,6 @@
 import { spawn } from 'node:child_process';
 import { promises as fs } from 'node:fs';
-import { tmpdir } from 'node:os';
-
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 
 import { Notice, setIcon } from 'obsidian';
 
@@ -306,7 +304,7 @@ export class VoiceInput {
 
   private uniqueSuffix(): string {
     // Renderer has crypto.randomUUID; fall back to a perf-timestamp otherwise.
-    const uuid = (globalThis.crypto as Crypto | undefined)?.randomUUID?.();
+    const uuid = (window.crypto as Crypto | undefined)?.randomUUID?.();
     return uuid ?? `${Math.floor(performance.now())}-${this.chunks.length}`;
   }
 

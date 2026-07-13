@@ -8,7 +8,7 @@
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import type { ProviderCapabilities, ProviderId } from '../providers/types';
 
-export type BuiltInCommandAction = 'clear' | 'add-dir' | 'resume' | 'fork' | 'goal' | 'workflow' | 'team' | 'template' | 'vault-health' | 'artifact' | 'document' | 'email' | 'skill' | 'packet-tracer' | 'status';
+export type BuiltInCommandAction = 'clear' | 'add-dir' | 'resume' | 'fork' | 'undo' | 'branches' | 'command-center' | 'export-html' | 'export-pdf' | 'goal' | 'workflow' | 'schedule' | 'team' | 'template' | 'vault-health' | 'artifact' | 'document' | 'email' | 'image' | 'skill' | 'packet-tracer' | 'status';
 type BuiltInCommandCapability = 'supportsNativeHistory' | 'supportsFork';
 type BuiltInCommandSupportContext = ProviderId | Pick<ProviderCapabilities, BuiltInCommandCapability>;
 
@@ -58,6 +58,33 @@ export const BUILT_IN_COMMANDS: BuiltInCommand[] = [
     requiredCapability: 'supportsFork',
   },
   {
+    name: 'undo',
+    description: 'Revert file changes from the last agent turn',
+    action: 'undo',
+  },
+  {
+    name: 'branches',
+    aliases: ['tree'],
+    description: 'Show the visual conversation branch tree',
+    action: 'branches',
+  },
+  {
+    name: 'commands',
+    aliases: ['center'],
+    description: 'Open the searchable command, skill, snippet, and memory center',
+    action: 'command-center',
+  },
+  {
+    name: 'export-html',
+    description: 'Export the active conversation as styled HTML',
+    action: 'export-html',
+  },
+  {
+    name: 'export-pdf',
+    description: 'Export the active conversation as an A4 PDF',
+    action: 'export-pdf',
+  },
+  {
     name: 'goal',
     description: 'Set a standing goal (empty clears it)',
     action: 'goal',
@@ -71,6 +98,14 @@ export const BUILT_IN_COMMANDS: BuiltInCommand[] = [
     action: 'workflow',
     hasArgs: true,
     argumentHint: '[name] [args]',
+  },
+  {
+    name: 'schedule',
+    aliases: ['cron'],
+    description: 'Run an agent prompt hourly or daily in the background',
+    action: 'schedule',
+    hasArgs: true,
+    argumentHint: '[hourly|daily|daily@HH:MM] [task]',
   },
   {
     name: 'team',
@@ -118,6 +153,14 @@ export const BUILT_IN_COMMANDS: BuiltInCommand[] = [
     action: 'email',
     hasArgs: true,
     argumentHint: '[E-Mail-Wunsch]',
+  },
+  {
+    name: 'image',
+    aliases: ['img'],
+    description: 'Generate an image and render it as an inline vault card',
+    action: 'image',
+    hasArgs: true,
+    argumentHint: '[image description]',
   },
   {
     name: 'skill',
@@ -200,6 +243,19 @@ export function detectBuiltInCommand(input: string): BuiltInCommandResult | null
   const args = (match[2] || '').trim();
 
   return { command, args };
+}
+
+/** Parses `/command … && /command …` or one slash-command per line. */
+export function parseBuiltInCommandChain(input: string): BuiltInCommandResult[] | null {
+  const segments = input
+    .split(/\s*&&\s*|\n(?=\s*\/)/g)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  if (segments.length < 2) return null;
+  const commands = segments.map(detectBuiltInCommand);
+  return commands.every((command): command is BuiltInCommandResult => command !== null)
+    ? commands
+    : null;
 }
 
 /**

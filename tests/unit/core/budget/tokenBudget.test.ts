@@ -20,6 +20,13 @@ describe('TokenBudgetTracker', () => {
     expect(state.sessionTotal).toBe(150);
   });
 
+  it('tracks provider and model breakdowns', () => {
+    const tracker = new TokenBudgetTracker();
+    tracker.trackUsage({ ...makeUsage(120), model: 'gpt-5.6' }, 'codex');
+    tracker.trackUsage({ ...makeUsage(80), model: 'gpt-5.6' }, 'codex');
+    expect(tracker.getState().breakdown['codex:gpt-5.6']).toEqual({ tokens: 200, runs: 2 });
+  });
+
   it('allows turns when budgets are not configured', () => {
     const tracker = new TokenBudgetTracker();
     tracker.trackUsage(makeUsage(1_000_000));

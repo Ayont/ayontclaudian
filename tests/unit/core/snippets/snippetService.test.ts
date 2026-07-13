@@ -1,7 +1,6 @@
 import type { Vault } from 'obsidian';
 
 import {
-  DEFAULT_SNIPPET_FOLDER,
   deleteSnippet,
   listSnippets,
   parseSnippet,

@@ -275,7 +275,27 @@ export class WorkflowBrowserModal extends Modal {
       const badge = head.createSpan({ cls: 'claudian-browser-card-badge' });
       badge.setText(wf.enabled ? 'enabled' : 'disabled');
       if (wf.enabled) badge.addClass('claudian-browser-card-badge--high');
-      card.createEl('p', { cls: 'claudian-browser-card-content', text: `Trigger: ${wf.trigger.type}` });
+      const schedule = wf.trigger.schedule?.cron ?? wf.trigger.event?.type ?? wf.trigger.type;
+      const next = wf.nextRun ? new Date(wf.nextRun).toLocaleString('de-DE') : '—';
+      card.createEl('p', { cls: 'claudian-browser-card-content', text: `Trigger: ${schedule} · Nächster Lauf: ${next}` });
+      const actions = card.createDiv({ cls: 'claudian-browser-card-actions' });
+      const run = actions.createEl('button', { text: 'Jetzt ausführen' });
+      run.addEventListener('click', () => {
+        run.disabled = true;
+        void this.plugin.workflowEngine.run(wf.id)
+          .then(() => new Notice(`Workflow ausgeführt: ${wf.name}`))
+          .finally(() => { run.disabled = false; });
+      });
+      const toggle = actions.createEl('button', { text: wf.enabled ? 'Pausieren' : 'Aktivieren' });
+      toggle.addEventListener('click', () => {
+        this.plugin.workflowEngine.setEnabled(wf.id, !wf.enabled);
+        this.onOpen();
+      });
+      const remove = actions.createEl('button', { text: 'Löschen' });
+      remove.addEventListener('click', () => {
+        this.plugin.workflowEngine.unregister(wf.id);
+        this.onOpen();
+      });
     }
   }
 }
@@ -314,6 +334,17 @@ export class TokenUsageModal extends Modal {
       { label: 'Daily', value: usage.dailyTotal, color: accent.strong },
       { label: 'Session', value: usage.sessionTotal, color: accent.soft },
     ]);
+
+    const breakdown = Object.entries(usage.breakdown ?? {}).sort((a, b) => b[1].tokens - a[1].tokens);
+    if (breakdown.length > 0) {
+      const breakdownEl = contentEl.createDiv({ cls: 'claudian-usage-breakdown-list' });
+      breakdownEl.createEl('h3', { text: 'Provider und Modelle' });
+      for (const [key, entry] of breakdown) {
+        const row = breakdownEl.createDiv({ cls: 'claudian-usage-breakdown-row' });
+        row.createSpan({ text: key.replace(':', ' · ') });
+        row.createSpan({ text: `${entry.tokens.toLocaleString('de-DE')} Tokens · ${entry.runs} Updates` });
+      }
+    }
 
     const actions = contentEl.createDiv({ cls: 'claudian-usage-actions' });
     const resetBtn = actions.createEl('button', { cls: 'claudian-usage-reset-btn', text: 'Reset Session' });

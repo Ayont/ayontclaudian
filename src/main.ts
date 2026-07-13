@@ -27,7 +27,11 @@ import {
   type SmartContextFile,
 } from './core/context/smartContext';
 import { AuditLogService } from './core/control/audit/AuditLogService';
-import { WorkflowEngine } from './core/control/workflows/WorkflowEngine';
+import {
+  type ScheduledWorkflow,
+  WorkflowEngine,
+  type WorkflowStep,
+} from './core/control/workflows/WorkflowEngine';
 import { buildDiagnosticsMarkdown } from './core/diagnostics/buildDiagnostics';
 import { getErrorHistory } from './core/diagnostics/errorHistory';
 import {
@@ -110,6 +114,7 @@ import {
   VIEW_TYPE_CLAUDIAN,
 } from './core/types';
 import type { ChatViewPlacement, EnvironmentScope } from './core/types/settings';
+import { TurnUndoService } from './core/undo/TurnUndoService';
 import {
   expandWorkflow,
   parseWorkflowFile,
@@ -121,6 +126,10 @@ import {
 import { ArtifactService } from './features/artifacts/ArtifactService';
 import { ClaudianView } from './features/chat/ClaudianView';
 import { exportConversationToNote } from './features/chat/export/ConversationExportWriter';
+import {
+  exportConversationToHtml,
+  exportConversationToPdf,
+} from './features/chat/export/ConversationHtmlExporter';
 import { ImageStagingService } from './features/chat/services/ImageStagingService';
 import { PacketTracerService } from './features/chat/services/PacketTracerService';
 import type { TabData } from './features/chat/tabs/types';
@@ -129,6 +138,12 @@ import { ProviderStatusBar } from './features/chat/ui/ProviderStatusBar';
 import { ClaudianDashboardView, VIEW_TYPE_CLAUDIAN_DASHBOARD } from './features/dashboard/ClaudianDashboardView';
 import { type InlineEditContext, InlineEditModal } from './features/inline-edit/ui/InlineEditModal';
 import { MultiAgentModal } from './features/multiAgent/MultiAgentModal';
+import {
+  CommandCenterModal,
+  ConversationTreeModal,
+  ModelComparisonModal,
+  SkillMarketplaceModal,
+} from './features/productivity/ProductivityModals';
 import { ClaudianSettingTab } from './features/settings/ClaudianSettings';
 import {
   DEFAULT_TEMPLATE_FOLDER,
@@ -181,6 +196,7 @@ export default class ClaudianPlugin extends Plugin {
   promptTemplateService!: PromptTemplateService;
   vaultHealthService!: VaultHealthService;
   artifactService!: ArtifactService;
+  turnUndoService!: TurnUndoService;
 
   async onload() {
     await this.loadSettings();
@@ -193,6 +209,7 @@ export default class ClaudianPlugin extends Plugin {
     });
     this.packetTracerService = new PacketTracerService(this.app.vault);
     this.runTimelineStore = new RunTimelineStore(this.storage.getAdapter());
+    this.turnUndoService = new TurnUndoService(this.app.vault);
 
     // Initialize prompt templates and vault health services.
     this.promptTemplateService = new PromptTemplateService(
@@ -382,6 +399,24 @@ export default class ClaudianPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: 'open-productivity-center',
+      name: 'Produktivitätszentrale öffnen',
+      callback: () => this.openCommandCenter(),
+    });
+
+    this.addCommand({
+      id: 'show-conversation-tree',
+      name: 'Show conversation branch tree',
+      callback: () => this.openConversationTree(),
+    });
+
+    this.addCommand({
+      id: 'open-skill-marketplace',
+      name: 'Open skill marketplace',
+      callback: () => new SkillMarketplaceModal(this.app).open(),
+    });
+
+    this.addCommand({
       id: 'copy-diagnostics',
       name: 'Copy diagnostics',
       callback: () => {
@@ -567,6 +602,24 @@ export default class ClaudianPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: 'export-conversation-html',
+      name: 'Export conversation as styled HTML',
+      callback: () => { void this.exportActiveConversationHtml(); },
+    });
+
+    this.addCommand({
+      id: 'export-conversation-pdf',
+      name: 'Export conversation as PDF',
+      callback: () => { void this.exportActiveConversationPdf(); },
+    });
+
+    this.addCommand({
+      id: 'undo-last-agent-turn',
+      name: 'Undo file changes from last agent turn',
+      callback: () => { void this.undoLastAgentTurn(); },
+    });
+
+    this.addCommand({
       id: 'save-prompt-snippet',
       name: 'Save current input as prompt snippet',
       callback: async () => {
@@ -747,6 +800,7 @@ export default class ClaudianPlugin extends Plugin {
     // started one this session) — otherwise it would keep running after the
     // plugin unloads.
     whisperServerManager.stop();
+    this.workflowEngine?.stop();
     this.providerStatusBar?.destroy();
     this.providerStatusBar = null;
     this.pluginUpdater = null;
@@ -863,6 +917,7 @@ export default class ClaudianPlugin extends Plugin {
     const results = await runModelComparison(entries, (entry) =>
       this.collectModelResponse(entry.providerId, entry.model, prompt),
     );
+    new ModelComparisonModal(this.app, prompt, results).open();
     const markdown = formatComparisonMarkdown(prompt, results);
 
     const folder = 'Claudian Comparisons';
@@ -1324,6 +1379,60 @@ export default class ClaudianPlugin extends Plugin {
     return firstWords || `workflow-${Date.now()}`;
   }
 
+  async createScheduledJob(args: string): Promise<ScheduledWorkflow> {
+    const match = args.trim().match(/^(hourly|daily(?:@\d{2}:\d{2})?)\s+([\s\S]+)$/i);
+    if (!match) throw new Error('Format: /schedule hourly <Aufgabe> oder /schedule daily@08:00 <Aufgabe>');
+    const cron = match[1].toLowerCase();
+    const prompt = match[2].trim();
+    const id = `job-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const workflow: ScheduledWorkflow = {
+      id,
+      name: this.currentInputNameFallback(prompt),
+      enabled: true,
+      trigger: { type: 'schedule', schedule: { cron } },
+      steps: [{ id: `${id}-prompt`, action: 'agent-prompt', params: { prompt } }],
+    };
+    this.workflowEngine.register(workflow);
+    return workflow;
+  }
+
+  private async executeWorkflowStep(step: WorkflowStep): Promise<void> {
+    if (step.action === 'agent-prompt') {
+      const prompt = String(step.params.prompt ?? '').trim();
+      if (!prompt) throw new Error('Geplanter Agent-Job enthält keinen Prompt.');
+      let response = '';
+      await this.runRawPrompt(prompt, (chunk) => { response += chunk; });
+      await this.ensureVaultFolder('Claudian/Scheduled');
+      const path = `Claudian/Scheduled/${Date.now()}-${step.id.replace(/[^a-z0-9_-]/gi, '-')}.md`;
+      await this.app.vault.create(path, [
+        '---',
+        'tags: [claudian, scheduled-job]',
+        `created: ${new Date().toISOString()}`,
+        `workflow_step: ${step.id}`,
+        '---',
+        '',
+        '# Geplanter Agent-Lauf',
+        '',
+        '## Aufgabe',
+        '',
+        prompt,
+        '',
+        '## Ergebnis',
+        '',
+        response.trim() || '_(Keine Ausgabe)_',
+      ].join('\n'));
+      return;
+    }
+    if (step.action === 'vault-health') {
+      const result = await this.vaultHealthService.orphanCheck();
+      await this.createMarkdownNote('Claudian/Scheduled', `vault-health-${Date.now()}`, [
+        '# Vault Health', '', result.summary, '', ...result.items.map((item) => `- ${item.path}: ${item.description}`),
+      ].join('\n'));
+      return;
+    }
+    throw new Error(`Unbekannte Workflow-Aktion: ${step.action}`);
+  }
+
   async createWorkflowFromCurrentInput(): Promise<void> {
     const tab = this.getView()?.getActiveTab();
     const input = tab?.dom.inputEl.value.trim() ?? '';
@@ -1479,6 +1588,62 @@ export default class ClaudianPlugin extends Plugin {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       new Notice(`Export fehlgeschlagen: ${message}`);
+    }
+  }
+
+  async undoLastAgentTurn(): Promise<void> {
+    const conversationId = this.getView()?.getActiveTab()?.state.currentConversationId ?? undefined;
+    try {
+      const restored = await this.turnUndoService.revertLatest(conversationId)
+        ?? await this.turnUndoService.revertLatest();
+      if (!restored) {
+        new Notice('Keine rückgängig machbaren Agent-Änderungen gefunden.');
+        return;
+      }
+      const count = restored.changes.length;
+      new Notice(`${count} Datei${count === 1 ? '' : 'en'} aus dem letzten Agent-Turn wiederhergestellt.`);
+    } catch (error) {
+      new Notice(`Agent-Undo fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  openCommandCenter(): void {
+    new CommandCenterModal(this.app, this).open();
+  }
+
+  openConversationTree(): void {
+    new ConversationTreeModal(this.app, this).open();
+  }
+
+  async exportActiveConversationHtml(conversationId?: string): Promise<void> {
+    const id = conversationId ?? this.getView()?.getActiveTab()?.state.currentConversationId;
+    if (!id) {
+      new Notice('Keine aktive Konversation zum Exportieren.');
+      return;
+    }
+    const conversation = await this.getConversationById(id);
+    if (!conversation) return;
+    try {
+      const path = await exportConversationToHtml(this.app, conversation);
+      new Notice(`HTML-Export gespeichert: ${path}`);
+    } catch (error) {
+      new Notice(`HTML-Export fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  async exportActiveConversationPdf(conversationId?: string): Promise<void> {
+    const id = conversationId ?? this.getView()?.getActiveTab()?.state.currentConversationId;
+    if (!id) {
+      new Notice('Keine aktive Konversation zum Exportieren.');
+      return;
+    }
+    const conversation = await this.getConversationById(id);
+    if (!conversation) return;
+    try {
+      const path = await exportConversationToPdf(this.app, conversation);
+      new Notice(`PDF-Export gespeichert: ${path}`);
+    } catch (error) {
+      new Notice(`PDF-Export fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -1701,11 +1866,28 @@ export default class ClaudianPlugin extends Plugin {
     await this.metadataStore.initialize();
 
     this.auditLogService = new AuditLogService(this.metadataStore);
+    const workflowPath = '.claudian/scheduled-jobs.json';
     this.workflowEngine = new WorkflowEngine(async (step) => {
       globalEventBus.emit('agent:run-started', { stepId: step.id, action: step.action });
-      // Workflow steps are currently no-ops; concrete handlers are added per step type.
-      globalEventBus.emit('agent:run-completed', { stepId: step.id });
+      try {
+        await this.executeWorkflowStep(step);
+        globalEventBus.emit('agent:run-completed', { stepId: step.id });
+      } catch (error) {
+        globalEventBus.emit('agent:run-error', { stepId: step.id, error });
+        throw error;
+      }
+    }, {
+      load: async () => {
+        if (!(await this.app.vault.adapter.exists(workflowPath))) return [];
+        const parsed = JSON.parse(await this.app.vault.adapter.read(workflowPath)) as unknown;
+        return Array.isArray(parsed) ? parsed as ScheduledWorkflow[] : [];
+      },
+      save: async (workflows) => {
+        if (!(await this.app.vault.adapter.exists('.claudian'))) await this.app.vault.adapter.mkdir('.claudian');
+        await this.app.vault.adapter.write(workflowPath, JSON.stringify(workflows, null, 2));
+      },
     });
+    await this.workflowEngine.load();
     this.workflowEngine.start();
 
     this.projectService = new ProjectService(this.app.vault);
@@ -2251,6 +2433,14 @@ export default class ClaudianPlugin extends Plugin {
 
   getConversationSync(id: string): Conversation | null {
     return this.conversations.find(c => c.id === id) || null;
+  }
+
+  getConversationSnapshots(): Conversation[] {
+    return this.conversations.map((conversation) => ({
+      ...conversation,
+      messages: [...conversation.messages],
+      providerState: conversation.providerState ? { ...conversation.providerState } : undefined,
+    }));
   }
 
   findEmptyConversation(): Conversation | null {

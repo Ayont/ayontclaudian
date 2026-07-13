@@ -5,6 +5,7 @@ import {
   detectBuiltInCommand,
   getBuiltInCommandsForDropdown,
   isBuiltInCommandSupported,
+  parseBuiltInCommandChain,
 } from '../../../../src/core/commands/builtInCommands';
 
 describe('builtInCommands', () => {
@@ -150,6 +151,17 @@ describe('builtInCommands', () => {
     });
   });
 
+  describe('parseBuiltInCommandChain', () => {
+    it('parses chained slash commands in order', () => {
+      const chain = parseBuiltInCommandChain('/status && /export-html\n/branches');
+      expect(chain?.map((item) => item.command.action)).toEqual(['status', 'export-html', 'branches']);
+    });
+
+    it('rejects mixed command and prose input', () => {
+      expect(parseBuiltInCommandChain('/status && explain this')).toBeNull();
+    });
+  });
+
   describe('getBuiltInCommandsForDropdown', () => {
     it('returns all built-in commands with proper format', () => {
       const commands = getBuiltInCommandsForDropdown();
@@ -269,8 +281,8 @@ describe('builtInCommands', () => {
     it('returns only commands supported by codex capabilities', () => {
       const commands = getBuiltInCommandsForDropdown('codex');
       // Universal commands (no required capability) join the supported set.
-      expect(commands.length).toBe(15);
-      expect(commands.map(c => c.name)).toEqual(['clear', 'add-dir', 'resume', 'fork', 'goal', 'workflow', 'team', 'template', 'vault-health', 'artifact', 'document', 'email', 'skill', 'packet-tracer', 'status']);
+      expect(commands.length).toBe(22);
+      expect(commands.map(c => c.name)).toEqual(['clear', 'add-dir', 'resume', 'fork', 'undo', 'branches', 'commands', 'export-html', 'export-pdf', 'goal', 'workflow', 'schedule', 'team', 'template', 'vault-health', 'artifact', 'document', 'email', 'image', 'skill', 'packet-tracer', 'status']);
     });
   });
 

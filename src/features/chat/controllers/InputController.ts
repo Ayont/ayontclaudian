@@ -4,7 +4,9 @@ import {
   type BuiltInCommand,
   detectBuiltInCommand,
   isBuiltInCommandSupported,
+  parseBuiltInCommandChain,
 } from '../../../core/commands/builtInCommands';
+import { buildLinkedNoteContext } from '../../../core/context/linkedNoteContext';
 import { applyGoalPrefix, parseGoalArgs } from '../../../core/conversation/goalPrompt';
 import { providerErrorRecoveryService } from '../../../core/diagnostics/errorRecovery';
 import { getLastPerf, perfMark, perfSince } from '../../../core/diagnostics/perfLog';
@@ -332,6 +334,19 @@ export class InputController {
       : [];
     if (!content && !hasImages && stagedAttachments.length === 0) return;
 
+    // Command chaining: execute several deterministic built-ins in order.
+    const commandChain = parseBuiltInCommandChain(content);
+    if (commandChain) {
+      if (shouldUseInput) {
+        inputEl.value = '';
+        this.deps.resetInputHeight();
+      }
+      for (const item of commandChain) {
+        await this.executeBuiltInCommand(item.command, item.args);
+      }
+      return;
+    }
+
     // Check for built-in commands first (e.g., /clear, /new, /add-dir)
     const builtInCmd = detectBuiltInCommand(content);
     if (builtInCmd) {
@@ -533,6 +548,17 @@ export class InputController {
       });
     }
 
+    // Add a bounded one-hop graph neighborhood for the attached current note.
+    // This complements semantic RAG with explicit Obsidian relationships and is
+    // deliberately small so densely linked notes cannot flood the prompt.
+    if (!options?.turnRequestOverride) {
+      const currentNotePath = fileContextManager?.getCurrentNotePath() ?? null;
+      if (currentNotePath) {
+        const graphContext = await buildLinkedNoteContext(plugin.app, currentNotePath).catch(() => '');
+        if (graphContext) turnRequest.text = `${graphContext}\n\n${turnRequest.text}`;
+      }
+    }
+
     fileContextManager?.markCurrentNoteSent();
 
     const userMsg: ChatMessage = {
@@ -696,6 +722,16 @@ export class InputController {
       }
     }
 
+    // Capture a bounded vault baseline before the provider query. Only files
+    // that actually change are persisted, yielding a provider-neutral undo.
+    const undoService = plugin.turnUndoService;
+    const undoSnapshotId = undoService
+      ? await undoService.begin(
+        state.currentConversationId ?? 'pending',
+        content,
+        turnRequest.externalContextPaths ?? [],
+      ).catch(() => '')
+      : '';
     try {
       // Pass history WITHOUT current turn (userMsg + assistantMsg we just added).
       // This prevents duplication when rebuilding context for new sessions.
@@ -864,6 +900,10 @@ export class InputController {
     } finally {
       // Always stop the stream watchdog — prevents timer leaks on any exit path.
       this.stopStreamWatchdog();
+      void Promise.resolve(undoSnapshotId && undoService ? undoService.finish(undoSnapshotId) : null)
+        .catch(() => {
+          // Undo capture is a safety enhancement and must never break a turn.
+        });
       const finalAssistantMsg = this.activeStreamingAssistantMessage ?? assistantMsg;
       const turnMetadata = agentService.consumeTurnMetadata();
       userMsg.userMessageId = turnMetadata.userMessageId ?? userMsg.userMessageId;
@@ -2440,6 +2480,21 @@ export class InputController {
         await this.deps.onForkAll();
         break;
       }
+      case 'undo':
+        await this.deps.plugin.undoLastAgentTurn();
+        break;
+      case 'branches':
+        this.deps.plugin.openConversationTree();
+        break;
+      case 'command-center':
+        this.deps.plugin.openCommandCenter();
+        break;
+      case 'export-html':
+        await this.deps.plugin.exportActiveConversationHtml();
+        break;
+      case 'export-pdf':
+        await this.deps.plugin.exportActiveConversationPdf();
+        break;
       case 'goal': {
         const nextGoal = parseGoalArgs(args);
         this.deps.setActiveGoal?.(nextGoal);
@@ -2462,6 +2517,15 @@ export class InputController {
         inputEl.focus();
         this.deps.resetInputHeight();
         new Notice(`Workflow eingefügt: ${name}`);
+        break;
+      }
+      case 'schedule': {
+        try {
+          const workflow = await this.deps.plugin.createScheduledJob(args);
+          new Notice(`Job geplant: ${workflow.name}`);
+        } catch (error) {
+          new Notice(error instanceof Error ? error.message : String(error));
+        }
         break;
       }
       case 'team': {
@@ -2648,6 +2712,22 @@ export class InputController {
             + 'genannt ist, liefere die vier Varianten kurz, geschäftlich, freundlich und Support als direkt '
             + 'aufeinanderfolgende `claudian-email`-Blöcke; sie erscheinen gemeinsam in einem Auswahlfenster. '
             + 'Markiere fehlende Angaben mit klaren Platzhaltern und verwende keine Markdown-Formatierung.\n\n'
+            + request,
+        });
+        break;
+      }
+      case 'image': {
+        const request = args.trim();
+        if (!request) {
+          new Notice('Verwendung: /image <Bildbeschreibung>');
+          return;
+        }
+        await this.sendMessage({
+          content:
+            'Erzeuge jetzt wirklich ein Bild für die folgende Anforderung. Verwende ein verfügbares '
+            + 'Bildgenerierungs-Tool oder verbundenes MCP, speichere das Ergebnis im Vault und schließe '
+            + 'mit genau einem `claudian-image`-Block ab, der Titel, exakten Prompt, lokalen Pfad, Alt-Text '
+            + 'und Provider enthält. Behaupte keine Generierung, wenn kein echtes Ergebnis vorliegt.\n\n'
             + request,
         });
         break;

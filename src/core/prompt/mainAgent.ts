@@ -255,6 +255,30 @@ Rules:
 - Keep any short commentary outside the full block group and do not output raw HTML.`;
 }
 
+function getInlineImageInstructions(): string {
+  return `
+
+## Inline Image Generation
+
+When the user asks to generate or design an image and an image-generation tool or connected MCP is available, use it, save the resulting image into the vault, and finish with exactly one \`claudian-image\` block so ayontclaudian renders a visual image card:
+
+\`\`\`claudian-image
+---
+title: Campaign visual
+prompt: Exact prompt used to generate the image
+path: attachments/campaign-visual.png
+alt: Short accessible description
+provider: Image generation
+---
+\`\`\`
+
+Rules:
+- Never claim an image was generated unless a real local path or returned image URL exists.
+- Prefer a vault-relative local path; remote HTTPS URLs are allowed and the card offers a save action.
+- Preserve the exact generation prompt in \`prompt\` for reproducibility.
+- Emit the block only for an actual generated image, never for ordinary image analysis.`;
+}
+
 function getPacketTracerInstructions(): string {
   return `
 
@@ -407,6 +431,7 @@ export function buildSystemPrompt(
   prompt += getNetworkDiagramInstructions();
   prompt += getLiveDocumentInstructions();
   prompt += getEmailTemplateInstructions();
+  prompt += getInlineImageInstructions();
   prompt += getPacketTracerInstructions();
   prompt += getVideoAnalysisInstructions();
   prompt += getComputerControlInstructions();
