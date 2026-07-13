@@ -72,9 +72,21 @@ export function formatActivityOffset(startedAt: number, at: number): string {
   return `+${formatElapsed(ms)}`;
 }
 
+export interface StreamStatusBarOptions {
+  now?: () => number;
+  /** Invoked when the user clicks the inline Cancel button. */
+  onCancel?: () => void;
+}
+
+/** Silence (ms) with no NEW activity before the bar switches to a waiting state. */
+const SILENCE_WARN_MS = 10_000;
+
 export class StreamStatusBar {
   private readonly el: HTMLElement;
   private readonly toggleEl: HTMLButtonElement;
+  private readonly cancelButton: HTMLButtonElement;
+  private readonly progressBarEl: HTMLElement;
+  private readonly waitingEl: HTMLElement;
   private readonly labelEl: HTMLElement;
   private readonly phraseEl: HTMLElement;
   private readonly activityEl: HTMLElement;
@@ -88,7 +100,10 @@ export class StreamStatusBar {
   private readonly activityHistoryEl: HTMLElement;
   private intervalId: number | null = null;
   private startedAt = 0;
+  private lastActivityAt = 0;
+  private isWaiting = false;
   private readonly now: () => number;
+  private readonly onCancel: (() => void) | null;
   private currentLabel = 'Generiert…';
   private currentPhrase = 'arbeitet';
   private currentActivity = 'Warte auf Provider-Events';
@@ -99,14 +114,19 @@ export class StreamStatusBar {
   private cancelEventCountAnimation: (() => void) | null = null;
   private currentStage = 1;
 
-  constructor(parentEl: HTMLElement, now: () => number = () => Date.now()) {
-    this.now = now;
+  constructor(parentEl: HTMLElement, options: StreamStatusBarOptions = {}) {
+    this.now = options.now ?? (() => Date.now());
+    this.onCancel = options.onCancel ?? null;
     this.el = parentEl.createDiv({ cls: 'claudian-stream-status claudian-hidden' });
     // Sit at the top of the input area (just below the messages), above the
     // nav row and composer, so the "working" status is clearly visible.
     parentEl.prepend(this.el);
 
-    this.toggleEl = this.el.createEl('button', { cls: 'claudian-stream-status-toggle' });
+    // Header row holds the (button) toggle plus a sibling Cancel button —
+    // buttons can't nest, so Cancel lives next to the toggle, not inside it.
+    const rowEl = this.el.createDiv({ cls: 'claudian-stream-status-row' });
+
+    this.toggleEl = rowEl.createEl('button', { cls: 'claudian-stream-status-toggle' });
     this.toggleEl.setAttribute('type', 'button');
     this.toggleEl.setAttribute('aria-expanded', 'false');
     this.toggleEl.setAttribute('aria-label', 'Live-Aktivität anzeigen');
@@ -120,12 +140,32 @@ export class StreamStatusBar {
     this.phraseEl.setText(this.currentPhrase);
     this.activityEl = textEl.createSpan({ cls: 'claudian-stream-status-activity' });
     this.activityEl.setText(this.currentActivity);
+    this.waitingEl = textEl.createSpan({ cls: 'claudian-stream-status-waiting claudian-hidden' });
     this.eventCountEl = this.toggleEl.createSpan({ cls: 'claudian-stream-status-event-count' });
     this.eventCountValueEl = this.eventCountEl.createSpan({ text: '0' });
     this.eventCountEl.createSpan({ text: ' Schritte' });
     this.timerEl = this.toggleEl.createSpan({ cls: 'claudian-stream-status-timer' });
     const chevronEl = this.toggleEl.createSpan({ cls: 'claudian-stream-status-chevron' });
     setIcon(chevronEl, 'chevron-up');
+
+    // Real, always-clickable Cancel button (replaces the old "klicke Cancel"
+    // text that was rendered into the stream and could not be clicked).
+    this.cancelButton = rowEl.createEl('button', { cls: 'claudian-stream-status-cancel' });
+    this.cancelButton.setAttribute('type', 'button');
+    this.cancelButton.setAttribute('aria-label', 'Antwort abbrechen');
+    this.cancelButton.setAttribute('title', 'Antwort abbrechen (Esc)');
+    setIcon(this.cancelButton.createSpan({ cls: 'claudian-stream-status-cancel-icon' }), 'square');
+    this.cancelButton.createSpan({ cls: 'claudian-stream-status-cancel-label', text: 'Stop' });
+    this.cancelButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.onCancel?.();
+    });
+
+    // Indeterminate progress bar — animated while active, calmer/greyer while
+    // waiting on a slow provider.
+    const progressTrack = this.el.createDiv({ cls: 'claudian-stream-status-progress' });
+    this.progressBarEl = progressTrack.createDiv({ cls: 'claudian-stream-status-progress-bar' });
 
     this.detailEl = this.el.createDiv({ cls: 'claudian-stream-status-detail' });
     this.detailPrimaryEl = this.detailEl.createDiv({ cls: 'claudian-stream-status-detail-primary' });
@@ -176,6 +216,8 @@ export class StreamStatusBar {
     this.currentMeta = nextMeta;
     this.currentStage = resolveActivityStage(nextPrimary);
     if (!wasCurrentActivity) {
+      this.lastActivityAt = this.now();
+      this.setWaiting(false);
       this.activities = appendActivity(this.activities, {
         primary: nextPrimary,
         meta: nextMeta,
@@ -197,6 +239,8 @@ export class StreamStatusBar {
 
   private start(): void {
     this.startedAt = this.now();
+    this.lastActivityAt = this.startedAt;
+    this.setWaiting(false);
     this.activities = [];
     this.currentActivity = 'Starte Provider-Turn';
     this.currentMeta = this.currentLabel;
@@ -218,6 +262,7 @@ export class StreamStatusBar {
 
   private stop(): void {
     this.clearTimer();
+    this.setWaiting(false);
     this.el.addClass('claudian-hidden');
     this.el.removeClass('is-open');
     this.isOpen = false;
@@ -244,10 +289,29 @@ export class StreamStatusBar {
     });
   }
 
+  /** Toggles the calmer "waiting on a slow provider" state. */
+  private setWaiting(waiting: boolean): void {
+    if (this.isWaiting === waiting) return;
+    this.isWaiting = waiting;
+    this.el.toggleClass('is-waiting', waiting);
+    this.progressBarEl.toggleClass('is-waiting', waiting);
+    this.waitingEl.toggleClass('claudian-hidden', !waiting);
+  }
+
   private renderTimer(): void {
     const nextValue = formatElapsed(this.now() - this.startedAt);
     const changed = this.timerEl.textContent !== nextValue;
     this.timerEl.setText(nextValue);
+
+    // Live "no answer yet" readout: once the provider has been silent past the
+    // threshold, show exactly how long — so a slow turn is legible, not scary.
+    const silenceMs = this.now() - this.lastActivityAt;
+    if (silenceMs > SILENCE_WARN_MS) {
+      this.setWaiting(true);
+      this.waitingEl.setText(`· ${formatElapsed(silenceMs)} ohne Antwort`);
+    } else if (this.isWaiting) {
+      this.setWaiting(false);
+    }
     const ownerWindow = this.timerEl.ownerDocument?.defaultView ?? window;
     const reduceMotion = ownerWindow.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     if (changed && !reduceMotion && typeof this.timerEl.animate === 'function') {

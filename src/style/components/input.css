@@ -333,12 +333,20 @@
   animation: claudian-stream-scan 2.8s var(--cl-ease) infinite;
 }
 
+/* Header row: expandable toggle (flex-fill) + always-clickable Stop button. */
+.claudian-stream-status-row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+
 .claudian-stream-status-toggle {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: var(--cl-space-2);
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   /* Obsidian themes give <button> a fixed height — with the two-line text
      column that made the activity line spill under the pill border and paint
      THROUGH the detail separator ("durchgestrichene" doppelte Zeile). */
@@ -429,6 +437,96 @@
   z-index: 1;
 }
 
+/* Live "no answer yet" readout (only visible in the waiting state). */
+.claudian-stream-status-waiting {
+  display: block;
+  margin-top: 1px;
+  font-size: var(--cl-text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+/* Inline Stop button — a real, always-clickable control. */
+.claudian-stream-status-cancel {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 0 12px;
+  margin: 6px 8px 6px 0;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--cl-radius-pill);
+  background: var(--background-primary);
+  color: var(--text-muted);
+  font-size: var(--cl-text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+
+.claudian-stream-status-cancel-icon {
+  display: flex;
+  align-items: center;
+}
+
+.claudian-stream-status-cancel-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.claudian-stream-status-cancel:hover {
+  color: var(--text-on-accent, #fff);
+  background: var(--background-modifier-error, #c0392b);
+  border-color: transparent;
+}
+
+.claudian-stream-status-cancel:active {
+  transform: scale(0.95);
+}
+
+.claudian-stream-status-cancel:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+
+/* Indeterminate progress bar under the header row. */
+.claudian-stream-status-progress {
+  position: relative;
+  height: 2px;
+  overflow: hidden;
+  background: rgba(var(--claudian-brand-rgb), 0.12);
+}
+
+.claudian-stream-status-progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 40%;
+  border-radius: var(--cl-radius-pill);
+  background: var(--cl-accent);
+  animation: claudian-stream-progress 1.35s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Waiting on a slow provider: calmer, greyer, slower sweep. */
+.claudian-stream-status.is-waiting .claudian-stream-status-progress {
+  background: var(--background-modifier-border);
+}
+
+.claudian-stream-status-progress-bar.is-waiting {
+  background: var(--text-faint);
+  animation-duration: 2.4s;
+}
+
+.claudian-stream-status.is-waiting .claudian-stream-status-dot {
+  background: var(--text-faint);
+}
+
+@keyframes claudian-stream-progress {
+  0% { transform: translateX(-105%); }
+  100% { transform: translateX(305%); }
+}
+
 .claudian-stream-status-event-count {
   padding: 2px 6px;
   border: 1px solid var(--cl-accent-line);
@@ -489,6 +587,14 @@
 @media (prefers-reduced-motion: reduce) {
   .claudian-stream-status.is-open .claudian-stream-status-detail {
     animation: none;
+  }
+  .claudian-stream-status-progress-bar {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+  .claudian-stream-status-cancel:active {
+    transform: none;
   }
 }
 

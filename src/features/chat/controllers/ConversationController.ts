@@ -3,7 +3,7 @@ import { Menu, Notice, setIcon } from 'obsidian';
 import type { TitleGenerationService } from '../../../core/providers/types';
 import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
 import type { ChatRewindMode } from '../../../core/runtime/types';
-import type { Conversation } from '../../../core/types';
+import type { Conversation, ConversationMeta } from '../../../core/types';
 import { t } from '../../../i18n/i18n';
 import type ClaudianPlugin from '../../../main';
 import { confirm } from '../../../shared/modals/ConfirmModal';
@@ -70,6 +70,8 @@ export class ConversationController {
   private callbacks: ConversationCallbacks;
   /** Serializes vault writes so fast UI events cannot persist stale state out of order. */
   private saveQueue: Promise<void> | null = null;
+  /** Live history search query — persists across re-renders so typing keeps focus. */
+  private historyFilter = '';
 
   constructor(deps: ConversationControllerDeps, callbacks: ConversationCallbacks = {}) {
     this.deps = deps;
@@ -585,26 +587,105 @@ export class ConversationController {
     container: HTMLElement,
     options: HistoryRenderOptions
   ): void {
-    const { plugin, state } = this.deps;
+    const { plugin } = this.deps;
 
     container.empty();
 
     const dropdownHeader = container.createDiv({ cls: 'claudian-history-header' });
-    dropdownHeader.createSpan({ text: 'Conversations' });
+    const headerTop = dropdownHeader.createDiv({ cls: 'claudian-history-header-top' });
+    headerTop.createSpan({ cls: 'claudian-history-header-title', text: 'Verlauf' });
+    const countEl = headerTop.createSpan({ cls: 'claudian-history-header-count' });
 
-    const list = container.createDiv({ cls: 'claudian-history-list' });
     const allConversations = plugin.getConversationList();
 
-    if (allConversations.length === 0) {
-      list.createDiv({ cls: 'claudian-history-empty', text: 'No conversations' });
-      return;
-    }
+    // Search box (inside the header): filters by title, preview, and cached
+    // message content so the history is navigable even with hundreds of chats.
+    const searchWrap = dropdownHeader.createDiv({ cls: 'claudian-history-search' });
+    const searchIcon = searchWrap.createSpan({ cls: 'claudian-history-search-icon' });
+    setIcon(searchIcon, 'search');
+    const searchInput = searchWrap.createEl('input', {
+      cls: 'claudian-history-search-input',
+      attr: { type: 'text', placeholder: 'Verlauf durchsuchen…', spellcheck: 'false' },
+    });
+    searchInput.value = this.historyFilter;
+    const clearBtn = searchWrap.createEl('button', {
+      cls: 'claudian-history-search-clear',
+      attr: { type: 'button', 'aria-label': 'Suche zurücksetzen' },
+    });
+    setIcon(clearBtn, 'x');
 
-    // Sort by lastResponseAt (fallback to createdAt) descending
-    const conversations = [...allConversations].sort((a, b) => {
-      return (b.lastResponseAt ?? b.createdAt) - (a.lastResponseAt ?? a.createdAt);
+    const list = container.createDiv({ cls: 'claudian-history-list' });
+
+    const renderList = (): void => {
+      list.empty();
+      const query = this.historyFilter.trim().toLowerCase();
+      clearBtn.toggleClass('claudian-hidden', query.length === 0);
+
+      if (allConversations.length === 0) {
+        list.createDiv({ cls: 'claudian-history-empty', text: 'Noch keine Unterhaltungen' });
+        countEl.setText('');
+        return;
+      }
+
+      const sorted = [...allConversations].sort((a, b) => {
+        return (b.lastResponseAt ?? b.createdAt) - (a.lastResponseAt ?? a.createdAt);
+      });
+      const conversations = query
+        ? sorted.filter((conv) => this.conversationMatchesQuery(conv, query))
+        : sorted;
+
+      countEl.setText(query
+        ? `${conversations.length}/${sorted.length}`
+        : `${sorted.length}`);
+
+      if (conversations.length === 0) {
+        list.createDiv({ cls: 'claudian-history-empty', text: 'Keine Treffer' });
+        return;
+      }
+
+      this.renderHistoryList(list, conversations, options);
+    };
+
+    searchInput.addEventListener('input', () => {
+      this.historyFilter = searchInput.value;
+      renderList();
+    });
+    searchInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && this.historyFilter) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.historyFilter = '';
+        searchInput.value = '';
+        renderList();
+      }
+    });
+    clearBtn.addEventListener('click', () => {
+      this.historyFilter = '';
+      searchInput.value = '';
+      searchInput.focus();
+      renderList();
     });
 
+    renderList();
+  }
+
+  /** Case-insensitive match across title, preview, and any cached message text. */
+  private conversationMatchesQuery(conv: ConversationMeta, query: string): boolean {
+    if (conv.title.toLowerCase().includes(query)) return true;
+    if (conv.preview?.toLowerCase().includes(query)) return true;
+    // Deep "context" search over already-loaded message bodies (no disk read).
+    const cached = this.deps.plugin.getConversationSync(conv.id);
+    if (cached?.messages?.some((m) => m.content?.toLowerCase().includes(query))) return true;
+    return false;
+  }
+
+  /** Renders the filtered, sorted conversation rows into the list container. */
+  private renderHistoryList(
+    list: HTMLElement,
+    conversations: ConversationMeta[],
+    options: HistoryRenderOptions,
+  ): void {
+    const { state } = this.deps;
     for (const conv of conversations) {
       const isCurrent = conv.id === state.currentConversationId;
       const item = list.createDiv({
@@ -694,6 +775,19 @@ export class ConversationController {
       renameBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         this.showRenameInput(item, conv.id, conv.title);
+      });
+
+      // Visible "save as note" action — discoverable without the context menu.
+      const exportBtn = actions.createEl('button', { cls: 'claudian-action-btn' });
+      setIcon(exportBtn, 'download');
+      exportBtn.setAttribute('aria-label', 'Als Notiz speichern');
+      exportBtn.setAttribute('title', 'Als Notiz im Vault speichern');
+      exportBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        void this.runHistoryAction(
+          () => this.deps.plugin.exportActiveConversation(conv.id),
+          'Konversation konnte nicht exportiert werden',
+        );
       });
 
       const deleteBtn = actions.createEl('button', { cls: 'claudian-action-btn claudian-delete-btn' });

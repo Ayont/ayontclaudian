@@ -35,13 +35,106 @@
 }
 
 .claudian-history-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   padding: 8px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.claudian-history-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.claudian-history-header-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--interactive-accent);
+  background: rgba(var(--claudian-brand-rgb), 0.12);
+  padding: 1px 8px;
+  border-radius: 100px;
+}
+
+/* Search box (inside the header) */
+.claudian-history-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-primary);
+}
+
+.claudian-history-search:focus-within {
+  border-color: var(--interactive-accent);
+}
+
+.claudian-history-search-icon {
+  display: flex;
+  align-items: center;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.claudian-history-search-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.claudian-history-search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+  font-size: 13px;
+  color: var(--text-normal);
+  padding: 2px 0;
+}
+
+.claudian-history-search-input:focus,
+.claudian-history-search-input:focus-visible {
+  border: none;
+  outline: none;
+  box-shadow: none;
+}
+
+.claudian-history-search-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 120ms ease, background 120ms ease;
+}
+
+.claudian-history-search-clear svg {
+  width: 12px;
+  height: 12px;
+}
+
+.claudian-history-search-clear:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
 }
 
 .claudian-history-list {

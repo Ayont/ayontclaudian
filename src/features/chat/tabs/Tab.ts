@@ -647,7 +647,11 @@ export function createTab(options: TabCreateOptions): TabData {
   const dom = buildTabDOM(contentEl);
   state.queueIndicatorEl = dom.queueIndicatorEl;
 
-  streamStatusBar = new StreamStatusBar(dom.inputContainerEl);
+  streamStatusBar = new StreamStatusBar(dom.inputContainerEl, {
+    // The inline Stop button cancels the active turn (same path as Esc). The
+    // closure runs only on click, by which point `tab` is fully initialized.
+    onCancel: () => tab.controllers.inputController?.cancelStreaming(),
+  });
 
   // Floating swarm overview: lists every subagent (sync + async) spawned this
   // conversation, its live status / current tool, and jumps to its inline block

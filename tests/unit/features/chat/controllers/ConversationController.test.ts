@@ -634,6 +634,72 @@ describe('ConversationController', () => {
         expect(list.children[0].hasClass('claudian-history-empty')).toBe(true);
       });
 
+      it('renders a search box in the header', () => {
+        (deps.plugin.getConversationList as jest.Mock).mockReturnValue([
+          { id: 'conv-1', title: 'First', createdAt: 1000, lastResponseAt: 3000 },
+        ]);
+
+        controller.updateHistoryDropdown();
+
+        const header = dropdown.children[0];
+        const searchInput = header.querySelector('.claudian-history-search-input');
+        expect(searchInput).toBeTruthy();
+      });
+
+      it('filters conversations by title via the search box', () => {
+        (deps.plugin.getConversationList as jest.Mock).mockReturnValue([
+          { id: 'conv-1', title: 'FortiGate VLAN', createdAt: 1000, lastResponseAt: 3000, preview: '' },
+          { id: 'conv-2', title: 'Veylor Bazaar', createdAt: 2000, lastResponseAt: 2000, preview: '' },
+        ]);
+        (deps.plugin.getConversationSync as jest.Mock) = jest.fn().mockReturnValue(null);
+
+        controller.updateHistoryDropdown();
+
+        const searchInput = dropdown.children[0].querySelector('.claudian-history-search-input');
+        searchInput!.value = 'vlan';
+        searchInput!.dispatchEvent({ type: 'input' });
+
+        const list = dropdown.children[1];
+        const titles = list.children
+          .map((item: any) => item.querySelector('.claudian-history-item-title')?.textContent)
+          .filter(Boolean);
+        expect(titles).toEqual(['FortiGate VLAN']);
+      });
+
+      it('matches on preview text (context search)', () => {
+        (deps.plugin.getConversationList as jest.Mock).mockReturnValue([
+          { id: 'conv-1', title: 'Chat A', createdAt: 1000, lastResponseAt: 3000, preview: 'about mongodb indexes' },
+          { id: 'conv-2', title: 'Chat B', createdAt: 2000, lastResponseAt: 2000, preview: 'about css grids' },
+        ]);
+        (deps.plugin.getConversationSync as jest.Mock) = jest.fn().mockReturnValue(null);
+
+        controller.updateHistoryDropdown();
+
+        const searchInput = dropdown.children[0].querySelector('.claudian-history-search-input');
+        searchInput!.value = 'mongodb';
+        searchInput!.dispatchEvent({ type: 'input' });
+
+        const list = dropdown.children[1];
+        expect(list.children.length).toBe(1);
+        expect(list.children[0].querySelector('.claudian-history-item-title')?.textContent).toBe('Chat A');
+      });
+
+      it('shows a "no matches" row when the filter excludes everything', () => {
+        (deps.plugin.getConversationList as jest.Mock).mockReturnValue([
+          { id: 'conv-1', title: 'Alpha', createdAt: 1000, lastResponseAt: 3000, preview: '' },
+        ]);
+        (deps.plugin.getConversationSync as jest.Mock) = jest.fn().mockReturnValue(null);
+
+        controller.updateHistoryDropdown();
+
+        const searchInput = dropdown.children[0].querySelector('.claudian-history-search-input');
+        searchInput!.value = 'zzzzz';
+        searchInput!.dispatchEvent({ type: 'input' });
+
+        const list = dropdown.children[1];
+        expect(list.children[0].hasClass('claudian-history-empty')).toBe(true);
+      });
+
       it('should sort conversations by lastResponseAt descending', () => {
         (deps.plugin.getConversationList as jest.Mock).mockReturnValue([
           { id: 'conv-old', title: 'Old', createdAt: 1000, lastResponseAt: 1000 },
@@ -688,8 +754,8 @@ describe('ConversationController', () => {
         const item = list.children[0];
         const actions = item.querySelector('.claudian-history-item-actions');
         expect(actions).toBeTruthy();
-        // regenerate button + rename button + delete button = 3 children
-        expect(actions!.children.length).toBe(3);
+        // regenerate + rename + export + delete = 4 children
+        expect(actions!.children.length).toBe(4);
       });
 
       it('should not show select click handler on current conversation', () => {

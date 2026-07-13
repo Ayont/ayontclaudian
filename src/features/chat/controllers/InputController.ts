@@ -748,7 +748,7 @@ export class InputController {
       for (;;) {
         this.watchdogTimedOut = false;
         // Start the stream watchdog — detects hangs and provides user feedback.
-        this.startStreamWatchdog(state, streamController);
+        this.startStreamWatchdog(state);
         let timedOutThisAttempt = false;
         let imageNotSupportedThisAttempt = false;
 
@@ -1433,7 +1433,7 @@ export class InputController {
    * indicator. After {@link WATCHDOG_TIMEOUT_MS} it auto-cancels the stream and
    * shows an error message with a retry hint.
    */
-  private startStreamWatchdog(state: ChatState, streamController: StreamController): void {
+  private startStreamWatchdog(state: ChatState): void {
     this.stopStreamWatchdog();
     this.lastChunkTime = Date.now();
     this.streamStartTime = Date.now();
@@ -1442,13 +1442,11 @@ export class InputController {
     this.streamWatchdogTimer = window.setInterval(() => {
       const silenceMs = Date.now() - this.lastChunkTime;
 
-      // Phase 1: Warning — show "still working" after 30s of silence
+      // Phase 1: silence is now surfaced live by the StreamStatusBar (animated
+      // progress bar + "Xs ohne Antwort" readout + a real Stop button), so we
+      // no longer inject a confusing "klicke Cancel" blockquote into the stream.
       if (silenceMs > InputController.WATCHDOG_WARN_MS && !this.watchdogWarningShown) {
         this.watchdogWarningShown = true;
-        const secs = Math.round(silenceMs / 1000);
-        streamController.appendText(
-          `\n\n> ⏳ *Claudian scheint noch zu arbeiten... ${secs}s ohne Antwort. Wenn es hängt, klicke "Cancel" oder warte weiter.*\n`,
-        ).catch(() => { /* best-effort */ });
       }
 
       // Phase 2: Auto-cancel after 120s of total silence. We only flag the
