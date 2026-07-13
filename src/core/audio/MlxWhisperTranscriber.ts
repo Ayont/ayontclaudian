@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 
 import { getEnhancedPath } from '../../utils/env';
 import type { TranscriberOptions, TranscriptionResult, VoiceTranscriber } from './VoiceTranscriber';
+import type { SpawnLike } from './WhisperCliTranscriber';
 
 /** Maps the user-facing model size to the MLX Hugging Face model identifier. */
 const MLX_MODEL_MAP: Record<string, string> = {
@@ -16,11 +17,13 @@ export class MlxWhisperTranscriber implements VoiceTranscriber {
   readonly id = 'mlx-whisper';
   readonly displayName = 'mlx-whisper (schnell, macOS)';
 
+  constructor(private readonly spawnImpl: SpawnLike = spawn) {}
+
   async isAvailable(): Promise<boolean> {
     return new Promise((resolve) => {
       let proc;
       try {
-        proc = spawn('python3', ['-m', 'mlx_whisper', '--help'], {
+        proc = this.spawnImpl('python3', ['-m', 'mlx_whisper', '--help'], {
           env: { ...process.env, PATH: getEnhancedPath(process.env.PATH) },
           windowsHide: true,
         });
@@ -47,18 +50,6 @@ export class MlxWhisperTranscriber implements VoiceTranscriber {
       let proc: ReturnType<typeof spawn> | undefined;
       let settled = false;
 
-      const cleanup = () => {
-        if (settled) return;
-        settled = true;
-        try {
-          proc?.kill('SIGTERM');
-        } catch {
-          // ignore
-        }
-      };
-
-      abortSignal?.addEventListener('abort', cleanup, { once: true });
-
       const finish = (result: TranscriptionResult) => {
         if (settled) return;
         settled = true;
@@ -66,8 +57,19 @@ export class MlxWhisperTranscriber implements VoiceTranscriber {
         resolve(result);
       };
 
+      const cleanup = () => {
+        try {
+          proc?.kill('SIGTERM');
+        } catch {
+          // ignore
+        }
+        finish({ ok: false, text: '', error: 'Abgebrochen' });
+      };
+
+      abortSignal?.addEventListener('abort', cleanup, { once: true });
+
       try {
-        proc = spawn(
+        proc = this.spawnImpl(
           'python3',
           ['-m', 'mlx_whisper', wavPath, '--model', model, '--language', language],
           {

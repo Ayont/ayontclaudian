@@ -230,7 +230,6 @@ export class VoiceInput {
         model,
         modelPath,
         preferFastBackend: this.callbacks.getPreferFastBackend?.() ?? true,
-        spawnImpl: spawn,
       });
 
       if (this.abortController.signal.aborted) return;

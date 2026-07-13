@@ -1,11 +1,9 @@
-import type { ChildProcess } from 'node:child_process';
-
 import {
   parseWhisperOutput,
   resolveVoiceLanguage,
-  type SpawnLike,
   transcribeAudioFile,
 } from '@/core/audio/transcription';
+import type { VoiceTranscriber } from '@/core/audio/VoiceTranscriber';
 
 describe('parseWhisperOutput', () => {
   it('strips timestamps and collapses whitespace', () => {
@@ -27,114 +25,37 @@ describe('parseWhisperOutput', () => {
   });
 });
 
-function createFakeSpawn(stdout: string, code: number, stderr = ''): SpawnLike {
-  const handlers: Record<string, ((...args: unknown[]) => void)[]> = {};
-  let capturedArgs: string[] = [];
-  const fakeProc = {
-    stdout: {
-      on: (event: string, cb: (...args: unknown[]) => void) => {
-        if (event === 'data') handlers.stdoutData = [cb];
-      },
-    },
-    stderr: {
-      on: (event: string, cb: (...args: unknown[]) => void) => {
-        if (event === 'data') handlers.stderrData = [cb];
-      },
-    },
-    on: (event: string, cb: (...args: unknown[]) => void) => {
-      const key = `proc_${event}`;
-      handlers[key] = handlers[key] ?? [];
-      handlers[key].push(cb);
-    },
+function fakeTranscriber(id: string, available: boolean, result?: { ok: boolean; text: string }): VoiceTranscriber {
+  return {
+    id,
+    displayName: id,
+    isAvailable: async () => available,
+    transcribe: async () => result ?? { ok: true, text: '' },
   };
-  // Defer "data" + "close" to next tick so listeners attach first.
-  process.nextTick(() => {
-    handlers.stdoutData?.[0]?.(Buffer.from(stdout, 'utf-8'));
-    handlers.stderrData?.[0]?.(Buffer.from(stderr, 'utf-8'));
-    handlers.proc_close?.[0]?.(code);
-  });
-  const factory = ((cmd: string, args: string[]) => {
-    capturedArgs = args;
-    return fakeProc as unknown as ChildProcess;
-  }) as SpawnLike;
-  (factory as any)._capturedArgs = capturedArgs;
-  return factory;
-}
-
-function createSpySpawn(stdout: string, code: number): SpawnLike {
-  const handlers: Record<string, ((...args: unknown[]) => void)[]> = {};
-  const capturedArgs: string[] = [];
-  const fakeProc = {
-    stdout: { on: (event: string, cb: (...args: unknown[]) => void) => { if (event === 'data') handlers.stdoutData = [cb]; } },
-    stderr: { on: () => {} },
-    on: (event: string, cb: (...args: unknown[]) => void) => {
-      const key = `proc_${event}`;
-      handlers[key] = handlers[key] ?? [];
-      handlers[key].push(cb);
-    },
-  };
-  process.nextTick(() => {
-    handlers.stdoutData?.[0]?.(Buffer.from(stdout, 'utf-8'));
-    handlers.proc_close?.[0]?.(code);
-  });
-  const fn = ((cmd: string, args: string[]) => {
-    capturedArgs.push(...args);
-    return fakeProc as unknown as ChildProcess;
-  }) as SpawnLike;
-  (fn as any).capturedArgs = capturedArgs;
-  return fn;
 }
 
 describe('transcribeAudioFile', () => {
-  it('resolves ok with transcribed text on exit code 0', async () => {
+  it('returns error when no backend is available', async () => {
     const result = await transcribeAudioFile('/tmp/test.wav', {
-      spawnImpl: createFakeSpawn('Hallo from whisper', 0),
+      language: 'de',
+      model: 'base',
+      backendFactories: [() => fakeTranscriber('none', false)],
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('Kein Transkriptions-Backend verfügbar');
+  });
+
+  it('uses the first available backend and returns its result', async () => {
+    const result = await transcribeAudioFile('/tmp/test.wav', {
+      language: 'de',
+      model: 'base',
+      backendFactories: [
+        () => fakeTranscriber('fast', false),
+        () => fakeTranscriber('fallback', true, { ok: true, text: 'Hallo' }),
+      ],
     });
     expect(result.ok).toBe(true);
-    expect(result.text).toBe('Hallo from whisper');
-  });
-
-  it('resolves ok:false with error on non-zero exit', async () => {
-    const result = await transcribeAudioFile('/tmp/test.wav', {
-      spawnImpl: createFakeSpawn('', 1, 'model not found'),
-    });
-    expect(result.ok).toBe(false);
-    expect(result.error).toContain('model not found');
-  });
-
-  it('returns ENOENT hint when whisper-cli is missing', async () => {
-    const enoentSpawn = ((): ChildProcess => {
-      const handlers: Record<string, ((...args: unknown[]) => void)[]> = {};
-      const fakeProc = {
-        stdout: { on: () => {} },
-        stderr: { on: () => {} },
-        on: (event: string, cb: (...args: unknown[]) => void) => {
-          const key = `proc_${event}`;
-          handlers[key] = handlers[key] ?? [];
-          handlers[key].push(cb);
-        },
-      };
-      process.nextTick(() => {
-        handlers.proc_error?.[0]?.(Object.assign(new Error('spawn whisper-cli ENOENT'), { code: 'ENOENT' }));
-      });
-      return fakeProc as unknown as ChildProcess;
-    }) as SpawnLike;
-    const result = await transcribeAudioFile('/tmp/test.wav', {
-      spawnImpl: enoentSpawn,
-    });
-    expect(result.ok).toBe(false);
-    expect(result.error).toContain('brew install whisper-cpp');
-  });
-
-  it('passes anti-hallucination flags to whisper-cli but avoids -ml 1', async () => {
-    const spySpawn = createSpySpawn('Hallo', 0);
-    await transcribeAudioFile('/tmp/test.wav', { spawnImpl: spySpawn });
-    const args = (spySpawn as any).capturedArgs;
-    expect(args).toContain('-mc');
-    expect(args).toContain('0');
-    expect(args).toContain('-sns');
-    // -ml 1 would cap every segment to 1 character, destroying sentence transcription.
-    expect(args).not.toContain('-ml');
+    expect(result.text).toBe('Hallo');
   });
 });
 

@@ -68,24 +68,23 @@ export class WhisperCliTranscriber implements VoiceTranscriber {
       let proc: ReturnType<SpawnLike> | undefined;
       let settled = false;
 
-      const cleanup = () => {
-        if (settled) return;
-        settled = true;
-        try {
-          proc?.kill('SIGTERM');
-        } catch {
-          // ignore
-        }
-      };
-
-      abortSignal?.addEventListener('abort', cleanup, { once: true });
-
       const finish = (result: TranscriptionResult) => {
         if (settled) return;
         settled = true;
         abortSignal?.removeEventListener('abort', cleanup);
         resolve(result);
       };
+
+      const cleanup = () => {
+        try {
+          proc?.kill('SIGTERM');
+        } catch {
+          // ignore
+        }
+        finish({ ok: false, text: '', error: 'Abgebrochen' });
+      };
+
+      abortSignal?.addEventListener('abort', cleanup, { once: true });
 
       try {
         proc = this.spawnImpl(
