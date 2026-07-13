@@ -72,7 +72,7 @@ export function transcribeAudioFile(
     try {
       proc = spawnImpl(
         'whisper-cli',
-        ['-m', modelPath, '-l', language, '--no-timestamps', '--no-context', '--max-len', '1', '--condition-on-false', wavPath],
+        ['-m', modelPath, '-l', language, '-nt', '-mc', '0', '-ml', '1', '-sns', wavPath],
         { env: { ...process.env, PATH: getEnhancedPath(process.env.PATH) }, windowsHide: true },
       );
     } catch (error) {

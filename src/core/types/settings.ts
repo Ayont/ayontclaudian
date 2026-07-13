@@ -156,6 +156,7 @@ export interface ClaudianSettings {
     language: string;
     model: 'tiny' | 'base' | 'small' | 'medium' | 'large';
     autoSetup: boolean;
+    microphoneId: string;
   };
 
   // Model & thinking (provider interprets values)

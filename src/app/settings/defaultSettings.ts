@@ -31,6 +31,7 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
     language: 'auto',
     model: 'base',
     autoSetup: true,
+    microphoneId: '',
   },
 
   model: 'haiku',

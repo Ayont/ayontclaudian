@@ -3,6 +3,26 @@ import { Notice, Setting } from 'obsidian';
 import { areVoiceDependenciesReady, ensureVoiceDependencies } from '../../../core/audio/voiceSetup';
 import type ClaudianPlugin from '../../../main';
 
+/**
+ * Enumerates audio input devices. Requests microphone permission first
+ * so the browser fills in human-readable device labels.
+ */
+async function enumerateAudioDevices(): Promise<MediaDeviceInfo[]> {
+  try {
+    // Request permission to get labels (browsers hide labels without permission)
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach((t) => t.stop());
+  } catch {
+    // Permission denied — we can still list device IDs, just no labels
+  }
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices.filter((d) => d.kind === 'audioinput');
+  } catch {
+    return [];
+  }
+}
+
 const WHISPER_MODELS = {
   tiny: { name: 'Tiny (~75 MB)', desc: 'Schnellstes Modell, niedrigste Genauigkeit', speed: '~10× Echtzeit' },
   base: { name: 'Base (~142 MB)', desc: 'Gute Balance aus Speed und Genauigkeit (Standard)', speed: '~7× Echtzeit' },
@@ -36,7 +56,7 @@ const VOICE_LANGUAGES = [
 
 function getVoiceSettings(plugin: ClaudianPlugin) {
   if (!plugin.settings.voiceSettings) {
-    plugin.settings.voiceSettings = { enabled: true, language: 'auto', model: 'base', autoSetup: true };
+    plugin.settings.voiceSettings = { enabled: true, language: 'auto', model: 'base', autoSetup: true, microphoneId: '' };
   }
   return plugin.settings.voiceSettings;
 }
@@ -124,6 +144,34 @@ function renderInto(section: HTMLElement, plugin: ClaudianPlugin): void {
           await plugin.saveSettings();
         });
     });
+
+  // ── Microphone Picker ────────────────────────────────────────────
+  const micSetting = new Setting(section)
+    .setName('Mikrofon')
+    .setDesc('Audioeingabe-Gerät auswählen (Systemstandard, wenn leer)')
+    .addDropdown((dropdown) => {
+      dropdown.addOption('', '— Systemstandard —');
+      dropdown.setValue(vs.microphoneId);
+      dropdown.onChange(async (value) => {
+        vs.microphoneId = value;
+        await plugin.saveSettings();
+      });
+      // Populate devices asynchronously
+      void enumerateAudioDevices().then((devices) => {
+        dropdown.selectEl.textContent = '';
+        dropdown.addOption('', '— Systemstandard —');
+        for (const device of devices) {
+          dropdown.addOption(device.deviceId, device.label || `Mikrofon (${device.deviceId.slice(0, 8)}…)`);
+        }
+        dropdown.setValue(vs.microphoneId);
+      });
+    });
+
+  // Hint for microphone permission
+  const micHintEl = section.createEl('p', {
+    cls: 'claudian-voice-model-info',
+    text: 'Erlaube den Mikrofon-Zugriff, wenn Obsidian danach fragt. Geräte erscheinen nach der ersten Berechtigung.',
+  });
 
   // ── Install Status + Manual Install ───────────────────────────────
   const statusDiv = section.createDiv({ cls: 'claudian-voice-install-status' });

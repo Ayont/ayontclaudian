@@ -17,6 +17,8 @@ export interface VoiceInputCallbacks {
   getLanguage?: () => string;
   /** Returns the whisper model name (e.g. 'base', 'small') for the model path. */
   getModel?: () => string;
+  /** Returns the selected microphone device ID (empty = system default). */
+  getMicrophoneId?: () => string;
 }
 
 type VoiceState = 'idle' | 'recording' | 'processing';
@@ -134,10 +136,22 @@ export class VoiceInput {
       new Notice('Mikrofon-Aufnahme wird in dieser Umgebung nicht unterstützt.');
       return;
     }
+
+    // Build constraints — use selected microphone if specified
+    const micId = this.callbacks.getMicrophoneId?.() ?? '';
+    const constraints: MediaStreamConstraints = micId
+      ? { audio: { deviceId: { exact: micId } } }
+      : { audio: true };
+
     try {
-      this.stream = await media.getUserMedia({ audio: true });
-    } catch {
-      new Notice('Mikrofon-Zugriff verweigert. Bitte in den Systemeinstellungen erlauben.');
+      this.stream = await media.getUserMedia(constraints);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('OverconstrainedError') || msg.includes('Requested device not found')) {
+        new Notice('Ausgewähltes Mikrofon nicht gefunden — bitte in den Einstellungen prüfen.');
+      } else {
+        new Notice('Mikrofon-Zugriff verweigert. Bitte in den Systemeinstellungen erlauben.');
+      }
       return;
     }
 

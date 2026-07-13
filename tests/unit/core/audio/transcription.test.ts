@@ -129,8 +129,9 @@ describe('transcribeAudioFile', () => {
     const spySpawn = createSpySpawn('Hallo', 0);
     await transcribeAudioFile('/tmp/test.wav', { spawnImpl: spySpawn });
     const args = (spySpawn as any).capturedArgs;
-    expect(args).toContain('--no-context');
-    expect(args).toContain('--max-len');
-    expect(args).toContain('--condition-on-false');
+    expect(args).toContain('-mc');
+    expect(args).toContain('0');
+    expect(args).toContain('-ml');
+    expect(args).toContain('-sns');
   });
 });

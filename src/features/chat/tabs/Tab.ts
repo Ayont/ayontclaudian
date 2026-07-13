@@ -1325,6 +1325,7 @@ function initializeInputToolbar(
     },
     getLanguage: () => plugin.settings.voiceSettings?.language ?? 'auto',
     getModel: () => plugin.settings.voiceSettings?.model ?? 'base',
+    getMicrophoneId: () => plugin.settings.voiceSettings?.microphoneId ?? '',
   });
   voiceInput.render(osActionsEl);
   dom.eventCleanups.push(() => voiceInput.destroy());
