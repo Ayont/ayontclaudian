@@ -56,7 +56,7 @@ const VOICE_LANGUAGES = [
 
 function getVoiceSettings(plugin: ClaudianPlugin) {
   if (!plugin.settings.voiceSettings) {
-    plugin.settings.voiceSettings = { enabled: true, language: 'auto', model: 'base', autoSetup: true, microphoneId: '' };
+    plugin.settings.voiceSettings = { enabled: true, language: 'auto', model: 'base', autoSetup: true, microphoneId: '', preferFastBackend: true };
   }
   return plugin.settings.voiceSettings;
 }

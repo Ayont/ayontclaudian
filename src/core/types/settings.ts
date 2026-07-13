@@ -157,6 +157,8 @@ export interface ClaudianSettings {
     model: 'tiny' | 'base' | 'small' | 'medium' | 'large';
     autoSetup: boolean;
     microphoneId: string;
+    /** Prefer a fast backend (mlx_whisper on macOS) when available. */
+    preferFastBackend: boolean;
   };
 
   // Model & thinking (provider interprets values)
