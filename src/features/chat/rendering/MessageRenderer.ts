@@ -21,6 +21,7 @@ import { processFileLinks, registerFileLinkHandler } from '../../../utils/fileLi
 import { replaceImageEmbedsWithHtml } from '../../../utils/imageEmbed';
 import { escapeMathDelimitersForStreaming } from '../../../utils/markdownMath';
 import { findRewindContext } from '../rewind';
+import { exportAssistantResponse } from '../services/ResponseExportService';
 import { attachmentTypeMeta } from '../ui/file-drop/attachmentMeta';
 import { renderAutoMemoryChips } from './AutoMemoryChip';
 import { renderEmailTemplates } from './EmailTemplateRenderer';
@@ -65,6 +66,23 @@ export function getCodeLineCount(code: string): number {
     ? normalized.slice(0, -1)
     : normalized;
   return Math.max(1, withoutTrailingNewline.split('\n').length);
+}
+
+export interface AssistantMessageMetrics {
+  words: number;
+  tools: number;
+}
+
+export function getAssistantMessageMetrics(msg: ChatMessage): AssistantMessageMetrics {
+  const plainText = msg.content
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/[#*_`~>[\]()]/g, ' ')
+    .trim();
+  return {
+    words: plainText ? plainText.split(/\s+/).length : 0,
+    tools: msg.toolCalls?.length ?? 0,
+  };
 }
 
 /**
@@ -481,6 +499,10 @@ export class MessageRenderer {
 
     const contentEl = msgEl.createDiv({ cls: 'claudian-message-content', attr: { dir: 'auto' } });
 
+    if (msg.role === 'assistant') {
+      this.renderAssistantHeader(msg, msgEl, true);
+    }
+
     if (msg.role === 'user') {
       const presentation = this.getUserMessagePresentation(msg);
       if (presentation.vaultContext || presentation.memoryContext) {
@@ -663,7 +685,50 @@ export class MessageRenderer {
       if (msg.isInterrupt) {
         this.appendInterruptIndicator(contentEl);
       }
+      this.renderAssistantHeader(msg, msgEl, false);
     }
+  }
+
+  private formatMessageTime(timestamp: number): string {
+    return new Intl.DateTimeFormat('de-DE', {
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(timestamp));
+  }
+
+  private renderAssistantHeader(msg: ChatMessage, msgEl: HTMLElement, isStreaming: boolean): void {
+    const existing = msgEl.querySelector<HTMLElement>('.claudian-assistant-turn-header');
+    existing?.remove();
+    const headerEl = msgEl.createDiv({ cls: 'claudian-assistant-turn-header' });
+    headerEl.toggleClass('is-streaming', isStreaming);
+
+    const identityEl = headerEl.createDiv({ cls: 'claudian-assistant-turn-identity' });
+    identityEl.createSpan({ cls: 'claudian-assistant-turn-dot', attr: { 'aria-hidden': 'true' } });
+    identityEl.createSpan({
+      cls: 'claudian-assistant-turn-provider',
+      text: msg.agentLabel ?? this.getProviderShortLabel(this.resolveMessageProvider(msg)),
+    });
+    if (msg.agentModel) {
+      identityEl.createSpan({ cls: 'claudian-assistant-turn-model', text: msg.agentModel });
+    }
+
+    const statusEl = headerEl.createDiv({ cls: 'claudian-assistant-turn-status' });
+    if (isStreaming) {
+      statusEl.createSpan({ cls: 'claudian-assistant-turn-live-dot', attr: { 'aria-hidden': 'true' } });
+      statusEl.createSpan({ text: 'Live' });
+    } else {
+      setIcon(statusEl.createSpan({ cls: 'claudian-assistant-turn-done' }), 'check');
+      statusEl.createSpan({ text: this.formatMessageTime(msg.timestamp) });
+    }
+  }
+
+  /** Promotes a live assistant card to its stable completed state. */
+  finalizeLiveAssistantMessage(msg: ChatMessage): void {
+    const msgEl = this.messagesEl.querySelector<HTMLElement>(`[data-message-id="${msg.id}"]`);
+    if (!msgEl) return;
+    this.renderAssistantHeader(msg, msgEl, false);
+    const contentEl = msgEl.querySelector<HTMLElement>('.claudian-message-content');
+    if (contentEl) this.renderAssistantFooter(msg, contentEl);
   }
 
   private hasVisibleContent(msg: ChatMessage): boolean {
@@ -770,20 +835,85 @@ export class MessageRenderer {
       }
     }
 
-    // Render response duration footer (skip when message contains a compaction boundary)
+    // Render response telemetry and actions (skip compaction boundaries).
     const hasCompactBoundary = msg.contentBlocks?.some(b => b.type === 'context_compacted');
-    const hasDuration = Boolean(msg.durationSeconds && msg.durationSeconds > 0);
-    if (!hasCompactBoundary && (hasDuration || this.switchModelCallback)) {
-      const footerEl = contentEl.createDiv({ cls: 'claudian-response-footer' });
-      if (hasDuration) {
-        const flavorWord = msg.durationFlavorWord || 'Baked';
-        footerEl.createSpan({
-          text: `* ${flavorWord} for ${formatDurationMmSs(msg.durationSeconds as number)}`,
-          cls: 'claudian-baked-duration',
-        });
-      }
-      this.addSwitchModelButton(footerEl);
+    if (!hasCompactBoundary) this.renderAssistantFooter(msg, contentEl);
+  }
+
+  private getAssistantCopyContent(msg: ChatMessage): string {
+    if (msg.content.trim()) return msg.content.trim();
+    return msg.contentBlocks
+      ?.filter((block): block is Extract<NonNullable<ChatMessage['contentBlocks']>[number], { type: 'text' }> => block.type === 'text')
+      .map((block) => block.content.trim())
+      .filter(Boolean)
+      .join('\n\n') ?? '';
+  }
+
+  private renderAssistantFooter(msg: ChatMessage, contentEl: HTMLElement): void {
+    const copyContent = this.getAssistantCopyContent(msg);
+    const metrics = getAssistantMessageMetrics({ ...msg, content: copyContent });
+    const footerEl = contentEl.querySelector<HTMLElement>('.claudian-response-footer')
+      ?? contentEl.createDiv({ cls: 'claudian-response-footer' });
+    footerEl.empty();
+
+    if (msg.durationSeconds && msg.durationSeconds > 0) {
+      const flavorWord = msg.durationFlavorWord || 'Baked';
+      footerEl.createSpan({
+        cls: 'claudian-baked-duration',
+        text: `${flavorWord} · ${formatDurationMmSs(msg.durationSeconds)}`,
+      });
     }
+
+    const telemetryEl = footerEl.createDiv({ cls: 'claudian-response-telemetry' });
+    const wordsEl = telemetryEl.createSpan({ cls: 'claudian-response-metric' });
+    setIcon(wordsEl.createSpan(), 'text');
+    wordsEl.createSpan({ text: `${metrics.words.toLocaleString('de-DE')} Wörter` });
+    if (metrics.tools > 0) {
+      const toolsEl = telemetryEl.createSpan({ cls: 'claudian-response-metric' });
+      setIcon(toolsEl.createSpan(), 'wrench');
+      toolsEl.createSpan({ text: `${metrics.tools} ${metrics.tools === 1 ? 'Werkzeug' : 'Werkzeuge'}` });
+    }
+
+    const actionsEl = footerEl.createDiv({ cls: 'claudian-response-actions' });
+    if (copyContent) this.addAssistantCopyButton(actionsEl, copyContent);
+    if (copyContent) this.addAssistantExportButton(actionsEl, msg);
+    this.addSwitchModelButton(actionsEl);
+  }
+
+  private addAssistantCopyButton(actionsEl: HTMLElement, content: string): void {
+    const btn = actionsEl.createEl('button', { cls: 'claudian-response-action' });
+    btn.setAttribute('type', 'button');
+    btn.setAttribute('aria-label', 'Gesamte antwort kopieren');
+    const iconEl = btn.createSpan();
+    setIcon(iconEl, 'copy');
+    const labelEl = btn.createSpan({ text: 'Kopieren' });
+    btn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      runRendererAction(async () => {
+        await navigator.clipboard.writeText(content);
+        setIcon(iconEl, 'check');
+        labelEl.setText('Kopiert');
+        window.setTimeout(() => {
+          setIcon(iconEl, 'copy');
+          labelEl.setText('Kopieren');
+        }, CODE_COPY_FEEDBACK_MS);
+      });
+    });
+  }
+
+  private addAssistantExportButton(actionsEl: HTMLElement, msg: ChatMessage): void {
+    const btn = actionsEl.createEl('button', { cls: 'claudian-response-action' });
+    btn.setAttribute('type', 'button');
+    btn.setAttribute('aria-label', 'Antwort als Obsidian-Notiz speichern');
+    setIcon(btn.createSpan(), 'file-down');
+    btn.createSpan({ text: 'Als Notiz' });
+    btn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      runRendererAction(async () => {
+        const path = await exportAssistantResponse(this.app.vault, msg);
+        new Notice(`Antwort gespeichert: ${path}`);
+      });
+    });
   }
 
   /**
@@ -793,11 +923,10 @@ export class MessageRenderer {
    */
   private addSwitchModelButton(footerEl: HTMLElement): void {
     if (!this.switchModelCallback) return;
-    const btn = footerEl.createSpan({ cls: 'claudian-switch-model-btn' });
-    setIcon(btn, 'arrow-left-right');
-    btn.setAttribute('role', 'button');
-    btn.setAttribute('tabindex', '0');
-    btn.setAttribute('aria-label', 'Mit anderem Modell weiter');
+    const btn = footerEl.createEl('button', { cls: 'claudian-response-action claudian-switch-model-btn' });
+    setIcon(btn.createSpan(), 'arrow-left-right');
+    btn.setAttribute('type', 'button');
+    btn.setAttribute('aria-label', 'Mit anderem modell weiter');
     btn.createSpan({ text: 'Modell wechseln', cls: 'claudian-switch-model-label' });
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1306,7 +1435,7 @@ export class MessageRenderer {
 
         // Show "copied!" feedback
         copyBtn.empty();
-        copyBtn.setText('Copied!');
+        copyBtn.setText('Kopiert');
         copyBtn.classList.add('copied');
 
         feedbackTimeout = window.setTimeout(() => {
@@ -1352,7 +1481,7 @@ export class MessageRenderer {
     const toolbar = this.getOrCreateActionsToolbar(msgEl);
     const copyBtn = toolbar.createSpan({ cls: 'claudian-user-msg-copy-btn' });
     setIcon(copyBtn, 'copy');
-    copyBtn.setAttribute('aria-label', 'Copy message');
+    copyBtn.setAttribute('aria-label', 'Nachricht kopieren');
 
     let feedbackTimeout: number | null = null;
 
@@ -1366,7 +1495,7 @@ export class MessageRenderer {
         }
         if (feedbackTimeout) window.clearTimeout(feedbackTimeout);
         copyBtn.empty();
-        copyBtn.setText('Copied!');
+        copyBtn.setText('Kopiert');
         copyBtn.classList.add('copied');
         feedbackTimeout = window.setTimeout(() => {
           copyBtn.empty();

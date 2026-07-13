@@ -508,6 +508,71 @@
   text-overflow: ellipsis;
 }
 
+.claudian-stream-status-phases {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+  margin: 10px 0 12px;
+}
+
+.claudian-stream-status-phase {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 5px 6px;
+  border-radius: var(--cl-radius-sm);
+  color: var(--text-faint);
+  background: color-mix(in srgb, var(--cl-surface-overlay) 58%, transparent);
+  transition: color var(--cl-dur-fast) var(--cl-ease), background var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-stream-status-phase-index {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: 50%;
+  font-family: var(--cl-font-mono);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.claudian-stream-status-phase-label {
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claudian-stream-status-phase.is-done { color: var(--text-muted); }
+
+.claudian-stream-status-phase.is-done .claudian-stream-status-phase-index {
+  border-color: rgba(var(--claudian-brand-rgb), 0.28);
+  color: var(--cl-accent);
+}
+
+.claudian-stream-status-phase.is-active {
+  color: var(--text-normal);
+  background: rgba(var(--claudian-brand-rgb), 0.11);
+}
+
+.claudian-stream-status-phase.is-active .claudian-stream-status-phase-index {
+  border-color: var(--cl-accent);
+  color: var(--text-on-accent);
+  background: var(--cl-accent);
+  box-shadow: 0 0 0 3px rgba(var(--claudian-brand-rgb), 0.1);
+}
+
+@media (max-width: 620px) {
+  .claudian-stream-status-phase { justify-content: center; padding: 5px 3px; }
+  .claudian-stream-status-phase-label { display: none; }
+}
+
 /* A compact operator-style trace: transparent without turning the composer
    into a noisy log console. The bounded list is only rendered while expanded. */
 .claudian-stream-status-history {

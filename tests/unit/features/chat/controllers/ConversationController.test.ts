@@ -1471,6 +1471,41 @@ describe('ConversationController - Race Condition Guards', () => {
     controller = new ConversationController(deps);
   });
 
+  describe('save serialization', () => {
+    it('persists overlapping save requests strictly in order', async () => {
+      deps.state.currentConversationId = 'conv-1';
+      deps.state.messages = [{ id: '1', role: 'user', content: 'test', timestamp: 1 }];
+      let releaseFirst!: () => void;
+      const firstWrite = new Promise<void>((resolve) => { releaseFirst = resolve; });
+      (deps.plugin.updateConversation as jest.Mock)
+        .mockImplementationOnce(() => firstWrite)
+        .mockResolvedValueOnce(undefined);
+
+      const first = controller.save();
+      await Promise.resolve();
+      const second = controller.save(true);
+      await Promise.resolve();
+
+      expect(deps.plugin.updateConversation).toHaveBeenCalledTimes(1);
+      releaseFirst();
+      await Promise.all([first, second]);
+      expect(deps.plugin.updateConversation).toHaveBeenCalledTimes(2);
+      expect((deps.plugin.updateConversation as jest.Mock).mock.calls[1][1].lastResponseAt).toBeDefined();
+    });
+
+    it('continues the save queue after a failed write', async () => {
+      deps.state.currentConversationId = 'conv-1';
+      deps.state.messages = [{ id: '1', role: 'user', content: 'test', timestamp: 1 }];
+      (deps.plugin.updateConversation as jest.Mock)
+        .mockRejectedValueOnce(new Error('disk busy'))
+        .mockResolvedValueOnce(undefined);
+
+      await expect(controller.save()).rejects.toThrow('disk busy');
+      await expect(controller.save()).resolves.toBeUndefined();
+      expect(deps.plugin.updateConversation).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('createNew guards', () => {
     it('should not create when isCreatingConversation is already true', async () => {
       deps.state.isCreatingConversation = true;

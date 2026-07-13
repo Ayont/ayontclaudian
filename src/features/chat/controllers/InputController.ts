@@ -896,12 +896,15 @@ export class InputController {
               COMPLETION_FLAVOR_WORDS[Math.floor(Math.random() * COMPLETION_FLAVOR_WORDS.length)];
             finalAssistantMsg.durationSeconds = durationSeconds;
             finalAssistantMsg.durationFlavorWord = flavorWord;
-            // Add footer to live message in DOM
+            // Immediate compatibility footer. The real renderer upgrades this
+            // in-place to the full telemetry/action row below.
             if (state.currentContentEl) {
-              const footerEl = state.currentContentEl.createDiv({ cls: 'claudian-response-footer' });
+              const footerEl = state.currentContentEl.querySelector<HTMLElement>('.claudian-response-footer')
+                ?? state.currentContentEl.createDiv({ cls: 'claudian-response-footer' });
+              footerEl.empty();
               footerEl.createSpan({
-                text: `* ${flavorWord} for ${formatDurationMmSs(durationSeconds)}`,
                 cls: 'claudian-baked-duration',
+                text: `${flavorWord} · ${formatDurationMmSs(durationSeconds)}`,
               });
             }
           }
@@ -911,6 +914,7 @@ export class InputController {
 
         await streamController.finalizeCurrentThinkingBlock(finalAssistantMsg);
         await streamController.finalizeCurrentTextBlock(finalAssistantMsg);
+        renderer.finalizeLiveAssistantMessage?.(finalAssistantMsg);
         this.deps.getSubagentManager().resetStreamingState();
 
         // Auto-Memory: persist any claudian-memory blocks the model emitted.

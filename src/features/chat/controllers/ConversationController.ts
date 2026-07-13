@@ -68,6 +68,8 @@ type HistoryRenderOptions = {
 export class ConversationController {
   private deps: ConversationControllerDeps;
   private callbacks: ConversationCallbacks;
+  /** Serializes vault writes so fast UI events cannot persist stale state out of order. */
+  private saveQueue: Promise<void> | null = null;
 
   constructor(deps: ConversationControllerDeps, callbacks: ConversationCallbacks = {}) {
     this.deps = deps;
@@ -386,7 +388,23 @@ export class ConversationController {
    * For native sessions (new conversations with sessionId from SDK),
    * only metadata is saved - the SDK handles message persistence.
    */
-  async save(updateLastResponse = false, options?: SaveOptions): Promise<void> {
+  save(updateLastResponse = false, options?: SaveOptions): Promise<void> {
+    // Start the first write synchronously. This keeps click handlers responsive;
+    // only genuinely overlapping writes wait for the active operation.
+    const operation = this.saveQueue
+      ? this.saveQueue.then(() => this.performSave(updateLastResponse, options))
+      : this.performSave(updateLastResponse, options);
+    const queueTail = operation
+      .catch(() => undefined)
+      .finally(() => {
+        if (this.saveQueue === queueTail) this.saveQueue = null;
+      });
+    // A failed write rejects its own caller but never poisons later saves.
+    this.saveQueue = queueTail;
+    return operation;
+  }
+
+  private async performSave(updateLastResponse = false, options?: SaveOptions): Promise<void> {
     const { plugin, state } = this.deps;
 
     // Entry point with no messages - nothing to save

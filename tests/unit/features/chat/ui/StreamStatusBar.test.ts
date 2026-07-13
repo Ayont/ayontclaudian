@@ -2,8 +2,19 @@ import {
   appendActivity,
   formatActivityOffset,
   formatElapsed,
+  resolveActivityStage,
   type StreamActivity,
 } from '@/features/chat/ui/StreamStatusBar';
+
+describe('resolveActivityStage', () => {
+  it('maps provider-neutral live activity to the five visual phases', () => {
+    expect(resolveActivityStage('Durchsuche Vault-Kontext')).toBe(0);
+    expect(resolveActivityStage('Starte Provider-Runtime')).toBe(1);
+    expect(resolveActivityStage('Lese Datei')).toBe(2);
+    expect(resolveActivityStage('Streame Antwort')).toBe(3);
+    expect(resolveActivityStage('Sichere Unterhaltung')).toBe(4);
+  });
+});
 
 describe('formatElapsed', () => {
   it('shows seconds under a minute', () => {

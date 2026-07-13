@@ -19,6 +19,18 @@ export interface StreamActivity {
   at: number;
 }
 
+export const STREAM_PHASES = ['Kontext', 'Modell', 'Werkzeuge', 'Antwort', 'Sichern'] as const;
+
+/** Maps provider-neutral activity prose to the visual phase rail. */
+export function resolveActivityStage(primary: string): number {
+  const value = primary.toLocaleLowerCase('de-DE');
+  if (/sicher|speicher|persist|wiederherstellung|fertig|abschl/.test(value)) return 4;
+  if (/kontext|vault|memory|rag|erinner/.test(value)) return 0;
+  if (/antwort|stream|generier|token|thinking|denk/.test(value)) return 3;
+  if (/werkzeug|tool|datei|bash|command|agent|lese|schreib|edit|patch|suche/.test(value)) return 2;
+  return 1;
+}
+
 /** Formats an elapsed duration (ms) as `Xs` under a minute, else `M:SS`. */
 export function formatElapsed(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -72,6 +84,7 @@ export class StreamStatusBar {
   private readonly detailEl: HTMLElement;
   private readonly detailPrimaryEl: HTMLElement;
   private readonly detailMetaEl: HTMLElement;
+  private readonly phaseEls: HTMLElement[] = [];
   private readonly activityHistoryEl: HTMLElement;
   private intervalId: number | null = null;
   private startedAt = 0;
@@ -84,6 +97,7 @@ export class StreamStatusBar {
   private isOpen = false;
   private renderedEventCount = 0;
   private cancelEventCountAnimation: (() => void) | null = null;
+  private currentStage = 1;
 
   constructor(parentEl: HTMLElement, now: () => number = () => Date.now()) {
     this.now = now;
@@ -116,7 +130,15 @@ export class StreamStatusBar {
     this.detailEl = this.el.createDiv({ cls: 'claudian-stream-status-detail' });
     this.detailPrimaryEl = this.detailEl.createDiv({ cls: 'claudian-stream-status-detail-primary' });
     this.detailMetaEl = this.detailEl.createDiv({ cls: 'claudian-stream-status-detail-meta' });
+    const phaseRailEl = this.detailEl.createDiv({ cls: 'claudian-stream-status-phases' });
+    STREAM_PHASES.forEach((phase, index) => {
+      const phaseEl = phaseRailEl.createDiv({ cls: 'claudian-stream-status-phase' });
+      phaseEl.createSpan({ cls: 'claudian-stream-status-phase-index', text: String(index + 1) });
+      phaseEl.createSpan({ cls: 'claudian-stream-status-phase-label', text: phase });
+      this.phaseEls.push(phaseEl);
+    });
     this.activityHistoryEl = this.detailEl.createDiv({ cls: 'claudian-stream-status-history' });
+    this.renderPhases();
     this.renderDetail();
 
     this.toggleEl.addEventListener('click', () => this.toggleOpen());
@@ -152,6 +174,7 @@ export class StreamStatusBar {
     const wasCurrentActivity = this.currentActivity === nextPrimary && this.currentMeta === nextMeta;
     this.currentActivity = nextPrimary;
     this.currentMeta = nextMeta;
+    this.currentStage = resolveActivityStage(nextPrimary);
     if (!wasCurrentActivity) {
       this.activities = appendActivity(this.activities, {
         primary: nextPrimary,
@@ -161,6 +184,7 @@ export class StreamStatusBar {
     }
     this.activityEl.setText(this.currentActivity);
     this.renderEventCount();
+    this.renderPhases();
     this.toggleEl.setAttribute('aria-label', `Live-Aktivität anzeigen: ${this.currentActivity}`);
     this.renderDetail();
   }
@@ -176,6 +200,7 @@ export class StreamStatusBar {
     this.activities = [];
     this.currentActivity = 'Starte Provider-Turn';
     this.currentMeta = this.currentLabel;
+    this.currentStage = resolveActivityStage(this.currentActivity);
     this.activities = appendActivity(this.activities, {
       primary: this.currentActivity,
       meta: this.currentMeta,
@@ -183,6 +208,7 @@ export class StreamStatusBar {
     });
     this.renderedEventCount = 0;
     this.renderEventCount();
+    this.renderPhases();
     this.renderDetail();
     this.renderTimer();
     this.el.removeClass('claudian-hidden');
@@ -200,12 +226,22 @@ export class StreamStatusBar {
     this.setPhrase('arbeitet');
     this.currentActivity = 'Warte auf Provider-Events';
     this.currentMeta = 'Noch keine Tool-Aktivität';
+    this.currentStage = 1;
     this.activities = [];
     this.renderedEventCount = 0;
     this.cancelEventCountAnimation?.();
     this.cancelEventCountAnimation = null;
     this.eventCountValueEl.setText('0');
     this.renderDetail();
+  }
+
+  private renderPhases(): void {
+    this.phaseEls.forEach((phaseEl, index) => {
+      phaseEl.toggleClass('is-active', index === this.currentStage);
+      phaseEl.toggleClass('is-done', index < this.currentStage);
+      if (index === this.currentStage) phaseEl.setAttribute('aria-current', 'step');
+      else phaseEl.removeAttribute('aria-current');
+    });
   }
 
   private renderTimer(): void {

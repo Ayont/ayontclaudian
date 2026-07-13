@@ -104,6 +104,8 @@
 /* Assistant turn — elevated card with subtle gradient and left accent line */
 .claudian-message-assistant {
   position: relative;
+  display: flex;
+  flex-direction: column;
   background: linear-gradient(180deg, rgba(var(--claudian-brand-rgb), 0.02) 0%, transparent 100%), var(--cl-surface-sunken);
   border: 1px solid var(--cl-border-subtle);
   border-inline-start: 3px solid var(--cl-accent-line);
@@ -117,6 +119,90 @@
   transition: 
     border-color var(--cl-dur) var(--cl-ease),
     box-shadow var(--cl-dur) var(--cl-ease);
+}
+
+/* Persistent turn provenance and live/completed state. The element is appended
+   after the content for backwards-compatible DOM order, then moved visually. */
+.claudian-assistant-turn-header {
+  order: -1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 28px;
+  margin: -3px 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--cl-border-subtle) 72%, transparent);
+  font-family: var(--cl-font-ui);
+}
+
+.claudian-assistant-turn-identity,
+.claudian-assistant-turn-status {
+  display: inline-flex;
+  align-items: center;
+}
+
+.claudian-assistant-turn-identity {
+  min-width: 0;
+  gap: 7px;
+}
+
+.claudian-assistant-turn-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  transition: transform 180ms var(--cl-ease), box-shadow 180ms var(--cl-ease);
+}
+
+.claudian-message-assistant:hover .claudian-assistant-turn-dot { transform: scale(1.12); }
+
+.claudian-assistant-turn-provider {
+  overflow: hidden;
+  font-size: var(--cl-text-xs);
+  font-weight: 720;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claudian-assistant-turn-model {
+  overflow: hidden;
+  padding-inline-start: 7px;
+  border-inline-start: 1px solid var(--cl-border-subtle);
+  color: var(--text-muted);
+  font-family: var(--cl-font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claudian-assistant-turn-status {
+  gap: 5px;
+  margin-inline-start: auto;
+  padding-inline-start: var(--cl-space-2);
+  color: var(--text-faint);
+  font-family: var(--cl-font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.claudian-assistant-turn-done,
+.claudian-assistant-turn-done svg { width: 12px; height: 12px; }
+
+.claudian-assistant-turn-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cl-accent);
+  box-shadow: 0 0 0 4px rgba(var(--claudian-brand-rgb), 0.1);
+  animation: cl-turn-live 1.7s ease-in-out infinite;
+}
+
+@keyframes cl-turn-live {
+  0%, 100% { opacity: 0.52; transform: scale(0.86); }
+  50% { opacity: 1; transform: scale(1); }
 }
 
 .claudian-message-assistant:hover {
@@ -133,6 +219,11 @@
   max-width: 100%;
   overflow-wrap: anywhere;
   unicode-bidi: plaintext; /* Proper BiDi text handling for mixed RTL/LTR */
+}
+
+.claudian-message-assistant .claudian-text-block > :is(p, ul, ol, blockquote) {
+  max-width: 78ch;
+  text-wrap: pretty;
 }
 
 /* Provider-native histories can contain the exact RAG prompt. Keep its useful
@@ -353,8 +444,39 @@
   margin-top: var(--cl-space-2);
   display: flex;
   align-items: center;
-  gap: var(--cl-space-3);
+  flex-wrap: wrap;
+  gap: var(--cl-space-2) var(--cl-space-3);
+  padding-top: var(--cl-space-2);
+  border-top: 1px solid color-mix(in srgb, var(--cl-border-subtle) 68%, transparent);
 }
+
+.claudian-response-telemetry,
+.claudian-response-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.claudian-response-telemetry { min-width: 0; }
+
+.claudian-response-actions { margin-inline-start: auto; }
+
+.claudian-response-metric {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  padding: 2px 7px;
+  border-radius: var(--cl-radius-sm);
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--cl-surface-overlay) 65%, transparent);
+  font-family: var(--cl-font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.claudian-response-metric svg { width: 12px; height: 12px; }
 
 .claudian-baked-duration {
   color: var(--text-muted);
@@ -363,28 +485,58 @@
   font-style: italic;
 }
 
-/* "Continue with another model" — a quiet action that lights up on hover. */
-.claudian-switch-model-btn {
+.claudian-response-action {
   display: inline-flex;
   align-items: center;
-  gap: var(--cl-space-1);
-  margin-inline-start: auto;
-  padding: 2px 8px;
-  border-radius: var(--cl-radius-pill);
+  justify-content: center;
+  gap: 5px;
+  width: auto;
+  height: auto;
+  min-height: 26px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--cl-radius-sm);
   color: var(--text-muted);
+  background: transparent;
+  box-shadow: none;
+  font-family: var(--cl-font-ui);
   font-size: var(--cl-text-xs);
   font-weight: 600;
   cursor: pointer;
-  opacity: 0;
+  opacity: 0.72;
   transition:
-    opacity var(--cl-dur) var(--cl-ease),
+    opacity var(--cl-dur-fast) var(--cl-ease),
+    color var(--cl-dur-fast) var(--cl-ease),
     background var(--cl-dur-fast) var(--cl-ease),
-    color var(--cl-dur-fast) var(--cl-ease);
+    border-color var(--cl-dur-fast) var(--cl-ease),
+    transform var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-response-action svg { width: 13px; height: 13px; }
+
+.claudian-response-action:hover,
+.claudian-response-action:focus-visible {
+  border-color: rgba(var(--claudian-brand-rgb), 0.22);
+  color: var(--cl-accent);
+  background: rgba(var(--claudian-brand-rgb), 0.08);
+  opacity: 1;
+}
+
+.claudian-response-action:active { transform: translateY(1px) scale(0.98); }
+
+.claudian-response-action:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--cl-accent-line);
+}
+
+/* "Continue with another model" — a quiet action that lights up on hover. */
+.claudian-switch-model-btn {
+  margin-inline-start: 0;
 }
 
 .claudian-message:hover .claudian-switch-model-btn,
 .claudian-switch-model-btn:focus-visible {
-  opacity: 1;
+  opacity: 0.72;
 }
 
 .claudian-switch-model-btn:hover {
@@ -440,6 +592,19 @@
   color: var(--cl-accent);
   font-size: var(--cl-text-xs);
   font-family: var(--cl-font-mono);
+}
+
+@media (max-width: 560px) {
+  .claudian-assistant-turn-model { display: none; }
+  .claudian-response-actions {
+    width: 100%;
+    margin-inline-start: 0;
+  }
+  .claudian-response-action { flex: 1 1 auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-assistant-turn-live-dot { animation: none; }
 }
 
 /* Compact boundary indicator */

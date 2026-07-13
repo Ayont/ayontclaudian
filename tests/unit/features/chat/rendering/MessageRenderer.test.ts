@@ -12,7 +12,11 @@ import {
   TOOL_WRITE_STDIN,
 } from '@/core/tools/toolNames';
 import type { ChatMessage, ImageAttachment } from '@/core/types';
-import { getCodeLineCount, MessageRenderer } from '@/features/chat/rendering/MessageRenderer';
+import {
+  getAssistantMessageMetrics,
+  getCodeLineCount,
+  MessageRenderer,
+} from '@/features/chat/rendering/MessageRenderer';
 import { renderStoredAsyncSubagent, renderStoredSubagent } from '@/features/chat/rendering/SubagentRenderer';
 import { renderStoredThinkingBlock } from '@/features/chat/rendering/ThinkingBlockRenderer';
 import { renderStoredToolCall } from '@/features/chat/rendering/ToolCallRenderer';
@@ -101,6 +105,19 @@ describe('MessageRenderer', () => {
     expect(getCodeLineCount('const ready = true;')).toBe(1);
     expect(getCodeLineCount('line 1\nline 2\n')).toBe(2);
     expect(getCodeLineCount('line 1\r\nline 2\r\nline 3')).toBe(3);
+  });
+
+  it('derives compact response telemetry without counting fenced code as prose', () => {
+    expect(getAssistantMessageMetrics({
+      id: 'a1',
+      role: 'assistant',
+      content: 'Eine kurze Antwort.\n\n```ts\nconst ignored = true;\n```',
+      timestamp: 1,
+      toolCalls: [
+        { id: 't1', name: 'Read', input: {}, status: 'completed' },
+        { id: 't2', name: 'Edit', input: {}, status: 'completed' },
+      ],
+    })).toEqual({ words: 3, tools: 2 });
   });
 
   // ============================================
@@ -809,7 +826,7 @@ describe('MessageRenderer', () => {
     expect(durationSpan.textContent).toContain('1m 5s');
   });
 
-  it('does not render footer when durationSeconds is 0', () => {
+  it('renders response actions but no duration metric when durationSeconds is 0', () => {
     const messagesEl = createMockEl();
     const { renderer } = createRenderer(messagesEl);
     jest.spyOn(renderer, 'renderContent').mockResolvedValue(undefined);
@@ -830,7 +847,8 @@ describe('MessageRenderer', () => {
     const msgEl = messagesEl.children[0];
     const contentEl = msgEl.children[0];
     const footerEl = contentEl.children.find((c: any) => c.hasClass('claudian-response-footer'));
-    expect(footerEl).toBeUndefined();
+    expect(footerEl).toBeDefined();
+    expect(footerEl!.children.some((child: any) => child.hasClass('claudian-baked-duration'))).toBe(false);
   });
 
   it('uses default flavor word "Baked" when durationFlavorWord is not set', () => {
@@ -1603,7 +1621,7 @@ describe('MessageRenderer', () => {
       await clickHandlers![0]({ stopPropagation: jest.fn() });
 
       expect(writeTextMock).toHaveBeenCalledWith('markdown content');
-      expect(copyBtn.textContent).toBe('Copied!');
+    expect(copyBtn.textContent).toBe('Kopiert');
       expect(copyBtn.classList.contains('copied')).toBe(true);
     });
 
@@ -2011,14 +2029,14 @@ describe('MessageRenderer', () => {
 
       // First click
       await clickHandlers![0]({ stopPropagation: jest.fn() });
-      expect(copyBtn.textContent).toBe('Copied!');
+      expect(copyBtn.textContent).toBe('Kopiert');
 
       // Second rapid click before timeout expires
       await clickHandlers![0]({ stopPropagation: jest.fn() });
 
       // clearTimeout should have been called for the first pending timeout
       expect(clearTimeoutSpy).toHaveBeenCalled();
-      expect(copyBtn.textContent).toBe('Copied!');
+      expect(copyBtn.textContent).toBe('Kopiert');
 
       clearTimeoutSpy.mockRestore();
     });
@@ -2035,7 +2053,7 @@ describe('MessageRenderer', () => {
 
       // Click to copy
       await clickHandlers![0]({ stopPropagation: jest.fn() });
-      expect(copyBtn.textContent).toBe('Copied!');
+      expect(copyBtn.textContent).toBe('Kopiert');
       expect(copyBtn.classList.contains('copied')).toBe(true);
 
       // Advance timers by 1500ms (the feedback duration)

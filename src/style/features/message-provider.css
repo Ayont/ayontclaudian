@@ -28,26 +28,15 @@
   background: rgba(var(--message-brand-rgb, var(--claudian-brand-rgb)), 0.18);
 }
 
-/* Assistant provenance is a readable label, not a decorative stripe. */
-.claudian-message-assistant[data-message-provider]::before {
-  content: attr(data-provider-label);
-  display: inline-flex;
-  margin-bottom: 7px;
-  padding: 2px 7px;
-  border: 1px solid rgba(var(--message-brand-rgb, var(--claudian-brand-rgb)), 0.28);
-  border-radius: var(--cl-radius-pill);
-  color: var(--message-brand, var(--claudian-brand));
-  background: rgba(var(--message-brand-rgb, var(--claudian-brand-rgb)), 0.07);
-  font-family: var(--cl-font-ui);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  pointer-events: none;
+/* Assistant provenance lives in the semantic turn header rendered by
+   MessageRenderer. The brand dot follows the provider that created the turn. */
+.claudian-message-assistant[data-message-provider] .claudian-assistant-turn-dot {
+  background: var(--message-brand, var(--claudian-brand));
+  box-shadow: 0 0 0 4px rgba(var(--message-brand-rgb, var(--claudian-brand-rgb)), 0.11);
 }
 
-/* Ensure the assistant message is a positioning context for the leading bar. */
-.claudian-message-assistant {
-  position: relative;
+.claudian-message-assistant[data-message-provider] .claudian-assistant-turn-provider {
+  color: var(--message-brand, var(--claudian-brand));
 }
 
 /* -----------------------------------------------------------------------------
