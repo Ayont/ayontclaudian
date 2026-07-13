@@ -58,6 +58,7 @@ import { NavigationSidebar } from '../ui/NavigationSidebar';
 import { StatusPanel } from '../ui/StatusPanel';
 import { StreamStatusBar } from '../ui/StreamStatusBar';
 import { autoResizeTextarea } from '../ui/textareaResize';
+import { VoiceInput } from '../ui/VoiceInput';
 import { recalculateUsageForModel } from '../utils/usageInfo';
 import { getTabProviderId } from './providerResolution';
 import type { TabData, TabDOMElements, TabId, TabProviderContext } from './types';
@@ -1305,6 +1306,26 @@ function initializeInputToolbar(
   createOSButton('Index RAG', 'search', () => {
     void plugin.indexVaultRAG();
   });
+
+  // Voice input (push-to-talk) — records mic, transcribes locally via
+  // whisper-cli, inserts the transcript at the cursor position.
+  const voiceInput = new VoiceInput({
+    onInsert: (text: string) => {
+      const textarea = dom.inputEl;
+      if (!text) return;
+      const start = textarea.selectionStart ?? textarea.value.length;
+      const end = textarea.selectionEnd ?? textarea.value.length;
+      const needsSpaceBefore = start > 0 && !/\s/.test(textarea.value[start - 1]);
+      const needsSpaceAfter = end < textarea.value.length && !/\s/.test(textarea.value[end]);
+      const prefix = needsSpaceBefore ? ' ' : '';
+      const suffix = needsSpaceAfter ? ' ' : '';
+      textarea.setRangeText(`${prefix}${text}${suffix}`, start, end, 'end');
+      autoResizeTextarea(textarea);
+      textarea.focus();
+    },
+  });
+  voiceInput.render(osActionsEl);
+  dom.eventCleanups.push(() => voiceInput.destroy());
 }
 
 export interface InitializeTabUIOptions {

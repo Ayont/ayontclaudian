@@ -365,6 +365,60 @@
   height: 14px;
 }
 
+/* Voice input (push-to-talk) */
+.claudian-voice-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--claudian-card-bg);
+  color: var(--claudian-text);
+  border: 1px solid var(--claudian-border);
+  border-radius: 999px;
+  padding: 7px;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.claudian-voice-btn:hover {
+  border-color: var(--claudian-accent);
+  color: var(--claudian-accent);
+}
+
+.claudian-voice-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.claudian-voice-btn.is-recording {
+  background: rgba(220, 38, 38, 0.12);
+  border-color: rgba(220, 38, 38, 0.5);
+  color: rgb(220, 38, 38);
+  animation: claudian-voice-pulse 1.4s ease-in-out infinite;
+}
+
+.claudian-voice-btn.is-processing {
+  color: var(--claudian-muted);
+  opacity: 0.7;
+}
+
+.claudian-voice-btn.is-processing svg {
+  animation: claudian-voice-spin 0.9s linear infinite;
+}
+
+@keyframes claudian-voice-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); }
+}
+
+@keyframes claudian-voice-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-voice-btn.is-recording { animation: none; }
+  .claudian-voice-btn.is-processing svg { animation: none; }
+}
+
 /* Multi-Agent Modal */
 .claudian-multi-agent-modal .modal-content {
   padding: 0;
