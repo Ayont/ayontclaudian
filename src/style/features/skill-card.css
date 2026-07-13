@@ -1,0 +1,172 @@
+/* Skill Creator card — rendered from a claudian-skill fenced block */
+
+.claudian-skill-card {
+  margin: 10px 0;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--background-modifier-border);
+  background:
+    linear-gradient(180deg, rgba(var(--claudian-brand-rgb), 0.06), transparent 120px),
+    var(--cl-surface-raised, var(--background-secondary));
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.1);
+  animation: claudian-skill-card-in var(--cl-dur, 220ms) var(--cl-ease-out, ease-out);
+}
+
+.claudian-skill-card-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: color-mix(in srgb, var(--background-primary) 80%, transparent);
+}
+
+.claudian-skill-card-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.claudian-skill-card-icon {
+  display: flex;
+  align-items: center;
+  color: var(--cl-accent, var(--interactive-accent));
+}
+
+.claudian-skill-card-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.claudian-skill-card-label {
+  font-size: var(--cl-text-sm);
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.claudian-skill-card-live {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--cl-accent, var(--interactive-accent));
+  background: rgba(var(--claudian-brand-rgb), 0.12);
+  padding: 2px 7px;
+  border-radius: 100px;
+}
+
+.claudian-skill-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.claudian-skill-card-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+.claudian-skill-card-action svg {
+  width: 14px;
+  height: 14px;
+}
+
+.claudian-skill-card-action:hover {
+  color: var(--cl-accent, var(--interactive-accent));
+  background: var(--background-modifier-hover);
+}
+
+.claudian-skill-card-action:active {
+  transform: scale(0.92);
+}
+
+.claudian-skill-card-action:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 1px;
+}
+
+.claudian-skill-card-head {
+  padding: 12px 14px 6px;
+  border-bottom: 1px solid var(--background-modifier-border-hover, var(--background-modifier-border));
+}
+
+.claudian-skill-card-name {
+  display: inline-block;
+  font-family: var(--cl-font-mono, monospace);
+  font-size: var(--cl-text-sm);
+  font-weight: 700;
+  color: var(--cl-accent, var(--interactive-accent));
+  background: rgba(var(--claudian-brand-rgb), 0.1);
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.claudian-skill-card-description {
+  margin: 8px 0 0;
+  font-size: var(--cl-text-sm);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.claudian-skill-card-tools {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.claudian-skill-card-body {
+  padding: 6px 14px 14px;
+  font-size: var(--cl-text-sm);
+  line-height: 1.55;
+}
+
+.claudian-skill-card-body h1,
+.claudian-skill-card-body h2,
+.claudian-skill-card-body h3 {
+  margin: 12px 0 6px;
+  font-size: var(--cl-text-base, 1em);
+}
+
+.claudian-skill-card-body :first-child {
+  margin-top: 0;
+}
+
+.claudian-skill-card-body ul,
+.claudian-skill-card-body ol {
+  margin: 4px 0;
+  padding-inline-start: 20px;
+}
+
+@keyframes claudian-skill-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-skill-card {
+    animation: none;
+  }
+  .claudian-skill-card-action:active {
+    transform: none;
+  }
+}

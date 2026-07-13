@@ -8,7 +8,7 @@
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import type { ProviderCapabilities, ProviderId } from '../providers/types';
 
-export type BuiltInCommandAction = 'clear' | 'add-dir' | 'resume' | 'fork' | 'goal' | 'workflow' | 'team' | 'template' | 'vault-health' | 'artifact' | 'document' | 'email' | 'packet-tracer' | 'status';
+export type BuiltInCommandAction = 'clear' | 'add-dir' | 'resume' | 'fork' | 'goal' | 'workflow' | 'team' | 'template' | 'vault-health' | 'artifact' | 'document' | 'email' | 'skill' | 'packet-tracer' | 'status';
 type BuiltInCommandCapability = 'supportsNativeHistory' | 'supportsFork';
 type BuiltInCommandSupportContext = ProviderId | Pick<ProviderCapabilities, BuiltInCommandCapability>;
 
@@ -118,6 +118,14 @@ export const BUILT_IN_COMMANDS: BuiltInCommand[] = [
     action: 'email',
     hasArgs: true,
     argumentHint: '[E-Mail-Wunsch]',
+  },
+  {
+    name: 'skill',
+    aliases: ['skills'],
+    description: 'Einen perfekten Agent-Skill (SKILL.md) erstellen',
+    action: 'skill',
+    hasArgs: true,
+    argumentHint: '[was der Skill können soll]',
   },
   {
     name: 'packet-tracer',

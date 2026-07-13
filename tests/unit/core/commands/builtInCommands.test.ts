@@ -129,6 +129,16 @@ describe('builtInCommands', () => {
       expect(alias?.args).toBe('Kurze Follow-up Nachricht');
     });
 
+    it('detects /skill and /skills with the skill request', () => {
+      const skill = detectBuiltInCommand('/skill PDF-Formulare ausfüllen');
+      expect(skill?.command.action).toBe('skill');
+      expect(skill?.args).toBe('PDF-Formulare ausfüllen');
+
+      const alias = detectBuiltInCommand('/skills VLAN-Troubleshooting');
+      expect(alias?.command.action).toBe('skill');
+      expect(alias?.args).toBe('VLAN-Troubleshooting');
+    });
+
     it('detects /packet-tracer and /pkt with operation arguments', () => {
       const command = detectBuiltInCommand('/packet-tracer read labs/router.pkt');
       expect(command?.command.action).toBe('packet-tracer');
@@ -259,8 +269,8 @@ describe('builtInCommands', () => {
     it('returns only commands supported by codex capabilities', () => {
       const commands = getBuiltInCommandsForDropdown('codex');
       // Universal commands (no required capability) join the supported set.
-      expect(commands.length).toBe(14);
-      expect(commands.map(c => c.name)).toEqual(['clear', 'add-dir', 'resume', 'fork', 'goal', 'workflow', 'team', 'template', 'vault-health', 'artifact', 'document', 'email', 'packet-tracer', 'status']);
+      expect(commands.length).toBe(15);
+      expect(commands.map(c => c.name)).toEqual(['clear', 'add-dir', 'resume', 'fork', 'goal', 'workflow', 'team', 'template', 'vault-health', 'artifact', 'document', 'email', 'skill', 'packet-tracer', 'status']);
     });
   });
 

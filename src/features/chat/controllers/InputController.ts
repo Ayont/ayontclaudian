@@ -2654,6 +2654,23 @@ export class InputController {
         });
         break;
       }
+      case 'skill': {
+        const request = args.trim();
+        if (!request) {
+          new Notice('Verwendung: /skill <was der Skill können soll>');
+          return;
+        }
+        await this.sendMessage({
+          content:
+            'Erstelle einen vollständigen, produktionsreifen Agent-Skill für den folgenden Wunsch. '
+            + 'Gib das Ergebnis als EINEN `claudian-skill`-Block aus: gültige SKILL.md mit '
+            + 'kebab-case `name`, einer trigger-reichen `description` („Use when …") und einem klaren, '
+            + 'imperativen Body (Overview, When to use, Workflow, Examples, Guardrails). Nutze Progressive '
+            + 'Disclosure und markiere fehlende Angaben mit [To be completed].\n\n'
+            + request,
+        });
+        break;
+      }
       case 'packet-tracer': {
         const [operation = 'create', ...rest] = args.trim().split(/\s+/);
         const payload = rest.join(' ').trim();

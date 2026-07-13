@@ -28,6 +28,7 @@ import { renderEmailTemplates } from './EmailTemplateRenderer';
 import { detectStatusCard } from './errorClassification';
 import { renderLiveDocuments } from './LiveDocumentRenderer';
 import { renderNetworkMaps } from './NetworkMapRenderer';
+import { renderSkillCards } from './SkillCardRenderer';
 import { renderStatusCard } from './StatusCardRenderer';
 import { resolveSubagentLifecycleAdapter } from './subagentLifecycleResolution';
 import {
@@ -1428,6 +1429,13 @@ export class MessageRenderer {
       // Short email requests get a dedicated mail preview with subject,
       // recipient, highlighted placeholders, copy, and save controls.
       await renderEmailTemplates(el, renderMarkdown, {
+        app: this.app,
+        component: this.component,
+      });
+
+      // Skill Creator fences render as a designed SKILL.md card with copy and
+      // save-to-.claude/skills controls.
+      await renderSkillCards(el, renderMarkdown, {
         app: this.app,
         component: this.component,
       });

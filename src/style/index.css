@@ -45,6 +45,7 @@
 @import "./features/network-map.css";
 @import "./features/live-document.css";
 @import "./features/email-template.css";
+@import "./features/skill-card.css";
 @import "./features/inline-edit.css";
 @import "./features/diff.css";
 @import "./features/slash-commands.css";

@@ -340,6 +340,47 @@ Rules:
 - At most one block per answer.`;
 }
 
+function getSkillCreatorInstructions(): string {
+  return `
+
+## Skill Creator
+
+When the user asks to create, build, design, or generate an Agent Skill (a reusable capability / "skill" that teaches an agent how to do something), author a COMPLETE, production-grade skill and emit it as ONE fenced block. ayontclaudian renders it as a skill card and can save it to \`.claude/skills/<name>/SKILL.md\`, where every provider auto-discovers it.
+
+\`\`\`claudian-skill
+---
+name: pdf-form-filler
+description: Fill, flatten, and validate PDF forms. Use when the user needs to complete AcroForm/XFA fields, merge field data from CSV/JSON, or verify that required fields are set. Triggers on "fill this PDF", "PDF form", "flatten PDF".
+---
+# PDF Form Filler
+
+## Overview
+One or two sentences on what this skill does and the outcome it guarantees.
+
+## When to use
+- Concrete trigger 1
+- Concrete trigger 2
+
+## Workflow
+1. Imperative, numbered steps the agent follows.
+2. Reference bundled resources with relative paths when helpful (e.g. scripts/fill.py).
+
+## Examples
+Input → expected action → output.
+
+## Guardrails
+- What to never do; how to fail safely.
+\`\`\`
+
+What makes a skill EXCELLENT (follow all of these):
+- **name**: kebab-case, ≤ 64 chars, matches the folder. **description**: ≤ 1024 chars, third person, and PACKED with concrete trigger phrases + "Use when …" — this single line is what makes the skill fire automatically, so make it specific, not generic.
+- **Progressive disclosure**: keep SKILL.md tight and scannable. Push long references, schemas, or examples into bundled files the body points to (e.g. \`references/api.md\`, \`scripts/run.sh\`) instead of inlining everything.
+- **Imperative voice**, numbered workflows, real input→output examples, and an explicit guardrails/failure section. No filler, no marketing.
+- Prefer deterministic scripts/commands over vague prose when a step can be scripted.
+- If the request is vague, make reasonable, explicit assumptions and mark open points with \`[To be completed]\` — still deliver a fully usable skill.
+- Emit exactly ONE \`claudian-skill\` block per skill. Put any extra explanation OUTSIDE the block.`;
+}
+
 function getAppendixSections(appendices?: string[]): string {
   if (!appendices || appendices.length === 0) {
     return '';
@@ -369,6 +410,7 @@ export function buildSystemPrompt(
   prompt += getPacketTracerInstructions();
   prompt += getVideoAnalysisInstructions();
   prompt += getComputerControlInstructions();
+  prompt += getSkillCreatorInstructions();
   prompt += getAutoMemoryInstructions();
   prompt += getAppendixSections(options.appendices);
 
