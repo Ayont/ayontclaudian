@@ -335,7 +335,7 @@
 
 .claudian-stream-status-toggle {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: var(--cl-space-2);
   width: 100%;
@@ -427,6 +427,26 @@
   font-weight: 650;
   position: relative;
   z-index: 1;
+}
+
+.claudian-stream-status-event-count {
+  padding: 2px 6px;
+  border: 1px solid var(--cl-accent-line);
+  border-radius: var(--cl-radius-pill);
+  background: rgba(var(--claudian-brand-rgb), 0.055);
+  color: var(--text-muted);
+  font-family: var(--cl-font-mono);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.claudian-stream-status-event-count .is-counting {
+  color: var(--cl-accent);
+}
+
+@media (max-width: 520px) {
+  .claudian-stream-status-event-count span:last-child { display: none; }
 }
 
 .claudian-stream-status-chevron {

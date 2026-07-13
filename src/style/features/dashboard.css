@@ -785,6 +785,9 @@
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
 }
+.claudian-dashboard-card-value.is-counting {
+  color: var(--card-color);
+}
 
 /* ── Mission console: prompt input ─────────────────────────── */
 .claudian-multi-agent-prompt {
@@ -1742,6 +1745,10 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
   font-weight: 700;
   color: var(--claudian-text);
   font-variant-numeric: tabular-nums;
+}
+
+.claudian-usage-stat-value.is-counting {
+  color: var(--claudian-accent);
 }
 
 .claudian-usage-stat-sub {

@@ -5,6 +5,7 @@ import { loadMemoryNotes } from '../../core/memory/memoryService';
 import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
 import type { ProviderCapabilities, ProviderId } from '../../core/providers/types';
 import type ClaudianPlugin from '../../main';
+import { animateNumber } from '../../utils/animateNumber';
 import { ArtifactGalleryModal } from '../artifacts/ArtifactGalleryModal';
 import { MemoryBrowserModal, MissionLogBrowserModal, TokenUsageModal, WorkflowBrowserModal } from './DashboardModals';
 
@@ -15,6 +16,7 @@ interface DashboardCard {
   title: string;
   icon: string;
   value: string;
+  numericValue?: number;
   subtitle: string;
   status: 'ok' | 'info' | 'warning' | 'accent';
   action: string;
@@ -48,6 +50,7 @@ export class ClaudianDashboardView extends ItemView {
   private readonly unsubscribers: Array<() => void> = [];
   private refreshTimer: number | null = null;
   private liveMissions = 0;
+  private readonly lastCardValues = new Map<string, number>();
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: ClaudianPlugin) {
     super(leaf);
@@ -69,6 +72,7 @@ export class ClaudianDashboardView extends ItemView {
     const container = this.containerEl.children[1] as HTMLElement;
     container.empty();
     container.addClass('claudian-dashboard');
+    this.lastCardValues.clear();
 
     // Tint the whole dashboard with the active provider's brand color so it
     // feels like one cohesive, intentional surface per provider.
@@ -265,21 +269,21 @@ export class ClaudianDashboardView extends ItemView {
     const cards: DashboardCard[] = [
       {
         id: 'projects', title: 'Projects', icon: 'folder-kanban',
-        value: String(projects.length),
+        value: String(projects.length), numericValue: projects.length,
         subtitle: projects[0] ? `Latest: ${projects[0].name}` : 'No projects yet',
         status: projects.length > 0 ? 'ok' : 'info', action: 'Create',
         onClick: () => this.plugin.createClaudianProject(),
       },
       {
         id: 'memory', title: 'Memory', icon: 'brain-circuit',
-        value: String(memoryTotal),
+        value: String(memoryTotal), numericValue: memoryTotal,
         subtitle: latestMemoryTopic ? `Latest: ${latestMemoryTopic}` : 'No memories yet',
         status: memoryTotal > 0 ? 'ok' : 'info', action: 'Browse',
         onClick: () => this.openMemoryBrowser(),
       },
       {
         id: 'usage', title: 'Token Usage', icon: 'gauge',
-        value: usage.dailyTotal.toLocaleString(),
+        value: usage.dailyTotal.toLocaleString(), numericValue: usage.dailyTotal,
         subtitle: `Session: ${usage.sessionTotal.toLocaleString()} tokens`,
         status: usage.dailyTotal > 100_000 ? 'warning' : 'ok', action: 'Reset',
         onClick: () => {
@@ -291,21 +295,21 @@ export class ClaudianDashboardView extends ItemView {
       },
       {
         id: 'rag', title: 'RAG Index', icon: 'search',
-        value: String(ragSize),
+        value: String(ragSize), numericValue: ragSize,
         subtitle: ragSize > 0 ? 'Vault chunks indexed' : 'Not indexed yet',
         status: ragSize > 0 ? 'ok' : 'warning', action: 'Index',
         onClick: () => this.plugin.indexVaultRAG(),
       },
       {
         id: 'workflows', title: 'Workflows', icon: 'workflow',
-        value: String(workflows.length),
+        value: String(workflows.length), numericValue: workflows.length,
         subtitle: workflows.length > 0 ? 'Scheduled automations' : 'No workflows yet',
         status: workflows.length > 0 ? 'ok' : 'info', action: 'View',
         onClick: () => this.openWorkflowBrowser(),
       },
       {
         id: 'agents', title: 'Agents', icon: 'users',
-        value: String(agents.length),
+        value: String(agents.length), numericValue: agents.length,
         subtitle: this.liveMissions > 0 ? `${this.liveMissions} running now` : 'Specialist agents available',
         status: 'accent', action: 'Run',
         onClick: () => this.plugin.runMultiAgentTask(),
@@ -324,7 +328,17 @@ export class ClaudianDashboardView extends ItemView {
     setIcon(header.createSpan({ cls: 'claudian-dashboard-card-icon' }), card.icon);
     header.createEl('span', { cls: 'claudian-dashboard-card-action', text: card.action });
 
-    el.createEl('div', { cls: 'claudian-dashboard-card-value', text: card.value });
+    const previousValue = card.numericValue !== undefined
+      ? this.lastCardValues.get(card.id) ?? 0
+      : undefined;
+    const valueEl = el.createEl('div', {
+      cls: 'claudian-dashboard-card-value',
+      text: previousValue !== undefined ? previousValue.toLocaleString() : card.value,
+    });
+    if (card.numericValue !== undefined) {
+      animateNumber(valueEl, card.numericValue, { from: previousValue });
+      this.lastCardValues.set(card.id, card.numericValue);
+    }
     el.createEl('h3', { cls: 'claudian-dashboard-card-title', text: card.title });
     el.createEl('p', { cls: 'claudian-dashboard-card-subtitle', text: card.subtitle });
 

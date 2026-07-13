@@ -55,38 +55,104 @@ function runRendererAction(action: () => Promise<void>): void {
 
 /** How long the code-block Copy button stays in its "Copied" state (ms). */
 const CODE_COPY_FEEDBACK_MS = 1500;
+export const CODE_COLLAPSE_LINE_THRESHOLD = 18;
+export const MAX_CODE_GUTTER_LINES = 300;
+
+export function getCodeLineCount(code: string): number {
+  if (!code) return 1;
+  const normalized = code.replace(/\r\n/g, '\n');
+  const withoutTrailingNewline = normalized.endsWith('\n')
+    ? normalized.slice(0, -1)
+    : normalized;
+  return Math.max(1, withoutTrailingNewline.split('\n').length);
+}
 
 /**
- * Builds a premium header bar for a multi-line code block: language label on the
- * left, a real Copy <button> on the right that copies the raw code to clipboard
- * and briefly confirms. Header is prepended to the wrapper, above the <pre>.
+ * Turns a plain rendered <pre> into a compact code workspace with language and
+ * line telemetry, fixed line numbers, wrap/collapse controls, and copy feedback.
  */
 function addCodeBlockHeader(
   wrapperEl: HTMLElement,
   preEl: HTMLElement,
   language: string | null
 ): void {
+  const codeEl = preEl.querySelector('code');
+  const rawCode = codeEl?.textContent ?? preEl.textContent ?? '';
+  const lineCount = getCodeLineCount(rawCode);
   const headerEl = createEl('div', { cls: 'claudian-code-header' });
-
-  const langEl = headerEl.createSpan({ cls: 'claudian-code-lang' });
+  const identityEl = headerEl.createDiv({ cls: 'claudian-code-identity' });
+  const langEl = identityEl.createSpan({ cls: 'claudian-code-lang' });
   langEl.setText(language ?? 'text');
+  identityEl.createSpan({
+    cls: 'claudian-code-lines',
+    text: `${lineCount.toLocaleString()} ${lineCount === 1 ? 'Zeile' : 'Zeilen'}`,
+  });
 
-  const copyBtn = headerEl.createEl('button', { cls: 'claudian-code-copy' });
+  const actionsEl = headerEl.createDiv({ cls: 'claudian-code-actions' });
+  const wrapBtn = actionsEl.createEl('button', { cls: 'claudian-code-action' });
+  wrapBtn.setAttribute('type', 'button');
+  wrapBtn.setAttribute('aria-label', 'Lange Codezeilen umbrechen');
+  wrapBtn.setAttribute('aria-pressed', 'false');
+  setIcon(wrapBtn.createSpan(), 'wrap-text');
+
+  let collapseBtn: HTMLButtonElement | null = null;
+  if (lineCount > CODE_COLLAPSE_LINE_THRESHOLD) {
+    wrapperEl.addClass('is-collapsible');
+    wrapperEl.addClass('is-collapsed');
+    collapseBtn = actionsEl.createEl('button', { cls: 'claudian-code-action' });
+    collapseBtn.setAttribute('type', 'button');
+    collapseBtn.setAttribute('aria-label', 'Vollständigen Code anzeigen');
+    collapseBtn.setAttribute('aria-expanded', 'false');
+    setIcon(collapseBtn.createSpan(), 'chevrons-up-down');
+  }
+
+  const copyBtn = actionsEl.createEl('button', { cls: 'claudian-code-copy' });
   copyBtn.setAttribute('type', 'button');
-  copyBtn.setAttribute('aria-label', 'Copy code');
+  copyBtn.setAttribute('aria-label', 'Code kopieren');
 
   const iconEl = copyBtn.createSpan({ cls: 'claudian-code-copy-icon' });
   setIcon(iconEl, 'copy');
   const textEl = copyBtn.createSpan({ cls: 'claudian-code-copy-text' });
-  textEl.setText('Copy');
+  textEl.setText('Kopieren');
+
+  const bodyEl = createEl('div', { cls: 'claudian-code-body' });
+  if (language && lineCount > 1 && lineCount <= MAX_CODE_GUTTER_LINES) {
+    bodyEl.addClass('has-line-numbers');
+    const gutterEl = bodyEl.createDiv({
+      cls: 'claudian-code-gutter',
+      attr: { 'aria-hidden': 'true' },
+    });
+    for (let line = 1; line <= lineCount; line++) {
+      gutterEl.createSpan({ text: String(line) });
+    }
+    preEl.addEventListener('scroll', () => {
+      gutterEl.scrollTop = preEl.scrollTop;
+    }, { passive: true });
+  }
+  wrapperEl.insertBefore(headerEl, preEl);
+  wrapperEl.insertBefore(bodyEl, preEl);
+  bodyEl.appendChild(preEl);
+
+  wrapBtn.addEventListener('click', () => {
+    const wrapped = !wrapperEl.hasClass('is-wrapped');
+    wrapperEl.toggleClass('is-wrapped', wrapped);
+    wrapBtn.setAttribute('aria-pressed', wrapped ? 'true' : 'false');
+    wrapBtn.setAttribute('aria-label', wrapped ? 'Codezeilen nicht umbrechen' : 'Lange Codezeilen umbrechen');
+  });
+
+  collapseBtn?.addEventListener('click', () => {
+    const collapsed = wrapperEl.hasClass('is-collapsed');
+    wrapperEl.toggleClass('is-collapsed', !collapsed);
+    collapseBtn?.setAttribute('aria-expanded', collapsed ? 'true' : 'false');
+    collapseBtn?.setAttribute('aria-label', collapsed ? 'Code einklappen' : 'Vollständigen Code anzeigen');
+  });
 
   let feedbackTimeout: number | null = null;
   copyBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     runRendererAction(async () => {
-      const code = preEl.querySelector('code')?.textContent ?? preEl.textContent ?? '';
       try {
-        await navigator.clipboard.writeText(code);
+        await navigator.clipboard.writeText(rawCode);
       } catch {
         // Clipboard API may fail in non-secure contexts.
         return;
@@ -95,19 +161,18 @@ function addCodeBlockHeader(
       if (feedbackTimeout) window.clearTimeout(feedbackTimeout);
 
       setIcon(iconEl, 'check');
-      textEl.setText('Copied');
+      textEl.setText('Kopiert');
       copyBtn.classList.add('copied');
 
       feedbackTimeout = window.setTimeout(() => {
         setIcon(iconEl, 'copy');
-        textEl.setText('Copy');
+        textEl.setText('Kopieren');
         copyBtn.classList.remove('copied');
         feedbackTimeout = null;
       }, CODE_COPY_FEEDBACK_MS);
     });
   });
 
-  wrapperEl.insertBefore(headerEl, preEl);
 }
 
 function containsPotentialVaultLink(markdown: string): boolean {
@@ -1179,7 +1244,7 @@ export class MessageRenderer {
 
         // Detect language from the highlighted <code> class (e.g. language-ts).
         const code = pre.querySelector('code[class*="language-"]');
-        const match = code?.className.match(/language-(\w+)/);
+        const match = code?.className.match(/language-([\w#+.-]+)/);
         const language = match ? match[1] : null;
         if (language) {
           wrapper.classList.add('has-language');

@@ -12,7 +12,7 @@ import {
   TOOL_WRITE_STDIN,
 } from '@/core/tools/toolNames';
 import type { ChatMessage, ImageAttachment } from '@/core/types';
-import { MessageRenderer } from '@/features/chat/rendering/MessageRenderer';
+import { getCodeLineCount, MessageRenderer } from '@/features/chat/rendering/MessageRenderer';
 import { renderStoredAsyncSubagent, renderStoredSubagent } from '@/features/chat/rendering/SubagentRenderer';
 import { renderStoredThinkingBlock } from '@/features/chat/rendering/ThinkingBlockRenderer';
 import { renderStoredToolCall } from '@/features/chat/rendering/ToolCallRenderer';
@@ -94,6 +94,13 @@ describe('MessageRenderer', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (Menu as typeof Menu & { instances: unknown[] }).instances.length = 0;
+  });
+
+  it('counts code lines without treating a trailing newline as an empty line', () => {
+    expect(getCodeLineCount('')).toBe(1);
+    expect(getCodeLineCount('const ready = true;')).toBe(1);
+    expect(getCodeLineCount('line 1\nline 2\n')).toBe(2);
+    expect(getCodeLineCount('line 1\r\nline 2\r\nline 3')).toBe(3);
   });
 
   // ============================================

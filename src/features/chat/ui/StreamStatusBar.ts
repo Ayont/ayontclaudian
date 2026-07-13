@@ -1,5 +1,7 @@
 import { setIcon } from 'obsidian';
 
+import { animateNumber } from '../../../utils/animateNumber';
+
 /**
  * Live "the assistant is working" status bar. Shown above the composer while a
  * turn is streaming, for every provider. Displays a pulsing dot, a label, and a
@@ -65,6 +67,8 @@ export class StreamStatusBar {
   private readonly phraseEl: HTMLElement;
   private readonly activityEl: HTMLElement;
   private readonly timerEl: HTMLElement;
+  private readonly eventCountEl: HTMLElement;
+  private readonly eventCountValueEl: HTMLElement;
   private readonly detailEl: HTMLElement;
   private readonly detailPrimaryEl: HTMLElement;
   private readonly detailMetaEl: HTMLElement;
@@ -78,6 +82,8 @@ export class StreamStatusBar {
   private currentMeta = 'Noch keine Tool-Aktivität';
   private activities: StreamActivity[] = [];
   private isOpen = false;
+  private renderedEventCount = 0;
+  private cancelEventCountAnimation: (() => void) | null = null;
 
   constructor(parentEl: HTMLElement, now: () => number = () => Date.now()) {
     this.now = now;
@@ -100,6 +106,9 @@ export class StreamStatusBar {
     this.phraseEl.setText(this.currentPhrase);
     this.activityEl = textEl.createSpan({ cls: 'claudian-stream-status-activity' });
     this.activityEl.setText(this.currentActivity);
+    this.eventCountEl = this.toggleEl.createSpan({ cls: 'claudian-stream-status-event-count' });
+    this.eventCountValueEl = this.eventCountEl.createSpan({ text: '0' });
+    this.eventCountEl.createSpan({ text: ' Schritte' });
     this.timerEl = this.toggleEl.createSpan({ cls: 'claudian-stream-status-timer' });
     const chevronEl = this.toggleEl.createSpan({ cls: 'claudian-stream-status-chevron' });
     setIcon(chevronEl, 'chevron-up');
@@ -151,6 +160,7 @@ export class StreamStatusBar {
       });
     }
     this.activityEl.setText(this.currentActivity);
+    this.renderEventCount();
     this.toggleEl.setAttribute('aria-label', `Live-Aktivität anzeigen: ${this.currentActivity}`);
     this.renderDetail();
   }
@@ -171,6 +181,8 @@ export class StreamStatusBar {
       meta: this.currentMeta,
       at: this.startedAt,
     });
+    this.renderedEventCount = 0;
+    this.renderEventCount();
     this.renderDetail();
     this.renderTimer();
     this.el.removeClass('claudian-hidden');
@@ -189,11 +201,43 @@ export class StreamStatusBar {
     this.currentActivity = 'Warte auf Provider-Events';
     this.currentMeta = 'Noch keine Tool-Aktivität';
     this.activities = [];
+    this.renderedEventCount = 0;
+    this.cancelEventCountAnimation?.();
+    this.cancelEventCountAnimation = null;
+    this.eventCountValueEl.setText('0');
     this.renderDetail();
   }
 
   private renderTimer(): void {
-    this.timerEl.setText(formatElapsed(this.now() - this.startedAt));
+    const nextValue = formatElapsed(this.now() - this.startedAt);
+    const changed = this.timerEl.textContent !== nextValue;
+    this.timerEl.setText(nextValue);
+    const ownerWindow = this.timerEl.ownerDocument?.defaultView ?? window;
+    const reduceMotion = ownerWindow.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    if (changed && !reduceMotion && typeof this.timerEl.animate === 'function') {
+      this.timerEl.animate(
+        [
+          { opacity: 0.45, transform: 'translateY(2px)' },
+          { opacity: 1, transform: 'translateY(0)' },
+        ],
+        { duration: 150, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
+      );
+    }
+  }
+
+  private renderEventCount(): void {
+    const nextCount = this.activities.length;
+    this.eventCountEl.setAttribute(
+      'aria-label',
+      `${nextCount} ${nextCount === 1 ? 'Arbeitsschritt' : 'Arbeitsschritte'}`,
+    );
+    this.cancelEventCountAnimation?.();
+    this.cancelEventCountAnimation = animateNumber(this.eventCountValueEl, nextCount, {
+      from: this.renderedEventCount,
+      duration: 220,
+      formatter: (value) => String(value),
+    });
+    this.renderedEventCount = nextCount;
   }
 
   private renderDetail(): void {
@@ -230,6 +274,7 @@ export class StreamStatusBar {
   /** Stops the timer and removes the element; safe to call multiple times. */
   destroy(): void {
     this.clearTimer();
+    this.cancelEventCountAnimation?.();
     this.el.remove();
   }
 }

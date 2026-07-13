@@ -5,6 +5,7 @@ import type { MissionEvent, MissionState } from '../../core/intelligence/multiAg
 import { loadMemoryNotes } from '../../core/memory/memoryService';
 import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
 import type ClaudianPlugin from '../../main';
+import { animateNumber } from '../../utils/animateNumber';
 
 /**
  * Tints a dashboard modal with the active provider's brand color via the shared
@@ -299,8 +300,8 @@ export class TokenUsageModal extends Modal {
     const usage = this.plugin.tokenBudgetTracker.getState();
     const stats = contentEl.createDiv({ cls: 'claudian-usage-stats' });
 
-    this.createStatCard(stats, 'Daily Total', usage.dailyTotal.toLocaleString(), 'tokens');
-    this.createStatCard(stats, 'Session Total', usage.sessionTotal.toLocaleString(), 'tokens');
+    this.createStatCard(stats, 'Daily Total', usage.dailyTotal, 'tokens');
+    this.createStatCard(stats, 'Session Total', usage.sessionTotal, 'tokens');
 
     // Canvas-rendered mini bar chart
     const chartWrap = contentEl.createDiv({ cls: 'claudian-usage-chart-wrap' });
@@ -344,10 +345,11 @@ export class TokenUsageModal extends Modal {
     };
   }
 
-  private createStatCard(parent: HTMLElement, title: string, value: string, subtitle: string): void {
+  private createStatCard(parent: HTMLElement, title: string, value: number, subtitle: string): void {
     const card = parent.createDiv({ cls: 'claudian-usage-stat-card' });
     card.createEl('span', { cls: 'claudian-usage-stat-title', text: title });
-    card.createEl('span', { cls: 'claudian-usage-stat-value', text: value });
+    const valueEl = card.createEl('span', { cls: 'claudian-usage-stat-value', text: '0' });
+    animateNumber(valueEl, value);
     card.createEl('span', { cls: 'claudian-usage-stat-sub', text: subtitle });
   }
 

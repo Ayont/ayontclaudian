@@ -5,7 +5,7 @@
   border: 1px solid rgba(var(--claudian-brand-rgb), 0.15);
   border-radius: var(--cl-radius-lg);
   overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15), var(--cl-shadow-sm);
+  box-shadow: var(--cl-shadow-sm);
   transition: 
     border-color var(--cl-dur) var(--cl-ease),
     box-shadow var(--cl-dur) var(--cl-ease);
@@ -13,7 +13,7 @@
 
 .claudian-code-wrapper:hover {
   border-color: rgba(var(--claudian-brand-rgb), 0.45);
-  box-shadow: 0 6px 20px rgba(var(--claudian-brand-rgb), 0.08), var(--cl-shadow-md);
+  box-shadow: var(--cl-shadow-md);
 }
 
 /* Header bar — language label (left) + Copy button (right) on a raised strip. */
@@ -23,8 +23,17 @@
   justify-content: space-between;
   gap: var(--cl-space-2);
   padding: 6px 12px;
-  background: linear-gradient(180deg, rgba(var(--claudian-brand-rgb), 0.08) 0%, rgba(var(--claudian-brand-rgb), 0.02) 100%), var(--cl-surface-raised);
+  min-height: 38px;
+  background: color-mix(in srgb, var(--cl-surface-raised) 94%, var(--cl-accent) 6%);
   border-bottom: 1px solid rgba(var(--claudian-brand-rgb), 0.15);
+}
+
+.claudian-code-identity,
+.claudian-code-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
 }
 
 .claudian-code-lang {
@@ -35,6 +44,49 @@
   color: var(--text-muted);
   user-select: none;
 }
+
+.claudian-code-lines {
+  padding-inline-start: 7px;
+  border-inline-start: 1px solid var(--cl-border-subtle);
+  color: var(--text-faint);
+  font-family: var(--cl-font-mono);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.claudian-code-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--cl-radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  box-shadow: none;
+  cursor: pointer;
+  transition:
+    color 140ms var(--cl-ease-out),
+    background-color 140ms var(--cl-ease-out),
+    border-color 140ms var(--cl-ease-out),
+    transform 140ms var(--cl-ease-out);
+}
+
+.claudian-code-action:hover,
+.claudian-code-action[aria-pressed="true"],
+.claudian-code-action[aria-expanded="true"] {
+  border-color: var(--cl-border-subtle);
+  background: var(--background-modifier-hover);
+  color: var(--cl-accent);
+}
+
+.claudian-code-action:active { transform: translateY(1px); }
+.claudian-code-action svg { width: 14px; height: 14px; }
 
 /* Copy button — a real, accessible button; quiet until hover/focus. */
 .claudian-code-copy {
@@ -83,21 +135,91 @@
   height: 13px;
 }
 
+.claudian-code-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.claudian-code-body.has-line-numbers {
+  grid-template-columns: 46px minmax(0, 1fr);
+}
+
+.claudian-code-gutter {
+  display: flex;
+  flex-direction: column;
+  align-items: end;
+  max-height: 100%;
+  padding: var(--cl-space-3) 10px var(--cl-space-3) 6px;
+  overflow: hidden;
+  border-inline-end: 1px solid rgba(var(--claudian-brand-rgb), 0.12);
+  background: rgba(var(--claudian-brand-rgb), 0.035);
+  color: var(--text-faint);
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-md);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.55;
+  user-select: none;
+}
+
+.claudian-code-gutter span { display: block; min-height: 1.55em; }
+
 /* Code body — monospace, scrollable; the wrapper owns the border/radius. */
 .claudian-code-wrapper pre,
 .claudian-message-content pre {
   background: rgba(0, 0, 0, 0.22);
   padding: var(--cl-space-3);
-  overflow-x: auto;
+  overflow: auto;
   margin: 0;
   border: none;
   border-radius: 0;
+}
+
+.claudian-code-wrapper .claudian-code-body pre {
+  min-width: 0;
+  background: transparent;
+}
+
+.claudian-code-wrapper .claudian-code-body pre code {
+  line-height: 1.55;
+}
+
+.claudian-code-wrapper.is-collapsed .claudian-code-body {
+  max-height: 340px;
+  overflow: hidden;
+}
+
+.claudian-code-wrapper.is-collapsed .claudian-code-body pre {
+  max-height: 340px;
+}
+
+.claudian-code-wrapper.is-wrapped .claudian-code-body pre {
+  overflow-x: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.claudian-code-wrapper.is-wrapped .claudian-code-gutter {
+  display: none;
+}
+
+.claudian-code-wrapper.is-wrapped .claudian-code-body {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 /* Light mode: lighter fill so hljs comment colors stay readable. */
 body.theme-light .claudian-code-wrapper pre,
 body.theme-light .claudian-message-content pre {
   background: rgba(0, 0, 0, 0.05);
+}
+
+body.theme-light .claudian-code-body {
+  background: rgba(0, 0, 0, 0.035);
+}
+
+body.theme-light .claudian-code-wrapper .claudian-code-body pre {
+  background: transparent;
 }
 
 /* Code blocks without language — wrap content. */
