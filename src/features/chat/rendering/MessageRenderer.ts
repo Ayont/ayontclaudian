@@ -23,6 +23,7 @@ import { escapeMathDelimitersForStreaming } from '../../../utils/markdownMath';
 import { findRewindContext } from '../rewind';
 import { attachmentTypeMeta } from '../ui/file-drop/attachmentMeta';
 import { renderAutoMemoryChips } from './AutoMemoryChip';
+import { renderEmailTemplates } from './EmailTemplateRenderer';
 import { detectStatusCard } from './errorClassification';
 import { renderLiveDocuments } from './LiveDocumentRenderer';
 import { renderNetworkMaps } from './NetworkMapRenderer';
@@ -904,7 +905,7 @@ export class MessageRenderer {
       });
 
       if (meta.kind === 'video' || meta.kind === 'audio') {
-        let resourcePath: string | null = null;
+        let resourcePath: string | null;
         try {
           resourcePath = this.app.vault.adapter.getResourcePath(attachment.relPath);
         } catch {
@@ -1109,6 +1110,13 @@ export class MessageRenderer {
       // a designed page that updates on every streaming render and offers theme,
       // copy, save-to-vault, and full-screen controls.
       await renderLiveDocuments(el, renderMarkdown, {
+        app: this.app,
+        component: this.component,
+      });
+
+      // Short email requests get a dedicated mail preview with subject,
+      // recipient, highlighted placeholders, copy, and save controls.
+      await renderEmailTemplates(el, renderMarkdown, {
         app: this.app,
         component: this.component,
       });

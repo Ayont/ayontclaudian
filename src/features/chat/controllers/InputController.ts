@@ -2634,6 +2634,21 @@ export class InputController {
         });
         break;
       }
+      case 'email': {
+        const request = args.trim();
+        if (!request) {
+          new Notice('Verwendung: /email <gewünschte E-Mail>');
+          return;
+        }
+        await this.sendMessage({
+          content:
+            'Erstelle eine kurze, direkt nutzbare E-Mail-Vorlage für den folgenden Wunsch. Gib das vollständige '
+            + 'Ergebnis in genau einem `claudian-email`-Block aus, wähle den passenden Vorlagentyp und markiere '
+            + 'fehlende Angaben mit klaren Platzhaltern.\n\n'
+            + request,
+        });
+        break;
+      }
       case 'packet-tracer': {
         const [operation = 'create', ...rest] = args.trim().split(/\s+/);
         const payload = rest.join(' ').trim();

@@ -119,6 +119,16 @@ describe('builtInCommands', () => {
       expect(alias?.args).toBe('Build an SOP');
     });
 
+    it('detects /email and /mail with the email request', () => {
+      const email = detectBuiltInCommand('/email Kunden an Termin erinnern');
+      expect(email?.command.action).toBe('email');
+      expect(email?.args).toBe('Kunden an Termin erinnern');
+
+      const alias = detectBuiltInCommand('/mail Kurze Follow-up Nachricht');
+      expect(alias?.command.action).toBe('email');
+      expect(alias?.args).toBe('Kurze Follow-up Nachricht');
+    });
+
     it('detects /packet-tracer and /pkt with operation arguments', () => {
       const command = detectBuiltInCommand('/packet-tracer read labs/router.pkt');
       expect(command?.command.action).toBe('packet-tracer');
@@ -249,8 +259,8 @@ describe('builtInCommands', () => {
     it('returns only commands supported by codex capabilities', () => {
       const commands = getBuiltInCommandsForDropdown('codex');
       // Universal commands (no required capability) join the supported set.
-      expect(commands.length).toBe(13);
-      expect(commands.map(c => c.name)).toEqual(['clear', 'add-dir', 'resume', 'fork', 'goal', 'workflow', 'team', 'template', 'vault-health', 'artifact', 'document', 'packet-tracer', 'status']);
+      expect(commands.length).toBe(14);
+      expect(commands.map(c => c.name)).toEqual(['clear', 'add-dir', 'resume', 'fork', 'goal', 'workflow', 'team', 'template', 'vault-health', 'artifact', 'document', 'email', 'packet-tracer', 'status']);
     });
   });
 

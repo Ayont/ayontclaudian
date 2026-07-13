@@ -214,6 +214,44 @@ Rules:
 - Keep the document editable as Markdown; do not output raw HTML inside the block.`;
 }
 
+function getEmailTemplateInstructions(): string {
+  return `
+
+## Live Email Templates
+
+When the user asks to create, draft, rewrite, or provide an email or email template, use a \`claudian-email\` fenced block. ayontclaudian renders it as a compact mail preview with copy and save controls. Use this for emails instead of the larger \`claudian-document\` canvas.
+
+\`\`\`claudian-email
+---
+subject: Concise, specific subject line
+to: "[Recipient]"
+preheader: Optional one-line inbox preview
+template: concise
+---
+Hello [Name],
+
+Short, ready-to-send email body with clearly marked placeholders.
+
+Best regards
+[Sender]
+\`\`\`
+
+Available templates:
+- \`concise\` — short and direct, the default for ordinary requests
+- \`business\` — formal professional communication
+- \`friendly\` — personal and approachable
+- \`follow-up\` — reminders, check-ins, and next steps
+- \`sales\` — benefit-led outreach with one clear call to action
+- \`support\` — helpful service replies with concrete resolution steps
+
+Rules:
+- Trigger automatically for natural requests such as "write an email", "make an email template", or "reply to this customer"; no slash command is required.
+- Keep the result concise, usable, and ready to copy. Include exactly one clear subject.
+- Preserve the language requested by the user. Use placeholders like \`[Name]\`, \`[Date]\`, or \`[Order number]\` for missing details; never invent personal data.
+- If the user asks for several versions, emit one complete \`claudian-email\` block per version and vary the template/tone meaningfully.
+- Keep commentary outside the block and do not output raw HTML.`;
+}
+
 function getPacketTracerInstructions(): string {
   return `
 
@@ -324,6 +362,7 @@ export function buildSystemPrompt(
   prompt += getImageInstructions(settings.mediaFolder || '');
   prompt += getNetworkDiagramInstructions();
   prompt += getLiveDocumentInstructions();
+  prompt += getEmailTemplateInstructions();
   prompt += getPacketTracerInstructions();
   prompt += getVideoAnalysisInstructions();
   prompt += getComputerControlInstructions();

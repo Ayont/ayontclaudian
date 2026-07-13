@@ -62,6 +62,16 @@ describe('systemPrompt', () => {
       expect(prompt).toContain('[To be completed]');
     });
 
+    it('should teach every provider the compact email-template syntax', () => {
+      const prompt = buildSystemPrompt();
+
+      expect(prompt).toContain('## Live Email Templates');
+      expect(prompt).toContain('```claudian-email');
+      expect(prompt).toContain('template: concise');
+      expect(prompt).toContain('no slash command is required');
+      expect(prompt).toContain('one complete `claudian-email` block per version');
+    });
+
     it('should give Packet Tracer lab instructions to every provider', () => {
       const prompt = buildSystemPrompt();
 
