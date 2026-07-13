@@ -129,6 +129,36 @@ function renderInto(section: HTMLElement, plugin: ClaudianPlugin): void {
     text: `${modelInfo.desc}. Geschwindigkeit: ${modelInfo.speed}. Modell-Datei: ~/.cache/whisper-cpp/ggml-${vs.model}.bin`,
   });
 
+  // ── Fast Backend Toggle ───────────────────────────────────────────
+  if (process.platform === 'darwin') {
+    new Setting(section)
+      .setName('Schnelles Backend bevorzugen')
+      .setDesc('mlx-whisper auf Apple Silicon nutzen (deutlich schneller als whisper-cli)')
+      .addToggle((toggle) =>
+        toggle
+          .setValue(vs.preferFastBackend)
+          .onChange(async (value) => {
+            vs.preferFastBackend = value;
+            await plugin.saveSettings();
+          }),
+      );
+  }
+
+  // ── Active Backend ────────────────────────────────────────────────
+  const backendStatusEl = section.createEl('p', {
+    cls: 'claudian-voice-model-info',
+    text: 'Prüfe aktives Backend…',
+  });
+
+  void (async () => {
+    const { VoiceBackendResolver } = await import('../../../core/audio/VoiceBackendResolver');
+    const resolver = new VoiceBackendResolver(vs.preferFastBackend);
+    const backend = await resolver.resolve();
+    backendStatusEl.textContent = backend
+      ? `Aktives Backend: ${backend.displayName}`
+      : 'Aktives Backend: nicht verfügbar';
+  })();
+
   // ── Language Picker ───────────────────────────────────────────────
   new Setting(section)
     .setName('Sprache')

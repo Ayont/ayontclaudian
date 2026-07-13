@@ -1330,6 +1330,7 @@ function initializeInputToolbar(
     ),
     getModel: () => plugin.settings.voiceSettings?.model ?? 'base',
     getMicrophoneId: () => plugin.settings.voiceSettings?.microphoneId ?? '',
+    getPreferFastBackend: () => plugin.settings.voiceSettings?.preferFastBackend ?? true,
   });
   voiceInput.render(osActionsEl);
   dom.eventCleanups.push(() => voiceInput.destroy());
