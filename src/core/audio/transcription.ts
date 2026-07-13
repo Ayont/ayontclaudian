@@ -53,6 +53,30 @@ export interface TranscribeOptions {
   spawnImpl?: SpawnLike;
 }
 
+/** Maps Claudian UI locales to whisper.cpp language codes. */
+const LOCALE_TO_WHISPER: Record<string, string> = {
+  de: 'de',
+  en: 'en',
+  'zh-CN': 'zh',
+  'zh-TW': 'zh',
+  ja: 'ja',
+  ko: 'ko',
+  fr: 'fr',
+  es: 'es',
+  ru: 'ru',
+  pt: 'pt',
+};
+
+/**
+ * Resolves the whisper language to use. If the user explicitly chose a language
+ * in voice settings, that wins. When set to 'auto', we fall back to the plugin's
+ * UI locale so German users get `-l de` instead of relying on whisper's guess.
+ */
+export function resolveVoiceLanguage(settingsLanguage: string, pluginLocale: string): string {
+  if (settingsLanguage && settingsLanguage !== 'auto') return settingsLanguage;
+  return LOCALE_TO_WHISPER[pluginLocale] ?? 'auto';
+}
+
 /**
  * Transcribes a wav file with `whisper-cli`. Resolves with `ok: false` and a
  * human-readable error instead of throwing, so the caller can surface a Notice.
@@ -72,7 +96,10 @@ export function transcribeAudioFile(
     try {
       proc = spawnImpl(
         'whisper-cli',
-        ['-m', modelPath, '-l', language, '-nt', '-mc', '0', '-ml', '1', '-sns', wavPath],
+        // -mc 0 disables cross-segment context (prevents "you" hallucinations on silence).
+        // -sns suppresses non-speech tokens. We intentionally do NOT pass -ml 1,
+        // because that caps each segment to 1 character and destroys sentences.
+        ['-m', modelPath, '-l', language, '-nt', '-mc', '0', '-sns', wavPath],
         { env: { ...process.env, PATH: getEnhancedPath(process.env.PATH) }, windowsHide: true },
       );
     } catch (error) {

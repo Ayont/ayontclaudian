@@ -2,6 +2,7 @@ import type { ChildProcess } from 'node:child_process';
 
 import {
   parseWhisperOutput,
+  resolveVoiceLanguage,
   type SpawnLike,
   transcribeAudioFile,
 } from '@/core/audio/transcription';
@@ -125,13 +126,31 @@ describe('transcribeAudioFile', () => {
     expect(result.error).toContain('brew install whisper-cpp');
   });
 
-  it('passes anti-hallucination flags to whisper-cli', async () => {
+  it('passes anti-hallucination flags to whisper-cli but avoids -ml 1', async () => {
     const spySpawn = createSpySpawn('Hallo', 0);
     await transcribeAudioFile('/tmp/test.wav', { spawnImpl: spySpawn });
     const args = (spySpawn as any).capturedArgs;
     expect(args).toContain('-mc');
     expect(args).toContain('0');
-    expect(args).toContain('-ml');
     expect(args).toContain('-sns');
+    // -ml 1 would cap every segment to 1 character, destroying sentence transcription.
+    expect(args).not.toContain('-ml');
+  });
+});
+
+describe('resolveVoiceLanguage', () => {
+  it('returns explicit language when user chose one', () => {
+    expect(resolveVoiceLanguage('de', 'en')).toBe('de');
+    expect(resolveVoiceLanguage('fr', 'de')).toBe('fr');
+  });
+
+  it('falls back to plugin locale when set to auto', () => {
+    expect(resolveVoiceLanguage('auto', 'de')).toBe('de');
+    expect(resolveVoiceLanguage('auto', 'en')).toBe('en');
+    expect(resolveVoiceLanguage('auto', 'ja')).toBe('ja');
+  });
+
+  it('keeps auto for unknown locales', () => {
+    expect(resolveVoiceLanguage('auto', 'xx')).toBe('auto');
   });
 });

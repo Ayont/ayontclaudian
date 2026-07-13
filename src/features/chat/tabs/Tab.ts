@@ -11,6 +11,7 @@ import { getEnabledProviderForModel, getProviderForModel } from '../../../core/p
 import { ProviderRegistry } from '../../../core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '../../../core/providers/ProviderSettingsCoordinator';
 import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorkspaceRegistry';
+import { resolveVoiceLanguage } from '../../../core/audio/transcription';
 import type {
   ProviderCapabilities,
   ProviderChatUIConfig,
@@ -25,7 +26,7 @@ import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
 import type { AutoTurnResult } from '../../../core/runtime/types';
 import { TOOL_AGENT_OUTPUT } from '../../../core/tools/toolNames';
 import type { ChatMessage, ClaudianSettings, Conversation, StreamChunk } from '../../../core/types';
-import { t } from '../../../i18n/i18n';
+import { getLocale, t } from '../../../i18n/i18n';
 import type ClaudianPlugin from '../../../main';
 import { SlashCommandDropdown } from '../../../shared/components/SlashCommandDropdown';
 import { getEnhancedPath } from '../../../utils/env';
@@ -1323,7 +1324,10 @@ function initializeInputToolbar(
       autoResizeTextarea(textarea);
       textarea.focus();
     },
-    getLanguage: () => plugin.settings.voiceSettings?.language ?? 'auto',
+    getLanguage: () => resolveVoiceLanguage(
+      plugin.settings.voiceSettings?.language ?? 'auto',
+      getLocale(),
+    ),
     getModel: () => plugin.settings.voiceSettings?.model ?? 'base',
     getMicrophoneId: () => plugin.settings.voiceSettings?.microphoneId ?? '',
   });
