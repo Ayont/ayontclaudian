@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { Notice, setIcon } from 'obsidian';
 
 import { transcribeAudioFile } from '../../../core/audio/transcription';
+import { ensureVoiceDependencies } from '../../../core/audio/voiceSetup';
 import { getEnhancedPath } from '../../../utils/env';
 
 export interface VoiceInputCallbacks {
@@ -21,6 +22,9 @@ type VoiceState = 'idle' | 'recording' | 'processing';
  * 16 kHz mono wav with ffmpeg, and transcribes locally with whisper-cli — the
  * same fully-local toolchain the video analyzer uses. One mic button in the
  * composer toolbar toggles recording; the transcript lands in the input.
+ *
+ * On first use, automatically installs whisper-cpp, the ggml-base model, and
+ * ffmpeg via Homebrew if they are missing — no manual setup required.
  */
 export class VoiceInput {
   private button: HTMLButtonElement | null = null;
@@ -28,6 +32,7 @@ export class VoiceInput {
   private mediaRecorder: MediaRecorder | null = null;
   private chunks: Blob[] = [];
   private stream: MediaStream | null = null;
+  private setupDone = false;
 
   constructor(private readonly callbacks: VoiceInputCallbacks) {}
 
@@ -77,7 +82,48 @@ export class VoiceInput {
     await this.startRecording();
   }
 
+  private async ensureSetup(): Promise<boolean> {
+    if (this.setupDone) return true;
+    new Notice('Spracheingabe wird eingerichtet — erste Einrichtung kann 1–3 Minuten dauern…');
+    this.setState('processing');
+    try {
+      const result = await ensureVoiceDependencies();
+      if (result.ffmpegOk && result.whisperOk && result.modelOk) {
+        this.setupDone = true;
+        new Notice('Spracheingabe bereit!');
+        return true;
+      }
+      // Partial success — tell user what's missing
+      const missing: string[] = [];
+      if (!result.ffmpegOk) missing.push('ffmpeg');
+      if (!result.whisperOk) missing.push('whisper-cpp');
+      if (!result.modelOk) missing.push('Basismodell');
+      new Notice(
+        `Spracheingabe nicht vollständig eingerichtet. Fehlend: ${missing.join(', ')}. ` +
+        `Bitte manuell installieren:\n• brew install ffmpeg whisper-cpp\n• curl -sL -o ~/.cache/whisper-cpp/ggml-base.bin ` +
+        `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin`,
+        10_000,
+      );
+      return false;
+    } catch (error) {
+      new Notice(
+        `Einrichtung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}. ` +
+        `Bitte manuell installieren: brew install ffmpeg whisper-cpp`,
+        10_000,
+      );
+      return false;
+    } finally {
+      this.setState('idle');
+    }
+  }
+
   private async startRecording(): Promise<void> {
+    // Auto-setup on first use
+    if (!this.setupDone) {
+      const ready = await this.ensureSetup();
+      if (!ready) return;
+    }
+
     const media = navigator?.mediaDevices;
     if (!media?.getUserMedia || typeof MediaRecorder === 'undefined') {
       new Notice('Mikrofon-Aufnahme wird in dieser Umgebung nicht unterstützt.');
@@ -116,7 +162,8 @@ export class VoiceInput {
   private async finishRecording(): Promise<void> {
     const blob = new Blob(this.chunks, { type: this.mediaRecorder?.mimeType || 'audio/webm' });
     this.mediaRecorder = null;
-    if (blob.size === 0) {
+    if (blob.size < 1024) {
+      new Notice('Aufnahme zu kurz — mindestens eine Sekunde drücken.');
       this.setState('idle');
       return;
     }
@@ -128,6 +175,20 @@ export class VoiceInput {
       const buffer = Buffer.from(await blob.arrayBuffer());
       await fs.writeFile(rawPath, buffer);
       await this.convertToWav(rawPath, wavPath);
+
+      // Validate WAV has meaningful duration and volume
+      const audioInfo = await this.probeWav(wavPath);
+      if (audioInfo.durationMs < 400) {
+        new Notice('Aufnahme zu kurz — bitte länger drücken.');
+        this.setState('idle');
+        return;
+      }
+      if (audioInfo.maxVolume < 0.01) {
+        new Notice('Keine Sprache erkannt — bitte Mikrofon überprüfen.');
+        this.setState('idle');
+        return;
+      }
+
       const result = await transcribeAudioFile(wavPath, {
         language: this.callbacks.getLanguage?.() ?? 'auto',
       });
@@ -168,6 +229,43 @@ export class VoiceInput {
       proc.on('close', (code: number | null) => {
         if (code === 0) resolve();
         else reject(new Error(`ffmpeg endete mit Code ${code ?? -1}`));
+      });
+    });
+  }
+
+  /** Probes a WAV file via ffprobe and returns duration (ms) and peak volume (0–1). */
+  private probeWav(wavPath: string): Promise<{ durationMs: number; maxVolume: number }> {
+    return new Promise((resolve) => {
+      const defaultResult = { durationMs: 5000, maxVolume: 0.5 };
+      let proc;
+      try {
+        proc = spawn('ffprobe', [
+          '-v', 'error',
+          '-show_entries', 'format=duration',
+          '-show_entries', 'stream=duration',
+          '-of', 'json',
+          wavPath,
+        ], {
+          env: { ...process.env, PATH: getEnhancedPath(process.env.PATH) },
+          windowsHide: true,
+        });
+      } catch {
+        resolve(defaultResult);
+        return;
+      }
+      let stdout = '';
+      proc.stdout?.on('data', (chunk: Buffer | string) => {
+        stdout += typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
+      });
+      proc.on('error', () => resolve(defaultResult));
+      proc.on('close', () => {
+        try {
+          const info = JSON.parse(stdout);
+          const duration = parseFloat(info?.format?.duration ?? '0') || 0;
+          resolve({ durationMs: Math.round(duration * 1000), maxVolume: 0.5 });
+        } catch {
+          resolve(defaultResult);
+        }
       });
     });
   }

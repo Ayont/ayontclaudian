@@ -28,6 +28,7 @@ describe('parseWhisperOutput', () => {
 
 function createFakeSpawn(stdout: string, code: number, stderr = ''): SpawnLike {
   const handlers: Record<string, ((...args: unknown[]) => void)[]> = {};
+  let capturedArgs: string[] = [];
   const fakeProc = {
     stdout: {
       on: (event: string, cb: (...args: unknown[]) => void) => {
@@ -51,7 +52,36 @@ function createFakeSpawn(stdout: string, code: number, stderr = ''): SpawnLike {
     handlers.stderrData?.[0]?.(Buffer.from(stderr, 'utf-8'));
     handlers.proc_close?.[0]?.(code);
   });
-  return (() => fakeProc as unknown as ChildProcess) as SpawnLike;
+  const factory = ((cmd: string, args: string[]) => {
+    capturedArgs = args;
+    return fakeProc as unknown as ChildProcess;
+  }) as SpawnLike;
+  (factory as any)._capturedArgs = capturedArgs;
+  return factory;
+}
+
+function createSpySpawn(stdout: string, code: number): SpawnLike {
+  const handlers: Record<string, ((...args: unknown[]) => void)[]> = {};
+  const capturedArgs: string[] = [];
+  const fakeProc = {
+    stdout: { on: (event: string, cb: (...args: unknown[]) => void) => { if (event === 'data') handlers.stdoutData = [cb]; } },
+    stderr: { on: () => {} },
+    on: (event: string, cb: (...args: unknown[]) => void) => {
+      const key = `proc_${event}`;
+      handlers[key] = handlers[key] ?? [];
+      handlers[key].push(cb);
+    },
+  };
+  process.nextTick(() => {
+    handlers.stdoutData?.[0]?.(Buffer.from(stdout, 'utf-8'));
+    handlers.proc_close?.[0]?.(code);
+  });
+  const fn = ((cmd: string, args: string[]) => {
+    capturedArgs.push(...args);
+    return fakeProc as unknown as ChildProcess;
+  }) as SpawnLike;
+  (fn as any).capturedArgs = capturedArgs;
+  return fn;
 }
 
 describe('transcribeAudioFile', () => {
@@ -93,5 +123,14 @@ describe('transcribeAudioFile', () => {
     });
     expect(result.ok).toBe(false);
     expect(result.error).toContain('brew install whisper-cpp');
+  });
+
+  it('passes anti-hallucination flags to whisper-cli', async () => {
+    const spySpawn = createSpySpawn('Hallo', 0);
+    await transcribeAudioFile('/tmp/test.wav', { spawnImpl: spySpawn });
+    const args = (spySpawn as any).capturedArgs;
+    expect(args).toContain('--no-context');
+    expect(args).toContain('--max-len');
+    expect(args).toContain('--condition-on-false');
   });
 });

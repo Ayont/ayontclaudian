@@ -7,7 +7,7 @@ import './providers';
 import * as path from 'node:path';
 
 import type { Editor, WorkspaceLeaf } from 'obsidian';
-import { MarkdownView, Notice, Plugin, TFile } from 'obsidian';
+import { MarkdownView, Notice, Plugin, TFile, FuzzySuggestModal } from 'obsidian';
 
 import { DEFAULT_CLAUDIAN_SETTINGS } from './app/settings/defaultSettings';
 import { SharedStorageService } from './app/storage/SharedStorageService';
@@ -69,6 +69,11 @@ import {
   rankMemoryNotes,
   storeMemory,
 } from './core/memory/memoryService';
+import {
+  listSnippets,
+  saveSnippet,
+  type Snippet,
+} from './core/snippets/snippetService';
 import { getProviderForModel } from './core/providers/modelRouting';
 import {
   getEnvironmentVariablesForScope as getScopedEnvironmentVariables,
@@ -558,6 +563,50 @@ export default class ClaudianPlugin extends Plugin {
       id: 'export-conversation',
       name: 'Export conversation to note',
       callback: () => { void this.exportActiveConversation(); },
+    });
+
+    this.addCommand({
+      id: 'save-prompt-snippet',
+      name: 'Save current input as prompt snippet',
+      callback: async () => {
+        const tab = this.getView()?.getActiveTab();
+        if (!tab) return;
+        const body = tab.dom.inputEl.value.trim();
+        if (!body) {
+          new Notice('Eingabefeld ist leer — nichts zu speichern.');
+          return;
+        }
+        const name = body.slice(0, 40).replace(/\n/g, ' ').trim();
+        await saveSnippet(this.app.vault, name, body);
+        new Notice(`Snippet gespeichert: ${name}`);
+      },
+    });
+
+    this.addCommand({
+      id: 'insert-prompt-snippet',
+      name: 'Insert a saved prompt snippet',
+      callback: async () => {
+        const tab = this.getView()?.getActiveTab();
+        if (!tab) return;
+        const snippets = await listSnippets(this.app.vault);
+        if (snippets.length === 0) {
+          new Notice('Keine Snippets gespeichert. Schreibe einen Prompt und nutze „Save current input as prompt snippet".');
+          return;
+        }
+        const onChoose = (item: Snippet) => {
+          const ta = tab.dom.inputEl;
+          const start = ta.selectionStart ?? ta.value.length;
+          const end = ta.selectionEnd ?? ta.value.length;
+          const needsSpace = start > 0 && !/\s/.test(ta.value[start - 1]);
+          ta.setRangeText((needsSpace ? '\n' : '') + item.body, start, end, 'end');
+          ta.focus();
+        };
+        new class extends FuzzySuggestModal<Snippet> {
+          getItems(): Snippet[] { return snippets; }
+          getItemText(s: Snippet): string { return `${s.name} ${s.tags.join(' ')}`; }
+          onChooseItem(item: Snippet | null): void { if (item) onChoose(item); }
+        }(this.app).open();
+      },
     });
 
     this.addSettingTab(new ClaudianSettingTab(this.app, this));
