@@ -191,20 +191,6 @@
 .claudian-assistant-turn-done,
 .claudian-assistant-turn-done svg { width: 12px; height: 12px; }
 
-.claudian-assistant-turn-live-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--cl-accent);
-  box-shadow: 0 0 0 4px rgba(var(--claudian-brand-rgb), 0.1);
-  animation: cl-turn-live 1.7s ease-in-out infinite;
-}
-
-@keyframes cl-turn-live {
-  0%, 100% { opacity: 0.52; transform: scale(0.86); }
-  50% { opacity: 1; transform: scale(1); }
-}
-
 .claudian-message-assistant:hover {
   border-color: rgba(var(--claudian-brand-rgb), 0.28);
   border-inline-start-color: var(--cl-accent);
@@ -601,10 +587,6 @@
     margin-inline-start: 0;
   }
   .claudian-response-action { flex: 1 1 auto; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .claudian-assistant-turn-live-dot { animation: none; }
 }
 
 /* Compact boundary indicator */

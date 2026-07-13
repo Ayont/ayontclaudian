@@ -721,10 +721,11 @@ export class MessageRenderer {
     }
 
     const statusEl = headerEl.createDiv({ cls: 'claudian-assistant-turn-status' });
-    if (isStreaming) {
-      statusEl.createSpan({ cls: 'claudian-assistant-turn-live-dot', attr: { 'aria-hidden': 'true' } });
-      statusEl.createSpan({ text: 'Live' });
-    } else {
+    // While streaming, the live state is already shown by the StreamStatusBar
+    // (progress bar + timer + Stop button), so the redundant "Live" badge in
+    // the card corner is intentionally omitted. The completed state keeps its
+    // useful check + timestamp.
+    if (!isStreaming) {
       setIcon(statusEl.createSpan({ cls: 'claudian-assistant-turn-done' }), 'check');
       statusEl.createSpan({ text: this.formatMessageTime(msg.timestamp) });
     }
