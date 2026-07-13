@@ -41,7 +41,7 @@ export class MlxWhisperTranscriber implements VoiceTranscriber {
     options: TranscriberOptions,
     abortSignal?: AbortSignal,
   ): Promise<TranscriptionResult> {
-    const model = MLX_MODEL_MAP[options.model] ?? MLX_MODEL_MAP.base;
+    const model = MLX_MODEL_MAP[options.model ?? 'base'] ?? MLX_MODEL_MAP.base;
     const language = options.language || 'auto';
 
     return new Promise((resolve) => {

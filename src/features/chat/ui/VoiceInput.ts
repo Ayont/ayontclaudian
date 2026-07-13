@@ -259,7 +259,7 @@ export class VoiceInput {
   /** Converts the recorded blob to 16 kHz mono wav (whisper's preferred input). */
   private convertToWav(input: string, output: string, abortSignal?: AbortSignal): Promise<void> {
     return new Promise((resolve, reject) => {
-      let proc;
+      let proc: ReturnType<typeof spawn> | undefined;
       let settled = false;
 
       const onAbort = () => {

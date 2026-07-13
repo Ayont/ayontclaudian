@@ -6,9 +6,9 @@ export interface TranscriptionResult {
 
 export interface TranscriberOptions {
   /** BCP-47-ish language hint, or 'auto'. */
-  language: string;
+  language?: string;
   /** Whisper model size selected by the user (tiny/base/small/medium/large). */
-  model: string;
+  model?: string;
   /** Optional explicit path to a ggml model (whisper-cli only). */
   modelPath?: string;
 }
