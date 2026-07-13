@@ -162,8 +162,8 @@ export class VoiceInput {
   private async finishRecording(): Promise<void> {
     const blob = new Blob(this.chunks, { type: this.mediaRecorder?.mimeType || 'audio/webm' });
     this.mediaRecorder = null;
-    if (blob.size < 1024) {
-      new Notice('Aufnahme zu kurz — mindestens eine Sekunde drücken.');
+    if (blob.size < 100) {
+      new Notice('Keine Audioaufnahme erkannt — bitte erneut drücken und halten.');
       this.setState('idle');
       return;
     }
@@ -176,26 +176,13 @@ export class VoiceInput {
       await fs.writeFile(rawPath, buffer);
       await this.convertToWav(rawPath, wavPath);
 
-      // Validate WAV has meaningful duration and volume
-      const audioInfo = await this.probeWav(wavPath);
-      if (audioInfo.durationMs < 400) {
-        new Notice('Aufnahme zu kurz — bitte länger drücken.');
-        this.setState('idle');
-        return;
-      }
-      if (audioInfo.maxVolume < 0.01) {
-        new Notice('Keine Sprache erkannt — bitte Mikrofon überprüfen.');
-        this.setState('idle');
-        return;
-      }
-
       const result = await transcribeAudioFile(wavPath, {
         language: this.callbacks.getLanguage?.() ?? 'auto',
       });
       if (result.ok && result.text) {
         this.callbacks.onInsert(result.text);
       } else if (result.ok) {
-        new Notice('Keine Sprache erkannt.');
+        new Notice('Keine Sprache erkannt — bitte deutlicher sprechen.');
       } else {
         new Notice(`Transkription fehlgeschlagen: ${result.error ?? 'unbekannt'}`);
       }
@@ -229,43 +216,6 @@ export class VoiceInput {
       proc.on('close', (code: number | null) => {
         if (code === 0) resolve();
         else reject(new Error(`ffmpeg endete mit Code ${code ?? -1}`));
-      });
-    });
-  }
-
-  /** Probes a WAV file via ffprobe and returns duration (ms) and peak volume (0–1). */
-  private probeWav(wavPath: string): Promise<{ durationMs: number; maxVolume: number }> {
-    return new Promise((resolve) => {
-      const defaultResult = { durationMs: 5000, maxVolume: 0.5 };
-      let proc;
-      try {
-        proc = spawn('ffprobe', [
-          '-v', 'error',
-          '-show_entries', 'format=duration',
-          '-show_entries', 'stream=duration',
-          '-of', 'json',
-          wavPath,
-        ], {
-          env: { ...process.env, PATH: getEnhancedPath(process.env.PATH) },
-          windowsHide: true,
-        });
-      } catch {
-        resolve(defaultResult);
-        return;
-      }
-      let stdout = '';
-      proc.stdout?.on('data', (chunk: Buffer | string) => {
-        stdout += typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
-      });
-      proc.on('error', () => resolve(defaultResult));
-      proc.on('close', () => {
-        try {
-          const info = JSON.parse(stdout);
-          const duration = parseFloat(info?.format?.duration ?? '0') || 0;
-          resolve({ durationMs: Math.round(duration * 1000), maxVolume: 0.5 });
-        } catch {
-          resolve(defaultResult);
-        }
       });
     });
   }
