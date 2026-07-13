@@ -6,6 +6,7 @@ import type {
   MissionProgress,
   SynthesisContribution,
 } from '../../core/intelligence/multiAgent/MultiAgentService';
+import type { MissionState } from '../../core/intelligence/multiAgent/MissionStateStorage';
 import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
 import type ClaudianPlugin from '../../main';
 
@@ -25,7 +26,7 @@ interface AgentCardRefs {
  * dashboard reflects activity in real time.
  */
 export class MultiAgentModal extends Modal {
-  private readonly missionId = `ma-${Date.now()}`;
+  private missionId: string;
   private gridEl: HTMLElement | null = null;
   private overallBar: HTMLElement | null = null;
   private statusText: HTMLElement | null = null;
@@ -38,12 +39,19 @@ export class MultiAgentModal extends Modal {
   private running = false;
   /** Set when the modal closes; guards async progress callbacks from writing to detached DOM. */
   private closed = false;
+  /** If true, the modal is viewing a stored mission and should not allow editing the prompt. */
+  private viewingStoredMission = false;
+  /** Stored mission state restored on open, if any. */
+  private restoredState: import('../../core/intelligence/multiAgent/MissionStateStorage').MissionState | null = null;
+  private eventUnsubscribers: (() => void)[] = [];
 
   constructor(
     private readonly plugin: ClaudianPlugin,
     private readonly initialPrompt = '',
+    taskId?: string,
   ) {
     super(plugin.app);
+    this.missionId = taskId ?? `ma-${Date.now()}`;
     this.modalEl.addClass('claudian-multi-agent-modal');
   }
 
@@ -69,8 +77,6 @@ export class MultiAgentModal extends Modal {
     this.statusText = header.createSpan({ cls: 'claudian-multi-agent-status', text: 'Beschreibe die Mission und starte das Team.' });
     this.statusText.setAttribute('role', 'status');
     this.statusText.setAttribute('aria-live', 'polite');
-
-    this.renderPromptSection(contentEl);
 
     const agents = this.plugin.multiAgentService.listAgents();
     const telemetry = contentEl.createDiv({ cls: 'claudian-multi-agent-telemetry' });
@@ -98,9 +104,22 @@ export class MultiAgentModal extends Modal {
     synthHead.createEl('h4', { text: 'Synthese' });
     this.synthBodyEl = this.synthEl.createDiv({ cls: 'claudian-multi-agent-synthesis-body' });
 
+    // If we restored a stored mission, render its snapshot and listen for live updates.
+    if (this.restoredState) {
+      this.viewingStoredMission = true;
+      this.restoreMissionSnapshot(this.restoredState);
+    }
+
+    this.renderPromptSection(contentEl);
+    if (this.viewingStoredMission && this.promptInput) {
+      this.promptInput.disabled = true;
+    }
+
     const footer = contentEl.createDiv({ cls: 'claudian-multi-agent-footer' });
     const closeBtn = footer.createEl('button', { text: 'Schließen' });
     closeBtn.addEventListener('click', () => this.close());
+
+    this.subscribeToMissionEvents();
   }
 
   private getProviderLabel(providerId: string): string {
@@ -125,6 +144,75 @@ export class MultiAgentModal extends Modal {
     // result is still saved + a completion event still fires from launch().
     this.closed = true;
     this.stopTicker();
+    for (const unsubscribe of this.eventUnsubscribers) {
+      unsubscribe();
+    }
+    this.eventUnsubscribers = [];
+  }
+
+  private subscribeToMissionEvents(): void {
+    const progressUnsub = globalEventBus.on('mission:progress', (event) => {
+      const payload = event.payload as { id: string; overall: number; status: string };
+      if (payload.id !== this.missionId) return;
+      if (this.overallBar) this.overallBar.style.width = `${payload.overall}%`;
+      this.overallBar?.parentElement?.setAttribute('aria-valuenow', String(payload.overall));
+    });
+    const completedUnsub = globalEventBus.on('mission:completed', (event) => {
+      const payload = event.payload as { id: string; ok: boolean };
+      if (payload.id !== this.missionId) return;
+      void this.plugin.missionStateStorage.loadMission(this.missionId).then((state) => {
+        if (state) this.restoreMissionSnapshot(state);
+      });
+    });
+    this.eventUnsubscribers.push(progressUnsub, completedUnsub);
+  }
+
+  private restoreMissionSnapshot(state: MissionState): void {
+    if (!this.statusText || !this.overallBar) return;
+
+    this.missionId = state.taskId;
+    this.statusText.textContent =
+      state.status === 'running' || state.status === 'synthesizing'
+        ? 'Mission läuft…'
+        : state.status === 'completed'
+          ? 'Mission abgeschlossen'
+          : 'Mission beendet';
+    this.statusText.className = `claudian-multi-agent-status claudian-multi-agent-status--${state.status}`;
+
+    this.overallBar.style.width = `${state.overall}%`;
+    this.overallBar.parentElement?.setAttribute('aria-valuenow', String(state.overall));
+
+    if (this.promptInput) {
+      this.promptInput.value = state.prompt;
+    }
+
+    for (const agentState of state.agents) {
+      const progress: AgentProgress = {
+        agentId: agentState.agentId,
+        status: agentState.status,
+        progress: agentState.progress,
+        output: agentState.output,
+        tokens: agentState.tokens,
+        durationMs: agentState.durationMs,
+      };
+      this.updateAgentCard(progress);
+    }
+
+    if (state.synthesis?.output) {
+      this.showSynthesis(state.synthesis.output);
+    }
+
+    if (state.status === 'running' || state.status === 'synthesizing') {
+      this.viewingStoredMission = true;
+      this.running = true;
+      this.setControlsDisabled(true);
+      this.startTicker();
+    } else {
+      this.viewingStoredMission = false;
+      this.running = false;
+      this.setControlsDisabled(false);
+      this.stopTicker();
+    }
   }
 
   private renderPromptSection(parent: HTMLElement): void {
@@ -234,6 +322,15 @@ export class MultiAgentModal extends Modal {
       await this.plugin.app.vault.create(filePath, content);
       new Notice(`Mission gespeichert: ${filePath}`);
       globalEventBus.emit('mission:completed', { id: this.missionId, agents: outcome.results.length, ok: true });
+
+      // Post the synthesis into the active chat so the mission result is part of
+      // the ongoing conversation (chat-based multi-agent flow).
+      const activeTab = this.plugin.getView()?.getActiveTab();
+      const inputController = activeTab?.controllers.inputController;
+      if (inputController && outcome.synthesis) {
+        const chatMessage = `Ergebnis der Multi-Agent Mission:\n\n${outcome.synthesis}`;
+        void inputController.sendMessage({ content: chatMessage });
+      }
     } catch (error) {
       new Notice(`Mission fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`);
       globalEventBus.emit('mission:completed', { id: this.missionId, agents: 0, ok: false });
@@ -365,8 +462,26 @@ export class MultiAgentModal extends Modal {
     return null;
   }
 
-  /** Opens the mission console, optionally pre-filled with a task prompt. */
-  static open(plugin: ClaudianPlugin, initialPrompt = ''): void {
-    new MultiAgentModal(plugin, initialPrompt).open();
+  /** Opens the mission console, optionally pre-filled with a task prompt.
+   *  If a mission is currently running or was recently completed, restores its
+   *  snapshot so the user can continue watching or review the result. */
+  static async open(plugin: ClaudianPlugin, initialPrompt = ''): Promise<void> {
+    let taskId: string | undefined;
+    let state: MissionState | null = null;
+    try {
+      const missions = await plugin.missionStateStorage.listMissions();
+      const latest = missions[0];
+      if (latest) {
+        taskId = latest.taskId;
+        state = latest;
+      }
+    } catch {
+      // ignore storage errors; fall back to a fresh modal
+    }
+    const modal = new MultiAgentModal(plugin, initialPrompt, taskId);
+    if (state) {
+      modal.restoredState = state;
+    }
+    modal.open();
   }
 }

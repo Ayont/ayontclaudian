@@ -1506,8 +1506,8 @@ export default class ClaudianPlugin extends Plugin {
     new Notice(`Audit log written to ${filePath}`);
   }
 
-  runMultiAgentTask(initialPrompt = ''): void {
-    MultiAgentModal.open(this, initialPrompt);
+  async runMultiAgentTask(initialPrompt = ''): Promise<void> {
+    await MultiAgentModal.open(this, initialPrompt);
   }
 
   /**
