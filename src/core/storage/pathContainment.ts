@@ -8,7 +8,10 @@ function getPathModule(value: string): typeof path.posix {
 }
 
 function isHostPath(pathModule: typeof path.posix): boolean {
-  return process.platform === 'win32'
+  // Use the native path module instead of process.platform. Some test and
+  // embedded runtimes override process.platform, while path.sep still reflects
+  // the filesystem semantics of the running Node process.
+  return path.sep === '\\'
     ? pathModule === path.win32
     : pathModule === path.posix;
 }
@@ -18,10 +21,25 @@ function resolveExistingPath(value: string, pathModule: typeof path.posix): stri
     return pathModule.resolve(value);
   }
 
-  try {
-    return fs.realpathSync.native(value);
-  } catch {
-    return pathModule.resolve(value);
+  const resolved = pathModule.resolve(value);
+  let current = resolved;
+  const missingSegments: string[] = [];
+
+  // realpath() fails when the final file does not exist. Walk up to the
+  // deepest existing ancestor so symlinks in the path are still resolved,
+  // then append the missing suffix again. This closes a containment bypass
+  // for paths such as trustedRoot/symlink/new-file.db.
+  while (true) {
+    try {
+      return pathModule.resolve(fs.realpathSync.native(current), ...missingSegments);
+    } catch {
+      const parent = pathModule.dirname(current);
+      if (parent === current) {
+        return resolved;
+      }
+      missingSegments.unshift(pathModule.basename(current));
+      current = parent;
+    }
   }
 }
 

@@ -29,6 +29,7 @@ describe('isPathWithinRoot', () => {
     fs.symlinkSync(outside, path.join(root, 'escape'));
 
     expect(isPathWithinRoot(path.join(root, 'escape', 'opencode.db'), root)).toBe(false);
+    expect(isPathWithinRoot(path.join(root, 'escape', 'not-created-yet.db'), root)).toBe(false);
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 });
