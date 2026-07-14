@@ -1,9 +1,10 @@
 import * as fs from 'fs';
 import { Setting } from 'obsidian';
 
+import { firstOutputLine, probeCli } from '../../../core/diagnostics/providerHealthCheck';
 import type { ProviderSettingsTabRenderer } from '../../../core/providers/types';
 import { renderEnvironmentSettingsSection } from '../../../features/settings/ui/EnvironmentSettingsSection';
-import { getHostnameKey } from '../../../utils/env';
+import { getEnhancedPath, getHostnameKey } from '../../../utils/env';
 import { expandHomePath } from '../../../utils/path';
 import { maybeGetOpencodeWorkspaceServices } from '../app/OpencodeWorkspaceServices';
 import { clearOpencodeDiscoveryState } from '../discoveryState';
@@ -157,6 +158,39 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
       updateCliPathValidation(currentValue, text.inputEl);
     });
+
+    const runtimeStatusEl = container.createDiv({
+      cls: 'claudian-setting-validation claudian-opencode-runtime-status',
+      text: 'Noch nicht geprüft.',
+    });
+    new Setting(container)
+      .setName('OpenCode-Runtime prüfen')
+      .setDesc('Startet einen kurzen Versions-Check. So werden beschädigte oder veraltete Binaries erkannt, die nur als Datei vorhanden sind.')
+      .addButton((button) => button
+        .setButtonText('Jetzt prüfen')
+        .onClick(async () => {
+          button.setDisabled(true);
+          runtimeStatusEl.setText('OpenCode wird geprüft …');
+          opencodeWorkspace?.cliResolver?.reset();
+          const command = context.plugin.getResolvedProviderCliPath('opencode');
+          if (!command) {
+            runtimeStatusEl.setText('OpenCode wurde nicht gefunden. Empfohlen: offizielle Installation unter ~/.opencode/bin.');
+            button.setDisabled(false);
+            return;
+          }
+
+          const result = await probeCli({
+            command,
+            env: {
+              ...process.env,
+              PATH: getEnhancedPath(process.env.PATH, command),
+            },
+          });
+          runtimeStatusEl.setText(result.ok
+            ? `Bereit: ${firstOutputLine(result.output) || 'Version erkannt'} · ${command}`
+            : `Fehler: ${result.detail ?? 'OpenCode antwortet nicht'} · ${command}`);
+          button.setDisabled(false);
+        }));
 
     new Setting(container).setName('Models').setHeading();
 

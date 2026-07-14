@@ -430,6 +430,7 @@ export interface ProviderConversationHistoryService {
   hydrateConversationHistory(
     conversation: Conversation,
     vaultPath: string | null,
+    pathContext?: ProviderHistoryPathContext,
   ): Promise<void>;
   deleteConversationSession(
     conversation: Conversation,
@@ -445,6 +446,13 @@ export interface ProviderConversationHistoryService {
   ): Record<string, unknown>;
   /** Adds provider-owned persisted metadata to Conversation.providerState before session save. */
   buildPersistedProviderState?(conversation: Conversation): Record<string, unknown> | undefined;
+}
+
+export interface ProviderHistoryPathContext {
+  environment: NodeJS.ProcessEnv;
+  hostPlatform?: NodeJS.Platform;
+  settings?: Record<string, unknown>;
+  vaultPath?: string | null;
 }
 
 export type ProviderTaskTerminalStatus = Extract<ToolCallInfo['status'], 'completed' | 'error'>;

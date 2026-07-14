@@ -156,6 +156,23 @@ describe('ProviderSettingsCoordinator', () => {
       ).toBe(false);
       expect(settings.titleGenerationModel).toBe('my-custom-model');
     });
+
+    it('clears a model owned only by a disabled provider', () => {
+      const settings: Record<string, unknown> = {
+        titleGenerationModel: 'my-custom-model',
+        providerConfigs: {
+          codex: {
+            enabled: false,
+            customModels: 'my-custom-model',
+          },
+        },
+      };
+
+      expect(
+        ProviderSettingsCoordinator.reconcileTitleGenerationModelSelection(settings),
+      ).toBe(true);
+      expect(settings.titleGenerationModel).toBe('');
+    });
   });
 
   describe('projectActiveProviderState', () => {

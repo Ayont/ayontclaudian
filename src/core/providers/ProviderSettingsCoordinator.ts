@@ -121,7 +121,7 @@ export class ProviderSettingsCoordinator {
       return false;
     }
 
-    const isValid = ProviderRegistry.getRegisteredProviderIds().some((providerId) =>
+    const isValid = ProviderRegistry.getEnabledProviderIds(settings).some((providerId) =>
       ProviderRegistry.getChatUIConfig(providerId)
         .getModelOptions(settings)
         .some((option) => option.value === currentModel)

@@ -29,6 +29,7 @@ jest.mock('obsidian', () => {
     public name = '';
     public desc = '';
     public heading = false;
+    public buttonComponents: MockButtonComponent[] = [];
     public textComponents: MockTextComponent[] = [];
     public toggleComponents: MockToggleComponent[] = [];
 
@@ -61,6 +62,13 @@ jest.mock('obsidian', () => {
     addToggle(callback: (toggle: MockToggleComponent) => void) {
       const component = createToggleComponent();
       this.toggleComponents.push(component);
+      callback(component);
+      return this;
+    }
+
+    addButton(callback: (button: MockButtonComponent) => void) {
+      const component = createButtonComponent();
+      this.buttonComponents.push(component);
       callback(component);
       return this;
     }
@@ -152,7 +160,17 @@ interface MockToggleComponent {
   onChange: jest.MockedFunction<(callback: (value: boolean) => Promise<void> | void) => MockToggleComponent>;
 }
 
+interface MockButtonComponent {
+  disabled: boolean;
+  onClickCallback: (() => Promise<void> | void) | null;
+  text: string;
+  onClick: jest.MockedFunction<(callback: () => Promise<void> | void) => MockButtonComponent>;
+  setButtonText: jest.MockedFunction<(value: string) => MockButtonComponent>;
+  setDisabled: jest.MockedFunction<(value: boolean) => MockButtonComponent>;
+}
+
 type MockSettingRecord = {
+  buttonComponents: MockButtonComponent[];
   name: string;
   desc: string;
   heading: boolean;
@@ -207,6 +225,26 @@ function createToggleComponent(): MockToggleComponent {
   });
   component.onChange = jest.fn((callback: (value: boolean) => Promise<void> | void) => {
     component.onChangeCallback = callback;
+    return component;
+  });
+  return component;
+}
+
+function createButtonComponent(): MockButtonComponent {
+  const component = {} as MockButtonComponent;
+  component.disabled = false;
+  component.onClickCallback = null;
+  component.text = '';
+  component.setButtonText = jest.fn((value: string) => {
+    component.text = value;
+    return component;
+  });
+  component.setDisabled = jest.fn((value: boolean) => {
+    component.disabled = value;
+    return component;
+  });
+  component.onClick = jest.fn((callback: () => Promise<void> | void) => {
+    component.onClickCallback = callback;
     return component;
   });
   return component;

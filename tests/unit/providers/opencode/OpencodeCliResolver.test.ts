@@ -1,5 +1,6 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
 import { OpencodeCliResolver } from '@/providers/opencode/runtime/OpencodeCliResolver';
 
@@ -89,5 +90,19 @@ describe('OpencodeCliResolver', () => {
     const resolved = resolver.resolve({}, '', `PATH=${pathDir}`);
 
     expect(resolved).toBe(pathBinary);
+  });
+
+  it('prefers the official user install over a stale Homebrew binary', () => {
+    const officialBinary = path.join(os.homedir(), '.opencode', 'bin', 'opencode');
+    mockedStat.mockImplementation((filePath: string) => {
+      if (filePath === officialBinary || filePath === '/opt/homebrew/bin/opencode') {
+        return { isFile: () => true };
+      }
+      throw new Error(`ENOENT: ${filePath}`);
+    });
+
+    const resolver = new OpencodeCliResolver();
+
+    expect(resolver.resolve({}, '', '')).toBe(officialBinary);
   });
 });

@@ -78,6 +78,7 @@ import { getProviderForModel } from './core/providers/modelRouting';
 import {
   getEnvironmentVariablesForScope as getScopedEnvironmentVariables,
   getRuntimeEnvironmentText,
+  getRuntimeEnvironmentVariables,
   setEnvironmentVariablesForScope,
 } from './core/providers/providerEnvironment';
 import { ProviderRegistry } from './core/providers/ProviderRegistry';
@@ -2260,7 +2261,18 @@ export default class ClaudianPlugin extends Plugin {
     const cachedMessages = conversation.messages;
     await ProviderRegistry
       .getConversationHistoryService(conversation.providerId)
-      .hydrateConversationHistory(conversation, getVaultPath(this.app));
+      .hydrateConversationHistory(conversation, getVaultPath(this.app), {
+        environment: {
+          ...process.env,
+          ...getRuntimeEnvironmentVariables(
+            this.settings as unknown as Record<string, unknown>,
+            conversation.providerId,
+          ),
+        },
+        hostPlatform: process.platform,
+        settings: this.settings as unknown as Record<string, unknown>,
+        vaultPath: getVaultPath(this.app),
+      });
     await this.restoreConversationImageData(conversation, cachedMessages);
   }
 

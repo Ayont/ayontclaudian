@@ -217,9 +217,19 @@ function getExtraBinaryPaths(): string[] {
     // Macs and Linux, `/opt/homebrew` doesn't exist, so the historical order
     // (`/usr/local/bin` first) is kept.
     const isAppleSilicon = process.platform === 'darwin' && process.arch === 'arm64';
-    const paths = isAppleSilicon
+    const paths: string[] = [];
+
+    // OpenCode's official installer uses ~/.opencode/bin. Prefer that stable,
+    // user-owned install over package-manager leftovers: a stale Homebrew
+    // symlink can still exist and look executable even when the binary crashes
+    // before printing its version.
+    if (home) {
+      paths.push(path.join(home, '.opencode', 'bin'));
+    }
+
+    paths.push(...(isAppleSilicon
       ? ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin']
-      : ['/usr/local/bin', '/opt/homebrew/bin', '/usr/bin', '/bin'];
+      : ['/usr/local/bin', '/opt/homebrew/bin', '/usr/bin', '/bin']));
 
     const voltaHome = process.env.VOLTA_HOME;
     if (voltaHome) {
@@ -249,7 +259,6 @@ function getExtraBinaryPaths(): string[] {
       paths.push(path.join(home, '.kimi-code', 'bin'));
       paths.push(path.join(home, '.local', 'bin'));
       paths.push(path.join(home, '.bun', 'bin'));
-      paths.push(path.join(home, '.opencode', 'bin'));
       paths.push(path.join(home, '.docker', 'bin'));
       paths.push(path.join(home, '.volta', 'bin'));
       paths.push(path.join(home, '.asdf', 'shims'));

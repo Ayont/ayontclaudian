@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -10,11 +10,11 @@ describe('OpencodeConversationHistoryService', () => {
   let tmpRoot: string;
 
   beforeEach(() => {
-    tmpRoot = mkdtempSync(path.join(os.tmpdir(), 'claudian-opencode-conversation-history-'));
+    tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'claudian-opencode-conversation-history-'));
   });
 
   afterEach(() => {
-    rmSync(tmpRoot, { force: true, recursive: true });
+    fs.rmSync(tmpRoot, { force: true, recursive: true });
   });
 
   it('retries after a session-level hydration diagnostic', async () => {
@@ -87,7 +87,33 @@ describe('OpencodeConversationHistoryService', () => {
       },
     ]);
   });
+
+  it('rejects a persisted database hint outside OpenCode-owned roots', async () => {
+    const trustedRoot = path.join(tmpRoot, '.local', 'share', 'opencode');
+    const trustedDb = path.join(trustedRoot, 'opencode.db');
+    const untrustedDb = path.join(tmpRoot, 'synced', 'secret.db');
+    fs.mkdirSync(trustedRoot, { recursive: true });
+    fs.mkdirSync(path.dirname(untrustedDb), { recursive: true });
+    createEmptyDatabase(trustedDb);
+    createEmptyDatabase(untrustedDb);
+
+    const conversation = createConversation('session-untrusted', untrustedDb);
+    const service = new OpencodeConversationHistoryService();
+    await service.hydrateConversationHistory(conversation, null, {
+      environment: {
+        HOME: tmpRoot,
+        XDG_DATA_HOME: path.join(tmpRoot, '.local', 'share'),
+      },
+    });
+
+    expect(conversation.providerState?.databasePath).toBe(trustedDb);
+  });
 });
+
+function createEmptyDatabase(databasePath: string): void {
+  const db = new DatabaseSync(databasePath);
+  db.close();
+}
 
 function createConversation(sessionId: string, databasePath: string): Conversation {
   return {

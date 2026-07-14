@@ -71,6 +71,7 @@ export class ProviderRegistry {
 
     return this.resolveProviderForModel(titleModel, settings, {
       fallbackProviderId: DEFAULT_CHAT_PROVIDER_ID,
+      onlyEnabledProviders: true,
     });
   }
 

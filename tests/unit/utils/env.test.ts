@@ -1267,6 +1267,16 @@ describe('getExtraBinaryPaths (Apple Silicon path order)', () => {
     expect(homebrewIndex).toBeLessThan(usrLocalIndex);
   });
 
+  it('prefers the official user OpenCode install over package-manager leftovers', () => {
+    process.env.HOME = '/Users/tester';
+    process.env.PATH = '';
+    const mod = loadWithPlatformArch('darwin', 'arm64');
+    const segments = mod.getEnhancedPath().split(':');
+
+    expect(segments.indexOf('/Users/tester/.opencode/bin'))
+      .toBeLessThan(segments.indexOf('/opt/homebrew/bin'));
+  });
+
   it('keeps /usr/local/bin before /opt/homebrew/bin on darwin x64 (Intel Mac)', () => {
     process.env.PATH = '';
     const mod = loadWithPlatformArch('darwin', 'x64');
