@@ -1,6 +1,6 @@
 {
   "name": "claudian",
-  "version": "5.47.0",
+  "version": "5.47.1",
   "description": "ayontclaudian — embeds Claude Code, Codex, Antigravity, Kimi, Vibe (Mistral), Grok (xAI) and other coding-agent CLIs as AI collaborators in your Obsidian vault, with a unified model picker, mid-chat provider switching, and one-click CLI installs.",
   "main": "main.js",
   "engines": {
@@ -60,6 +60,6 @@
   "overrides": {
     "@eslint/js": "$@eslint/js",
     "typescript-eslint": "$@typescript-eslint/eslint-plugin",
-    "js-yaml": "4.2.0"
+    "js-yaml": "4.3.0"
   }
 }
