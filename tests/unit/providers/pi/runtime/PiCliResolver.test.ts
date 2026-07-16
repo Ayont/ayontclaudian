@@ -102,4 +102,30 @@ describe('PiCliResolver', () => {
     expect(resolver.resolveFromSettings(secondSettings)).toBe('/current/pi');
     expect(mockedStat).toHaveBeenCalledTimes(2);
   });
+
+  it('caches misses until the configured path changes', () => {
+    mockedStat.mockImplementation(() => {
+      throw new Error('ENOENT');
+    });
+
+    const resolver = new PiCliResolver();
+    const settings = { providerConfigs: { pi: { cliPath: '/missing/pi' } } };
+
+    expect(resolver.resolveFromSettings(settings)).toBeNull();
+    const callsAfterFirst = mockedStat.mock.calls.length;
+    expect(callsAfterFirst).toBeGreaterThan(0);
+
+    expect(resolver.resolveFromSettings(settings)).toBeNull();
+    expect(mockedStat.mock.calls.length).toBe(callsAfterFirst);
+
+    mockedStat.mockImplementation((filePath: string) => {
+      if (filePath === '/found/pi') {
+        return { isFile: () => true };
+      }
+      throw new Error(`ENOENT: ${filePath}`);
+    });
+    const updated = { providerConfigs: { pi: { cliPath: '/found/pi' } } };
+
+    expect(resolver.resolveFromSettings(updated)).toBe('/found/pi');
+  });
 });

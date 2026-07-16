@@ -69,11 +69,10 @@ const KIMI_FEATURE_GROUPS: KimiFeatureGroup[] = [
     title: 'Modelle',
     desc: 'Auswählbar über den Modell-Picker.',
     items: [
+      { label: 'K3' },
       { label: 'K2.7 Code' },
+      { label: 'K2.7 Code High-Speed' },
       { label: 'K2.6' },
-      { label: 'K2 Thinking' },
-      { label: 'K2 Turbo' },
-      { label: 'Moonshot v1' },
     ],
   },
 ];

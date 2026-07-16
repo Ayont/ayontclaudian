@@ -7,6 +7,9 @@ import { resolveCodexCliPath } from './CodexBinaryLocator';
 
 export class CodexCliResolver {
   private resolvedPath: string | null = null;
+  // Tracks "resolved at least once" separately from the value: a miss (null)
+  // is a valid cache entry too, otherwise a missing CLI rescans PATH forever.
+  private hasResolved = false;
   private lastHostnamePath = '';
   private lastLegacyPath = '';
   private lastEnvText = '';
@@ -21,7 +24,7 @@ export class CodexCliResolver {
     const installationMethod = codexSettings.installationMethod;
 
     if (
-      this.resolvedPath &&
+      this.hasResolved &&
       hostnamePath === this.lastHostnamePath &&
       legacyPath === this.lastLegacyPath &&
       envText === this.lastEnvText &&
@@ -38,6 +41,7 @@ export class CodexCliResolver {
     this.resolvedPath = resolveCodexCliPath(hostnamePath, legacyPath, envText, {
       installationMethod,
     });
+    this.hasResolved = true;
     return this.resolvedPath;
   }
 
@@ -57,6 +61,7 @@ export class CodexCliResolver {
 
   reset(): void {
     this.resolvedPath = null;
+    this.hasResolved = false;
     this.lastHostnamePath = '';
     this.lastLegacyPath = '';
     this.lastEnvText = '';

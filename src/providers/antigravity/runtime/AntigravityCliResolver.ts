@@ -18,12 +18,32 @@ export const ANTIGRAVITY_CLI_BINARY = 'agy';
  * Returns the absolute path, or `null` when the binary cannot be found.
  */
 export class AntigravityCliResolver {
+  private hasCachedResult = false;
+  private cachedConfiguredPath = '';
+  private cachedAdditionalPath: string | undefined;
+  private cachedResult: string | null = null;
+
   resolve(settings: PersistedAntigravityProviderSettings, additionalPath?: string): string | null {
-    const configured = resolveConfiguredCliPath(getConfiguredAntigravityCliPath(settings));
-    if (configured) {
-      return configured;
+    // PATH scans and npmrc reads are expensive, and the status bar re-resolves
+    // on every streaming usage chunk, so memoize on the exact inputs — misses
+    // included, otherwise a missing CLI would rescan forever.
+    const configuredPath = getConfiguredAntigravityCliPath(settings);
+    if (
+      this.hasCachedResult
+      && configuredPath === this.cachedConfiguredPath
+      && additionalPath === this.cachedAdditionalPath
+    ) {
+      return this.cachedResult;
     }
-    return findCliBinaryPath(ANTIGRAVITY_CLI_BINARY, additionalPath);
+
+    const resolved = resolveConfiguredCliPath(configuredPath)
+      ?? findCliBinaryPath(ANTIGRAVITY_CLI_BINARY, additionalPath);
+
+    this.hasCachedResult = true;
+    this.cachedConfiguredPath = configuredPath;
+    this.cachedAdditionalPath = additionalPath;
+    this.cachedResult = resolved;
+    return resolved;
   }
 
   /** Convenience overload resolving straight from the global settings record. */
@@ -36,9 +56,11 @@ export class AntigravityCliResolver {
     return this.resolveFromSettings(settings, additionalPath) !== null;
   }
 
-  /**
-   * Satisfies the `ProviderCliResolver` contract. This resolver holds no
-   * cached state, so resetting is a no-op.
-   */
-  reset(): void {}
+  /** Drops the memoized resolution (e.g. after the CLI path setting changed). */
+  reset(): void {
+    this.hasCachedResult = false;
+    this.cachedConfiguredPath = '';
+    this.cachedAdditionalPath = undefined;
+    this.cachedResult = null;
+  }
 }

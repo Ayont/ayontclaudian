@@ -43,10 +43,12 @@ import {
 } from '../../../utils/windowsCmdShim';
 import { ANTIGRAVITY_PROVIDER_CAPABILITIES } from '../capabilities';
 import {
+  type AntigravityTranscriptStat,
   discoverNewestConversationId,
   getAntigravityTranscriptPath,
   hasAntigravityTranscript,
   readAntigravityTranscript,
+  readAntigravityTranscriptIfChanged,
   snapshotBrainConversationIds,
   splitTranscriptLines,
 } from '../history/AntigravityBrainStore';
@@ -96,6 +98,8 @@ export class AntigravityChatRuntime implements ChatRuntime {
   /** Set while re-running a turn after clearing a dead conversation (see query()). */
   private isResumeRetry = false;
   private transcriptPath: string | null = null;
+  /** Stat of the last transcript read; lets the 120ms poll skip re-reading an unchanged file. */
+  private lastTranscriptStat: AntigravityTranscriptStat | null = null;
   private sessionInvalidated = false;
   private ready = false;
   private currentTurnMetadata: ChatTurnMetadata = {};
@@ -375,7 +379,15 @@ export class AntigravityChatRuntime implements ChatRuntime {
       if (!this.conversationId) {
         return [];
       }
-      const buffer = readAntigravityTranscript(this.conversationId);
+      // The poll loop fires every 120ms; the stat guard keeps an untouched
+      // transcript from being re-read and re-split on every tick. The cached
+      // stat is path-keyed, so switching conversations never suppresses reads.
+      const read = readAntigravityTranscriptIfChanged(this.conversationId, this.lastTranscriptStat);
+      if (read === null) {
+        return [];
+      }
+      this.lastTranscriptStat = read.stat;
+      const buffer = read.buffer;
       if (buffer === null) {
         return [];
       }

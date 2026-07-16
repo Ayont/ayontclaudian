@@ -100,4 +100,27 @@ describe('CodexCliResolver', () => {
 
     expect(resolved).toBe('codex');
   });
+
+  it('caches misses until the configured path changes', () => {
+    mockedExists.mockReturnValue(false);
+    mockedStat.mockImplementation(() => {
+      throw new Error('ENOENT');
+    });
+
+    const resolver = new CodexCliResolver();
+    const settings = { providerConfigs: { codex: { cliPath: '/missing/codex' } } };
+
+    expect(resolver.resolveFromSettings(settings)).toBeNull();
+    const callsAfterFirst = mockedStat.mock.calls.length;
+    expect(callsAfterFirst).toBeGreaterThan(0);
+
+    expect(resolver.resolveFromSettings(settings)).toBeNull();
+    expect(mockedStat.mock.calls.length).toBe(callsAfterFirst);
+
+    mockedExists.mockImplementation((filePath: string) => filePath === '/current/codex');
+    mockedStat.mockReturnValue({ isFile: () => true });
+    const updated = { providerConfigs: { codex: { cliPath: '/current/codex' } } };
+
+    expect(resolver.resolveFromSettings(updated)).toBe('/current/codex');
+  });
 });

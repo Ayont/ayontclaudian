@@ -1,9 +1,13 @@
+import { createMockEl } from '@test/helpers/mockElement';
+
 import {
   appendActivity,
   formatActivityOffset,
   formatElapsed,
+  MAX_ACTIVITY_HISTORY,
   resolveActivityStage,
   type StreamActivity,
+  StreamStatusBar,
 } from '@/features/chat/ui/StreamStatusBar';
 
 describe('resolveActivityStage', () => {
@@ -83,5 +87,120 @@ describe('formatActivityOffset', () => {
 
   it('clamps negative offsets', () => {
     expect(formatActivityOffset(5000, 1000)).toBe('+0.0s');
+  });
+});
+
+describe('StreamStatusBar DOM updates', () => {
+  function createBar(): { parent: any; bar: StreamStatusBar } {
+    const parent = createMockEl();
+    const bar = new StreamStatusBar(parent, { now: () => 1000 });
+    return { parent, bar };
+  }
+
+  it('performs no DOM writes when the same activity repeats per stream chunk', () => {
+    const { parent, bar } = createBar();
+    bar.setActivity('Schreibe Antwort', 'Antwort-Stream');
+
+    const historyEl = parent.querySelector('.claudian-stream-status-history');
+    const activityEl = parent.querySelector('.claudian-stream-status-activity');
+    const detailPrimaryEl = parent.querySelector('.claudian-stream-status-detail-primary');
+    const detailMetaEl = parent.querySelector('.claudian-stream-status-detail-meta');
+    const toggleEl = parent.querySelector('.claudian-stream-status-toggle');
+    const eventCountEl = parent.querySelector('.claudian-stream-status-event-count');
+    const spies = [
+      jest.spyOn(historyEl, 'empty'),
+      jest.spyOn(historyEl, 'createDiv'),
+      jest.spyOn(historyEl, 'createEl'),
+      jest.spyOn(activityEl, 'setText'),
+      jest.spyOn(detailPrimaryEl, 'setText'),
+      jest.spyOn(detailMetaEl, 'setText'),
+      jest.spyOn(toggleEl, 'setAttribute'),
+      jest.spyOn(eventCountEl, 'setAttribute'),
+    ];
+
+    for (let chunk = 0; chunk < 50; chunk++) {
+      bar.setActivity('Schreibe Antwort', 'Antwort-Stream');
+    }
+
+    for (const spy of spies) {
+      expect(spy).not.toHaveBeenCalled();
+    }
+  });
+
+  it('updates the DOM when the activity changes', () => {
+    const { parent, bar } = createBar();
+    bar.setActivity('Schreibe Antwort', 'Antwort-Stream');
+
+    const historyEl = parent.querySelector('.claudian-stream-status-history');
+    const emptySpy = jest.spyOn(historyEl, 'empty');
+
+    bar.setActivity('Lese Datei', 'README.md');
+
+    expect(emptySpy).toHaveBeenCalledTimes(1);
+    expect(parent.querySelectorAll('.claudian-stream-status-history-item')).toHaveLength(2);
+    expect(parent.querySelector('.claudian-stream-status-activity').textContent).toBe('Lese Datei');
+    expect(parent.querySelector('.claudian-stream-status-toggle').getAttribute('aria-label'))
+      .toBe('Live-Aktivität anzeigen: Lese Datei');
+  });
+
+  it('still rebuilds the history at the cap when a new activity arrives', () => {
+    const { parent, bar } = createBar();
+    for (let step = 0; step < MAX_ACTIVITY_HISTORY; step++) {
+      bar.setActivity(`Schritt ${step}`, `meta ${step}`);
+    }
+
+    const historyEl = parent.querySelector('.claudian-stream-status-history');
+    const emptySpy = jest.spyOn(historyEl, 'empty');
+
+    bar.setActivity('Schritt neu', 'meta neu');
+
+    // The list stays at the cap, so a length-only check would miss this append.
+    expect(emptySpy).toHaveBeenCalledTimes(1);
+    expect(parent.querySelectorAll('.claudian-stream-status-history-item'))
+      .toHaveLength(MAX_ACTIVITY_HISTORY);
+  });
+
+  it('does not rebuild the history when only the label changes', () => {
+    const { parent, bar } = createBar();
+    bar.setActivity('Lese Datei', 'README.md');
+
+    const historyEl = parent.querySelector('.claudian-stream-status-history');
+    const emptySpy = jest.spyOn(historyEl, 'empty');
+
+    bar.setLabel('Claude');
+
+    expect(emptySpy).not.toHaveBeenCalled();
+    expect(parent.querySelector('.claudian-stream-status-detail-meta').textContent)
+      .toBe('Claude · arbeitet · README.md');
+  });
+
+  it('performs no DOM writes when the same phrase repeats', () => {
+    const { parent, bar } = createBar();
+    bar.setPhrase('writing');
+
+    const phraseEl = parent.querySelector('.claudian-stream-status-phrase');
+    const detailMetaEl = parent.querySelector('.claudian-stream-status-detail-meta');
+    const historyEl = parent.querySelector('.claudian-stream-status-history');
+    const spies = [
+      jest.spyOn(phraseEl, 'setText'),
+      jest.spyOn(detailMetaEl, 'setText'),
+      jest.spyOn(historyEl, 'empty'),
+    ];
+
+    bar.setPhrase('writing');
+
+    for (const spy of spies) {
+      expect(spy).not.toHaveBeenCalled();
+    }
+  });
+
+  it('updates the phrase when it changes', () => {
+    const { parent, bar } = createBar();
+    bar.setPhrase('writing');
+    bar.setPhrase('reasoning');
+
+    expect(parent.querySelector('.claudian-stream-status-phrase').textContent).toBe('reasoning');
+    expect(parent.querySelector('.claudian-stream-status-detail-meta').textContent)
+      .toContain('reasoning');
   });
 });

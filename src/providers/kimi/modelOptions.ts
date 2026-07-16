@@ -12,6 +12,8 @@ import {
   DEFAULT_KIMI_MODELS,
   DEFAULT_KIMI_PRIMARY_MODEL,
   formatKimiModelLabel,
+  getKnownKimiModelContextWindow,
+  KNOWN_KIMI_MODEL_SET,
   KNOWN_KIMI_MODELS,
 } from './types/models';
 
@@ -35,6 +37,33 @@ function toContextWindow(value: unknown): number {
 }
 
 /**
+ * Memoized snapshot of the parsed config files. The model dropdown rebuilds
+ * (and re-reads these files) on every chat render otherwise; a stat-based
+ * signature keeps repeat reads cheap while still noticing external edits and
+ * our own `ensureKimiModelConfigured` writes (mtime changes).
+ */
+interface KimiConfigCacheEntry {
+  signature: string;
+  models: KimiConfiguredModel[];
+  defaultModel: string | null;
+}
+
+let kimiConfigCache: KimiConfigCacheEntry | null = null;
+
+function computeKimiConfigSignature(paths: string[]): string {
+  return paths
+    .map((configPath) => {
+      try {
+        const stat = fs.statSync(configPath);
+        return `${configPath}:${stat.mtimeMs}:${stat.size}`;
+      } catch {
+        return `${configPath}:missing`;
+      }
+    })
+    .join('|');
+}
+
+/**
  * Reads `[models.*]` tables and `default_model` from `~/.kimi/config.toml`.
  *
  * Never throws: a missing or malformed config yields an empty list, and the
@@ -44,6 +73,12 @@ export function readKimiConfiguredModels(): {
   models: KimiConfiguredModel[];
   defaultModel: string | null;
 } {
+  const configPaths = getKimiConfigPaths();
+  const signature = computeKimiConfigSignature(configPaths);
+  if (kimiConfigCache && kimiConfigCache.signature === signature) {
+    return { models: kimiConfigCache.models, defaultModel: kimiConfigCache.defaultModel };
+  }
+
   const models: KimiConfiguredModel[] = [];
   const seen = new Set<string>();
   let defaultModel: string | null = null;
@@ -51,7 +86,7 @@ export function readKimiConfiguredModels(): {
   // Scan every known config location (modern `~/.kimi-code/`, legacy `~/.kimi/`)
   // and merge their `[models.*]` tables. The first file that names a
   // `default_model` wins. Missing or malformed files are skipped silently.
-  for (const configPath of getKimiConfigPaths()) {
+  for (const configPath of configPaths) {
     let raw: string;
     try {
       raw = fs.readFileSync(configPath, 'utf-8');
@@ -99,14 +134,15 @@ export function readKimiConfiguredModels(): {
     }
   }
 
+  kimiConfigCache = { signature, models, defaultModel };
   return { models, defaultModel };
 }
 
-/** Context window for a model id, from config when known, else the default. */
+/** Context window for a model id: config first, then the catalog, else the default. */
 export function getKimiModelContextWindow(model: string): number {
   const { models } = readKimiConfiguredModels();
   const match = models.find((entry) => entry.id === model);
-  return match?.contextWindow ?? DEFAULT_KIMI_CONTEXT_WINDOW;
+  return match?.contextWindow ?? getKnownKimiModelContextWindow(model) ?? DEFAULT_KIMI_CONTEXT_WINDOW;
 }
 
 /**
@@ -151,7 +187,8 @@ export function ensureKimiModelConfigured(modelId: string): boolean {
     return false;
   }
 
-  const section = `\n[models."${escapedId}"]\ndisplay_name = "${getKimiModelDisplayName(modelId)}"\nmax_context_size = ${DEFAULT_KIMI_CONTEXT_WINDOW}\n`;
+  const contextWindow = getKnownKimiModelContextWindow(modelId) ?? DEFAULT_KIMI_CONTEXT_WINDOW;
+  const section = `\n[models."${escapedId}"]\ndisplay_name = "${getKimiModelDisplayName(modelId)}"\nmax_context_size = ${contextWindow}\n`;
   const updated = raw.trimEnd() + section;
   try {
     fs.writeFileSync(configPath, updated, 'utf-8');
@@ -199,8 +236,11 @@ export function getKimiModelOptions(settings: Record<string, unknown>): Provider
   const models = [...DEFAULT_KIMI_MODELS];
   const seen = new Set(models.map((model) => model.value));
 
-  for (const configured of readKimiConfiguredModels().models) {
-    if (seen.has(configured.id)) {
+  const { models: configuredModels } = readKimiConfiguredModels();
+  const configuredIds = new Set(configuredModels.map((m) => m.id));
+  for (const configured of configuredModels) {
+    // Curated catalog ids are pushed below with their curated label/description.
+    if (seen.has(configured.id) || KNOWN_KIMI_MODEL_SET.has(configured.id)) {
       continue;
     }
     seen.add(configured.id);
@@ -210,7 +250,6 @@ export function getKimiModelOptions(settings: Record<string, unknown>): Provider
   // Only offer documented catalog models when they are actually configured in
   // ~/.kimi/config.toml. Kimi CLI rejects `-m <model>` if the model is missing
   // from config.toml, so surfacing unconfigured ids leads to runtime errors.
-  const configuredIds = new Set(readKimiConfiguredModels().models.map((m) => m.id));
   for (const known of KNOWN_KIMI_MODELS) {
     if (seen.has(known.value) || !configuredIds.has(known.value)) {
       continue;

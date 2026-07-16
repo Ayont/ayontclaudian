@@ -9,6 +9,9 @@ export class PiCliResolver {
   private lastEnvText = '';
   private lastHostnamePath = '';
   private resolvedPath: string | null = null;
+  // Tracks "resolved at least once" separately from the value: a miss (null)
+  // is a valid cache entry too, otherwise a missing CLI rescans PATH forever.
+  private hasResolved = false;
 
   resolveFromSettings(settings: Record<string, unknown>): string | null {
     const piSettings = getPiProviderSettings(settings);
@@ -17,7 +20,7 @@ export class PiCliResolver {
     const envText = getRuntimeEnvironmentText(settings, 'pi');
 
     if (
-      this.resolvedPath !== null
+      this.hasResolved
       && cliPath === this.lastCliPath
       && hostnamePath === this.lastHostnamePath
       && envText === this.lastEnvText
@@ -29,6 +32,7 @@ export class PiCliResolver {
     this.lastHostnamePath = hostnamePath;
     this.lastEnvText = envText;
     this.resolvedPath = this.resolve(piSettings.cliPathsByHost, cliPath, envText);
+    this.hasResolved = true;
     return this.resolvedPath;
   }
 
@@ -49,5 +53,6 @@ export class PiCliResolver {
     this.lastHostnamePath = '';
     this.lastEnvText = '';
     this.resolvedPath = null;
+    this.hasResolved = false;
   }
 }

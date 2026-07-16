@@ -34,6 +34,29 @@ function toContextWindow(value: unknown): number {
 }
 
 /**
+ * Memoized snapshot of the parsed config file. The model dropdown rebuilds
+ * (and re-reads this file) on every chat render otherwise; a stat-based
+ * signature keeps repeat reads cheap while still noticing external edits
+ * (mtime/size changes).
+ */
+interface GrokConfigCacheEntry {
+  signature: string;
+  models: GrokConfiguredModel[];
+  defaultModel: string | null;
+}
+
+let grokConfigCache: GrokConfigCacheEntry | null = null;
+
+function computeGrokConfigSignature(configPath: string): string {
+  try {
+    const stat = fs.statSync(configPath);
+    return `${configPath}:${stat.mtimeMs}:${stat.size}`;
+  } catch {
+    return `${configPath}:missing`;
+  }
+}
+
+/**
  * Reads `[models.*]` tables and `default_model` from `~/.grok/config.toml`.
  *
  * Never throws: a missing or malformed config yields an empty list, and the
@@ -43,44 +66,55 @@ export function readGrokConfiguredModels(): {
   models: GrokConfiguredModel[];
   defaultModel: string | null;
 } {
-  let raw: string;
-  try {
-    raw = fs.readFileSync(getGrokConfigPath(), 'utf-8');
-  } catch {
-    return { models: [], defaultModel: null };
-  }
-
-  let parsed: Record<string, unknown> | null;
-  try {
-    parsed = toRecord(parseToml(raw));
-  } catch {
-    return { models: [], defaultModel: null };
-  }
-  if (!parsed) {
-    return { models: [], defaultModel: null };
+  const configPath = getGrokConfigPath();
+  const signature = computeGrokConfigSignature(configPath);
+  if (grokConfigCache && grokConfigCache.signature === signature) {
+    return { models: grokConfigCache.models, defaultModel: grokConfigCache.defaultModel };
   }
 
   const models: GrokConfiguredModel[] = [];
-  const modelsTable = toRecord(parsed.models);
-  if (modelsTable) {
-    for (const [id, entry] of Object.entries(modelsTable)) {
-      const record = toRecord(entry);
-      if (!record) {
-        continue;
-      }
-      const displayName = typeof record.display_name === 'string' ? record.display_name.trim() : '';
-      models.push({
-        id,
-        label: displayName ? `Grok · ${displayName}` : formatGrokModelLabel(id),
-        contextWindow: toContextWindow(record.max_context_size),
-      });
+  let defaultModel: string | null = null;
+
+  // A missing or malformed config is skipped silently, leaving the list empty.
+  let raw: string | null;
+  try {
+    raw = fs.readFileSync(configPath, 'utf-8');
+  } catch {
+    raw = null;
+  }
+
+  let parsed: Record<string, unknown> | null = null;
+  if (raw !== null) {
+    try {
+      parsed = toRecord(parseToml(raw));
+    } catch {
+      parsed = null;
     }
   }
 
-  const defaultModel = typeof parsed.default_model === 'string' && parsed.default_model.trim()
-    ? parsed.default_model.trim()
-    : null;
+  if (parsed) {
+    const modelsTable = toRecord(parsed.models);
+    if (modelsTable) {
+      for (const [id, entry] of Object.entries(modelsTable)) {
+        const record = toRecord(entry);
+        if (!record) {
+          continue;
+        }
+        const displayName = typeof record.display_name === 'string' ? record.display_name.trim() : '';
+        models.push({
+          id,
+          label: displayName ? `Grok · ${displayName}` : formatGrokModelLabel(id),
+          contextWindow: toContextWindow(record.max_context_size),
+        });
+      }
+    }
 
+    defaultModel = typeof parsed.default_model === 'string' && parsed.default_model.trim()
+      ? parsed.default_model.trim()
+      : null;
+  }
+
+  grokConfigCache = { signature, models, defaultModel };
   return { models, defaultModel };
 }
 
@@ -129,7 +163,8 @@ export function getGrokModelOptions(settings: Record<string, unknown>): Provider
   const models = [...DEFAULT_GROK_MODELS];
   const seen = new Set(models.map((model) => model.value));
 
-  for (const configured of readGrokConfiguredModels().models) {
+  const { models: configuredModels } = readGrokConfiguredModels();
+  for (const configured of configuredModels) {
     if (seen.has(configured.id)) {
       continue;
     }

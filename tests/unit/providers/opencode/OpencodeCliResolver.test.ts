@@ -105,4 +105,30 @@ describe('OpencodeCliResolver', () => {
 
     expect(resolver.resolve({}, '', '')).toBe(officialBinary);
   });
+
+  it('caches misses until the configured path changes', () => {
+    mockedStat.mockImplementation(() => {
+      throw new Error('ENOENT');
+    });
+
+    const resolver = new OpencodeCliResolver();
+    const settings = { providerConfigs: { opencode: { cliPath: '/missing/opencode' } } };
+
+    expect(resolver.resolveFromSettings(settings)).toBeNull();
+    const callsAfterFirst = mockedStat.mock.calls.length;
+    expect(callsAfterFirst).toBeGreaterThan(0);
+
+    expect(resolver.resolveFromSettings(settings)).toBeNull();
+    expect(mockedStat.mock.calls.length).toBe(callsAfterFirst);
+
+    mockedStat.mockImplementation((filePath: string) => {
+      if (filePath === '/found/opencode') {
+        return { isFile: () => true };
+      }
+      throw new Error(`ENOENT: ${filePath}`);
+    });
+    const updated = { providerConfigs: { opencode: { cliPath: '/found/opencode' } } };
+
+    expect(resolver.resolveFromSettings(updated)).toBe('/found/opencode');
+  });
 });

@@ -19,6 +19,12 @@ const DEFAULT_KIMI_PRIMARY_MODEL_LABEL = 'Kimi · K2.7 Code';
 /** Default context window for the managed coding model (config `max_context_size`). */
 export const DEFAULT_KIMI_CONTEXT_WINDOW = 262_144;
 
+/** `kimi-k3` flagship model id (Moonshot platform docs, July 2026). */
+export const KIMI_K3_MODEL: KimiModel = 'kimi-k3';
+
+/** `kimi-k3` ships a 1M-token context window (1,048,576 tokens). */
+export const KIMI_K3_CONTEXT_WINDOW = 1_048_576;
+
 /**
  * Best-effort human label for a Kimi model id.
  *
@@ -54,13 +60,35 @@ export const DEFAULT_KIMI_MODEL_SET = new Set<string>(DEFAULT_KIMI_MODELS.map((m
 
 /**
  * Curated catalog of model identifiers the Kimi / Moonshot coding endpoint
- * exposes. The dropdown is intentionally limited to the three coding models so
- * users do not pick platform / legacy ids that do not work with the current
- * coding OAuth setup. Ids the user's config already defines take precedence;
- * these fill in the rest. Sourced from kimi.com/code/docs.
+ * exposes. The dropdown is intentionally limited to the flagship and coding
+ * models so users do not pick platform / legacy ids that do not work with the
+ * current coding OAuth setup. Ids the user's config already defines take
+ * precedence; these fill in the rest. Sourced from platform.moonshot.ai docs.
  */
 export const KNOWN_KIMI_MODELS: ProviderUIOption[] = [
+  // Flagship (1M context, multimodal, always-on reasoning).
+  createKimiModelOption(KIMI_K3_MODEL, 'Kimi · K3', 'Flagship · 1M · multimodal · reasoning'),
   // Coding endpoint (direct API; the subscription alias is the built-in default).
   createKimiModelOption('kimi-k2.7-code', 'Kimi · K2.7 Code', 'Coding · 256K · multimodal'),
   createKimiModelOption('kimi-k2.7-code-highspeed', 'Kimi · K2.7 Code High-Speed', 'Coding · 256K · faster (2×)'),
 ];
+
+/** Fast lookup for whether a model id is in the curated catalog. */
+export const KNOWN_KIMI_MODEL_SET = new Set<string>(KNOWN_KIMI_MODELS.map((model) => model.value));
+
+/**
+ * Context windows for the curated catalog ids. Used when the user's
+ * config.toml does not declare the model (or omits `max_context_size`), and
+ * when seeding a new `[models.*]` section via `ensureKimiModelConfigured`, so
+ * `kimi-k3` gets its real 1M window instead of the 256K coding default.
+ */
+export const KNOWN_KIMI_MODEL_CONTEXT_WINDOWS: Readonly<Record<string, number>> = Object.freeze({
+  [KIMI_K3_MODEL]: KIMI_K3_CONTEXT_WINDOW,
+  'kimi-k2.7-code': DEFAULT_KIMI_CONTEXT_WINDOW,
+  'kimi-k2.7-code-highspeed': DEFAULT_KIMI_CONTEXT_WINDOW,
+});
+
+/** Catalog context window for a model id, or null when not in the catalog. */
+export function getKnownKimiModelContextWindow(model: string): number | null {
+  return KNOWN_KIMI_MODEL_CONTEXT_WINDOWS[model] ?? null;
+}

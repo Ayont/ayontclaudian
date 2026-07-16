@@ -9,6 +9,9 @@ export class OpencodeCliResolver {
   private lastHostnamePath = '';
   private lastEnvText = '';
   private resolvedPath: string | null = null;
+  // Tracks "resolved at least once" separately from the value: a miss (null)
+  // is a valid cache entry too, otherwise a missing CLI rescans PATH forever.
+  private hasResolved = false;
 
   resolveFromSettings(settings: Record<string, unknown>): string | null {
     const opencodeSettings = getOpencodeProviderSettings(settings);
@@ -17,7 +20,7 @@ export class OpencodeCliResolver {
     const envText = getRuntimeEnvironmentText(settings, 'opencode');
 
     if (
-      this.resolvedPath !== null
+      this.hasResolved
       && cliPath === this.lastCliPath
       && hostnamePath === this.lastHostnamePath
       && envText === this.lastEnvText
@@ -33,6 +36,7 @@ export class OpencodeCliResolver {
       cliPath,
       envText,
     );
+    this.hasResolved = true;
     return this.resolvedPath;
   }
 
@@ -53,5 +57,6 @@ export class OpencodeCliResolver {
     this.lastHostnamePath = '';
     this.lastEnvText = '';
     this.resolvedPath = null;
+    this.hasResolved = false;
   }
 }

@@ -4,13 +4,20 @@ import * as path from 'node:path';
 
 import { getKimiConfigPath } from '@/providers/kimi/history/KimiSessionStore';
 import {
+  ensureKimiModelConfigured,
   getConfiguredEnvCustomModel,
+  getKimiModelContextWindow,
   getKimiModelOptions,
   parseConfiguredCustomModelIds,
   resolveKimiModelSelection,
 } from '@/providers/kimi/modelOptions';
 import { KIMI_PROVIDER_ID } from '@/providers/kimi/settings';
-import { DEFAULT_KIMI_PRIMARY_MODEL } from '@/providers/kimi/types/models';
+import {
+  DEFAULT_KIMI_CONTEXT_WINDOW,
+  DEFAULT_KIMI_PRIMARY_MODEL,
+  KIMI_K3_CONTEXT_WINDOW,
+  KIMI_K3_MODEL,
+} from '@/providers/kimi/types/models';
 
 // Point KIMI_HOME / KIMI_CODE_HOME at empty temp dirs so neither
 // `~/.kimi/config.toml` nor `~/.kimi-code/config.toml` is present and the tests
@@ -42,6 +49,19 @@ afterAll(() => {
 
 function settingsWith(config: Record<string, unknown>): Record<string, unknown> {
   return { providerConfigs: { [KIMI_PROVIDER_ID]: config } };
+}
+
+function writeKimiConfig(contents: string): void {
+  fs.mkdirSync(path.dirname(getKimiConfigPath()), { recursive: true });
+  fs.writeFileSync(getKimiConfigPath(), contents, 'utf-8');
+}
+
+function removeKimiConfig(): void {
+  try {
+    fs.unlinkSync(getKimiConfigPath());
+  } catch {
+    // best-effort cleanup
+  }
 }
 
 describe('parseConfiguredCustomModelIds', () => {
@@ -77,11 +97,22 @@ describe('getKimiModelOptions', () => {
     // Without config entries, only the built-in default is offered.
     const values = getKimiModelOptions(settingsWith({})).map((option) => option.value);
     expect(values).toContain('kimi-code/kimi-for-coding');
+    expect(values).not.toContain(KIMI_K3_MODEL);
     expect(values).not.toContain('kimi-k2.7-code');
     expect(values).not.toContain('kimi-k2.7-code-highspeed');
     // Non-coding platform / legacy models are intentionally hidden.
     expect(values).not.toContain('kimi-k2.6');
     expect(values).not.toContain('moonshot-v1-128k');
+  });
+
+  it('surfaces a configured catalog model with its curated label and description', () => {
+    writeKimiConfig(`[models."${KIMI_K3_MODEL}"]\nmax_context_size = ${KIMI_K3_CONTEXT_WINDOW}\n`);
+
+    const k3 = getKimiModelOptions(settingsWith({})).find((option) => option.value === KIMI_K3_MODEL);
+    expect(k3?.label).toBe('Kimi · K3');
+    expect(k3?.description).toContain('1M');
+
+    removeKimiConfig();
   });
 
   it('includes configured catalog models from config.toml', () => {
@@ -147,5 +178,57 @@ describe('resolveKimiModelSelection', () => {
   it('lets an env KIMI_MODEL override the current selection', () => {
     const settings = settingsWith({ environmentVariables: 'KIMI_MODEL=kimi-env-win' });
     expect(resolveKimiModelSelection(settings, 'kimi-k2')).toBe('kimi-env-win');
+  });
+});
+
+describe('getKimiModelContextWindow', () => {
+  it('returns the 1M context window for kimi-k3 without any config entry', () => {
+    expect(getKimiModelContextWindow(KIMI_K3_MODEL)).toBe(KIMI_K3_CONTEXT_WINDOW);
+    expect(KIMI_K3_CONTEXT_WINDOW).toBe(1_048_576);
+  });
+
+  it('returns the 256K coding context window for kimi-k2.7-code without config', () => {
+    expect(getKimiModelContextWindow('kimi-k2.7-code')).toBe(DEFAULT_KIMI_CONTEXT_WINDOW);
+  });
+
+  it('falls back to the default context window for unknown models', () => {
+    expect(getKimiModelContextWindow('some-custom-model')).toBe(DEFAULT_KIMI_CONTEXT_WINDOW);
+  });
+
+  it('prefers the configured max_context_size over the catalog value', () => {
+    writeKimiConfig(`[models."${KIMI_K3_MODEL}"]\ndisplay_name = "K3"\nmax_context_size = 512000\n`);
+
+    expect(getKimiModelContextWindow(KIMI_K3_MODEL)).toBe(512000);
+
+    removeKimiConfig();
+  });
+});
+
+describe('ensureKimiModelConfigured', () => {
+  it('seeds kimi-k3 with its 1M context window', () => {
+    writeKimiConfig('');
+
+    expect(ensureKimiModelConfigured(KIMI_K3_MODEL)).toBe(true);
+    const raw = fs.readFileSync(getKimiConfigPath(), 'utf-8');
+    expect(raw).toContain(`[models."${KIMI_K3_MODEL}"]`);
+    expect(raw).toContain(`max_context_size = ${KIMI_K3_CONTEXT_WINDOW}`);
+    // A second call detects the existing section and leaves the file alone.
+    expect(ensureKimiModelConfigured(KIMI_K3_MODEL)).toBe(false);
+
+    removeKimiConfig();
+  });
+
+  it('seeds unknown models with the default context window', () => {
+    writeKimiConfig('');
+
+    expect(ensureKimiModelConfigured('my-custom-model')).toBe(true);
+    const raw = fs.readFileSync(getKimiConfigPath(), 'utf-8');
+    expect(raw).toContain(`max_context_size = ${DEFAULT_KIMI_CONTEXT_WINDOW}`);
+
+    removeKimiConfig();
+  });
+
+  it('never writes a section for the built-in default model', () => {
+    expect(ensureKimiModelConfigured(DEFAULT_KIMI_PRIMARY_MODEL)).toBe(false);
   });
 });

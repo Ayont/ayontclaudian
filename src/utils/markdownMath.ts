@@ -26,8 +26,13 @@ function readBacktickRun(line: string, index: number): number {
   return length;
 }
 
-function escapeMathDelimitersInLine(line: string): string {
-  let escaped = '';
+/**
+ * Walks one line with the inline-code / HTML-tag state machine the escaper
+ * uses and reports each dollar that would be escaped, so the detection pass
+ * shares the exact same rules without building the escaped string. Returning
+ * false from `onDollar` stops the walk at the first hit.
+ */
+function forEachEscapableDollar(line: string, onDollar: (index: number) => boolean): void {
   let inlineCodeRunLength = 0;
   let inHtmlTag = false;
 
@@ -36,7 +41,6 @@ function escapeMathDelimitersInLine(line: string): string {
 
     if (char === '`') {
       const runLength = readBacktickRun(line, index);
-      escaped += line.slice(index, index + runLength);
       index += runLength - 1;
       if (inlineCodeRunLength === 0) {
         inlineCodeRunLength = runLength;
@@ -47,12 +51,10 @@ function escapeMathDelimitersInLine(line: string): string {
     }
 
     if (inlineCodeRunLength > 0) {
-      escaped += char;
       continue;
     }
 
     if (inHtmlTag) {
-      escaped += char;
       if (char === '>') {
         inHtmlTag = false;
       }
@@ -61,20 +63,93 @@ function escapeMathDelimitersInLine(line: string): string {
 
     if (char === '<' && isHtmlTagStart(line, index)) {
       inHtmlTag = true;
-      escaped += char;
       continue;
     }
 
     if (char === '\\' && line[index + 1] === '$') {
-      escaped += '\\$';
       index += 1;
       continue;
     }
 
-    escaped += char === '$' ? '\\$' : char;
+    if (char === '$' && !onDollar(index)) {
+      return;
+    }
+  }
+}
+
+function escapeMathDelimitersInLine(line: string): string {
+  if (!line.includes('$')) {
+    return line;
   }
 
-  return escaped;
+  let escaped = '';
+  let copiedUpTo = 0;
+  forEachEscapableDollar(line, (index) => {
+    escaped += line.slice(copiedUpTo, index) + '\\$';
+    copiedUpTo = index + 1;
+    return true;
+  });
+
+  return copiedUpTo === 0 ? line : escaped + line.slice(copiedUpTo);
+}
+
+function lineHasEscapableDollar(line: string): boolean {
+  if (!line.includes('$')) {
+    return false;
+  }
+
+  let found = false;
+  forEachEscapableDollar(line, () => {
+    found = true;
+    // The first escapable dollar already decides the line.
+    return false;
+  });
+  return found;
+}
+
+/**
+ * Walks the document line by line, tracking fenced code blocks, and hands each
+ * line to `visit` along with whether it sits inside a fence. Returning false
+ * stops the walk early so detection can bail on the first math delimiter.
+ */
+function forEachLineWithFenceState(
+  markdown: string,
+  visit: (line: string, inFence: boolean) => boolean
+): void {
+  let fence: FenceState | null = null;
+  let lineStart = 0;
+
+  while (lineStart < markdown.length) {
+    const newlineIndex = markdown.indexOf('\n', lineStart);
+    const lineEnd = newlineIndex === -1 ? markdown.length : newlineIndex + 1;
+    const line = markdown.slice(lineStart, lineEnd);
+    const lineWithoutNewline = line.endsWith('\n') ? line.slice(0, -1) : line;
+
+    if (fence) {
+      if (!visit(line, true)) {
+        return;
+      }
+      if (isClosingFence(lineWithoutNewline, fence)) {
+        fence = null;
+      }
+    } else {
+      const fenceRun = getFenceRun(lineWithoutNewline);
+      if (fenceRun) {
+        // Fence markers pass through verbatim — their dollars belong to the fence.
+        if (!visit(line, true)) {
+          return;
+        }
+        fence = {
+          marker: fenceRun[0] as '`' | '~',
+          length: fenceRun.length,
+        };
+      } else if (!visit(line, false)) {
+        return;
+      }
+    }
+
+    lineStart = lineEnd;
+  }
 }
 
 /**
@@ -88,43 +163,30 @@ export function escapeMathDelimitersForStreaming(markdown: string): string {
   }
 
   let result = '';
-  let fence: FenceState | null = null;
-  let lineStart = 0;
-
-  while (lineStart < markdown.length) {
-    const newlineIndex = markdown.indexOf('\n', lineStart);
-    const lineEnd = newlineIndex === -1 ? markdown.length : newlineIndex + 1;
-    const line = markdown.slice(lineStart, lineEnd);
-    const lineWithoutNewline = line.endsWith('\n') ? line.slice(0, -1) : line;
-
-    if (fence) {
-      result += line;
-      if (isClosingFence(lineWithoutNewline, fence)) {
-        fence = null;
-      }
-    } else {
-      const fenceRun = getFenceRun(lineWithoutNewline);
-      if (fenceRun) {
-        result += line;
-        fence = {
-          marker: fenceRun[0] as '`' | '~',
-          length: fenceRun.length,
-        };
-      } else {
-        result += escapeMathDelimitersInLine(line);
-      }
-    }
-
-    lineStart = lineEnd;
-  }
-
+  forEachLineWithFenceState(markdown, (line, inFence) => {
+    result += inFence ? line : escapeMathDelimitersInLine(line);
+    return true;
+  });
   return result;
 }
 
+/**
+ * Cheap early-exit scan answering whether escaping would change the input.
+ * Runs on every streaming frame, so it must not build the full escaped string
+ * just to compare it against the original.
+ */
 export function hasStreamingMathDelimiters(markdown: string): boolean {
   if (!markdown.includes('$')) {
     return false;
   }
 
-  return escapeMathDelimitersForStreaming(markdown) !== markdown;
+  let found = false;
+  forEachLineWithFenceState(markdown, (line, inFence) => {
+    if (!inFence && lineHasEscapableDollar(line)) {
+      found = true;
+      return false;
+    }
+    return true;
+  });
+  return found;
 }

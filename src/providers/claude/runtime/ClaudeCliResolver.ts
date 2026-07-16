@@ -9,6 +9,9 @@ import { getClaudeProviderSettings } from '../settings';
 
 export class ClaudeCliResolver {
   private resolvedPath: string | null = null;
+  // Tracks "resolved at least once" separately from the value: a miss (null)
+  // is a valid cache entry too, otherwise a missing CLI rescans PATH forever.
+  private hasResolved = false;
   private lastHostnamePath = '';
   private lastLegacyPath = '';
   private lastEnvText = '';
@@ -27,7 +30,7 @@ export class ClaudeCliResolver {
     const normalizedEnv = getRuntimeEnvironmentText(settings, 'claude');
 
     if (
-      this.resolvedPath &&
+      this.hasResolved &&
       hostnamePath === this.lastHostnamePath &&
       normalizedLegacy === this.lastLegacyPath &&
       normalizedEnv === this.lastEnvText
@@ -40,6 +43,7 @@ export class ClaudeCliResolver {
     this.lastEnvText = normalizedEnv;
 
     this.resolvedPath = resolveClaudeCliPath(hostnamePath, normalizedLegacy, normalizedEnv);
+    this.hasResolved = true;
     return this.resolvedPath;
   }
 
@@ -61,6 +65,7 @@ export class ClaudeCliResolver {
 
   reset(): void {
     this.resolvedPath = null;
+    this.hasResolved = false;
     this.lastHostnamePath = '';
     this.lastLegacyPath = '';
     this.lastEnvText = '';

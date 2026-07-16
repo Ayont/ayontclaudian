@@ -202,6 +202,9 @@ export class StreamStatusBar {
 
   /** Updates the moving flavor phrase shown next to the provider/model label. */
   setPhrase(text: string): void {
+    // Stream chunks repeat the same phrase; with no state change the render
+    // below would write identical DOM, so skip it entirely.
+    if (text === this.currentPhrase) return;
     this.currentPhrase = text;
     this.phraseEl.setText(text);
     this.renderDetail();
@@ -211,24 +214,33 @@ export class StreamStatusBar {
   setActivity(primary: string, meta = ''): void {
     const nextPrimary = primary || 'Arbeitet';
     const nextMeta = meta || this.currentLabel;
-    const wasCurrentActivity = this.currentActivity === nextPrimary && this.currentMeta === nextMeta;
+    // Providers emit the same activity for every stream chunk; an unchanged
+    // activity leaves all rendered values identical, so skip the DOM writes.
+    if (this.currentActivity === nextPrimary && this.currentMeta === nextMeta) return;
     this.currentActivity = nextPrimary;
     this.currentMeta = nextMeta;
     this.currentStage = resolveActivityStage(nextPrimary);
-    if (!wasCurrentActivity) {
-      this.lastActivityAt = this.now();
-      this.setWaiting(false);
-      this.activities = appendActivity(this.activities, {
-        primary: nextPrimary,
-        meta: nextMeta,
-        at: this.now(),
-      });
-    }
+    this.lastActivityAt = this.now();
+    this.setWaiting(false);
+    const previousActivities = this.activities;
+    this.activities = appendActivity(this.activities, {
+      primary: nextPrimary,
+      meta: nextMeta,
+      at: this.now(),
+    });
     this.activityEl.setText(this.currentActivity);
     this.renderEventCount();
     this.renderPhases();
     this.toggleEl.setAttribute('aria-label', `Live-Aktivität anzeigen: ${this.currentActivity}`);
     this.renderDetail();
+    // appendActivity dedupes, so only a genuinely new entry changes the list;
+    // rebuilding it per chunk was the DOM churn this guards against.
+    if (
+      this.activities.length !== previousActivities.length
+      || this.activities.at(-1) !== previousActivities.at(-1)
+    ) {
+      this.renderActivityHistory();
+    }
   }
 
   private toggleOpen(): void {
@@ -254,6 +266,7 @@ export class StreamStatusBar {
     this.renderEventCount();
     this.renderPhases();
     this.renderDetail();
+    this.renderActivityHistory();
     this.renderTimer();
     this.el.removeClass('claudian-hidden');
     this.clearTimer();
@@ -278,6 +291,7 @@ export class StreamStatusBar {
     this.cancelEventCountAnimation = null;
     this.eventCountValueEl.setText('0');
     this.renderDetail();
+    this.renderActivityHistory();
   }
 
   private renderPhases(): void {
@@ -344,6 +358,14 @@ export class StreamStatusBar {
     this.activityEl.setText(this.currentActivity);
     this.detailPrimaryEl.setText(this.currentActivity);
     this.detailMetaEl.setText(`${this.currentLabel} · ${this.currentPhrase}${this.currentMeta ? ` · ${this.currentMeta}` : ''}`);
+  }
+
+  /**
+   * Rebuilds the activity history list. Kept separate from renderDetail: the
+   * list only changes when a new activity is appended or the bar resets, so
+   * cheap detail updates must not pay for an empty()+rebuild cycle.
+   */
+  private renderActivityHistory(): void {
     this.activityHistoryEl.empty();
     if (this.activities.length === 0) return;
 

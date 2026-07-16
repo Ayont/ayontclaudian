@@ -184,10 +184,10 @@ export const kimiSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     new Setting(container)
       .setName('Custom models')
-      .setDesc('Extra model ids to show in the selector, one per line (e.g. `kimi-k2`).')
+      .setDesc('Extra model ids to show in the selector, one per line (e.g. `kimi-k3`).')
       .addTextArea((text) => {
         text
-          .setPlaceholder('kimi-k2\nkimi-code/kimi-for-coding')
+          .setPlaceholder('kimi-k3\nkimi-code/kimi-for-coding')
           .setValue(settings.customModels)
           .onChange(async (value) => {
             updateKimiProviderSettings(settingsBag, { customModels: value });
@@ -304,7 +304,7 @@ export const kimiSettingsTabRenderer: ProviderSettingsTabRenderer = {
       desc: 'Extra environment variables passed only to Kimi (`KIMI_*`, `MOONSHOT_*`).',
       heading: t('settings.environment'),
       name: 'Kimi environment variables',
-      placeholder: 'KIMI_MODEL=kimi-k2\nMOONSHOT_API_KEY=...',
+      placeholder: 'KIMI_MODEL=kimi-k3\nMOONSHOT_API_KEY=...',
       plugin: context.plugin,
       scope: `provider:${KIMI_PROVIDER_ID}`,
     });

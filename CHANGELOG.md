@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.48.0] - 2026-07-16
+
+### Added
+
+- **Kimi K3 Support**:
+  - Added `kimi-k3` (Moonshot flagship: 2.8T parameters, 1M-token context window, multimodal, always-on reasoning) to the curated Kimi model catalog.
+  - Introduced a context-window catalog for known Kimi models: `kimi-k3` resolves to 1,048,576 tokens instead of the 256K coding default, and `ensureKimiModelConfigured` seeds new `[models.*]` config sections with the correct per-model `max_context_size`.
+
+### Changed
+
+- **Kimi Settings UI**: Feature showcase now lists the current model lineup (K3, K2.7 Code, K2.7 Code High-Speed, K2.6) and drops sunset models (K2 Turbo, Moonshot v1); settings placeholders reference `kimi-k3`.
+
+### Fixed
+
+- **Kimi Model Dropdown**: Curated catalog entries (K3, K2.7 Code) now surface with their curated labels and descriptions when configured — they were previously shadowed by generic "Configured" entries.
+
+### Performance
+
+- **Kimi Config Reads**: Memoized `~/.kimi/config.toml` / `~/.kimi-code/config.toml` parsing behind an mtime+size signature. The model dropdown previously re-read and re-parsed both files several times per rebuild; repeat reads are now stat-only.
+- **Grok & Vibe Config Reads**: Applied the same stat-signature memoization to `~/.grok/config.toml` and `~/.vibe/config.toml`, and collapsed the duplicate config read in model resolution — one call chain now parses at most once.
+- **Antigravity Transcript Polling**: The 120 ms transcript tail loop now `stat`s `transcript.jsonl` first and skips the full `readFileSync` + line split when the file is unchanged (O(1) instead of O(file) per poll — a whole turn was O(n²) on the main thread). Appends, rewrites, and truncation still trigger an immediate re-read.
+- **CLI Resolution**: All provider CLI resolvers (Claude, Codex, Grok, Antigravity, Vibe, Opencode, Pi) now memoize their resolution — including misses — keyed on their inputs. The streaming status bar previously triggered a full `$PATH` scan plus two `~/.npmrc` reads up to 8×/second.
+- **Stream Status Bar**: Unchanged activity/phrase updates no longer touch the DOM, and the activity history list only rebuilds when a new entry is actually appended (previously a full `empty()` + rebuild per stream chunk).
+- **Math Escaping**: Streaming math-delimiter detection no longer builds a throwaway escaped copy of the entire message per frame; detection and escaping now share one state machine and the escaped string is computed at most once per frame.
+
 ## [5.6.2] - 2026-06-24
 
 ### Added

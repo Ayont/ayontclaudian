@@ -140,6 +140,54 @@ export function readAntigravityTranscript(conversationId: string): string | null
   }
 }
 
+/** Stat signature of a transcript read, compared between polls to detect writes. */
+export interface AntigravityTranscriptStat {
+  path: string;
+  size: number;
+  mtimeMs: number;
+}
+
+/**
+ * readAntigravityTranscript variant for the 120ms tail loop: stats
+ * transcript.jsonl first and returns `null` when size+mtime still match
+ * `lastStat`, so an untouched file skips the full readFileSync+split (O(1) per
+ * poll instead of O(file), which made a turn O(n²) on the main thread). Any
+ * stat difference — append, same-size rewrite, or truncation — forces a
+ * re-read, so new content is never suppressed. The stat is captured BEFORE the
+ * read: a write racing the read mismatches on the next poll and costs one extra
+ * read. `path` keys the comparison, so a stat cached for another conversation
+ * can never suppress this one's reads.
+ */
+export function readAntigravityTranscriptIfChanged(
+  conversationId: string,
+  lastStat: AntigravityTranscriptStat | null,
+): { buffer: string | null; stat: AntigravityTranscriptStat | null } | null {
+  const transcriptPath = getAntigravityTranscriptPath(conversationId);
+  let stat: AntigravityTranscriptStat | null = null;
+  try {
+    const s = fs.statSync(transcriptPath);
+    if (s.isFile()) {
+      stat = { path: transcriptPath, size: s.size, mtimeMs: s.mtimeMs };
+    }
+  } catch {
+    // Missing/unreadable — report it like readAntigravityTranscript does (null).
+  }
+  if (stat === null) {
+    return { buffer: null, stat: null };
+  }
+  if (
+    lastStat !== null &&
+    lastStat.path === stat.path &&
+    lastStat.size === stat.size &&
+    lastStat.mtimeMs === stat.mtimeMs
+  ) {
+    return null;
+  }
+  const buffer = readAntigravityTranscript(conversationId);
+  // Don't cache a stat for content we failed to read — retry fresh next poll.
+  return { buffer, stat: buffer === null ? null : stat };
+}
+
 /** Removes a conversation's brain directory (best-effort). */
 export function deleteAntigravityConversationDir(conversationId: string): void {
   const dir = getAntigravityConversationDir(conversationId);
