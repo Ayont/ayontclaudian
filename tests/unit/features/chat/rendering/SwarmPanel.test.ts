@@ -215,7 +215,7 @@ describe('SwarmPanel', () => {
     const setIntervalSpy = jest.spyOn(window, 'setInterval');
     // The deferred frame now fires on a disposed panel: a running agent would
     // normally arm the 1s ticker, but the disposed guard must make it a no-op.
-    pendingFrame!();
+    pendingFrame!(0);
 
     expect(setIntervalSpy).not.toHaveBeenCalled();
   });

@@ -390,6 +390,7 @@ export class InputController {
             // provider settings so the actual send uses the routed model.
             // Auto (draftModel === __auto__) stays active in the dropdown.
             tab.routedModel = decision.model;
+            tab.routedModelReason = `${decision.task} · ${decision.reason}`;
             tab.autoModelActive = true;
             tab.draftModel = AUTO_MODEL_VALUE;
             const snapshot = ProviderSettingsCoordinator.getProviderSettingsSnapshot(

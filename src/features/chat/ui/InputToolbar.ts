@@ -69,6 +69,12 @@ export interface ToolbarCallbacks {
    * overrides like the "Auto" sentinel that are not persisted to settings.
    */
   getModelValue?: () => string;
+  /**
+   * When "Auto" is active and the router has picked a concrete model for the
+   * last prompt, returns that model plus the reason (for the Auto chip's
+   * routed-target suffix + tooltip). Returns null when Auto hasn't routed yet.
+   */
+  getAutoRouteInfo?: () => { model: string; reason?: string | null } | null;
 }
 
 export class ModelSelector {
@@ -176,6 +182,23 @@ export class ModelSelector {
     labelEl.setText(displayModel?.label || 'Unknown');
     if (displayModel?.group) {
       this.buttonEl.createSpan({ cls: 'claudian-model-provider-name', text: displayModel.group });
+    }
+
+    // Auto transparency: reveal which concrete model the router picked for the
+    // last prompt ("✦ Auto · GPT-5.1"), with the routing reason as a tooltip.
+    // Guarded on a truthy routed model, so a stale reason never shows.
+    if (currentModel === AUTO_MODEL_VALUE) {
+      const routeInfo = this.callbacks.getAutoRouteInfo?.();
+      if (routeInfo?.model) {
+        const routedLabel = models.find(m => m.value === routeInfo.model)?.label ?? routeInfo.model;
+        this.buttonEl.createSpan({
+          cls: 'claudian-model-auto-route',
+          text: `· ${routedLabel}`,
+        });
+        if (routeInfo.reason) {
+          this.buttonEl.setAttribute('title', `Auto-Router: ${routeInfo.reason}`);
+        }
+      }
     }
   }
 

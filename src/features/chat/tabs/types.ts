@@ -214,6 +214,13 @@ export interface TabData {
    */
   routedModel?: string | null;
 
+  /**
+   * Human-readable reason the router picked {@link routedModel} (e.g. "task
+   * inferred as code"). Display only, shown as the Auto chip's tooltip. Never
+   * shown without a truthy routedModel, so a stale value is harmless.
+   */
+  routedModelReason?: string | null;
+
   /** Active provider for this tab's current conversation/runtime. */
   providerId: ProviderId;
 

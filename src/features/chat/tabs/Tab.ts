@@ -1245,6 +1245,9 @@ function initializeInputToolbar(
     getModelValue: () => tab.autoModelActive
       ? AUTO_MODEL_VALUE
       : (tab.draftModel ?? getTabSettingsSnapshot(tab, plugin).model),
+    getAutoRouteInfo: () => (tab.autoModelActive && tab.routedModel)
+      ? { model: tab.routedModel, reason: tab.routedModelReason }
+      : null,
   });
 
   tab.ui.modelSelector = toolbarComponents.modelSelector;

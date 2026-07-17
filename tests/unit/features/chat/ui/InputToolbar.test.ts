@@ -1,6 +1,7 @@
 import { createMockEl } from '@test/helpers/mockElement';
 import { App, Modal } from 'obsidian';
 
+import { AUTO_MODEL_VALUE } from '@/core/routing/modelRouterRules';
 import type { UsageInfo } from '@/core/types';
 import {
   ContextUsageMeter,
@@ -216,6 +217,32 @@ describe('ModelSelector', () => {
     selector.updateDisplay();
     const label = parentEl.querySelector('.claudian-model-label');
     expect(label?.textContent).toBe('Haiku');
+  });
+
+  it('reveals the routed model + reason when Auto has routed', () => {
+    const autoParent = createMockEl();
+    const autoSelector = new ModelSelector(autoParent, createMockCallbacks({
+      getModelValue: () => AUTO_MODEL_VALUE,
+      getAutoRouteInfo: () => ({ model: 'haiku', reason: 'cheap · task inferred as cheap' }),
+    }));
+    autoSelector.updateDisplay();
+
+    const route = autoParent.querySelector('.claudian-model-auto-route');
+    expect(route).not.toBeNull();
+    expect(route?.textContent).toBe('· Haiku');
+    const btn = autoParent.querySelector('.claudian-model-btn');
+    expect(btn?.getAttribute('title')).toContain('cheap · task inferred as cheap');
+  });
+
+  it('shows plain Auto (no route suffix) before Auto has routed', () => {
+    const autoParent = createMockEl();
+    const autoSelector = new ModelSelector(autoParent, createMockCallbacks({
+      getModelValue: () => AUTO_MODEL_VALUE,
+      getAutoRouteInfo: () => null,
+    }));
+    autoSelector.updateDisplay();
+
+    expect(autoParent.querySelector('.claudian-model-auto-route')).toBeNull();
   });
 
   it('opens the model picker modal on button click', () => {
