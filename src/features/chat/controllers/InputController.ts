@@ -162,6 +162,14 @@ export class InputController {
   private deps: InputControllerDeps;
   /** Consecutive auto-answered questions since the last manual user send. */
   private autoAnswerStreak = 0;
+  /**
+   * Synchronous re-entry guard for the pre-streaming window of sendMessage.
+   * `state.isStreaming` only flips at the streaming handoff, and the auto-model
+   * routing path awaits before that, so two rapid Enter presses could both slip
+   * through and start parallel streams on one tab. This flag closes that window
+   * and is released at the handoff so genuine mid-stream sends still queue.
+   */
+  private sendInFlight = false;
   private pendingApprovalInline: InlineAskUserQuestion | null = null;
   private pendingAskInline: InlineAskUserQuestion | null = null;
   private pendingExitPlanModeInline: InlineExitPlanMode | null = null;
@@ -358,6 +366,13 @@ export class InputController {
       return;
     }
 
+    // Close the double-submit window before the first await that can fall
+    // through to a stream. Released at the streaming handoff and on every
+    // early return below (budget/queue), so a rapid second Enter is dropped
+    // but a deliberate mid-stream send still queues via the isStreaming check.
+    if (this.sendInFlight) return;
+    this.sendInFlight = true;
+
     // Auto model (selected from the dropdown): route to the best model for this
     // prompt before sending. When "Auto" is the active model, the router picks
     // the best matching model for the actual send — but Auto stays selected in
@@ -401,6 +416,7 @@ export class InputController {
       const budgetCheck = plugin.tokenBudgetTracker.checkBudget(plugin.settings);
       if (budgetCheck?.ok === false) {
         new Notice(budgetCheck.reason ?? 'Token budget reached.');
+        this.sendInFlight = false;
         return;
       }
     }
@@ -434,6 +450,7 @@ export class InputController {
         imageContextManager?.clearImages();
       }
       this.updateQueueIndicator();
+      this.sendInFlight = false;
       return;
     }
 
@@ -442,6 +459,9 @@ export class InputController {
       this.deps.resetInputHeight();
     }
     state.isStreaming = true;
+    // Hand off from the synchronous re-entry guard to the streaming guard:
+    // further sends now queue via the state.isStreaming check above.
+    this.sendInFlight = false;
     state.cancelRequested = false;
     state.ignoreUsageUpdates = false; // Allow usage updates for new query
     this.deps.getSubagentManager().resetSpawnedCount();

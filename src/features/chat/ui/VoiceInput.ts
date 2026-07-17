@@ -208,18 +208,25 @@ export class VoiceInput {
     const rawPath = `${stamp}.webm`;
     const wavPath = `${stamp}.wav`;
 
-    this.abortController = new AbortController();
+    // Hold the controller in a local. `cancelProcessing()` (and destroy()) null
+    // out `this.abortController` while this method is still awaiting conversion
+    // or transcription; reading `this.abortController.signal` afterward — above
+    // all in the catch block — would then dereference null and escape as an
+    // unhandled rejection. The local stays valid for the lifetime of this turn,
+    // and its `.aborted` flag still flips to true when cancel calls abort().
+    const controller = new AbortController();
+    this.abortController = controller;
     this.processingTimeout = window.setTimeout(() => {
-      this.abortController?.abort();
+      controller.abort();
       new Notice('Transkription dauerte zu lange — bitte erneut versuchen.');
     }, VoiceInput.TRANSCRIPTION_TIMEOUT_MS);
 
     try {
       const buffer = Buffer.from(await blob.arrayBuffer());
       await fs.writeFile(rawPath, buffer);
-      await this.convertToWav(rawPath, wavPath, this.abortController.signal);
+      await this.convertToWav(rawPath, wavPath, controller.signal);
 
-      if (this.abortController.signal.aborted) return;
+      if (controller.signal.aborted) return;
 
       const model = this.callbacks.getModel?.() ?? 'base';
       const modelPath = `${homedir()}/.cache/whisper-cpp/ggml-${model}.bin`;
@@ -230,7 +237,7 @@ export class VoiceInput {
         preferFastBackend: this.callbacks.getPreferFastBackend?.() ?? true,
       });
 
-      if (this.abortController.signal.aborted) return;
+      if (controller.signal.aborted) return;
 
       if (result.ok && result.text) {
         this.callbacks.onInsert(result.text);
@@ -240,14 +247,15 @@ export class VoiceInput {
         new Notice(`Transkription fehlgeschlagen: ${result.error ?? 'unbekannt'}`);
       }
     } catch (error) {
-      if (this.abortController.signal.aborted) return;
+      if (controller.signal.aborted) return;
       new Notice(`Sprachaufnahme fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       if (this.processingTimeout) {
         window.clearTimeout(this.processingTimeout);
         this.processingTimeout = null;
       }
-      this.abortController = null;
+      // Only clear the shared field if a newer turn hasn't already replaced it.
+      if (this.abortController === controller) this.abortController = null;
       await fs.rm(rawPath, { force: true }).catch(() => {});
       await fs.rm(wavPath, { force: true }).catch(() => {});
       this.setState('idle');

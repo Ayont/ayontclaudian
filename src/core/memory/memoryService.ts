@@ -183,7 +183,12 @@ export async function storeMemory(
   tags: string[] = [],
 ): Promise<string> {
   const normalized = normalizePath(folderPath);
-  const safeTopic = topic.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-').toLowerCase();
+  // Unicode-aware slug: `\w` is ASCII-only, so a plain `[^\w\s-]` strips German
+  // umlauts and accents ("Bücher" → "bcher"), which both mangles the filename
+  // and collapses distinct topics onto the same slug — silently overwriting each
+  // other. `\p{L}\p{N}` keeps letters/digits from any script, matching the
+  // Unicode-aware tokenizer used elsewhere in the memory system.
+  const safeTopic = topic.replace(/[^\p{L}\p{N}\s-]/gu, '').trim().replace(/\s+/g, '-').toLowerCase();
   if (!safeTopic) throw new Error('Memory topic cannot be empty.');
 
   await vault.adapter.mkdir(normalized).catch(() => {

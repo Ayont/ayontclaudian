@@ -1860,6 +1860,14 @@ export function initializeTabControllers(
     setActiveGoal: (goal: string | null) => applyTabGoal(tab, plugin, goal),
     ensureServiceInitialized: async () => {
       if (tab.serviceInitialized && tab.lifecycleState === 'bound_active') {
+        // The runtime object already exists, but its provider process may still
+        // be cold (created via passive sync without a spawn). Kick the spawn off
+        // now so the cold start overlaps the caller's context preparation instead
+        // of being paid serially inside query(). Fire-and-forget and idempotent:
+        // ensureReady() sets persistentQuery synchronously and no-ops when a
+        // process already runs, so query()'s own spawn guard turns any later
+        // spawn into a no-op — no double-spawn, no race.
+        void tab.service?.ensureReady().catch(() => {});
         return true;
       }
 
@@ -1879,6 +1887,12 @@ export function initializeTabControllers(
         // Transition: lock model selector to bound provider
         refreshTabProviderUI(tab, plugin);
         applyProviderUIGating(tab, plugin);
+
+        // Warm the freshly created runtime's process so its cold start overlaps
+        // the caller's context preparation. initializeTabService already ran the
+        // passive syncConversationState, so resume/session state is correct
+        // before this spawn — the one hard precondition for an early spawn.
+        void tab.service?.ensureReady().catch(() => {});
         return true;
       } catch (error) {
         new Notice(error instanceof Error ? error.message : 'Failed to initialize chat service');

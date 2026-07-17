@@ -215,4 +215,22 @@ describe('storeMemory & loadMemoryNotes (hidden dot-folder)', () => {
     const notes = await loadMemoryNotes(vault, '.claudian/memory');
     expect(notes).toHaveLength(1);
   });
+
+  it('keeps German umlauts/accents in the slug (Unicode-aware)', async () => {
+    // Regression: an ASCII-only `\w` slug stripped umlauts ("Bücher" → "bcher")
+    // and collapsed distinct accented topics onto the same file, overwriting
+    // each other. The slug must preserve non-ASCII letters.
+    const vault = createAdapterVault();
+    const path = await storeMemory(vault, '.claudian/memory', 'Ölpreis Strategie', 'content');
+    expect(path).toBe('.claudian/memory/ölpreis-strategie.md');
+  });
+
+  it('does not collide two topics that differ only in accents', async () => {
+    const vault = createAdapterVault();
+    await storeMemory(vault, '.claudian/memory', 'Cafe', 'ascii');
+    await storeMemory(vault, '.claudian/memory', 'Café', 'accented');
+
+    const notes = await loadMemoryNotes(vault, '.claudian/memory');
+    expect(notes).toHaveLength(2);
+  });
 });
