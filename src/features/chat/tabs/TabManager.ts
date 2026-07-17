@@ -51,6 +51,14 @@ function isTabManagerViewHost(value: unknown): value is TabManagerViewHost {
 type CreateTabOptions = {
   activate?: boolean;
   draftModel?: string;
+  /**
+   * Skip the eager conversation hydration (SDK transcript + image restore) and
+   * use the in-memory metadata conversation instead. The tab bar only needs the
+   * conversation's id/title/provider (all metadata), and the full hydration runs
+   * lazily on first switchToTab. Used during restore so only the active tab pays
+   * hydration up front.
+   */
+  deferHydration?: boolean;
 };
 
 type OpenConversationOptions = {
@@ -162,10 +170,16 @@ export class TabManager implements TabManagerInterface {
       return null;
     }
 
-    const { activate = true, draftModel } = options;
+    const { activate = true, draftModel, deferHydration = false } = options;
 
+    // The factory below only reads conversation.id/providerId, and the tab bar
+    // title/provider come from metadata — so when hydration is deferred we use
+    // the synchronous in-memory metadata lookup and let the first switchToTab
+    // run the full SDK hydration + image restore lazily.
     const conversation = conversationId
-      ? await this.plugin.getConversationById(conversationId)
+      ? (deferHydration
+        ? this.plugin.getConversationSync(conversationId)
+        : await this.plugin.getConversationById(conversationId))
       : undefined;
 
     // Inherit the active tab's provider so the new blank tab picks up its model
@@ -642,11 +656,17 @@ export class TabManager implements TabManagerInterface {
   async restoreState(state: PersistedTabManagerState): Promise<void> {
     this.isRestoringState = true;
     try {
-      // Create tabs from persisted state with error handling.
+      // Create tabs from persisted state with error handling. Hydration is
+      // deferred for ALL tabs here (creation order preserved → tab-bar order
+      // unchanged); the final switchToTab below hydrates only the active tab,
+      // and the rest hydrate lazily on first switch. This turns N eager
+      // hydrations into 1 and also drops the old double-hydration of the active
+      // tab (previously hydrated once here and again in switchToTab).
       for (const tabState of state.openTabs) {
         try {
           await this.createTab(tabState.conversationId, tabState.tabId, {
             activate: false,
+            deferHydration: true,
             ...(typeof tabState.draftModel === 'string' ? { draftModel: tabState.draftModel } : {}),
           });
         } catch {

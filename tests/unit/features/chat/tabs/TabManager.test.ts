@@ -800,6 +800,31 @@ describe('TabManager - Persistence', () => {
       expect(mockCreateTab).toHaveBeenCalledTimes(2);
     });
 
+    it('defers hydration during restore (metadata sync lookup, no eager getConversationById)', async () => {
+      const deferPlugin = createMockPlugin();
+      const deferManager = createManager({
+        plugin: deferPlugin,
+        tabFactory: (n) => createMockTabData({ id: `tab-${n}` }),
+      });
+
+      const persistedState: PersistedTabManagerState = {
+        openTabs: [
+          { tabId: 'restored-1', conversationId: 'conv-1' },
+          { tabId: 'restored-2', conversationId: 'conv-2' },
+        ],
+        activeTabId: 'restored-2',
+      };
+
+      await deferManager.restoreState(persistedState);
+
+      // Both conversation-bound tabs resolve via the synchronous metadata lookup…
+      expect(deferPlugin.getConversationSync).toHaveBeenCalledWith('conv-1');
+      expect(deferPlugin.getConversationSync).toHaveBeenCalledWith('conv-2');
+      // …and none pay the expensive eager hydration at creation time. The active
+      // tab hydrates lazily via switchToTab's conversation controller instead.
+      expect(deferPlugin.getConversationById).not.toHaveBeenCalled();
+    });
+
     it('should restore draftModel for blank tabs', async () => {
       const persistedState: PersistedTabManagerState = {
         openTabs: [
