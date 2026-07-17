@@ -699,6 +699,11 @@ export default class ClaudianPlugin extends Plugin {
 
     this.app.workspace.onLayoutReady(() => {
       void (async () => {
+        // Probe/swap to Ollama embeddings here (off the onload critical path)
+        // before the index is loaded, so the dimension guard below sees the
+        // final provider's dimension and rebuilds once if it changed.
+        await this.upgradeEmbeddingProviderIfConfigured();
+
         await this.loadRAGIndex();
 
         // If the embedding model changed since the index was built (e.g. keyword
@@ -1910,25 +1915,40 @@ export default class ClaudianPlugin extends Plugin {
     }
 
     this.vectorStore = new VectorStore();
+    // Start with the keyword provider so onload never blocks on a network probe.
+    // If Ollama embeddings are enabled, the probe + provider swap happens later
+    // in setupVaultRAGAutoIndex's onLayoutReady block (off the critical path),
+    // before the index is loaded — the existing dimension guard then rebuilds
+    // the vectors if the embedding dimension changed.
     this.embeddingService = new KeywordEmbeddingProvider();
-    // Try Ollama if enabled and the configured model is actually available,
-    // otherwise keep keyword fallback so RAG never blocks users without Ollama.
-    const ollamaSettings = this.settings.ollamaEmbedding ?? DEFAULT_CLAUDIAN_SETTINGS.ollamaEmbedding;
-    if (ollamaSettings?.enabled) {
-      const ollama = new OllamaEmbeddingProvider({
-        baseUrl: ollamaSettings.baseUrl || 'http://localhost:11434',
-        model: ollamaSettings.model || 'nomic-embed-text',
-      });
-      try {
-        if (await ollama.isAvailable()) {
-          this.embeddingService = ollama;
-        }
-      } catch {
-        // isAvailable is defensive, but keep fallback on any unexpected error.
-      }
-    }
-
     this.vaultRAGService = new VaultRAGService(this.app.vault, this.embeddingService, this.vectorStore);
+  }
+
+  /**
+   * When Ollama embeddings are enabled, probe availability and swap the keyword
+   * provider for Ollama. Runs off the onload critical path (from onLayoutReady)
+   * because `isAvailable()` is a localhost HTTP round-trip that could otherwise
+   * stall startup for seconds. Keeps the keyword fallback on any failure.
+   */
+  private async upgradeEmbeddingProviderIfConfigured(): Promise<void> {
+    const ollamaSettings = this.settings.ollamaEmbedding ?? DEFAULT_CLAUDIAN_SETTINGS.ollamaEmbedding;
+    if (!ollamaSettings?.enabled) return;
+
+    const ollama = new OllamaEmbeddingProvider({
+      baseUrl: ollamaSettings.baseUrl || 'http://localhost:11434',
+      model: ollamaSettings.model || 'nomic-embed-text',
+    });
+    try {
+      if (await ollama.isAvailable()) {
+        this.embeddingService = ollama;
+        // Rebuild the RAG service around the new provider, reusing the same
+        // vector store; the dimension guard in setupVaultRAGAutoIndex re-indexes
+        // if keyword (256-dim) → Ollama (768-dim) invalidated the stored vectors.
+        this.vaultRAGService = new VaultRAGService(this.app.vault, this.embeddingService, this.vectorStore);
+      }
+    } catch {
+      // isAvailable is defensive, but keep the keyword fallback on any error.
+    }
   }
 
   async loadSettings() {

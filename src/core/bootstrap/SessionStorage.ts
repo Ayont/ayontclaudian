@@ -62,25 +62,31 @@ export class SessionStorage {
   }
 
   async listMetadata(): Promise<SessionMetadata[]> {
-    const metas: SessionMetadata[] = [];
-
     const files = await this.listUniqueMetadataFiles();
 
-    for (const filePath of files) {
-      try {
-        const content = await this.adapter.read(filePath);
-        const raw = JSON.parse(content) as SessionMetadata;
-        metas.push(raw);
+    // Read + parse every metadata file in parallel. This is the first awaited
+    // step of onload and previously read each file one-by-one, scaling linearly
+    // with the conversation count. Order is preserved by mapping over `files`;
+    // unreadable/corrupt files resolve to null and are filtered out — identical
+    // to the prior skip-on-error behavior.
+    const results = await Promise.all(
+      files.map(async (filePath) => {
+        try {
+          const content = await this.adapter.read(filePath);
+          const raw = JSON.parse(content) as SessionMetadata;
 
-        if (filePath.startsWith(`${LEGACY_SESSIONS_PATH}/`)) {
-          await this.saveMetadata(raw);
+          if (filePath.startsWith(`${LEGACY_SESSIONS_PATH}/`)) {
+            await this.saveMetadata(raw);
+          }
+          return raw;
+        } catch {
+          // Skip files that fail to load.
+          return null;
         }
-      } catch {
-        // Skip files that fail to load.
-      }
-    }
+      }),
+    );
 
-    return metas;
+    return results.filter((meta): meta is SessionMetadata => meta !== null);
   }
 
   async listAllConversations(): Promise<ConversationMeta[]> {

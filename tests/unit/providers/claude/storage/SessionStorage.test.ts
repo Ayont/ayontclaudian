@@ -383,6 +383,28 @@ describe('SessionStorage', () => {
       expect(metas).toHaveLength(1);
       expect(metas[0].id).toBe('good');
     });
+
+    it('preserves file order even when reads resolve out of order', async () => {
+      // The parallel read fan-out must keep results in listFiles order. The
+      // first file resolves slower than the second to prove order comes from
+      // the mapping, not resolution timing.
+      mockAdapter.listFiles.mockResolvedValue([
+        '.claudian/sessions/first.meta.json',
+        '.claudian/sessions/second.meta.json',
+        '.claudian/sessions/third.meta.json',
+      ]);
+
+      mockAdapter.read.mockImplementation((path: string) => {
+        const id = path.includes('first') ? 'first' : path.includes('second') ? 'second' : 'third';
+        const delay = id === 'first' ? 5 : 0;
+        const payload = JSON.stringify({ id, title: id, createdAt: 1, updatedAt: 1 });
+        return new Promise((resolve) => setTimeout(() => resolve(payload), delay));
+      });
+
+      const metas = await storage.listMetadata();
+
+      expect(metas.map(m => m.id)).toEqual(['first', 'second', 'third']);
+    });
   });
 
   describe('listAllConversations', () => {

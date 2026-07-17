@@ -44,14 +44,21 @@ export class ProviderWorkspaceRegistry {
     const vaultAdapter = storage.getAdapter();
     const homeAdapter = new HomeFileAdapter();
 
-    for (const providerId of providerIds) {
-      this.services[providerId] = await this.getWorkspaceRegistration(providerId).initialize({
-        plugin,
-        storage,
-        vaultAdapter,
-        homeAdapter,
-      });
-    }
+    // Initialize all providers in parallel — each provider's workspace setup
+    // (dir creation, MCP config read, plugin/agent scans) is independent, and
+    // this runs in the onload critical path before the view is registered.
+    // Running them concurrently overlaps their async I/O instead of paying the
+    // sum across all 8 providers.
+    await Promise.all(
+      providerIds.map(async (providerId) => {
+        this.services[providerId] = await this.getWorkspaceRegistration(providerId).initialize({
+          plugin,
+          storage,
+          vaultAdapter,
+          homeAdapter,
+        });
+      }),
+    );
   }
 
   static setServices(
