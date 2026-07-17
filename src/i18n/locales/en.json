@@ -85,6 +85,12 @@
     "setup": "Setup",
     "models": "Models",
     "experimental": "Experimental",
+    "providers": {
+      "heading": "Providers",
+      "desc": "Turn coding-agent providers on or off. Enabled providers appear in the model picker; each provider tab holds its detailed setup (CLI path, API key, models).",
+      "alwaysOn": "Always enabled",
+      "openTab": "Open provider settings"
+    },
     "userName": {
       "name": "What should Claudian call you?",
       "desc": "Your name for personalized greetings (leave empty for generic greetings)"

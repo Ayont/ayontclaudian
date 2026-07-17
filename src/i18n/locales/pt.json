@@ -85,6 +85,12 @@
     "setup": "Configuração",
     "models": "Modelos",
     "experimental": "Experimental",
+    "providers": {
+      "heading": "Provedores",
+      "desc": "Ative ou desative os provedores de agentes de código. Provedores ativados aparecem no seletor de modelos; cada aba de provedor contém sua configuração detalhada (caminho da CLI, chave de API, modelos).",
+      "alwaysOn": "Sempre ativado",
+      "openTab": "Abrir configurações do provedor"
+    },
     "userName": {
       "name": "Como o Claudian deve chamá-lo?",
       "desc": "Seu nome para saudações personalizadas (deixe vazio para saudações genéricas)"

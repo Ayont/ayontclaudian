@@ -2,6 +2,10 @@
 
 .claudian-settings-tabs {
   display: flex;
+  /* Wrap instead of clipping: with 8+ provider tabs the row overflows the
+     settings pane and the trailing tabs (Kimi, Vibe, Grok, …) become
+     unreachable — their Enable toggles could never be clicked. */
+  flex-wrap: wrap;
   gap: 2px;
   border-bottom: 1px solid var(--background-modifier-border);
   margin-bottom: 16px;

@@ -85,6 +85,12 @@
     "setup": "设置",
     "models": "模型",
     "experimental": "实验性功能",
+    "providers": {
+      "heading": "提供方",
+      "desc": "启用或停用编码代理提供方。已启用的提供方会出现在模型选择器中；详细设置（CLI 路径、API 密钥、模型）位于各提供方的标签页。",
+      "alwaysOn": "始终启用",
+      "openTab": "打开提供方设置"
+    },
     "userName": {
       "name": "Claudian 应该如何称呼你？",
       "desc": "用于个性化问候的用户名（留空使用通用问候）"

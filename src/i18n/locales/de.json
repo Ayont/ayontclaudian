@@ -85,6 +85,12 @@
     "setup": "Einrichtung",
     "models": "Modelle",
     "experimental": "Experimentell",
+    "providers": {
+      "heading": "Provider",
+      "desc": "Coding-Agent-Provider ein- oder ausschalten. Aktivierte Provider erscheinen in der Modellauswahl; die Detail-Einrichtung (CLI-Pfad, API-Key, Modelle) liegt im jeweiligen Provider-Tab.",
+      "alwaysOn": "Immer aktiviert",
+      "openTab": "Provider-Einstellungen öffnen"
+    },
     "userName": {
       "name": "Wie soll Claudian dich nennen?",
       "desc": "Dein Name für personalisierte Begrüßungen (leer lassen für allgemeine Begrüßungen)"

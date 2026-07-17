@@ -5,6 +5,7 @@ import {
   getHiddenProviderCommands,
   normalizeHiddenCommandList,
 } from '../../core/providers/commands/hiddenCommands';
+import { setProviderEnabled } from '../../core/providers/providerConfig';
 import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
 import { ProviderWorkspaceRegistry } from '../../core/providers/ProviderWorkspaceRegistry';
 import type { ProviderId } from '../../core/providers/types';
@@ -226,6 +227,10 @@ export class ClaudianSettingTab extends PluginSettingTab {
             this.display();
           });
       });
+
+    // --- Providers ---
+
+    this.renderProvidersSection(container);
 
     // --- Display ---
 
@@ -723,6 +728,62 @@ export class ClaudianSettingTab extends PluginSettingTab {
       placeholder: 'PATH=/opt/homebrew/bin:/usr/local/bin\nHTTPS_PROXY=http://proxy.example.com:8080\nSSL_CERT_FILE=/path/to/cert.pem',
       renderCustomContextLimits: (target) => this.renderCustomContextLimits(target),
     });
+  }
+
+  /**
+   * Central on/off switches for every registered provider. Providers whose
+   * tab sits far to the right (Kimi, Vibe, Grok, …) previously required
+   * reaching their own tab just to flip "Enable" — this section guarantees
+   * every provider can be activated straight from General.
+   */
+  private renderProvidersSection(container: HTMLElement): void {
+    new Setting(container)
+      .setName(t('settings.providers.heading'))
+      .setDesc(t('settings.providers.desc'))
+      .setHeading();
+
+    const settingsBag = this.plugin.settings as unknown as Record<string, unknown>;
+
+    for (const providerId of ProviderRegistry.getRegisteredProviderIds()) {
+      // Probe with an explicit `enabled: false` config: providers that still
+      // report enabled (Claude) are always-on and get a locked toggle.
+      const isAlwaysOn = ProviderRegistry.isEnabled(providerId, {
+        providerConfigs: { [providerId]: { enabled: false } },
+      });
+
+      const setting = new Setting(container)
+        .setName(ProviderRegistry.getProviderDisplayName(providerId));
+
+      if (isAlwaysOn) {
+        setting.setDesc(t('settings.providers.alwaysOn'));
+      }
+
+      setting.addExtraButton((button) =>
+        button
+          .setIcon('settings')
+          .setTooltip(t('settings.providers.openTab'))
+          .onClick(() => {
+            this.activeTab = providerId;
+            this.display();
+          }),
+      );
+
+      setting.addToggle((toggle) => {
+        toggle
+          .setValue(ProviderRegistry.isEnabled(providerId, settingsBag))
+          .setDisabled(isAlwaysOn)
+          .onChange(async (value) => {
+            setProviderEnabled(settingsBag, providerId, value);
+            await this.plugin.saveSettings();
+            for (const view of this.plugin.getAllViews()) {
+              view.refreshModelSelector();
+            }
+            // Re-render so the provider's own tab (with its duplicate
+            // "Enable" toggle) reflects the new state immediately.
+            this.display();
+          });
+      });
+    }
   }
 
   private renderHiddenProviderCommandSetting(

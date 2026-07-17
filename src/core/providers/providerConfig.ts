@@ -19,6 +19,21 @@ export function getProviderConfig(
   return isRecord(config) ? { ...config } : {};
 }
 
+/**
+ * Flip the persisted `enabled` flag for a provider without touching any of its
+ * other raw config fields. Every provider's `getXProviderSettings` reader
+ * normalizes on read, so writing the raw flag here is safe and keeps the
+ * central "Providers" section in the General settings tab provider-agnostic.
+ */
+export function setProviderEnabled(
+  settings: Record<string, unknown>,
+  providerId: ProviderId,
+  enabled: boolean,
+): void {
+  const config = getProviderConfig(settings, providerId);
+  setProviderConfig(settings, providerId, { ...config, enabled });
+}
+
 export function setProviderConfig(
   settings: Record<string, unknown>,
   providerId: ProviderId,
