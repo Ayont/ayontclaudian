@@ -156,7 +156,7 @@ import type { Locale } from './i18n/types';
 import { OPENCODE_PLAN_MODE_ID, OPENCODE_SAFE_MODE_ID } from './providers/opencode/modes';
 import { extractUserDisplayContent } from './utils/context';
 import { buildCursorContext } from './utils/editor';
-import { getEnhancedPath } from './utils/env';
+import { clearEnvPathCache, getEnhancedPath } from './utils/env';
 import { revealWorkspaceLeaf } from './utils/obsidianCompat';
 import { getVaultPath } from './utils/path';
 
@@ -2051,6 +2051,11 @@ export default class ClaudianPlugin extends Plugin {
     ProviderSettingsCoordinator.persistProjectedProviderState(
       this.settings,
     );
+
+    // A settings save may have changed a provider's CLI path or PATH-affecting
+    // env vars, so drop the memoized PATH/Node resolutions to avoid serving a
+    // stale enhanced PATH on the next turn.
+    clearEnvPathCache();
 
     await this.storage.saveClaudianSettings(this.settings);
   }

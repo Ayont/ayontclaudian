@@ -25,18 +25,26 @@ export async function buildLinkedNoteContext(app: App, sourcePath: string | null
     .map(([path]) => path);
   if (paths.length === 0) return '';
 
-  const entries: string[] = [];
-  for (const path of paths) {
-    try {
-      const content = (await app.vault.adapter.read(path))
-        .replace(/^---[\s\S]*?---\s*/m, '')
-        .trim()
-        .slice(0, MAX_NOTE_CHARS);
-      entries.push(`- [[${path}]]\n  ${content || '(leer)'}`);
-    } catch {
-      // Broken links are intentionally skipped.
-    }
-  }
+  // Read the linked notes in parallel — they are independent and sit on the
+  // critical path before the first token. `Promise.all` over ≤6 reads turns a
+  // sum-of-latencies wait into a single slowest-read wait. Order is preserved
+  // by mapping over `paths`, so the deterministic weight ranking still holds.
+  const entries = (
+    await Promise.all(
+      paths.map(async (path) => {
+        try {
+          const content = (await app.vault.adapter.read(path))
+            .replace(/^---[\s\S]*?---\s*/m, '')
+            .trim()
+            .slice(0, MAX_NOTE_CHARS);
+          return `- [[${path}]]\n  ${content || '(leer)'}`;
+        } catch {
+          // Broken links are intentionally skipped.
+          return null;
+        }
+      }),
+    )
+  ).filter((entry): entry is string => entry !== null);
   if (entries.length === 0) return '';
 
   return `<graph_context>\nDirekt verknüpfte Notizen zu [[${sourcePath}]]:\n\n${entries.join('\n\n')}\n</graph_context>`

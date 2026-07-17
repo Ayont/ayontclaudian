@@ -358,7 +358,7 @@ export function cliPathRequiresNode(cliPath: string): boolean {
   }
 }
 
-export function getMissingNodeError(cliPath: string, enhancedPath?: string): string | null {
+function computeMissingNodeError(cliPath: string, enhancedPath?: string): string | null {
   if (!cliPathRequiresNode(cliPath)) {
     return null;
   }
@@ -371,7 +371,48 @@ export function getMissingNodeError(cliPath: string, enhancedPath?: string): str
   return 'Claude Code CLI requires Node.js, but Node was not found on PATH. Install Node.js or use the native Claude Code binary, then restart Obsidian.';
 }
 
+// The enhanced-PATH and missing-Node computations do synchronous disk I/O
+// (fs.existsSync/statSync/openSync across every PATH directory). Their inputs —
+// the CLI path, extra PATH segments and process.env.PATH — are effectively
+// constant between turns, yet they ran uncached on every query(). Memoize on the
+// exact inputs that determine the result; `clearEnvPathCache()` drops the cache
+// when settings that could change the filesystem view are saved.
+const enhancedPathCache = new Map<string, string>();
+const missingNodeErrorCache = new Map<string, string | null>();
+
+function envPathCacheKey(cliPath: string, additionalPaths: string): string {
+  return `${cliPath} ${additionalPaths} ${process.env.PATH ?? ''}`;
+}
+
+/** Drop the memoized PATH/Node resolutions (call on CLI-path/env settings change). */
+export function clearEnvPathCache(): void {
+  enhancedPathCache.clear();
+  missingNodeErrorCache.clear();
+}
+
+export function getMissingNodeError(cliPath: string, enhancedPath?: string): string | null {
+  const key = envPathCacheKey(cliPath, enhancedPath ?? '');
+  const cached = missingNodeErrorCache.get(key);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const result = computeMissingNodeError(cliPath, enhancedPath);
+  missingNodeErrorCache.set(key, result);
+  return result;
+}
+
 export function getEnhancedPath(additionalPaths?: string, cliPath?: string): string {
+  const key = envPathCacheKey(cliPath ?? '', additionalPaths ?? '');
+  const cached = enhancedPathCache.get(key);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const result = computeEnhancedPath(additionalPaths, cliPath);
+  enhancedPathCache.set(key, result);
+  return result;
+}
+
+function computeEnhancedPath(additionalPaths?: string, cliPath?: string): string {
   const extraPaths = getExtraBinaryPaths().filter(p => p);
   const currentPath = process.env.PATH || '';
 

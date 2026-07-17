@@ -68,6 +68,13 @@ describe('parseEnvironmentVariables', () => {
 describe('getEnhancedPath', () => {
   const originalEnv = { ...process.env };
 
+  beforeEach(() => {
+    // getEnhancedPath is memoized on (cliPath, additionalPaths, PATH). These
+    // tests vary the mocked filesystem/home while reusing those inputs, so the
+    // cache must be dropped between cases to observe the fresh computation.
+    env.clearEnvPathCache();
+  });
+
   afterEach(() => {
     // Restore environment
     Object.keys(process.env).forEach(key => delete process.env[key]);
@@ -786,6 +793,12 @@ describe('cliPathRequiresNode', () => {
 });
 
 describe('getMissingNodeError', () => {
+  beforeEach(() => {
+    // Memoized on (cliPath, enhancedPath, PATH); clear so each mocked-fs case
+    // recomputes instead of reusing a prior case's cached verdict.
+    env.clearEnvPathCache();
+  });
+
   afterEach(() => {
     jest.restoreAllMocks();
   });
@@ -794,6 +807,23 @@ describe('getMissingNodeError', () => {
     jest.spyOn(fs, 'existsSync').mockReturnValue(false);
     const error = getMissingNodeError('/path/to/claude');
     expect(error).toBeNull();
+  });
+
+  it('memoizes the verdict and re-reads only after clearEnvPathCache()', () => {
+    const existsSpy = jest.spyOn(fs, 'existsSync').mockReturnValue(false);
+
+    const first = getMissingNodeError('/path/to/cli.js', '/missing');
+    const callsAfterFirst = existsSpy.mock.calls.length;
+    const second = getMissingNodeError('/path/to/cli.js', '/missing');
+
+    expect(second).toBe(first);
+    // Second identical call served from cache — no additional fs probing.
+    expect(existsSpy.mock.calls.length).toBe(callsAfterFirst);
+
+    env.clearEnvPathCache();
+    getMissingNodeError('/path/to/cli.js', '/missing');
+    // After clearing, the resolution runs again.
+    expect(existsSpy.mock.calls.length).toBeGreaterThan(callsAfterFirst);
   });
 
   it('returns error when Node.js is missing and CLI requires Node.js', () => {

@@ -7,6 +7,9 @@ const UNDO_ROOT = '.claudian/undo';
 const MAX_TRACKED_FILE_BYTES = 2 * 1024 * 1024;
 const MAX_SNAPSHOT_BYTES = 32 * 1024 * 1024;
 const MAX_SNAPSHOTS = 20;
+// Concurrency cap for the baseline read fan-out — high enough to hide per-read
+// latency, low enough to keep the open file-descriptor count safe on big vaults.
+const SNAPSHOT_READ_BATCH = 32;
 const TEXT_EXTENSIONS = new Set([
   'c', 'conf', 'cpp', 'cs', 'css', 'csv', 'env', 'go', 'h', 'hpp', 'html', 'ini',
   'java', 'js', 'json', 'jsx', 'kt', 'md', 'mjs', 'php', 'properties', 'ps1', 'py',
@@ -106,14 +109,28 @@ export class TurnUndoService {
     const before = new Map<string, string>();
     let bytes = 0;
 
-    for (const file of this.vault.getFiles()) {
-      if (!shouldTrack(file, this.vault.configDir) || bytes + file.stat.size > MAX_SNAPSHOT_BYTES) continue;
-      try {
-        const content = await this.vault.cachedRead(file);
-        before.set(file.path, content);
-        bytes += Buffer.byteLength(content, 'utf8');
-      } catch {
-        // A transiently unreadable file must not block the agent turn.
+    // Read the vault baseline in bounded-concurrency batches instead of one file
+    // at a time. This snapshot sits on the critical path right before the
+    // provider spawn, and a large vault previously read thousands of files
+    // sequentially. Batching keeps the file descriptor count bounded while the
+    // byte-budget accounting stays byte-for-byte identical: candidates are
+    // consumed in the original file order and the same `bytes + stat.size` gate
+    // decides inclusion.
+    const trackable = this.vault.getFiles().filter((file) => shouldTrack(file, this.vault.configDir));
+    for (let index = 0; index < trackable.length && bytes < MAX_SNAPSHOT_BYTES; index += SNAPSHOT_READ_BATCH) {
+      const batch = trackable.slice(index, index + SNAPSHOT_READ_BATCH);
+      const reads = await Promise.all(
+        batch.map((file) =>
+          this.vault.cachedRead(file).then(
+            (content) => ({ file, content }),
+            () => null, // A transiently unreadable file must not block the agent turn.
+          ),
+        ),
+      );
+      for (const read of reads) {
+        if (!read || bytes + read.file.stat.size > MAX_SNAPSHOT_BYTES) continue;
+        before.set(read.file.path, read.content);
+        bytes += Buffer.byteLength(read.content, 'utf8');
       }
     }
 

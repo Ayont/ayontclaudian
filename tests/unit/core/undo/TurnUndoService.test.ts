@@ -49,4 +49,43 @@ describe('TurnUndoService', () => {
     expect(data.get('note.md')).toBe('before');
     expect(data.has('new.md')).toBe(false);
   });
+
+  it('captures a baseline across many files via batched parallel reads', async () => {
+    // More files than one read batch (32) to exercise the batching loop.
+    const fileCount = 80;
+    const data = new Map<string, string>();
+    const files: any[] = [];
+    for (let i = 0; i < fileCount; i += 1) {
+      const path = `note-${i}.md`;
+      data.set(path, `v0-${i}`);
+      files.push({ path, extension: 'md', stat: { size: 5 } });
+    }
+    let concurrentReads = 0;
+    let peakConcurrency = 0;
+    const vault = {
+      adapter: { exists: jest.fn(async () => false), write: jest.fn(), mkdir: jest.fn() },
+      getFiles: () => files,
+      cachedRead: async (file: any) => {
+        concurrentReads += 1;
+        peakConcurrency = Math.max(peakConcurrency, concurrentReads);
+        await Promise.resolve();
+        concurrentReads -= 1;
+        return data.get(file.path) ?? '';
+      },
+    } as any;
+    const service = new TurnUndoService(vault);
+
+    const id = await service.begin('conv', 'batched baseline');
+    // Change one file from every batch so the diff reflects the full baseline.
+    data.set('note-3.md', 'changed');
+    data.set('note-40.md', 'changed');
+    data.set('note-79.md', 'changed');
+    const manifest = await service.finish(id);
+
+    expect(manifest?.changes.map((change) => change.path).sort()).toEqual(
+      ['note-3.md', 'note-40.md', 'note-79.md'],
+    );
+    // Reads overlapped rather than running strictly one-at-a-time.
+    expect(peakConcurrency).toBeGreaterThan(1);
+  });
 });

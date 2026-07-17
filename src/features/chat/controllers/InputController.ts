@@ -505,6 +505,17 @@ export class InputController {
       turnRequest = { ...turnRequest, images: turnRequest.images.map((img) => ({ ...img })) };
     }
 
+    // Kick off the one-hop graph neighborhood read HERE so it overlaps the
+    // memory/RAG lookups below instead of running as a separate sequential
+    // await afterward. All three only prepend independent context blocks, so
+    // the final prepend order (graph, rag, memory, prompt) is unaffected.
+    const graphNotePath = !options?.turnRequestOverride
+      ? (fileContextManager?.getCurrentNotePath() ?? null)
+      : null;
+    const graphContextPromise: Promise<string> = graphNotePath
+      ? buildLinkedNoteContext(plugin.app, graphNotePath).catch(() => '')
+      : Promise.resolve('');
+
     if (!options?.turnRequestOverride && plugin.settings.memoryEnabled !== false && plugin.app?.vault) {
       const memoryFolder = plugin.settings.memoryFolder ?? '.claudian/memory';
       // Use the cached store so the always-on auto-recall doesn't re-scan every
@@ -550,13 +561,14 @@ export class InputController {
 
     // Add a bounded one-hop graph neighborhood for the attached current note.
     // This complements semantic RAG with explicit Obsidian relationships and is
-    // deliberately small so densely linked notes cannot flood the prompt.
-    if (!options?.turnRequestOverride) {
-      const currentNotePath = fileContextManager?.getCurrentNotePath() ?? null;
-      if (currentNotePath) {
-        const graphContext = await buildLinkedNoteContext(plugin.app, currentNotePath).catch(() => '');
-        if (graphContext) turnRequest.text = `${graphContext}\n\n${turnRequest.text}`;
-      }
+    // deliberately small so densely linked notes cannot flood the prompt. The
+    // read was started above in parallel with memory/RAG; here we only await the
+    // remaining time and prepend last to keep the graph block outermost. Only
+    // await when a note is actually attached so turns without one don't pay an
+    // extra microtask hop (the promise is an already-resolved '' otherwise).
+    if (graphNotePath) {
+      const graphContext = await graphContextPromise;
+      if (graphContext) turnRequest.text = `${graphContext}\n\n${turnRequest.text}`;
     }
 
     fileContextManager?.markCurrentNoteSent();
