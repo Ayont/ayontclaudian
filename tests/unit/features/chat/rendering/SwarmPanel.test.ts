@@ -189,4 +189,34 @@ describe('SwarmPanel', () => {
     panel.destroy();
     expect(removeSpy).toHaveBeenCalled();
   });
+
+  it('does not re-arm the ticker when a scheduled render fires after destroy', () => {
+    // Capture the rAF callback instead of firing it synchronously so we can
+    // deliver the frame AFTER destroy(), reproducing the leak window.
+    let pendingFrame: FrameRequestCallback | null = null;
+    (window.requestAnimationFrame as jest.Mock).mockImplementation((cb: FrameRequestCallback): number => {
+      pendingFrame = cb;
+      return 1;
+    });
+
+    const agents: SubagentInfo[] = [makeAgent({ id: 'a', status: 'running', startedAt: 1000 })];
+    const fake = fakeManager(() => agents);
+    const panel = new SwarmPanel({
+      manager: fake.manager as never,
+      mountEl,
+      getMessagesEl: () => createMockEl('div'),
+    });
+
+    // Leave a scheduled render pending, then destroy before the frame runs.
+    fake.fire();
+    expect(pendingFrame).not.toBeNull();
+    panel.destroy();
+
+    const setIntervalSpy = jest.spyOn(window, 'setInterval');
+    // The deferred frame now fires on a disposed panel: a running agent would
+    // normally arm the 1s ticker, but the disposed guard must make it a no-op.
+    pendingFrame!();
+
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+  });
 });

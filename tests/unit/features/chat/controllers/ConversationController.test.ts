@@ -211,6 +211,28 @@ describe('ConversationController', () => {
         expect(deps.plugin.switchConversation).not.toHaveBeenCalled();
       });
 
+      it('does not wipe subagents when the target conversation is gone', async () => {
+        // switchConversation returns null when the target was deleted meanwhile.
+        // The current conversation stays visible, so its subagents must survive.
+        deps.state.currentConversationId = 'old-conv';
+        (deps.plugin.switchConversation as jest.Mock).mockResolvedValueOnce(null);
+
+        await controller.switchTo('deleted-conv');
+
+        expect(deps.plugin.switchConversation).toHaveBeenCalledWith('deleted-conv');
+        expect(deps.subagentManager.orphanAllActive).not.toHaveBeenCalled();
+        expect(deps.subagentManager.clear).not.toHaveBeenCalled();
+      });
+
+      it('wipes subagents only after a successful switch', async () => {
+        deps.state.currentConversationId = 'old-conv';
+
+        await controller.switchTo('new-conv');
+
+        expect(deps.subagentManager.orphanAllActive).toHaveBeenCalled();
+        expect(deps.subagentManager.clear).toHaveBeenCalled();
+      });
+
       it('should reset file context when switching conversations', async () => {
         deps.state.currentConversationId = 'old-conv';
         const fileContextManager = deps.getFileContextManager()!;

@@ -255,13 +255,18 @@ export class ConversationController {
       this.deps.dismissPendingInlinePrompts?.();
       await this.save();
 
-      subagentManager.orphanAllActive();
-      subagentManager.clear();
-
+      // Validate the switch BEFORE wiping the current conversation's subagents.
+      // switchConversation returns null when the target no longer exists (e.g.
+      // deleted in another tab); orphaning/clearing first would destroy the
+      // still-visible current conversation's swarm state for a switch that never
+      // happens.
       const conversation = await plugin.switchConversation(id);
       if (!conversation) {
         return;
       }
+
+      subagentManager.orphanAllActive();
+      subagentManager.clear();
 
       await this.deps.ensureServiceForConversation?.(conversation);
 

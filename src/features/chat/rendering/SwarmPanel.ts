@@ -96,6 +96,7 @@ export class SwarmPanel {
   private isOpen = true;
   private readonly expandedWorkflowIds = new Set<string>();
   private renderScheduled = false;
+  private disposed = false;
   private readonly flashTimers = new Set<number>();
   /** Live duration spans for running agents, keyed by agent id, ticked every 1s. */
   private readonly liveDurations = new Map<string, { el: HTMLElement; startedAt: number }>();
@@ -137,7 +138,7 @@ export class SwarmPanel {
   }
 
   private scheduleRender(): void {
-    if (this.renderScheduled) return;
+    if (this.renderScheduled || this.disposed) return;
     this.renderScheduled = true;
     window.requestAnimationFrame(() => {
       this.renderScheduled = false;
@@ -146,6 +147,10 @@ export class SwarmPanel {
   }
 
   private render(): void {
+    // A render can be scheduled one tick before destroy(); bail out so the
+    // deferred rAF doesn't re-arm the ticker (setInterval) on a detached panel.
+    if (this.disposed) return;
+
     const agents = this.options.manager.getAllSubagents();
 
     if (agents.length === 0) {
@@ -321,6 +326,7 @@ export class SwarmPanel {
   }
 
   public destroy(): void {
+    this.disposed = true;
     this.unsubscribe();
     if (this.tickId !== null) {
       window.clearInterval(this.tickId);
