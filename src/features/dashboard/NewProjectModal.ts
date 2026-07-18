@@ -1,6 +1,8 @@
 import type { App } from 'obsidian';
 import { Modal, Setting } from 'obsidian';
 
+import { dashboardStrings } from './dashboardI18n';
+
 export interface NewProjectValues {
   name: string;
   description: string;
@@ -33,24 +35,22 @@ export class NewProjectModal extends Modal {
 
   onOpen(): void {
     const { contentEl } = this;
+    const s = dashboardStrings();
     contentEl.empty();
     contentEl.addClass('claudian-new-project-modal');
 
-    contentEl.createEl('h2', { text: 'Neues Projekt', cls: 'claudian-new-project-title' });
-    contentEl.createEl('p', {
-      text: 'Projekte bündeln Instruktionen, Skills und Erinnerungen für einen Arbeitskontext.',
-      cls: 'claudian-new-project-subtitle',
-    });
+    contentEl.createEl('h2', { text: s.npTitle, cls: 'claudian-new-project-title' });
+    contentEl.createEl('p', { text: s.npSubtitle, cls: 'claudian-new-project-subtitle' });
 
     const errorEl = contentEl.createDiv({
       cls: 'claudian-new-project-error claudian-hidden',
     });
 
     new Setting(contentEl)
-      .setName('Name')
-      .setDesc('Pflichtfeld. Bestimmt den Ordner- und Dateinamen des Projekts.')
+      .setName(s.npName)
+      .setDesc(s.npNameDesc)
       .addText((text) => {
-        text.setPlaceholder('z. B. Veylor Backend').onChange((value) => {
+        text.setPlaceholder(s.npNamePlaceholder).onChange((value) => {
           this.name = value;
           errorEl.toggleClass('claudian-hidden', true);
         });
@@ -58,31 +58,31 @@ export class NewProjectModal extends Modal {
       });
 
     new Setting(contentEl)
-      .setName('Beschreibung')
-      .setDesc('Optional. Wofür ist dieses Projekt?')
+      .setName(s.npDescription)
+      .setDesc(s.npDescriptionDesc)
       .addTextArea((area) => {
-        area.setPlaceholder('Kurzbeschreibung …').onChange((value) => {
+        area.setPlaceholder(s.npDescriptionPlaceholder).onChange((value) => {
           this.description = value;
         });
         area.inputEl.rows = 2;
       });
 
     new Setting(contentEl)
-      .setName('Instruktionen')
-      .setDesc('Optional. Systemhinweise, die bei aktivem Projekt immer mitgegeben werden.')
+      .setName(s.npInstructions)
+      .setDesc(s.npInstructionsDesc)
       .addTextArea((area) => {
-        area.setPlaceholder('z. B. Antworte immer auf Deutsch, nutze Java 21 …').onChange((value) => {
+        area.setPlaceholder(s.npInstructionsPlaceholder).onChange((value) => {
           this.instructions = value;
         });
         area.inputEl.rows = 3;
       });
 
     const actions = contentEl.createDiv({ cls: 'claudian-new-project-actions' });
-    const cancelBtn = actions.createEl('button', { text: 'Abbrechen', attr: { type: 'button' } });
+    const cancelBtn = actions.createEl('button', { text: s.npCancel, attr: { type: 'button' } });
     cancelBtn.addEventListener('click', () => this.close());
 
     const createBtn = actions.createEl('button', {
-      text: 'Projekt erstellen',
+      text: s.npCreate,
       cls: 'mod-cta',
       attr: { type: 'button' },
     });
@@ -101,18 +101,19 @@ export class NewProjectModal extends Modal {
   }
 
   private trySubmit(errorEl: HTMLElement): void {
+    const s = dashboardStrings();
     const name = this.name.trim();
     if (!name) {
-      this.showError(errorEl, 'Bitte gib einen Projektnamen ein.');
+      this.showError(errorEl, s.npErrNameRequired);
       return;
     }
     const slug = projectSlug(name);
     if (!slug) {
-      this.showError(errorEl, 'Der Name muss mindestens einen Buchstaben oder eine Ziffer enthalten.');
+      this.showError(errorEl, s.npErrNameInvalid);
       return;
     }
     if (this.existingSlugs.has(slug)) {
-      this.showError(errorEl, `Ein Projekt „${name}" existiert bereits.`);
+      this.showError(errorEl, s.npErrDuplicate(name));
       return;
     }
     this.submitted = true;

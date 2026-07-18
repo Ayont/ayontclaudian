@@ -144,6 +144,7 @@ import type { TabData } from './features/chat/tabs/types';
 import { ModelSelectModal } from './features/chat/ui/ModelSelectModal';
 import { ProviderStatusBar } from './features/chat/ui/ProviderStatusBar';
 import { ClaudianDashboardView, VIEW_TYPE_CLAUDIAN_DASHBOARD } from './features/dashboard/ClaudianDashboardView';
+import { dashboardStrings } from './features/dashboard/dashboardI18n';
 import { NewProjectModal, projectSlug } from './features/dashboard/NewProjectModal';
 import { type InlineEditContext, InlineEditModal } from './features/inline-edit/ui/InlineEditModal';
 import { MultiAgentModal } from './features/multiAgent/MultiAgentModal';
@@ -1773,9 +1774,9 @@ export default class ClaudianPlugin extends Plugin {
             skills: [],
             mcpServers: [],
           });
-          new Notice(`Projekt „${values.name}" erstellt (${id}).`);
+          new Notice(dashboardStrings().npCreated(values.name, id));
         } catch (error) {
-          new Notice(`Projekt konnte nicht erstellt werden: ${error instanceof Error ? error.message : String(error)}`);
+          new Notice(dashboardStrings().npFailed(error instanceof Error ? error.message : String(error)));
         }
       })();
     }).open();

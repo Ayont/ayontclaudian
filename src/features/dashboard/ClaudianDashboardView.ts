@@ -7,6 +7,7 @@ import type { ProviderCapabilities, ProviderId } from '../../core/providers/type
 import type ClaudianPlugin from '../../main';
 import { animateNumber } from '../../utils/animateNumber';
 import { ArtifactGalleryModal } from '../artifacts/ArtifactGalleryModal';
+import { dashboardStrings } from './dashboardI18n';
 import { MemoryBrowserModal, MissionLogBrowserModal, TokenUsageModal, WorkflowBrowserModal } from './DashboardModals';
 
 export const VIEW_TYPE_CLAUDIAN_DASHBOARD = 'claudian-dashboard';
@@ -79,7 +80,8 @@ export class ClaudianDashboardView extends ItemView {
     this.applyProviderTheme(container);
 
     this.renderHeader(container);
-    this.renderSectionHeading(container, 'Systemübersicht', 'Live-Zustand deines Agent-Workspace');
+    const s = dashboardStrings();
+    this.renderSectionHeading(container, s.systemOverview, s.systemOverviewDetail);
     this.gridEl = container.createDiv({ cls: 'claudian-dashboard-grid' });
     await this.refreshCards();
     this.renderProviderCapabilities(container);
@@ -112,11 +114,12 @@ export class ClaudianDashboardView extends ItemView {
     const capabilities = ProviderRegistry.getCapabilities(activeProviderId);
     const enabledProviders = ProviderRegistry.getEnabledProviderIds(this.plugin.settings);
 
-    this.renderSectionHeading(parent, 'Provider-Fähigkeiten', 'Was dein aktiver Runtime-Provider direkt unterstützt');
+    const s = dashboardStrings();
+    this.renderSectionHeading(parent, s.providerCapabilities, s.providerCapabilitiesDetail);
     const panel = parent.createDiv({ cls: 'claudian-dashboard-capabilities' });
 
     const providerRail = panel.createDiv({ cls: 'claudian-dashboard-provider-rail' });
-    providerRail.createSpan({ cls: 'claudian-dashboard-provider-rail-label', text: 'Aktivierte Provider' });
+    providerRail.createSpan({ cls: 'claudian-dashboard-provider-rail-label', text: s.enabledProviders });
     const providerList = providerRail.createDiv({ cls: 'claudian-dashboard-provider-list' });
     for (const providerId of enabledProviders) {
       const chip = providerList.createSpan({ cls: 'claudian-dashboard-provider-item' });
@@ -124,7 +127,7 @@ export class ClaudianDashboardView extends ItemView {
       chip.toggleClass('is-active', providerId === activeProviderId);
       chip.createSpan({ cls: 'claudian-dashboard-provider-item-dot' });
       chip.createSpan({ text: this.getProviderLabel(providerId) });
-      if (providerId === activeProviderId) chip.createSpan({ cls: 'claudian-dashboard-provider-item-current', text: 'aktiv' });
+      if (providerId === activeProviderId) chip.createSpan({ cls: 'claudian-dashboard-provider-item-current', text: s.chipActive });
     }
 
     const capabilityGrid = panel.createDiv({ cls: 'claudian-dashboard-capability-grid' });
@@ -134,7 +137,7 @@ export class ClaudianDashboardView extends ItemView {
       setIcon(row.createSpan({ cls: 'claudian-dashboard-capability-icon' }), item.icon);
       const copy = row.createDiv({ cls: 'claudian-dashboard-capability-copy' });
       copy.createSpan({ cls: 'claudian-dashboard-capability-label', text: item.label });
-      copy.createSpan({ cls: 'claudian-dashboard-capability-state', text: item.supported ? 'Verfügbar' : 'Nicht unterstützt' });
+      copy.createSpan({ cls: 'claudian-dashboard-capability-state', text: item.supported ? s.available : s.notSupported });
       setIcon(row.createSpan({ cls: 'claudian-dashboard-capability-check' }), item.supported ? 'check' : 'minus');
     }
   }
@@ -157,18 +160,20 @@ export class ClaudianDashboardView extends ItemView {
     const ragSize = this.plugin.vectorStore.size();
     const hasVisionProvider = ProviderRegistry.getEnabledProviderIds(this.plugin.settings)
       .some((providerId) => ProviderRegistry.getCapabilities(providerId).supportsImageAttachments);
+    const s = dashboardStrings();
+    const activeWorkflows = workflows.filter((workflow) => workflow.enabled).length;
     const features: FeatureStatusItem[] = [
-      { icon: 'route', label: 'Model Router', detail: 'Wählt automatisch das passende Modell', active: this.plugin.settings.modelRouterEnabled === true, value: this.plugin.settings.modelRouterEnabled ? 'Aktiv' : 'Aus' },
-      { icon: 'brain-circuit', label: 'Agent Memory', detail: 'Erinnert projektbezogene Fakten', active: this.plugin.settings.memoryEnabled !== false, value: this.plugin.settings.memoryEnabled === false ? 'Aus' : 'Aktiv' },
-      { icon: 'search', label: 'Vault RAG', detail: 'Semantischer Kontext aus deinem Vault', active: ragSize > 0, value: ragSize > 0 ? `${ragSize} Chunks` : 'Nicht indexiert' },
-      { icon: 'scan-eye', label: 'Vision', detail: 'Analysiert Bilder und Screenshots', active: hasVisionProvider, value: hasVisionProvider ? 'Bereit' : 'Kein Provider' },
-      { icon: 'bot', label: 'Auto Mode', detail: 'Führt lange Ziele unbeaufsichtigt fort', active: this.plugin.settings.autoMode === true, value: this.plugin.settings.autoMode ? 'Aktiv' : 'Aus' },
-      { icon: 'file-diff', label: 'Diff Preview', detail: 'Zeigt Änderungen vor der Freigabe', active: this.plugin.settings.diffPreviewBeforeWrites !== false, value: this.plugin.settings.diffPreviewBeforeWrites === false ? 'Aus' : 'Aktiv' },
-      { icon: 'shield-check', label: 'Token Guard', detail: 'Überwacht Session- und Tagesbudget', active: this.plugin.settings.tokenBudgetEnabled === true, value: this.plugin.settings.tokenBudgetEnabled ? 'Aktiv' : 'Aus' },
-      { icon: 'workflow', label: 'Workflows', detail: 'Zeit- und eventgesteuerte Automationen', active: workflows.some((workflow) => workflow.enabled), value: `${workflows.filter((workflow) => workflow.enabled).length}/${workflows.length} aktiv` },
+      { icon: 'route', label: s.fmModelRouter, detail: s.fmModelRouterDetail, active: this.plugin.settings.modelRouterEnabled === true, value: this.plugin.settings.modelRouterEnabled ? s.valActive : s.valOff },
+      { icon: 'brain-circuit', label: s.fmAgentMemory, detail: s.fmAgentMemoryDetail, active: this.plugin.settings.memoryEnabled !== false, value: this.plugin.settings.memoryEnabled === false ? s.valOff : s.valActive },
+      { icon: 'search', label: s.fmVaultRag, detail: s.fmVaultRagDetail, active: ragSize > 0, value: ragSize > 0 ? s.valChunks(ragSize) : s.valNotIndexed },
+      { icon: 'scan-eye', label: s.fmVision, detail: s.fmVisionDetail, active: hasVisionProvider, value: hasVisionProvider ? s.valReady : s.valNoProvider },
+      { icon: 'bot', label: s.fmAutoMode, detail: s.fmAutoModeDetail, active: this.plugin.settings.autoMode === true, value: this.plugin.settings.autoMode ? s.valActive : s.valOff },
+      { icon: 'file-diff', label: s.fmDiffPreview, detail: s.fmDiffPreviewDetail, active: this.plugin.settings.diffPreviewBeforeWrites !== false, value: this.plugin.settings.diffPreviewBeforeWrites === false ? s.valOff : s.valActive },
+      { icon: 'shield-check', label: s.fmTokenGuard, detail: s.fmTokenGuardDetail, active: this.plugin.settings.tokenBudgetEnabled === true, value: this.plugin.settings.tokenBudgetEnabled ? s.valActive : s.valOff },
+      { icon: 'workflow', label: s.fmWorkflows, detail: s.fmWorkflowsDetail, active: workflows.some((workflow) => workflow.enabled), value: s.valWorkflowsActive(activeWorkflows, workflows.length) },
     ];
 
-    this.renderSectionHeading(parent, 'Feature Map', 'Deine wichtigsten Claudian-Systeme auf einen Blick');
+    this.renderSectionHeading(parent, s.featureMap, s.featureMapDetail);
     const map = parent.createDiv({ cls: 'claudian-dashboard-feature-map', attr: { role: 'list' } });
     for (const feature of features) {
       const row = map.createDiv({ cls: 'claudian-dashboard-feature', attr: { role: 'listitem' } });
@@ -196,8 +201,9 @@ export class ClaudianDashboardView extends ItemView {
     setIcon(icon, 'bot');
 
     const textGroup = titleGroup.createDiv({ cls: 'claudian-dashboard-text-group' });
+    const s = dashboardStrings();
     textGroup.createEl('h2', { text: 'Claudian OS' });
-    textGroup.createEl('p', { text: 'Dein Agenten-Arbeitsbereich für den Vault' });
+    textGroup.createEl('p', { text: s.headerSubtitle });
 
     const status = header.createDiv({ cls: 'claudian-dashboard-status' });
 
@@ -208,11 +214,11 @@ export class ClaudianDashboardView extends ItemView {
     const providerDot = providerChip.createSpan({ cls: 'claudian-dashboard-provider-dot' });
     void providerDot;
     providerChip.createSpan({ text: this.getProviderLabel(providerId) });
-    providerChip.setAttribute('aria-label', `Aktiver Provider: ${this.getProviderLabel(providerId)}`);
+    providerChip.setAttribute('aria-label', s.providerAria(this.getProviderLabel(providerId)));
 
     const statusDot = status.createSpan({ cls: 'claudian-dashboard-status-dot claudian-dashboard-status-dot--active' });
     void statusDot;
-    this.liveBadgeEl = status.createSpan({ cls: 'claudian-dashboard-live', text: 'Aktiv' });
+    this.liveBadgeEl = status.createSpan({ cls: 'claudian-dashboard-live', text: s.badgeActive });
     this.updateLiveBadge();
   }
 
@@ -233,11 +239,12 @@ export class ClaudianDashboardView extends ItemView {
 
   private updateLiveBadge(): void {
     if (!this.liveBadgeEl) return;
+    const s = dashboardStrings();
     if (this.liveMissions > 0) {
-      this.liveBadgeEl.setText(`${this.liveMissions} Mission${this.liveMissions > 1 ? 'en' : ''} aktiv`);
+      this.liveBadgeEl.setText(s.badgeMissions(this.liveMissions));
       this.liveBadgeEl.addClass('claudian-dashboard-live--running');
     } else {
-      this.liveBadgeEl.setText('Aktiv');
+      this.liveBadgeEl.setText(s.badgeActive);
       this.liveBadgeEl.removeClass('claudian-dashboard-live--running');
     }
   }
@@ -265,53 +272,54 @@ export class ClaudianDashboardView extends ItemView {
     const ragSize = this.plugin.vectorStore.size();
     const workflows = this.plugin.workflowEngine.list();
     const agents = this.plugin.multiAgentService.listAgents();
+    const s = dashboardStrings();
 
     const cards: DashboardCard[] = [
       {
-        id: 'projects', title: 'Projekte', icon: 'folder-kanban',
+        id: 'projects', title: s.cardProjects, icon: 'folder-kanban',
         value: String(projects.length), numericValue: projects.length,
-        subtitle: projects[0] ? `Zuletzt: ${projects[0].name}` : 'Noch keine Projekte',
-        status: projects.length > 0 ? 'ok' : 'info', action: 'Erstellen',
+        subtitle: projects[0] ? s.latest(projects[0].name) : s.noProjects,
+        status: projects.length > 0 ? 'ok' : 'info', action: s.actCreate,
         onClick: () => this.plugin.createClaudianProject(),
       },
       {
-        id: 'memory', title: 'Erinnerungen', icon: 'brain-circuit',
+        id: 'memory', title: s.cardMemory, icon: 'brain-circuit',
         value: String(memoryTotal), numericValue: memoryTotal,
-        subtitle: latestMemoryTopic ? `Zuletzt: ${latestMemoryTopic}` : 'Noch keine Erinnerungen',
-        status: memoryTotal > 0 ? 'ok' : 'info', action: 'Öffnen',
+        subtitle: latestMemoryTopic ? s.latest(latestMemoryTopic) : s.noMemories,
+        status: memoryTotal > 0 ? 'ok' : 'info', action: s.actBrowse,
         onClick: () => this.openMemoryBrowser(),
       },
       {
-        id: 'usage', title: 'Token-Verbrauch', icon: 'gauge',
+        id: 'usage', title: s.cardUsage, icon: 'gauge',
         value: usage.dailyTotal.toLocaleString(), numericValue: usage.dailyTotal,
-        subtitle: `Sitzung: ${usage.sessionTotal.toLocaleString()} Tokens`,
-        status: usage.dailyTotal > 100_000 ? 'warning' : 'ok', action: 'Zurücksetzen',
+        subtitle: s.session(usage.sessionTotal.toLocaleString()),
+        status: usage.dailyTotal > 100_000 ? 'warning' : 'ok', action: s.actReset,
         onClick: () => {
           this.plugin.tokenBudgetTracker.resetSession();
           this.plugin.tokenBudgetTracker.resetDaily();
-          new Notice('Token-Budget zurückgesetzt.');
+          new Notice(s.tokenReset);
           void this.refreshCards();
         },
       },
       {
-        id: 'rag', title: 'RAG-Index', icon: 'search',
+        id: 'rag', title: s.cardRag, icon: 'search',
         value: String(ragSize), numericValue: ragSize,
-        subtitle: ragSize > 0 ? 'Vault-Chunks indexiert' : 'Noch nicht indexiert',
-        status: ragSize > 0 ? 'ok' : 'warning', action: 'Indexieren',
+        subtitle: ragSize > 0 ? s.vaultChunks : s.notIndexed,
+        status: ragSize > 0 ? 'ok' : 'warning', action: s.actIndex,
         onClick: () => this.plugin.indexVaultRAG(),
       },
       {
-        id: 'workflows', title: 'Workflows', icon: 'workflow',
+        id: 'workflows', title: s.cardWorkflows, icon: 'workflow',
         value: String(workflows.length), numericValue: workflows.length,
-        subtitle: workflows.length > 0 ? 'Geplante Automationen' : 'Noch keine Workflows',
-        status: workflows.length > 0 ? 'ok' : 'info', action: 'Anzeigen',
+        subtitle: workflows.length > 0 ? s.scheduledAutomations : s.noWorkflows,
+        status: workflows.length > 0 ? 'ok' : 'info', action: s.actView,
         onClick: () => this.openWorkflowBrowser(),
       },
       {
-        id: 'agents', title: 'Agenten', icon: 'users',
+        id: 'agents', title: s.cardAgents, icon: 'users',
         value: String(agents.length), numericValue: agents.length,
-        subtitle: this.liveMissions > 0 ? `${this.liveMissions} laufen gerade` : 'Spezialisten bereit',
-        status: 'accent', action: 'Starten',
+        subtitle: this.liveMissions > 0 ? s.runningNow(this.liveMissions) : s.specialistsReady,
+        status: 'accent', action: s.actRun,
         onClick: () => this.plugin.runMultiAgentTask(),
       },
     ];
@@ -347,7 +355,7 @@ export class ClaudianDashboardView extends ItemView {
         try {
           await card.onClick();
         } catch (error) {
-          new Notice(`Dashboard-Aktion fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`);
+          new Notice(dashboardStrings().actionFailed(error instanceof Error ? error.message : String(error)));
         }
       })();
     });
@@ -360,42 +368,43 @@ export class ClaudianDashboardView extends ItemView {
   }
 
   private renderActions(parent: HTMLElement): void {
-    this.renderSectionHeading(parent, 'Schnellaktionen', 'Häufige Aufgaben ohne Umwege');
+    const s = dashboardStrings();
+    this.renderSectionHeading(parent, s.quickActions, s.quickActionsDetail);
     const actions = parent.createDiv({ cls: 'claudian-dashboard-actions' });
 
     const indexBtn = actions.createEl('button', { cls: 'claudian-dashboard-action-btn' });
     setIcon(indexBtn.createSpan(), 'search');
-    indexBtn.createSpan({ text: 'Vault-RAG indexieren' });
+    indexBtn.createSpan({ text: s.qaIndexRag });
     indexBtn.addEventListener('click', () => void this.plugin.indexVaultRAG());
 
     const multiBtn = actions.createEl('button', { cls: 'claudian-dashboard-action-btn claudian-dashboard-action-btn--primary' });
     setIcon(multiBtn.createSpan(), 'users');
-    multiBtn.createSpan({ text: 'Multi-Agent starten' });
+    multiBtn.createSpan({ text: s.qaRunMultiAgent });
     multiBtn.addEventListener('click', () => this.plugin.runMultiAgentTask());
 
     const projectBtn = actions.createEl('button', { cls: 'claudian-dashboard-action-btn' });
     setIcon(projectBtn.createSpan(), 'folder-kanban');
-    projectBtn.createSpan({ text: 'Neues Projekt' });
+    projectBtn.createSpan({ text: s.qaNewProject });
     projectBtn.addEventListener('click', () => void this.plugin.createClaudianProject());
 
     const missionLogBtn = actions.createEl('button', { cls: 'claudian-dashboard-action-btn' });
     setIcon(missionLogBtn.createSpan(), 'scroll-text');
-    missionLogBtn.createSpan({ text: 'Missions-Log' });
+    missionLogBtn.createSpan({ text: s.qaMissionLog });
     missionLogBtn.addEventListener('click', () => void this.openMissionLogBrowser());
 
     const usageBtn = actions.createEl('button', { cls: 'claudian-dashboard-action-btn' });
     setIcon(usageBtn.createSpan(), 'gauge');
-    usageBtn.createSpan({ text: 'Token-Verbrauch' });
+    usageBtn.createSpan({ text: s.qaTokenUsage });
     usageBtn.addEventListener('click', () => this.openTokenUsageModal());
 
     const artifactBtn = actions.createEl('button', { cls: 'claudian-dashboard-action-btn' });
     setIcon(artifactBtn.createSpan(), 'layout-dashboard');
-    artifactBtn.createSpan({ text: 'Artefakte' });
+    artifactBtn.createSpan({ text: s.qaArtifacts });
     artifactBtn.addEventListener('click', () => new ArtifactGalleryModal(this.app, this.plugin).open());
 
     const refreshBtn = actions.createEl('button', { cls: 'claudian-dashboard-action-btn' });
     setIcon(refreshBtn.createSpan(), 'refresh-cw');
-    refreshBtn.createSpan({ text: 'Aktualisieren' });
+    refreshBtn.createSpan({ text: s.qaRefresh });
     refreshBtn.addEventListener('click', () => {
       void (async (): Promise<void> => {
         refreshBtn.disabled = true;
@@ -403,8 +412,8 @@ export class ClaudianDashboardView extends ItemView {
         refreshBtn.setAttribute('aria-busy', 'true');
         try {
           await this.refreshCards();
-          refreshBtn.querySelector('span:last-child')?.setText('Aktualisiert');
-          window.setTimeout(() => refreshBtn.querySelector('span:last-child')?.setText('Aktualisieren'), 1200);
+          refreshBtn.querySelector('span:last-child')?.setText(s.qaRefreshed);
+          window.setTimeout(() => refreshBtn.querySelector('span:last-child')?.setText(s.qaRefresh), 1200);
         } finally {
           refreshBtn.disabled = false;
           refreshBtn.removeClass('is-loading');
@@ -417,11 +426,12 @@ export class ClaudianDashboardView extends ItemView {
   // ── Live activity feed ──────────────────────────────────────────────────────
 
   private renderActivityFeed(parent: HTMLElement): void {
-    this.renderSectionHeading(parent, 'Aktivität', 'Ereignisse aus Missionen, Memory und Workflows');
+    const s = dashboardStrings();
+    this.renderSectionHeading(parent, s.activity, s.activityDetail);
     const section = parent.createDiv({ cls: 'claudian-dashboard-activity' });
     const head = section.createDiv({ cls: 'claudian-dashboard-activity-head' });
     setIcon(head.createSpan(), 'activity');
-    head.createEl('h3', { text: 'Live-Aktivität' });
+    head.createEl('h3', { text: s.activity });
     this.feedEl = section.createDiv({ cls: 'claudian-dashboard-activity-feed' });
     this.renderFeed();
   }
@@ -430,7 +440,7 @@ export class ClaudianDashboardView extends ItemView {
     if (!this.feedEl) return;
     this.feedEl.empty();
     if (this.activity.length === 0) {
-      this.feedEl.createEl('p', { cls: 'claudian-dashboard-activity-empty', text: 'Noch keine Aktivität — starte eine Mission oder indexiere den Vault.' });
+      this.feedEl.createEl('p', { cls: 'claudian-dashboard-activity-empty', text: dashboardStrings().activityEmpty });
       return;
     }
     for (const item of this.activity) {
