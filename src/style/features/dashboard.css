@@ -1192,14 +1192,22 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
   border: 1px solid var(--claudian-border);
   border-radius: 14px;
   background: var(--claudian-border);
+  /* Elevation + a hairline top highlight so the panel reads as a raised, glassy
+     surface layered above the section background. */
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .claudian-dashboard-card {
-  min-height: 168px;
-  padding: 18px;
+  min-height: 114px;
+  padding: 14px 16px 13px;
   border: 0;
   border-radius: 0;
-  background: var(--claudian-card-bg);
+  /* Glass depth: a faint status-tinted glow from the top-left plus a subtle
+     top sheen over the base surface — layered, not flat. */
+  background:
+    radial-gradient(135% 95% at 14% -12%, rgba(var(--card-color-rgb), 0.11), transparent 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 42%),
+    var(--claudian-card-bg);
   box-shadow: none;
 }
 
@@ -1209,8 +1217,11 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
 .claudian-dashboard-card:hover {
   transform: none;
   border-color: transparent;
-  background: color-mix(in srgb, var(--card-color) 5%, var(--claudian-card-bg));
-  box-shadow: inset 0 0 0 1px rgba(var(--card-color-rgb), 0.28);
+  background:
+    radial-gradient(135% 95% at 14% -12%, rgba(var(--card-color-rgb), 0.18), transparent 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 42%),
+    color-mix(in srgb, var(--card-color) 6%, var(--claudian-card-bg));
+  box-shadow: inset 0 0 0 1px rgba(var(--card-color-rgb), 0.30);
 }
 
 .claudian-dashboard-card-icon {
@@ -1224,16 +1235,19 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
 
 .claudian-dashboard-card:hover .claudian-dashboard-card-icon { transform: none; }
 .claudian-dashboard-card-value {
-  margin: 14px 0 6px;
+  margin: 12px 0 3px;
   color: var(--claudian-text);
   background: none;
   -webkit-text-fill-color: currentColor;
-  font-size: 30px;
+  font-size: 29px;
+  font-weight: 680;
+  letter-spacing: -0.015em;
+  line-height: 1.05;
   font-variant-numeric: tabular-nums;
 }
-.claudian-dashboard-card-title { margin-bottom: 4px; font-size: 13px; }
-.claudian-dashboard-card-subtitle { font-size: 12px; }
-.claudian-dashboard-card-action { opacity: 1; transform: none; font-size: 10px; }
+.claudian-dashboard-card-title { margin-bottom: 2px; font-size: 12.5px; font-weight: 650; }
+.claudian-dashboard-card-subtitle { font-size: 11.5px; }
+.claudian-dashboard-card-action { opacity: 1; transform: none; font-size: 9.5px; }
 
 .claudian-dashboard-actions {
   gap: 7px;
@@ -1260,7 +1274,10 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
   overflow: hidden;
   border: 1px solid var(--claudian-border);
   border-radius: 12px;
-  background: var(--claudian-card-bg);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 90px),
+    var(--claudian-card-bg);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .claudian-dashboard-provider-rail {
@@ -1342,6 +1359,7 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
   border: 1px solid var(--claudian-border);
   border-radius: 12px;
   background: var(--claudian-border);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 .claudian-dashboard-feature {
   display: grid;
