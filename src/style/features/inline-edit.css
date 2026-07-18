@@ -236,6 +236,25 @@
   background: rgba(80, 200, 80, 0.14);
 }
 
+/* Word-level highlighting: within a changed block, mark only the words that
+   actually changed so a one-word edit no longer paints the whole paragraph. */
+.claudian-diff-word {
+  border-radius: 3px;
+  padding: 0 1px;
+  background: transparent;
+  color: inherit;
+}
+
+.claudian-diff-word-del {
+  background: rgba(255, 80, 80, 0.34);
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 80, 80, 0.7);
+}
+
+.claudian-diff-word-ins {
+  background: rgba(80, 200, 80, 0.38);
+}
+
 .claudian-inline-preview-actions {
   display: flex;
   justify-content: flex-end;

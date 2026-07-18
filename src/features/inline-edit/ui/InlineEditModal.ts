@@ -27,6 +27,7 @@ import { externalContextScanner } from '../../../utils/externalContextScanner';
 import { normalizeInsertionText } from '../../../utils/inlineEdit';
 import { getVaultPath, normalizePathForVault as normalizePathForVaultUtil } from '../../../utils/path';
 import { renderInlineEditMarkdownPreview } from './inlineEditMarkdownPreview';
+import { buildWordHighlightedMarkdown } from './wordDiff';
 
 export type InlineEditContext =
   | { mode: 'selection'; selectedText: string }
@@ -583,13 +584,30 @@ class InlineEditController {
 
   private async renderMarkdownDiffPreview(container: HTMLElement, diffOps: DiffOp[]): Promise<void> {
     container.empty();
-    for (const document of buildMarkdownDiffDocuments(diffOps)) {
+    const documents = buildMarkdownDiffDocuments(diffOps);
+
+    // Word-level refinement: for a replacement (a delete block AND an insert
+    // block), mark only the words that actually changed instead of painting the
+    // whole block. Falls back to plain block rendering when unsafe (code spans).
+    const deleteDoc = documents.find(doc => doc.type === 'delete');
+    const insertDoc = documents.find(doc => doc.type === 'insert');
+    const refined = (deleteDoc && insertDoc)
+      ? buildWordHighlightedMarkdown(deleteDoc.markdown, insertDoc.markdown)
+      : null;
+
+    for (const document of documents) {
       if (!document.markdown) continue;
+
+      const markdown = refined
+        ? (document.type === 'delete' ? refined.oldMarkdown
+          : document.type === 'insert' ? refined.newMarkdown
+          : document.markdown)
+        : document.markdown;
 
       const opEl = this.getOwnerDocument().createElement('div');
       opEl.className = `claudian-diff-block ${getDiffBlockClass(document.type)}`;
       container.appendChild(opEl);
-      await this.renderMarkdownPreview(opEl, document.markdown);
+      await this.renderMarkdownPreview(opEl, markdown);
     }
   }
 
