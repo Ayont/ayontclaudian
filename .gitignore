@@ -99,3 +99,4 @@ dev
 test-results/
 playwright-report/
 blob-report/
+preview/

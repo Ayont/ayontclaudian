@@ -1,0 +1,267 @@
+/**
+ * Design preview hub.
+ *
+ * Generates a standalone `preview/index.html` that renders the plugin's real
+ * `styles.css` against representative markup for several surfaces (dashboard,
+ * chat message, modals) with mock data — so the design can be iterated in any
+ * browser (screenshot → tweak CSS → rebuild) without launching Obsidian.
+ *
+ * The plugin CSS consumes Obsidian's theme variables (`--background-primary`,
+ * `--text-normal`, `--interactive-accent`, …). Those are shimmed below for both
+ * dark and light, so surfaces look like they do inside Obsidian.
+ *
+ * Usage: `npm run preview` → open `preview/index.html`.
+ */
+
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const STYLES = join(ROOT, 'styles.css');
+const OUT_DIR = join(ROOT, 'preview');
+const OUT = join(OUT_DIR, 'index.html');
+
+if (!existsSync(STYLES)) {
+  console.error('[preview] styles.css missing — run `npm run build` first.');
+  process.exit(1);
+}
+const pluginCss = readFileSync(STYLES, 'utf-8');
+
+// ── Obsidian theme variable shim (dark + light) ──────────────────────────────
+const THEME_SHIM = `
+:root, body.theme-dark {
+  --background-primary: #17171a;
+  --background-primary-alt: #101013;
+  --background-secondary: #1e1e23;
+  --background-secondary-alt: #26262c;
+  --background-modifier-border: rgba(255,255,255,0.09);
+  --background-modifier-border-hover: rgba(255,255,255,0.17);
+  --background-modifier-hover: rgba(255,255,255,0.06);
+  --text-normal: #e7e7ea;
+  --text-muted: #a1a1ab;
+  --text-faint: #6c6c76;
+  --text-error: #ff6b6b;
+  --text-on-accent: #ffffff;
+  --text-accent: #d97757;
+  --interactive-accent: #d97757;
+  --interactive-accent-rgb: 217,119,87;
+  --color-green: #4ec98a; --color-green-rgb: 78,201,138;
+  --color-red: #ff6b6b; --color-red-rgb: 255,107,107;
+  --font-interface: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-monospace: ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-ui-smaller: 12px; --font-ui-small: 13px; --font-ui-medium: 15px; --font-ui-large: 20px;
+  --font-medium: 500; --font-semibold: 600;
+}
+body.theme-light {
+  --background-primary: #ffffff;
+  --background-primary-alt: #f4f4f6;
+  --background-secondary: #f6f6f8;
+  --background-secondary-alt: #ececef;
+  --background-modifier-border: rgba(0,0,0,0.10);
+  --background-modifier-border-hover: rgba(0,0,0,0.18);
+  --background-modifier-hover: rgba(0,0,0,0.05);
+  --text-normal: #1f2023;
+  --text-muted: #55565c;
+  --text-faint: #8a8b92;
+  --text-accent: #c15f3c;
+}
+html, body { margin: 0; background: var(--background-primary); color: var(--text-normal); font-family: var(--font-interface); }
+`;
+
+// ── Mock helpers (mirror the real DOM classes) ───────────────────────────────
+const statCard = (status, action, value, title, subtitle) => `
+  <div class="claudian-dashboard-card claudian-dashboard-card--${status}" role="button" tabindex="0">
+    <div class="claudian-dashboard-card-header">
+      <span class="claudian-dashboard-card-icon"></span>
+      <span class="claudian-dashboard-card-action">${action}</span>
+    </div>
+    <div class="claudian-dashboard-card-value">${value}</div>
+    <h3 class="claudian-dashboard-card-title">${title}</h3>
+    <p class="claudian-dashboard-card-subtitle">${subtitle}</p>
+  </div>`;
+
+const capability = (label, state, supported) => `
+  <div class="claudian-dashboard-capability${supported ? ' is-supported' : ''}">
+    <span class="claudian-dashboard-capability-icon"></span>
+    <div class="claudian-dashboard-capability-copy">
+      <span class="claudian-dashboard-capability-label">${label}</span>
+      <span class="claudian-dashboard-capability-state">${state}</span>
+    </div>
+    <span class="claudian-dashboard-capability-check"></span>
+  </div>`;
+
+const feature = (label, detail, value, active) => `
+  <div class="claudian-dashboard-feature${active ? ' is-active' : ''}" role="listitem">
+    <span class="claudian-dashboard-feature-icon"></span>
+    <div class="claudian-dashboard-feature-copy">
+      <span class="claudian-dashboard-feature-label">${label}</span>
+      <span class="claudian-dashboard-feature-detail">${detail}</span>
+    </div>
+    <span class="claudian-dashboard-feature-value">${value}</span>
+  </div>`;
+
+const actionBtn = (label, primary = false) =>
+  `<button class="claudian-dashboard-action-btn${primary ? ' claudian-dashboard-action-btn--primary' : ''}"><span></span><span>${label}</span></button>`;
+
+const section = (title, detail) =>
+  `<div class="claudian-dashboard-section-heading"><h3>${title}</h3><span>${detail}</span></div>`;
+
+// ── Surfaces ─────────────────────────────────────────────────────────────────
+const dashboard = `
+<div class="claudian-dashboard" data-provider="claude">
+  <div class="claudian-dashboard-header">
+    <div class="claudian-dashboard-title-group">
+      <span class="claudian-dashboard-logo"></span>
+      <div class="claudian-dashboard-text-group">
+        <h2>Claudian OS</h2>
+        <p>Agent workspace for your vault</p>
+      </div>
+    </div>
+    <div class="claudian-dashboard-status">
+      <span class="claudian-dashboard-provider-chip" data-provider="claude"><span class="claudian-dashboard-provider-dot"></span><span>Claude</span></span>
+      <span class="claudian-dashboard-status-dot claudian-dashboard-status-dot--active"></span>
+      <span class="claudian-dashboard-live">Active</span>
+    </div>
+  </div>
+
+  ${section('System overview', 'Live state of your agent workspace')}
+  <div class="claudian-dashboard-grid">
+    ${statCard('info', 'Create', '3', 'Projects', 'Latest: Veylor Backend')}
+    ${statCard('ok', 'Browse', '17', 'Memory', 'Latest: Performance architecture')}
+    ${statCard('warning', 'Reset', '130,144', 'Token usage', 'Session: 130,144 tokens')}
+    ${statCard('ok', 'Index', '1,960', 'RAG index', 'Vault chunks indexed')}
+    ${statCard('info', 'View', '2', 'Workflows', 'Scheduled automations')}
+    ${statCard('accent', 'Run', '20', 'Agents', 'Specialist agents ready')}
+  </div>
+
+  ${section('Provider capabilities', 'What your active runtime provider supports directly')}
+  <div class="claudian-dashboard-capabilities">
+    <div class="claudian-dashboard-provider-rail">
+      <span class="claudian-dashboard-provider-rail-label">Enabled providers</span>
+      <div class="claudian-dashboard-provider-list">
+        <span class="claudian-dashboard-provider-item" data-provider="opencode"><span class="claudian-dashboard-provider-item-dot"></span><span>OpenCode</span></span>
+        <span class="claudian-dashboard-provider-item" data-provider="kimi"><span class="claudian-dashboard-provider-item-dot"></span><span>Kimi</span></span>
+        <span class="claudian-dashboard-provider-item is-active" data-provider="claude"><span class="claudian-dashboard-provider-item-dot"></span><span>Claude</span><span class="claudian-dashboard-provider-item-current">active</span></span>
+      </div>
+    </div>
+    <div class="claudian-dashboard-capability-grid">
+      ${capability('Images & Vision', 'Available', true)}
+      ${capability('Plan Mode', 'Available', true)}
+      ${capability('MCP Tools', 'Available', true)}
+      ${capability('Multi-Agent', 'Available', true)}
+      ${capability('Rewind', 'Available', true)}
+      ${capability('Fork', 'Available', true)}
+      ${capability('Instructions', 'Available', true)}
+      ${capability('Live Steering', 'Not supported', false)}
+    </div>
+  </div>
+
+  ${section('Feature map', 'Your key Claudian systems at a glance')}
+  <div class="claudian-dashboard-feature-map" role="list">
+    ${feature('Model Router', 'Picks the best model automatically', 'Off', false)}
+    ${feature('Agent Memory', 'Remembers project-scoped facts', 'Active', true)}
+    ${feature('Vault RAG', 'Semantic context from your vault', '1960 chunks', true)}
+    ${feature('Vision', 'Analyzes images and screenshots', 'Ready', true)}
+    ${feature('Auto Mode', 'Continues long goals unattended', 'Active', true)}
+    ${feature('Diff Preview', 'Shows changes before applying', 'Active', true)}
+    ${feature('Token Guard', 'Watches session and daily budget', 'Off', false)}
+    ${feature('Workflows', 'Time- and event-driven automations', '0/2 active', false)}
+  </div>
+
+  ${section('Quick actions', 'Common tasks without detours')}
+  <div class="claudian-dashboard-actions">
+    ${actionBtn('Index Vault RAG')}
+    ${actionBtn('Run Multi-Agent', true)}
+    ${actionBtn('New Project')}
+    ${actionBtn('Mission Log')}
+    ${actionBtn('Token Usage')}
+    ${actionBtn('Artifacts')}
+    ${actionBtn('Refresh')}
+  </div>
+</div>`;
+
+const chat = `
+<div class="claudian-container" data-provider="claude" style="max-width:760px;margin:0 auto;padding:20px;">
+  <div class="claudian-message claudian-message-user">
+    <details class="claudian-vault-context-card">
+      <summary class="claudian-vault-context-summary"><span class="claudian-vault-context-icon"></span><span class="claudian-vault-context-title">2 Vault sources · 1 memory</span><span class="claudian-vault-context-hint">show</span></summary>
+    </details>
+    <div class="claudian-context-sources">
+      <span class="claudian-context-sources-label">Sources</span>
+      <button class="claudian-context-source-chip">Performance architecture</button>
+      <button class="claudian-context-source-chip">Veylor backend audit</button>
+    </div>
+    <div class="claudian-message-content">How does the response path stay fast?</div>
+  </div>
+  <div class="claudian-message claudian-message-assistant">
+    <div class="claudian-message-content">
+      <p>The preflight is parallelized: graph context overlaps memory and RAG, the undo baseline reads in batches, and PATH resolution is memoized.</p>
+      <div class="claudian-diff-block claudian-diff-del">The quick <mark class="claudian-diff-word claudian-diff-word-del">brown</mark> fox.</div>
+      <div class="claudian-diff-block claudian-diff-ins">The quick <mark class="claudian-diff-word claudian-diff-word-ins">red</mark> fox.</div>
+    </div>
+  </div>
+</div>`;
+
+const modal = `
+<div class="claudian-container">
+  <div class="claudian-new-project-modal" style="max-width:520px;margin:24px auto;padding:20px;background:var(--background-secondary);border:1px solid var(--background-modifier-border);border-radius:12px;">
+    <h2 class="claudian-new-project-title">New project</h2>
+    <p class="claudian-new-project-subtitle">Projects bundle instructions, skills and memories for one work context.</p>
+    <div class="setting-item"><div class="setting-item-info"><div class="setting-item-name">Name</div><div class="setting-item-description">Required. Determines the project folder and file name.</div></div><div class="setting-item-control"><input type="text" placeholder="e.g. Veylor Backend"></div></div>
+    <div class="setting-item"><div class="setting-item-info"><div class="setting-item-name">Description</div><div class="setting-item-description">Optional. What is this project for?</div></div><div class="setting-item-control"><textarea rows="2" placeholder="Short description …"></textarea></div></div>
+    <div class="claudian-new-project-actions"><button>Cancel</button><button class="mod-cta">Create project</button></div>
+  </div>
+</div>`;
+
+const SURFACES = { Dashboard: dashboard, Chat: chat, 'New Project': modal };
+
+const tabs = Object.keys(SURFACES)
+  .map((name, i) => `<button class="pv-tab${i === 0 ? ' is-active' : ''}" data-surface="${name}">${name}</button>`)
+  .join('');
+const panels = Object.entries(SURFACES)
+  .map(([name, html], i) => `<div class="pv-panel${i === 0 ? ' is-active' : ''}" data-surface="${name}">${html}</div>`)
+  .join('');
+
+const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claudian — Design Preview</title>
+<style>${THEME_SHIM}
+.pv-bar { position: sticky; top: 0; z-index: 50; display: flex; gap: 6px; align-items: center; padding: 10px 14px; background: var(--background-secondary); border-bottom: 1px solid var(--background-modifier-border); }
+.pv-tab { padding: 6px 12px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--text-muted); cursor: pointer; font-size: 13px; }
+.pv-tab.is-active { background: var(--background-modifier-hover); color: var(--text-normal); border-color: var(--background-modifier-border); }
+.pv-spacer { flex: 1; }
+.pv-panel { display: none; padding: 8px; }
+.pv-panel.is-active { display: block; }
+</style>
+<style>${pluginCss}</style>
+</head>
+<body class="theme-dark">
+<div class="pv-bar">
+  ${tabs}
+  <span class="pv-spacer"></span>
+  <button class="pv-tab" id="pv-theme">Toggle theme</button>
+</div>
+${panels}
+<script>
+  const tabs = document.querySelectorAll('.pv-tab[data-surface]');
+  const panels = document.querySelectorAll('.pv-panel');
+  tabs.forEach(t => t.addEventListener('click', () => {
+    const name = t.dataset.surface;
+    tabs.forEach(x => x.classList.toggle('is-active', x === t));
+    panels.forEach(p => p.classList.toggle('is-active', p.dataset.surface === name));
+  }));
+  document.getElementById('pv-theme').addEventListener('click', () => {
+    document.body.classList.toggle('theme-dark');
+    document.body.classList.toggle('theme-light');
+  });
+</script>
+</body>
+</html>`;
+
+if (!existsSync(OUT_DIR)) mkdirSync(OUT_DIR, { recursive: true });
+writeFileSync(OUT, html, 'utf-8');
+console.log(`[preview] wrote ${OUT} (${(html.length / 1024).toFixed(0)} KB) — open it in a browser.`);

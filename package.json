@@ -1,6 +1,6 @@
 {
   "name": "claudian",
-  "version": "5.61.0",
+  "version": "5.62.0",
   "description": "ayontclaudian — embeds Claude Code, Codex, Antigravity, Kimi, Vibe (Mistral), Grok (xAI) and other coding-agent CLIs as AI collaborators in your Obsidian vault, with a unified model picker, mid-chat provider switching, and one-click CLI installs.",
   "main": "main.js",
   "engines": {
@@ -11,6 +11,7 @@
     "build:css": "node scripts/build-css.mjs",
     "dev": "npm run build:css && node esbuild.config.mjs",
     "build": "node scripts/build.mjs production",
+    "preview": "npm run build:css && node scripts/build-preview.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint \"{src,tests}/**/*.ts\"",
     "lint:fix": "npm run lint -- --fix",

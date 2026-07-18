@@ -162,7 +162,9 @@
   right: 0;
   height: 3px;
   background: linear-gradient(90deg, var(--claudian-accent), transparent);
-  opacity: 0;
+  /* Subtle at rest so each card carries its status color at a glance; full on
+     hover. Gives the grid life instead of a wall of identical dark cards. */
+  opacity: 0.5;
   transition: opacity 160ms ease;
 }
 
