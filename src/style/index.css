@@ -62,6 +62,7 @@
 @import "./modals/fork-target.css";
 @import "./modals/model-select.css";
 @import "./modals/kimi-help.css";
+@import "./modals/related-notes.css";
 
 /* Settings */
 @import "./settings/base.css";

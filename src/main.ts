@@ -62,6 +62,12 @@ import {
   type SpecialistAgent,
 } from './core/intelligence/multiAgent/MultiAgentService';
 import { ProjectService } from './core/intelligence/projects/ProjectService';
+import {
+  buildRelatedQueryText,
+  rankRelatedNotes,
+  RELATED_QUERY_LIMIT,
+  RELATED_RESULT_LIMIT,
+} from './core/intelligence/rag/relatedNotes';
 import { VaultRAGService } from './core/intelligence/rag/VaultRAGService';
 import { VectorStore } from './core/intelligence/vectorStore/VectorStore';
 import { VisionService } from './core/intelligence/vision/VisionService';
@@ -145,6 +151,7 @@ import {
   ModelComparisonModal,
   SkillMarketplaceModal,
 } from './features/productivity/ProductivityModals';
+import { RelatedNotesModal } from './features/related/RelatedNotesModal';
 import { ClaudianSettingTab } from './features/settings/ClaudianSettings';
 import {
   DEFAULT_TEMPLATE_FOLDER,
@@ -243,6 +250,14 @@ export default class ClaudianPlugin extends Plugin {
       name: 'Open chat view',
       callback: () => {
         void this.activateView();
+      },
+    });
+
+    this.addCommand({
+      id: 'related-notes',
+      name: 'Verwandte Notizen finden',
+      callback: () => {
+        void this.showRelatedNotesForActiveNote();
       },
     });
 
@@ -1658,6 +1673,41 @@ export default class ClaudianPlugin extends Plugin {
     const count = await this.vaultRAGService.indexVault({ limit: 1000 });
     await this.saveRAGIndex();
     new Notice(`RAG index complete: ${count} chunks indexed.`);
+  }
+
+  /**
+   * Flagship recall: show notes semantically related to the active note, reusing
+   * the RAG embeddings/vector store. Zero-prompt — the note's own content is the
+   * query.
+   */
+  async showRelatedNotesForActiveNote(): Promise<void> {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const file = view?.file;
+    if (!file) {
+      new Notice('Öffne zuerst eine Notiz, um verwandte Notizen zu finden.');
+      return;
+    }
+    if (this.settings.memoryEnabled === false) {
+      new Notice('Aktiviere „Memory/RAG" in den Claudian-Einstellungen, um verwandte Notizen zu finden.');
+      return;
+    }
+    if (this.vectorStore.size() === 0) {
+      new Notice(this.vaultRAGService.indexing
+        ? 'Der Vault-Index wird gerade aufgebaut — versuche es gleich erneut.'
+        : 'Der Vault-Index ist noch leer. Führe „Reindex vault for RAG" aus.');
+      return;
+    }
+
+    const content = await this.app.vault.cachedRead(file);
+    const queryText = buildRelatedQueryText(content);
+    if (!queryText) {
+      new Notice('Diese Notiz ist leer — es gibt nichts zu vergleichen.');
+      return;
+    }
+
+    const chunks = await this.vaultRAGService.query(queryText, { limit: RELATED_QUERY_LIMIT });
+    const related = rankRelatedNotes(chunks, file.path, RELATED_RESULT_LIMIT);
+    new RelatedNotesModal(this.app, file.path, related).open();
   }
 
   async createClaudianProject(): Promise<void> {
