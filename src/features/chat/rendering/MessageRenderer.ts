@@ -1,6 +1,7 @@
 import type { App, Component } from 'obsidian';
 import { MarkdownRenderer, Menu, Notice, setIcon } from 'obsidian';
 
+import { extractContextSources, sourceChipLabel } from '../../../core/prompt/contextSources';
 import { ProviderRegistry } from '../../../core/providers/ProviderRegistry';
 import { DEFAULT_CHAT_PROVIDER_ID, type ProviderCapabilities, type ProviderId } from '../../../core/providers/types';
 import type { ChatRewindMode } from '../../../core/runtime/types';
@@ -326,6 +327,31 @@ export class MessageRenderer {
       text: summaryParts.join(' · ') || 'Verwendeter KI-Kontext',
     });
     summaryEl.createSpan({ cls: 'claudian-vault-context-hint', text: 'anzeigen' });
+
+    // Always-visible clickable citations: surface the grounding source notes
+    // without requiring the reader to expand the card (a `<details>` hides its
+    // non-summary children when collapsed, so this row lives on the parent).
+    const sources = extractContextSources(vaultContext);
+    if (sources.length > 0) {
+      const sourcesEl = parentEl.createDiv({ cls: 'claudian-context-sources' });
+      sourcesEl.createSpan({ cls: 'claudian-context-sources-label', text: 'Quellen' });
+      for (const source of sources) {
+        const chip = sourcesEl.createEl('button', {
+          cls: 'claudian-context-source-chip',
+          text: sourceChipLabel(source.path),
+          attr: {
+            type: 'button',
+            title: source.score !== null ? `${source.path} · ${source.score}%` : source.path,
+          },
+        });
+        chip.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void this.app.workspace.openLinkText(source.path, '', false);
+        });
+      }
+    }
+
     const bodyEl = detailsEl.createDiv({ cls: 'claudian-vault-context-body' });
     if (vaultContext) {
       bodyEl.createDiv({ cls: 'claudian-vault-context-section-title', text: 'Vault-Wissen' });
