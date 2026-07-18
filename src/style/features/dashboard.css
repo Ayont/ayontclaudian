@@ -1846,3 +1846,38 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
 .claudian-usage-reset-btn:hover {
   background: rgba(248, 113, 113, 0.2);
 }
+
+/* ── New Project modal ── */
+.claudian-new-project-title {
+  margin: 0 0 4px;
+  font-size: var(--cl-text-lg, 1.1rem);
+}
+
+.claudian-new-project-subtitle {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.claudian-new-project-error {
+  margin: 4px 0 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(248, 113, 113, 0.12);
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  color: var(--text-error, #f87171);
+  font-size: var(--font-ui-small);
+}
+
+.claudian-new-project-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.claudian-new-project-modal textarea {
+  width: 100%;
+  resize: vertical;
+  font-family: inherit;
+}

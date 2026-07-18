@@ -197,7 +197,7 @@ export class ClaudianDashboardView extends ItemView {
 
     const textGroup = titleGroup.createDiv({ cls: 'claudian-dashboard-text-group' });
     textGroup.createEl('h2', { text: 'Claudian OS' });
-    textGroup.createEl('p', { text: 'Agent workspace for your vault' });
+    textGroup.createEl('p', { text: 'Dein Agenten-Arbeitsbereich für den Vault' });
 
     const status = header.createDiv({ cls: 'claudian-dashboard-status' });
 
@@ -212,7 +212,7 @@ export class ClaudianDashboardView extends ItemView {
 
     const statusDot = status.createSpan({ cls: 'claudian-dashboard-status-dot claudian-dashboard-status-dot--active' });
     void statusDot;
-    this.liveBadgeEl = status.createSpan({ cls: 'claudian-dashboard-live', text: 'Active' });
+    this.liveBadgeEl = status.createSpan({ cls: 'claudian-dashboard-live', text: 'Aktiv' });
     this.updateLiveBadge();
   }
 
@@ -237,7 +237,7 @@ export class ClaudianDashboardView extends ItemView {
       this.liveBadgeEl.setText(`${this.liveMissions} Mission${this.liveMissions > 1 ? 'en' : ''} aktiv`);
       this.liveBadgeEl.addClass('claudian-dashboard-live--running');
     } else {
-      this.liveBadgeEl.setText('Active');
+      this.liveBadgeEl.setText('Aktiv');
       this.liveBadgeEl.removeClass('claudian-dashboard-live--running');
     }
   }
@@ -268,50 +268,50 @@ export class ClaudianDashboardView extends ItemView {
 
     const cards: DashboardCard[] = [
       {
-        id: 'projects', title: 'Projects', icon: 'folder-kanban',
+        id: 'projects', title: 'Projekte', icon: 'folder-kanban',
         value: String(projects.length), numericValue: projects.length,
-        subtitle: projects[0] ? `Latest: ${projects[0].name}` : 'No projects yet',
-        status: projects.length > 0 ? 'ok' : 'info', action: 'Create',
+        subtitle: projects[0] ? `Zuletzt: ${projects[0].name}` : 'Noch keine Projekte',
+        status: projects.length > 0 ? 'ok' : 'info', action: 'Erstellen',
         onClick: () => this.plugin.createClaudianProject(),
       },
       {
-        id: 'memory', title: 'Memory', icon: 'brain-circuit',
+        id: 'memory', title: 'Erinnerungen', icon: 'brain-circuit',
         value: String(memoryTotal), numericValue: memoryTotal,
-        subtitle: latestMemoryTopic ? `Latest: ${latestMemoryTopic}` : 'No memories yet',
-        status: memoryTotal > 0 ? 'ok' : 'info', action: 'Browse',
+        subtitle: latestMemoryTopic ? `Zuletzt: ${latestMemoryTopic}` : 'Noch keine Erinnerungen',
+        status: memoryTotal > 0 ? 'ok' : 'info', action: 'Öffnen',
         onClick: () => this.openMemoryBrowser(),
       },
       {
-        id: 'usage', title: 'Token Usage', icon: 'gauge',
+        id: 'usage', title: 'Token-Verbrauch', icon: 'gauge',
         value: usage.dailyTotal.toLocaleString(), numericValue: usage.dailyTotal,
-        subtitle: `Session: ${usage.sessionTotal.toLocaleString()} tokens`,
-        status: usage.dailyTotal > 100_000 ? 'warning' : 'ok', action: 'Reset',
+        subtitle: `Sitzung: ${usage.sessionTotal.toLocaleString()} Tokens`,
+        status: usage.dailyTotal > 100_000 ? 'warning' : 'ok', action: 'Zurücksetzen',
         onClick: () => {
           this.plugin.tokenBudgetTracker.resetSession();
           this.plugin.tokenBudgetTracker.resetDaily();
-          new Notice('Token budget reset.');
+          new Notice('Token-Budget zurückgesetzt.');
           void this.refreshCards();
         },
       },
       {
-        id: 'rag', title: 'RAG Index', icon: 'search',
+        id: 'rag', title: 'RAG-Index', icon: 'search',
         value: String(ragSize), numericValue: ragSize,
-        subtitle: ragSize > 0 ? 'Vault chunks indexed' : 'Not indexed yet',
-        status: ragSize > 0 ? 'ok' : 'warning', action: 'Index',
+        subtitle: ragSize > 0 ? 'Vault-Chunks indexiert' : 'Noch nicht indexiert',
+        status: ragSize > 0 ? 'ok' : 'warning', action: 'Indexieren',
         onClick: () => this.plugin.indexVaultRAG(),
       },
       {
         id: 'workflows', title: 'Workflows', icon: 'workflow',
         value: String(workflows.length), numericValue: workflows.length,
-        subtitle: workflows.length > 0 ? 'Scheduled automations' : 'No workflows yet',
-        status: workflows.length > 0 ? 'ok' : 'info', action: 'View',
+        subtitle: workflows.length > 0 ? 'Geplante Automationen' : 'Noch keine Workflows',
+        status: workflows.length > 0 ? 'ok' : 'info', action: 'Anzeigen',
         onClick: () => this.openWorkflowBrowser(),
       },
       {
-        id: 'agents', title: 'Agents', icon: 'users',
+        id: 'agents', title: 'Agenten', icon: 'users',
         value: String(agents.length), numericValue: agents.length,
-        subtitle: this.liveMissions > 0 ? `${this.liveMissions} running now` : 'Specialist agents available',
-        status: 'accent', action: 'Run',
+        subtitle: this.liveMissions > 0 ? `${this.liveMissions} laufen gerade` : 'Spezialisten bereit',
+        status: 'accent', action: 'Starten',
         onClick: () => this.plugin.runMultiAgentTask(),
       },
     ];
@@ -347,7 +347,7 @@ export class ClaudianDashboardView extends ItemView {
         try {
           await card.onClick();
         } catch (error) {
-          new Notice(`Dashboard action failed: ${error instanceof Error ? error.message : String(error)}`);
+          new Notice(`Dashboard-Aktion fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`);
         }
       })();
     });
@@ -365,37 +365,37 @@ export class ClaudianDashboardView extends ItemView {
 
     const indexBtn = actions.createEl('button', { cls: 'claudian-dashboard-action-btn' });
     setIcon(indexBtn.createSpan(), 'search');
-    indexBtn.createSpan({ text: 'Index Vault RAG' });
+    indexBtn.createSpan({ text: 'Vault-RAG indexieren' });
     indexBtn.addEventListener('click', () => void this.plugin.indexVaultRAG());
 
     const multiBtn = actions.createEl('button', { cls: 'claudian-dashboard-action-btn claudian-dashboard-action-btn--primary' });
     setIcon(multiBtn.createSpan(), 'users');
-    multiBtn.createSpan({ text: 'Run Multi-Agent' });
+    multiBtn.createSpan({ text: 'Multi-Agent starten' });
     multiBtn.addEventListener('click', () => this.plugin.runMultiAgentTask());
 
     const projectBtn = actions.createEl('button', { cls: 'claudian-dashboard-action-btn' });
     setIcon(projectBtn.createSpan(), 'folder-kanban');
-    projectBtn.createSpan({ text: 'New Project' });
+    projectBtn.createSpan({ text: 'Neues Projekt' });
     projectBtn.addEventListener('click', () => void this.plugin.createClaudianProject());
 
     const missionLogBtn = actions.createEl('button', { cls: 'claudian-dashboard-action-btn' });
     setIcon(missionLogBtn.createSpan(), 'scroll-text');
-    missionLogBtn.createSpan({ text: 'Mission Log' });
+    missionLogBtn.createSpan({ text: 'Missions-Log' });
     missionLogBtn.addEventListener('click', () => void this.openMissionLogBrowser());
 
     const usageBtn = actions.createEl('button', { cls: 'claudian-dashboard-action-btn' });
     setIcon(usageBtn.createSpan(), 'gauge');
-    usageBtn.createSpan({ text: 'Token Usage' });
+    usageBtn.createSpan({ text: 'Token-Verbrauch' });
     usageBtn.addEventListener('click', () => this.openTokenUsageModal());
 
     const artifactBtn = actions.createEl('button', { cls: 'claudian-dashboard-action-btn' });
     setIcon(artifactBtn.createSpan(), 'layout-dashboard');
-    artifactBtn.createSpan({ text: 'Artifacts' });
+    artifactBtn.createSpan({ text: 'Artefakte' });
     artifactBtn.addEventListener('click', () => new ArtifactGalleryModal(this.app, this.plugin).open());
 
     const refreshBtn = actions.createEl('button', { cls: 'claudian-dashboard-action-btn' });
     setIcon(refreshBtn.createSpan(), 'refresh-cw');
-    refreshBtn.createSpan({ text: 'Refresh' });
+    refreshBtn.createSpan({ text: 'Aktualisieren' });
     refreshBtn.addEventListener('click', () => {
       void (async (): Promise<void> => {
         refreshBtn.disabled = true;
@@ -404,7 +404,7 @@ export class ClaudianDashboardView extends ItemView {
         try {
           await this.refreshCards();
           refreshBtn.querySelector('span:last-child')?.setText('Aktualisiert');
-          window.setTimeout(() => refreshBtn.querySelector('span:last-child')?.setText('Refresh'), 1200);
+          window.setTimeout(() => refreshBtn.querySelector('span:last-child')?.setText('Aktualisieren'), 1200);
         } finally {
           refreshBtn.disabled = false;
           refreshBtn.removeClass('is-loading');

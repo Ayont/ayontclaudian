@@ -144,6 +144,7 @@ import type { TabData } from './features/chat/tabs/types';
 import { ModelSelectModal } from './features/chat/ui/ModelSelectModal';
 import { ProviderStatusBar } from './features/chat/ui/ProviderStatusBar';
 import { ClaudianDashboardView, VIEW_TYPE_CLAUDIAN_DASHBOARD } from './features/dashboard/ClaudianDashboardView';
+import { NewProjectModal, projectSlug } from './features/dashboard/NewProjectModal';
 import { type InlineEditContext, InlineEditModal } from './features/inline-edit/ui/InlineEditModal';
 import { MultiAgentModal } from './features/multiAgent/MultiAgentModal';
 import {
@@ -1757,16 +1758,27 @@ export default class ClaudianPlugin extends Plugin {
   }
 
   async createClaudianProject(): Promise<void> {
-    const name = 'New Project';
-    const id = await this.projectService.createProject({
-      name,
-      description: 'Created via command palette',
-      instructions: '',
-      memoryFolder: `.claudian/projects/${name.toLowerCase().replace(/\W+/g, '-')}`,
-      skills: [],
-      mcpServers: [],
-    });
-    new Notice(`Created project: ${id}`);
+    const existing = await this.projectService.listProjects().catch(() => []);
+    const existingSlugs = new Set(existing.map(project => projectSlug(project.name)));
+
+    new NewProjectModal(this.app, existingSlugs, (values) => {
+      void (async () => {
+        try {
+          const slug = projectSlug(values.name);
+          const id = await this.projectService.createProject({
+            name: values.name,
+            description: values.description,
+            instructions: values.instructions,
+            memoryFolder: `.claudian/projects/${slug}`,
+            skills: [],
+            mcpServers: [],
+          });
+          new Notice(`Projekt „${values.name}" erstellt (${id}).`);
+        } catch (error) {
+          new Notice(`Projekt konnte nicht erstellt werden: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      })();
+    }).open();
   }
 
   async showAuditLog(): Promise<void> {
