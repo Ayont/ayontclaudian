@@ -95,3 +95,47 @@
   font-size: var(--font-ui-smaller);
   color: var(--text-faint);
 }
+
+/* ── Ambient side panel (auto-updating for the active note) ── */
+
+.claudian-related-panel {
+  padding: 8px 10px;
+}
+
+.claudian-related-panel-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 2px 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  margin-bottom: 8px;
+}
+
+.claudian-related-panel-title {
+  font-size: var(--font-ui-small);
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.claudian-related-panel-source {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 55%;
+}
+
+.claudian-related-panel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.claudian-related-panel-message {
+  padding: 16px 8px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}

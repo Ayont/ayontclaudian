@@ -67,6 +67,7 @@ import {
   rankRelatedNotes,
   RELATED_QUERY_LIMIT,
   RELATED_RESULT_LIMIT,
+  type RelatedNote,
 } from './core/intelligence/rag/relatedNotes';
 import { VaultRAGService } from './core/intelligence/rag/VaultRAGService';
 import { VectorStore } from './core/intelligence/vectorStore/VectorStore';
@@ -152,6 +153,7 @@ import {
   SkillMarketplaceModal,
 } from './features/productivity/ProductivityModals';
 import { RelatedNotesModal } from './features/related/RelatedNotesModal';
+import { RelatedNotesView, VIEW_TYPE_CLAUDIAN_RELATED } from './features/related/RelatedNotesView';
 import { ClaudianSettingTab } from './features/settings/ClaudianSettings';
 import {
   DEFAULT_TEMPLATE_FOLDER,
@@ -241,6 +243,11 @@ export default class ClaudianPlugin extends Plugin {
       (leaf) => new ClaudianDashboardView(leaf, this)
     );
 
+    this.registerView(
+      VIEW_TYPE_CLAUDIAN_RELATED,
+      (leaf) => new RelatedNotesView(leaf, this)
+    );
+
     this.addRibbonIcon('bot', 'Open Claudian', () => {
       void this.activateView();
     });
@@ -258,6 +265,14 @@ export default class ClaudianPlugin extends Plugin {
       name: 'Verwandte Notizen finden',
       callback: () => {
         void this.showRelatedNotesForActiveNote();
+      },
+    });
+
+    this.addCommand({
+      id: 'related-notes-panel',
+      name: 'Verwandte-Notizen-Panel öffnen',
+      callback: () => {
+        void this.openRelatedNotesPanel();
       },
     });
 
@@ -1587,6 +1602,20 @@ export default class ClaudianPlugin extends Plugin {
     this.app.workspace.revealLeaf(leaf);
   }
 
+  async openRelatedNotesPanel(): Promise<void> {
+    // Reuse an already-open panel instead of stacking duplicates.
+    const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN_RELATED)[0];
+    const leaf = existing ?? this.app.workspace.getRightLeaf(false);
+    if (!leaf) {
+      new Notice('Konnte das Verwandte-Notizen-Panel nicht öffnen.');
+      return;
+    }
+    if (!existing) {
+      await leaf.setViewState({ type: VIEW_TYPE_CLAUDIAN_RELATED });
+    }
+    this.app.workspace.revealLeaf(leaf);
+  }
+
   /**
    * Exports a conversation (the active one by default) to a Markdown note in the
    * vault. The note preserves provider provenance and is auto-indexed by RAG.
@@ -1699,15 +1728,32 @@ export default class ClaudianPlugin extends Plugin {
     }
 
     const content = await this.app.vault.cachedRead(file);
-    const queryText = buildRelatedQueryText(content);
-    if (!queryText) {
+    if (!buildRelatedQueryText(content)) {
       new Notice('Diese Notiz ist leer — es gibt nichts zu vergleichen.');
       return;
     }
 
-    const chunks = await this.vaultRAGService.query(queryText, { limit: RELATED_QUERY_LIMIT });
-    const related = rankRelatedNotes(chunks, file.path, RELATED_RESULT_LIMIT);
+    const related = await this.computeRelatedNotes(file);
     new RelatedNotesModal(this.app, file.path, related).open();
+  }
+
+  /**
+   * Shared related-notes computation for the command modal and the ambient
+   * side panel: embed the active note's (capped) content, search the vector
+   * store, and collapse the chunk hits into a ranked per-note list. Returns []
+   * for an empty note or empty index — callers render their own guidance.
+   */
+  async computeRelatedNotes(file: TFile): Promise<RelatedNote[]> {
+    if (this.settings.memoryEnabled === false || this.vectorStore.size() === 0) {
+      return [];
+    }
+    const content = await this.app.vault.cachedRead(file);
+    const queryText = buildRelatedQueryText(content);
+    if (!queryText) {
+      return [];
+    }
+    const chunks = await this.vaultRAGService.query(queryText, { limit: RELATED_QUERY_LIMIT });
+    return rankRelatedNotes(chunks, file.path, RELATED_RESULT_LIMIT);
   }
 
   async createClaudianProject(): Promise<void> {
