@@ -46,6 +46,7 @@ import { KIMI_PROVIDER_CAPABILITIES } from '../capabilities';
 import { createKimiAcpToolStreamAdapter } from '../normalization/kimiAcpToolNormalization';
 import { getKimiProviderSettings, KIMI_PROVIDER_ID } from '../settings';
 import { buildPersistedKimiState, getKimiState, type KimiProviderState } from '../types';
+import { KIMI_KEEPALIVE_INTERVAL_MS, KIMI_KEEPALIVE_MAX_SILENCE_MS } from './keepalive';
 import { buildKimiRuntimeEnv } from './KimiRuntimeEnvironment';
 
 interface ActiveTurn {
@@ -109,6 +110,8 @@ export class KimiAcpChatRuntime implements ChatRuntime {
   private process: AcpSubprocess | null = null;
   private ready = false;
   private readonly readyListeners = new Set<(ready: boolean) => void>();
+  /** Last time an ACP session notification arrived (keepalive silence cap). */
+  private lastNotificationAt = 0;
   private sessionId: string | null = null;
   private sessionInvalidated = false;
   private readonly sessionUpdateNormalizer = new AcpSessionUpdateNormalizer();
@@ -308,6 +311,22 @@ export class KimiAcpChatRuntime implements ChatRuntime {
         }
       });
 
+    // Keepalive heartbeat: ACP only notifies on complete updates — long Kimi
+    // K3 reasoning phases produce NO notifications even though the turn is
+    // healthy, and the chat watchdog would kill it after 120s of silence.
+    // Heartbeats stop after KIMI_KEEPALIVE_MAX_SILENCE_MS without any real
+    // notification so a genuinely hung turn still times out eventually.
+    this.lastNotificationAt = Date.now();
+    const keepaliveTimer = window.setInterval(() => {
+      if (this.activeTurn !== activeTurn) {
+        return;
+      }
+      if (Date.now() - this.lastNotificationAt > KIMI_KEEPALIVE_MAX_SILENCE_MS) {
+        return;
+      }
+      activeTurn.queue.push({ type: 'keepalive' });
+    }, KIMI_KEEPALIVE_INTERVAL_MS);
+
     try {
       while (true) {
         const chunk = await activeTurn.queue.next();
@@ -318,6 +337,7 @@ export class KimiAcpChatRuntime implements ChatRuntime {
       }
       await promptPromise;
     } finally {
+      window.clearInterval(keepaliveTimer);
       if (this.activeTurn === activeTurn) {
         this.activeTurn = null;
       }
@@ -587,6 +607,9 @@ export class KimiAcpChatRuntime implements ChatRuntime {
     if (!activeTurn || activeTurn.sessionId !== notification.sessionId) {
       return;
     }
+
+    // Real wire activity — refresh the keepalive silence cap.
+    this.lastNotificationAt = Date.now();
 
     const normalized = this.sessionUpdateNormalizer.normalize(notification.update);
     if (!normalized) {

@@ -183,6 +183,13 @@ export type StreamChunk =
   | { type: 'tool_output'; id: string; content: string }
   | { type: 'error'; content: string }
   | { type: 'notice'; content: string; level?: 'info' | 'warning' }
+  /**
+   * Heartbeat for runtimes without incremental wire deltas (e.g. Kimi CLI
+   * emits one COMPLETE message per NDJSON line — long reasoning phases are
+   * silent even though the process is healthy). Pings the chat stream
+   * watchdog so it does not kill a working turn; never rendered or persisted.
+   */
+  | { type: 'keepalive' }
   | { type: 'done' }
   | { type: 'usage'; usage: UsageInfo; sessionId?: string | null }
   | { type: 'context_compacted' }

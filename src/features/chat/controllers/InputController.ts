@@ -841,6 +841,12 @@ export class InputController {
               break;
             }
 
+            // Keepalive heartbeats only feed the watchdog (see the ping above)
+            // — nothing to render, record, or persist.
+            if (chunk.type === 'keepalive') {
+              continue;
+            }
+
             // Soft steer in progress: the active stream is being cancelled so the
             // queued message can be re-sent as a fresh turn. Skip all chunks from
             // the dying stream (abort errors, trailing text, done markers).

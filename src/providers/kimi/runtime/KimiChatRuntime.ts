@@ -57,6 +57,7 @@ import {
 } from '../normalization/streamMapping';
 import { getKimiProviderSettings, KIMI_PROVIDER_ID } from '../settings';
 import { buildPersistedKimiState, getKimiState, type KimiProviderState } from '../types';
+import { KIMI_KEEPALIVE_INTERVAL_MS, KIMI_KEEPALIVE_MAX_SILENCE_MS } from './keepalive';
 import { prepareKimiPromptWithGoal } from './KimiGoalPrompt';
 import { buildKimiLaunchSpec, detectKimiCliFlavor } from './KimiLaunchSpec';
 import { buildKimiRuntimeEnv } from './KimiRuntimeEnvironment';
@@ -430,13 +431,35 @@ export class KimiChatRuntime implements ChatRuntime {
       signal();
     };
 
+    // Any wire activity (stdout OR stderr) counts as "the CLI is alive" for
+    // the keepalive cap below — long K3 reasoning produces neither.
+    let lastWireActivityAt = Date.now();
+
     proc.stdout.on('data', (chunk: Buffer | string) => {
+      lastWireActivityAt = Date.now();
       stdoutBuffer += typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
       drainCompleteLines();
     });
     proc.stderr.on('data', (chunk: Buffer | string) => {
+      lastWireActivityAt = Date.now();
       stderr += typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
     });
+
+    // Keepalive heartbeat: kimi-cli stream-json has NO incremental deltas (one
+    // complete message per line), so long reasoning phases are silent even
+    // though the process is healthy. Ping the chat watchdog periodically while
+    // the process runs; stop after KIMI_KEEPALIVE_MAX_SILENCE_MS without real
+    // wire activity so a genuinely hung process still times out eventually.
+    const keepaliveTimer = window.setInterval(() => {
+      if (finished || this.cancelled) {
+        return;
+      }
+      if (Date.now() - lastWireActivityAt > KIMI_KEEPALIVE_MAX_SILENCE_MS) {
+        return;
+      }
+      pendingChunks.push({ type: 'keepalive' });
+      signal();
+    }, KIMI_KEEPALIVE_INTERVAL_MS);
 
     const onExit = (info: { code: number | null; error?: Error }): void => {
       // Flush any trailing partial line that arrived without a newline.
@@ -518,6 +541,7 @@ export class KimiChatRuntime implements ChatRuntime {
       };
       yield { type: 'done' };
     } finally {
+      window.clearInterval(keepaliveTimer);
       if (this.activeProcess === proc) {
         this.activeProcess = null;
       }
