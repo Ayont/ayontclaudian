@@ -1312,7 +1312,7 @@ function initializeInputToolbar(
       attr: { 'aria-label': label, title: label },
     });
     setIcon(btn.createSpan(), icon);
-    btn.createSpan({ text: label });
+    // Icon-only: the label lives in the tooltip/aria — keeps the toolbar calm.
     btn.addEventListener('click', onClick);
     return btn;
   };

@@ -1,5 +1,5 @@
 import type { App, Component } from 'obsidian';
-import { MarkdownRenderer, Menu, Notice, setIcon } from 'obsidian';
+import { MarkdownRenderer, Menu, Notice, setIcon, setTooltip } from 'obsidian';
 
 import { extractContextSources, sourceChipLabel } from '../../../core/prompt/contextSources';
 import { ProviderRegistry } from '../../../core/providers/ProviderRegistry';
@@ -938,26 +938,12 @@ export class MessageRenderer {
       toolsEl.createSpan({ text: `${metrics.tools} ${metrics.tools === 1 ? 'Werkzeug' : 'Werkzeuge'}` });
     }
 
+    // Two primary actions stay visible (icon-only); everything else lives in
+    // the "Mehr"-menu so the footer reads calm instead of button soup.
     const actionsEl = footerEl.createDiv({ cls: 'claudian-response-actions' });
     if (copyContent) this.addAssistantCopyButton(actionsEl, copyContent);
-    if (copyContent) this.addAssistantExportButton(actionsEl, msg);
-    if (copyContent) this.addAssistantAppendButton(actionsEl, copyContent);
     this.addRegenerateButton(actionsEl, msg);
-    this.addAgentUndoButton(actionsEl);
-    this.addSwitchModelButton(actionsEl);
-  }
-
-  /** "An Notiz anhängen": append this answer to a picked vault note. */
-  private addAssistantAppendButton(actionsEl: HTMLElement, content: string): void {
-    const btn = actionsEl.createEl('button', { cls: 'claudian-response-action' });
-    btn.setAttribute('type', 'button');
-    btn.setAttribute('aria-label', 'Antwort an eine Notiz anhängen');
-    setIcon(btn.createSpan(), 'file-plus-2');
-    btn.createSpan({ text: 'An Notiz anhängen' });
-    btn.addEventListener('click', (event) => {
-      event.stopPropagation();
-      new AppendToNoteModal(this.app, content).open();
-    });
+    this.addMoreActionsMenu(actionsEl, msg, copyContent);
   }
 
   /** "Erneut generieren": re-send the prompt that produced this answer. */
@@ -966,77 +952,83 @@ export class MessageRenderer {
     const btn = actionsEl.createEl('button', { cls: 'claudian-response-action' });
     btn.setAttribute('type', 'button');
     btn.setAttribute('aria-label', 'Prompt erneut ausführen');
+    setTooltip(btn, 'Erneut generieren', { placement: 'top' });
     setIcon(btn.createSpan(), 'refresh-cw');
-    btn.createSpan({ text: 'Erneut generieren' });
     btn.addEventListener('click', (event) => {
       event.stopPropagation();
       this.regenerateCallback?.(msg);
     });
   }
 
-  private addAgentUndoButton(actionsEl: HTMLElement): void {
+  /** Secondary answer actions, collapsed behind one "…"-button. */
+  private addMoreActionsMenu(actionsEl: HTMLElement, msg: ChatMessage, copyContent?: string): void {
     const btn = actionsEl.createEl('button', { cls: 'claudian-response-action' });
     btn.setAttribute('type', 'button');
-    btn.setAttribute('aria-label', 'Dateiänderungen des letzten Agent-Laufs rückgängig machen');
-    setIcon(btn.createSpan(), 'undo-2');
-    btn.createSpan({ text: 'Agent-Undo' });
+    btn.setAttribute('aria-label', 'Weitere Aktionen');
+    setTooltip(btn, 'Weitere Aktionen', { placement: 'top' });
+    setIcon(btn.createSpan(), 'ellipsis');
     btn.addEventListener('click', (event) => {
       event.stopPropagation();
-      void this.plugin.undoLastAgentTurn();
+      const menu = new Menu();
+      if (copyContent) {
+        menu.addItem((item) =>
+          item
+            .setTitle('Als Notiz speichern')
+            .setIcon('file-down')
+            .onClick(() => {
+              runRendererAction(async () => {
+                const path = await exportAssistantResponse(this.app.vault, msg);
+                new Notice(`Antwort gespeichert: ${path}`);
+              });
+            }),
+        );
+        menu.addItem((item) =>
+          item
+            .setTitle('An Notiz anhängen')
+            .setIcon('file-plus-2')
+            .onClick(() => {
+              new AppendToNoteModal(this.app, copyContent).open();
+            }),
+        );
+      }
+      menu.addItem((item) =>
+        item
+          .setTitle('Agent-Undo (Dateiänderungen zurücknehmen)')
+          .setIcon('undo-2')
+          .onClick(() => {
+            void this.plugin.undoLastAgentTurn();
+          }),
+      );
+      if (this.switchModelCallback) {
+        menu.addItem((item) =>
+          item
+            .setTitle('Modell wechseln')
+            .setIcon('arrow-left-right')
+            .onClick(() => {
+              this.switchModelCallback?.();
+            }),
+        );
+      }
+      menu.showAtMouseEvent(event);
     });
   }
 
   private addAssistantCopyButton(actionsEl: HTMLElement, content: string): void {
     const btn = actionsEl.createEl('button', { cls: 'claudian-response-action' });
     btn.setAttribute('type', 'button');
-    btn.setAttribute('aria-label', 'Gesamte antwort kopieren');
+    btn.setAttribute('aria-label', 'Gesamte Antwort kopieren');
+    setTooltip(btn, 'Kopieren', { placement: 'top' });
     const iconEl = btn.createSpan();
     setIcon(iconEl, 'copy');
-    const labelEl = btn.createSpan({ text: 'Kopieren' });
     btn.addEventListener('click', (event) => {
       event.stopPropagation();
       runRendererAction(async () => {
         await navigator.clipboard.writeText(content);
         setIcon(iconEl, 'check');
-        labelEl.setText('Kopiert');
         window.setTimeout(() => {
           setIcon(iconEl, 'copy');
-          labelEl.setText('Kopieren');
         }, CODE_COPY_FEEDBACK_MS);
       });
-    });
-  }
-
-  private addAssistantExportButton(actionsEl: HTMLElement, msg: ChatMessage): void {
-    const btn = actionsEl.createEl('button', { cls: 'claudian-response-action' });
-    btn.setAttribute('type', 'button');
-    btn.setAttribute('aria-label', 'Antwort als Obsidian-Notiz speichern');
-    setIcon(btn.createSpan(), 'file-down');
-    btn.createSpan({ text: 'Als Notiz' });
-    btn.addEventListener('click', (event) => {
-      event.stopPropagation();
-      runRendererAction(async () => {
-        const path = await exportAssistantResponse(this.app.vault, msg);
-        new Notice(`Antwort gespeichert: ${path}`);
-      });
-    });
-  }
-
-  /**
-   * "Continue with another model": a one-click affordance on a completed assistant
-   * message that opens the model picker and switches the conversation's provider in
-   * place (recent context carries over via the one-shot bootstrap).
-   */
-  private addSwitchModelButton(footerEl: HTMLElement): void {
-    if (!this.switchModelCallback) return;
-    const btn = footerEl.createEl('button', { cls: 'claudian-response-action claudian-switch-model-btn' });
-    setIcon(btn.createSpan(), 'arrow-left-right');
-    btn.setAttribute('type', 'button');
-    btn.setAttribute('aria-label', 'Mit anderem modell weiter');
-    btn.createSpan({ text: 'Modell wechseln', cls: 'claudian-switch-model-label' });
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.switchModelCallback?.();
     });
   }
 

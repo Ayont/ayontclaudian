@@ -344,28 +344,31 @@ body {
   border-left: 1px solid var(--claudian-border);
 }
 
+/* Icon-only since 5.76: the label lives in the tooltip — the composer row
+   stays calm. Hover recolors instead of gradient-washing. */
 .claudian-os-action-button {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   background: var(--claudian-card-bg);
-  color: var(--claudian-text);
+  color: var(--claudian-muted);
   border: 1px solid var(--claudian-border);
   border-radius: 999px;
-  padding: 6px 13px;
-  font-size: 0.82em;
-  font-weight: 600;
   cursor: pointer;
-  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
-  white-space: nowrap;
+  transition: border-color 160ms ease, color 160ms ease;
 }
 
 .claudian-os-action-button:hover {
-  background: linear-gradient(135deg, var(--claudian-accent), color-mix(in srgb, var(--claudian-accent) 85%, transparent));
-  color: var(--text-on-accent);
-  border-color: transparent;
-  box-shadow: 0 4px 14px var(--claudian-glow);
-  transform: translateY(-1px);
+  color: var(--claudian-accent);
+  border-color: color-mix(in srgb, var(--claudian-accent) 45%, transparent);
+}
+
+.claudian-os-action-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--claudian-accent) 50%, transparent);
+  outline-offset: 2px;
 }
 
 .claudian-os-action-button svg {

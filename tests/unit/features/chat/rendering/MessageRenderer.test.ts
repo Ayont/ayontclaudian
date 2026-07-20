@@ -517,9 +517,17 @@ describe('MessageRenderer', () => {
     };
     renderer.renderStoredMessage(msg);
 
-    const btn = messagesEl.querySelector('.claudian-switch-model-btn');
-    expect(btn).not.toBeNull();
-    btn?.dispatchEvent({ type: 'click', stopPropagation: () => {} });
+    // Since 5.76 the switch lives in the "Mehr"-menu (ellipsis button).
+    const actions = messagesEl.querySelectorAll('.claudian-response-action');
+    const moreBtn = actions[actions.length - 1];
+    expect(moreBtn).not.toBeNull();
+    moreBtn?.dispatchEvent({ type: 'click', stopPropagation: () => {} });
+
+    const menu = (Menu as unknown as { instances: Array<{ items: Array<{ title: string; clickHandler: (() => void) | null }> }> })
+      .instances.at(-1);
+    const switchItem = menu?.items.find((item) => item.title === 'Modell wechseln');
+    expect(switchItem).toBeDefined();
+    switchItem?.clickHandler?.();
     expect(switchModel).toHaveBeenCalledTimes(1);
   });
 

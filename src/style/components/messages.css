@@ -546,10 +546,10 @@ button.claudian-context-source-chip:focus-visible {
   align-items: center;
   justify-content: center;
   gap: 5px;
-  width: auto;
+  width: 28px;
   height: auto;
   min-height: 26px;
-  padding: 3px 8px;
+  padding: 3px 0;
   border: 1px solid transparent;
   border-radius: var(--cl-radius-sm);
   color: var(--text-muted);
@@ -568,7 +568,19 @@ button.claudian-context-source-chip:focus-visible {
     transform var(--cl-dur-fast) var(--cl-ease);
 }
 
-.claudian-response-action svg { width: 13px; height: 13px; }
+.claudian-response-action svg { width: 14px; height: 14px; }
+
+/* Hover-reveal: the icon actions sit quiet until the turn is hovered or an
+   action has focus — the transcript stays calm, everything stays reachable. */
+.claudian-response-actions {
+  opacity: 0.35;
+  transition: opacity var(--cl-dur) var(--cl-ease);
+}
+
+.claudian-message-assistant:hover .claudian-response-actions,
+.claudian-response-actions:focus-within {
+  opacity: 1;
+}
 
 .claudian-response-action:hover,
 .claudian-response-action:focus-visible {
