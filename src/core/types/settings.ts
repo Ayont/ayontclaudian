@@ -180,6 +180,9 @@ export interface ClaudianSettings {
   multiAgentTeam?: Array<{ id: string; name: string; role: string; model: string }>;
   /** True → Missionen laufen mit dem eigenen Team statt aller Built-in-Spezialisten. */
   multiAgentUseCustomTeam?: boolean;
+
+  /** Bevorzugtes Modell je Workspace-Modus; Mode-Switch wechselt das Tab-Modell automatisch. */
+  workspaceModeModels?: { code?: string; work?: string };
   persistentExternalContextPaths: string[];
 
   // Environment

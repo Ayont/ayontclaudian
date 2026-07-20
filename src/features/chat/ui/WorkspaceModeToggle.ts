@@ -13,6 +13,10 @@ export interface WorkspaceModeToggleOptions {
   getMode: () => WorkspaceMode;
   /** Persists the new mode; the toggle re-renders after it resolves. */
   onModeChange: (mode: WorkspaceMode) => Promise<void>;
+  /** Model pinned to a mode (shown in the tooltip), if configured. */
+  getModeModel?: (mode: WorkspaceMode) => string | null;
+  /** Right-click on a segment: configure/remove the mode's pinned model. */
+  onConfigureModel?: (mode: WorkspaceMode, anchor: MouseEvent) => void;
 }
 
 const MODES: readonly WorkspaceMode[] = ['code', 'work'];
@@ -51,13 +55,20 @@ export class WorkspaceModeToggle {
       segment.addEventListener('click', () => {
         void this.select(mode);
       });
+      segment.addEventListener('contextmenu', (event) => {
+        if (!this.options.onConfigureModel) {
+          return;
+        }
+        event.preventDefault();
+        this.options.onConfigureModel(mode, event);
+      });
       this.segmentEls.set(mode, segment);
     }
 
     this.render();
   }
 
-  /** Re-syncs the toggle to the current mode (thumb position + aria). */
+  /** Re-syncs the toggle to the current mode (thumb position + aria + tooltips). */
   render(): void {
     const active = this.options.getMode();
     const index = MODES.indexOf(active);
@@ -67,6 +78,15 @@ export class WorkspaceModeToggle {
       const isActive = mode === active;
       segment.classList.toggle('is-active', isActive);
       segment.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      const meta = getWorkspaceModeMeta(mode);
+      const pinned = this.options.getModeModel?.(mode);
+      setTooltip(
+        segment,
+        pinned
+          ? `${meta.tooltip} · Modell: ${pinned} (Rechtsklick ändern)`
+          : `${meta.tooltip} · Rechtsklick: Modell festlegen`,
+        { placement: 'bottom' },
+      );
     }
   }
 

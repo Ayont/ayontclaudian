@@ -1,12 +1,12 @@
 import type { EventRef, WorkspaceLeaf } from 'obsidian';
-import { ItemView, Notice, Scope, setIcon } from 'obsidian';
+import { ItemView, Menu, Notice, Scope, setIcon } from 'obsidian';
 
 import { getHiddenProviderCommandSet } from '../../core/providers/commands/hiddenCommands';
 import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '../../core/providers/ProviderSettingsCoordinator';
 import { DEFAULT_CHAT_PROVIDER_ID, type ProviderId } from '../../core/providers/types';
 import { VIEW_TYPE_CLAUDIAN } from '../../core/types';
-import { normalizeWorkspaceMode, type WorkspaceMode } from '../../core/workspace/workspaceMode';
+import { getWorkspaceModeMeta, normalizeWorkspaceMode, type WorkspaceMode } from '../../core/workspace/workspaceMode';
 import type ClaudianPlugin from '../../main';
 import { createProviderIconSvg } from '../../shared/icons';
 import {
@@ -25,6 +25,7 @@ import {
 import { TabBar } from './tabs/TabBar';
 import { TabManager } from './tabs/TabManager';
 import type { TabData, TabId } from './tabs/types';
+import { ModelSelectModal } from './ui/ModelSelectModal';
 import { applyWorkspaceModeToContainer, WorkspaceModeToggle } from './ui/WorkspaceModeToggle';
 import { recalculateUsageForModel } from './utils/usageInfo';
 
@@ -248,16 +249,86 @@ export class ClaudianView extends ItemView {
 
   /**
    * Sets the mode for the ACTIVE chat (persisted on its conversation) and as
-   * the global default for future chats, then re-skins the view.
+   * the global default for future chats, then re-skins the view. When the
+   * target mode has a pinned model, the active tab switches to it through the
+   * same path as the model picker.
    */
   async setWorkspaceMode(next: WorkspaceMode): Promise<void> {
     this.plugin.settings.workspaceMode = next;
     await this.plugin.saveSettings();
-    const conversationId = this.tabManager?.getActiveTab()?.conversationId ?? null;
-    if (conversationId) {
-      await this.plugin.updateConversation(conversationId, { workspaceMode: next });
+    const activeTab = this.tabManager?.getActiveTab() ?? null;
+    if (activeTab?.conversationId) {
+      await this.plugin.updateConversation(activeTab.conversationId, { workspaceMode: next });
     }
     this.applyWorkspaceMode(next);
+    await this.applyModeModelPreference(next);
+  }
+
+  /** Switches the active tab to the mode's pinned model, if one is configured. */
+  private async applyModeModelPreference(mode: WorkspaceMode): Promise<void> {
+    const pinned = this.plugin.settings.workspaceModeModels?.[mode]?.trim();
+    if (!pinned) {
+      return;
+    }
+    const tab = this.tabManager?.getActiveTab();
+    if (!tab || tab.state.isStreaming) {
+      return;
+    }
+    try {
+      await tab.ui.modelSelector?.selectModel(pinned);
+    } catch {
+      new Notice(`Modell ${pinned} konnte nicht aktiviert werden.`);
+    }
+  }
+
+  /** Right-click menu on a mode segment: pin/unpin a model for that mode. */
+  private openModeModelMenu(mode: WorkspaceMode, anchor: MouseEvent): void {
+    const meta = getWorkspaceModeMeta(mode);
+    const pinned = this.plugin.settings.workspaceModeModels?.[mode]?.trim() || null;
+    const menu = new Menu();
+    menu.addItem((item) =>
+      item
+        .setTitle(`Modell für ${meta.label}-Modus festlegen…`)
+        .setIcon('cpu')
+        .onClick(() => {
+          const models = ProviderRegistry.getAggregatedModelOptions(
+            this.plugin.settings as unknown as Record<string, unknown>,
+          );
+          new ModelSelectModal(this.plugin.app, models, pinned ?? '', (value) => {
+            void (async () => {
+              this.plugin.settings.workspaceModeModels = {
+                ...this.plugin.settings.workspaceModeModels,
+                [mode]: value,
+              };
+              await this.plugin.saveSettings();
+              this.workspaceModeToggle?.render();
+              new Notice(`${meta.label}-Modus nutzt jetzt ${value}.`);
+              if (this.resolveActiveWorkspaceMode() === mode) {
+                await this.applyModeModelPreference(mode);
+              }
+            })();
+          }).open();
+        }),
+    );
+    if (pinned) {
+      menu.addItem((item) =>
+        item
+          .setTitle(`Modell-Bindung entfernen (${pinned})`)
+          .setIcon('x')
+          .onClick(() => {
+            void (async () => {
+              this.plugin.settings.workspaceModeModels = {
+                ...this.plugin.settings.workspaceModeModels,
+                [mode]: undefined,
+              };
+              await this.plugin.saveSettings();
+              this.workspaceModeToggle?.render();
+              new Notice(`${meta.label}-Modus folgt wieder dem Tab-Modell.`);
+            })();
+          }),
+      );
+    }
+    menu.showAtMouseEvent(anchor);
   }
 
   /**
@@ -338,6 +409,8 @@ export class ClaudianView extends ItemView {
     this.workspaceModeToggle = new WorkspaceModeToggle(this.titleSlotEl, {
       getMode: () => this.resolveActiveWorkspaceMode(),
       onModeChange: (mode) => this.setWorkspaceMode(mode),
+      getModeModel: (mode) => this.plugin.settings.workspaceModeModels?.[mode]?.trim() || null,
+      onConfigureModel: (mode, anchor) => this.openModeModelMenu(mode, anchor),
     });
 
     // Header actions container (for header mode - initially hidden)

@@ -48,6 +48,7 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
   workspaceMode: 'code',
   multiAgentTeam: [],
   multiAgentUseCustomTeam: false,
+  workspaceModeModels: {},
   persistentExternalContextPaths: [],
 
   sharedEnvironmentVariables: '',
