@@ -236,7 +236,41 @@ const chatSurface = (mode) => `
           </div>
         </div>
       </details>
-<div class="claudian-mission-board">
+<div class="claudian-code-wrapper">
+        <div class="claudian-code-header">
+          <div class="claudian-code-identity"><span class="claudian-code-lang">typescript</span><span class="claudian-code-lines">12 Zeilen</span></div>
+          <div class="claudian-code-actions"><button class="claudian-code-copy">Kopieren</button></div>
+        </div>
+        <div class="claudian-code-body has-line-numbers">
+          <div class="claudian-code-gutter"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></div>
+          <pre><code>export function getKimiModelContextWindow(model: string): number {
+  const { models } = readKimiConfiguredModels();
+  const match = models.find((entry) =&gt; entry.id === model);
+  return match?.contextWindow ?? DEFAULT_KIMI_CONTEXT_WINDOW;
+}</code></pre>
+        </div>
+      </div>
+      <div class="claudian-tool-call claudian-tool-call-bash expanded">
+        <div class="claudian-tool-header"><span class="claudian-tool-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span><span class="claudian-tool-name">Bash</span><span class="claudian-tool-summary">npm test</span></div>
+        <div class="claudian-tool-content">
+          <div class="claudian-tool-bash-panel">
+            <div class="claudian-tool-bash-shell"><span class="claudian-tool-bash-prompt">❯</span><div class="claudian-tool-bash-command">npm test 2&gt;&amp;1 | tail -3</div></div>
+            <div class="claudian-tool-bash-output"><div class="claudian-tool-lines"><div class="claudian-tool-line">Tests:       6715 passed, 6715 total</div><div class="claudian-tool-line">Snapshots:   0 total</div><div class="claudian-tool-line">Time:        4.2 s</div></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="claudian-write-edit-block">
+        <div class="claudian-write-edit-header">
+          <span class="claudian-write-edit-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+          <span class="claudian-write-edit-name">Edit</span>
+          <span class="claudian-write-edit-summary">src/features/chat/ui/MissionBoard.ts</span>
+          <span class="claudian-write-edit-stats">+12 −3</span>
+        </div>
+        <div class="claudian-write-edit-content">
+          <div class="claudian-write-edit-diff-row"><div class="claudian-write-edit-diff"><div class="claudian-diff-line claudian-diff-delete"><span class="claudian-diff-prefix">-</span>  row.statusEl.setText(status);</div><div class="claudian-diff-line claudian-diff-add"><span class="claudian-diff-prefix">+</span>  row.statusEl.setText(statusLabel + failover);</div></div></div>
+        </div>
+      </div>
+      <div class="claudian-mission-board">
         <div class="claudian-mission-board-header">
           <div class="claudian-mission-board-title"><span class="claudian-mission-board-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg></span><span>Team-Mission</span></div>
           <div class="claudian-mission-board-task">Analysiere das Veylor-Plugin auf Bugs und priorisiere sie nach Schwere.</div>

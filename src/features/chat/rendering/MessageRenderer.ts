@@ -741,6 +741,9 @@ export class MessageRenderer {
     existing?.remove();
     const headerEl = msgEl.createDiv({ cls: 'claudian-assistant-turn-header' });
     headerEl.toggleClass('is-streaming', isStreaming);
+    // Turn-level streaming class: drives the typing caret on the growing
+    // text block ("the AI is writing HERE") and calms once the turn ends.
+    msgEl.toggleClass('is-streaming-turn', isStreaming);
 
     const identityEl = headerEl.createDiv({ cls: 'claudian-assistant-turn-identity' });
     identityEl.createSpan({ cls: 'claudian-assistant-turn-dot', attr: { 'aria-hidden': 'true' } });

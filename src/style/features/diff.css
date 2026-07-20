@@ -243,3 +243,15 @@
   font-style: italic;
   padding: 8px;
 }
+
+/* Failed write/edit: unmistakably red — a failed file change must never
+   read like a successful one (state over decoration). */
+.claudian-write-edit-block.error {
+  border-color: color-mix(in srgb, var(--color-red, #d35f5f) 55%, transparent);
+  background: color-mix(in srgb, var(--color-red, #d35f5f) 6%, var(--cl-surface-sunken));
+}
+
+.claudian-write-edit-block.error .claudian-write-edit-icon,
+.claudian-write-edit-block.error .claudian-write-edit-name {
+  color: var(--color-red, #d35f5f);
+}

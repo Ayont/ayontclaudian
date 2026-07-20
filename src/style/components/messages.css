@@ -239,6 +239,34 @@
   text-wrap: pretty;
 }
 
+/* Typing caret: while THIS turn streams and its last content element is a
+   text block, a soft accent caret blinks at the end — the visible "the AI is
+   writing here" signal. Opacity-only; killed by the global reduced-motion
+   rule; never shows once the turn completes (class removed). */
+@keyframes cl-caret-blink {
+  0%,
+  55% {
+    opacity: 1;
+  }
+
+  56%,
+  100% {
+    opacity: 0.1;
+  }
+}
+
+.claudian-message-assistant.is-streaming-turn .claudian-message-content > .claudian-text-block:last-child::after {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 14px;
+  margin-inline-start: 3px;
+  vertical-align: -2px;
+  border-radius: 2px;
+  background: var(--cl-accent);
+  animation: cl-caret-blink 1s var(--cl-ease) infinite;
+}
+
 /* Provider-native histories can contain the exact RAG prompt. Keep its useful
    provenance available, but never let a raw `<vault_context>` wall dominate a
    rehydrated user bubble. */
