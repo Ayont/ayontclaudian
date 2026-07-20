@@ -9,6 +9,7 @@
 /* Components */
 @import "./components/header.css";
 @import "./components/mode-toggle.css";
+@import "./features/mission-board.css";
 @import "./components/tabs.css";
 @import "./components/history.css";
 @import "./components/messages.css";

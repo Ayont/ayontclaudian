@@ -57,11 +57,11 @@ import {
   type AgentExecutor,
   buildSynthesisPrompt,
   isRateLimitErrorMessage,
+type MissionProgressCallback,
   type MissionStateStorage as IMissionStateStorage,
   MissionStateStorage,
   MultiAgentService,
-  type SpecialistAgent,
-} from './core/intelligence/multiAgent/MultiAgentService';
+  type SpecialistAgent, } from './core/intelligence/multiAgent/MultiAgentService';
 import { ProjectService } from './core/intelligence/projects/ProjectService';
 import {
   buildRelatedQueryText,
@@ -1815,14 +1815,13 @@ export default class ClaudianPlugin extends Plugin {
    * outputs, and the final answer appears as a normal chat message. Failovers
    * and per-agent progress surface via the global event bus (dashboard feed).
    */
-  async runInlineTeamTask(
-    taskPrompt: string,
-    agentIds?: string[],
-  ): Promise<{ synthesis: string; results: { agentId: string; output: string }[] }> {
-    // No explicit ids → use the configured custom team when enabled
-    // (Codex + Fable + Opus & Co), otherwise the compact built-in team.
-    let missionAgentIds = agentIds ?? DEFAULT_INLINE_TEAM_AGENT_IDS;
-    if (!agentIds && this.settings.multiAgentUseCustomTeam) {
+  /**
+   * Agents an inline mission will run with: the configured custom team when
+   * enabled (registered on the fly so edits win), otherwise the compact
+   * built-in team. Shared by the mission runner and the live mission board.
+   */
+  getInlineTeamAgents(): SpecialistAgent[] {
+    if (this.settings.multiAgentUseCustomTeam) {
       const customAgents = buildCustomTeamAgents(
         this.settings.multiAgentTeam ?? [],
         this.settings as unknown as Record<string, unknown>,
@@ -1831,9 +1830,20 @@ export default class ClaudianPlugin extends Plugin {
         for (const agent of customAgents) {
           this.multiAgentService.registerAgent(agent);
         }
-        missionAgentIds = customAgents.map((agent) => agent.id);
+        return customAgents;
       }
     }
+    return DEFAULT_INLINE_TEAM_AGENT_IDS
+      .map((id) => this.multiAgentService.getAgent(id))
+      .filter((agent): agent is SpecialistAgent => Boolean(agent));
+  }
+
+  async runInlineTeamTask(
+    taskPrompt: string,
+    agentIds?: string[],
+    onProgress?: MissionProgressCallback,
+  ): Promise<{ synthesis: string; results: { agentId: string; output: string }[] }> {
+    const missionAgentIds = agentIds ?? this.getInlineTeamAgents().map((agent) => agent.id);
     const executor = this.buildMultiAgentExecutor();
     const synthesizer = this.buildInlineTeamSynthesizer();
     const taskId = `inline-team-${Date.now()}`;
@@ -1843,7 +1853,7 @@ export default class ClaudianPlugin extends Plugin {
       { id: taskId, prompt: taskPrompt, agents: missionAgentIds },
       executor,
       synthesizer,
-      undefined,
+      onProgress,
       () => Date.now(),
       {
         defaultProviderId: activeProviderId,

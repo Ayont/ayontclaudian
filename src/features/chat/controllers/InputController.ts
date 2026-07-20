@@ -12,6 +12,7 @@ import { providerErrorRecoveryService } from '../../../core/diagnostics/errorRec
 import { getLastPerf, perfMark, perfSince } from '../../../core/diagnostics/perfLog';
 import { ensureProviderHealthy } from '../../../core/diagnostics/providerHealthCheck';
 import { buildDiffPreview } from '../../../core/diff/diffPreview';
+import type { MissionProgress } from '../../../core/intelligence/multiAgent/MultiAgentService';
 import type { VaultRAGService } from '../../../core/intelligence/rag/VaultRAGService';
 import { persistAutoMemories } from '../../../core/memory/autoMemory';
 import {
@@ -69,6 +70,7 @@ import type { FileContextManager } from '../ui/FileContext';
 import type { ImageContextManager } from '../ui/ImageContext';
 import type { AddExternalContextResult, McpServerSelector } from '../ui/InputToolbar';
 import type { InstructionModeManager } from '../ui/InstructionModeManager';
+import { MissionBoard } from '../ui/MissionBoard';
 import type { StatusPanel } from '../ui/StatusPanel';
 import type { BrowserSelectionController } from './BrowserSelectionController';
 import type { CanvasSelectionController } from './CanvasSelectionController';
@@ -1754,12 +1756,32 @@ export class InputController {
    */
   private async runInlineTeamMission(task: string): Promise<void> {
     const { streamController, plugin } = this.deps;
-    new Notice('🤝 Team-Mission gestartet — Live-Updates im Chat.');
-    await streamController.appendText(
-      `\n\n> [!info]+ 🤝 Team-Mission\n> **Aufgabe:** ${task}\n> Das Team arbeitet parallel — Beiträge und Ergebnis erscheinen unten.\n`,
-    );
+    new Notice('🤝 Team-Mission gestartet.');
+
+    // LIVE mission board inside the transcript: one row per agent with
+    // status, progress and output preview, plus the streaming synthesis.
+    // Ephemeral DOM — replaced by the persistent markdown summary below.
+    const agents = plugin.getInlineTeamAgents();
+    const messagesEl = this.deps.getMessagesEl();
+    const board = new MissionBoard(messagesEl, task, agents);
+    board.scrollIntoView();
+    let lastScroll = 0;
+    const onProgress = (progress: MissionProgress): void => {
+      board.update(progress);
+      // Keep the board in view while it grows, throttled to ~4/s.
+      const now = Date.now();
+      if (now - lastScroll > 250) {
+        lastScroll = now;
+        board.scrollIntoView();
+      }
+    };
+
     try {
-      const result = await plugin.runInlineTeamTask(task);
+      const result = await plugin.runInlineTeamTask(task, undefined, onProgress);
+      board.remove();
+      await streamController.appendText(
+        `\n\n> [!info]+ 🤝 Team-Mission\n> **Aufgabe:** ${task}\n`,
+      );
 
       const contributions = result.results
         .map((entry) => {
@@ -1789,6 +1811,7 @@ export class InputController {
       );
       new Notice('Team-Mission abgeschlossen.');
     } catch (error) {
+      board.remove();
       const message = error instanceof Error ? error.message : String(error);
       new Notice(`Team-Mission fehlgeschlagen: ${message}`);
       await streamController.appendText(`\n\n**Team-Fehler:** ${message}\n`);

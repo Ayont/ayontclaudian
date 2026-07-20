@@ -236,7 +236,38 @@ const chatSurface = (mode) => `
           </div>
         </div>
       </details>
-      <p>The preflight is parallelized: graph context overlaps memory and RAG, the undo baseline reads in batches, and PATH resolution is memoized.</p>
+<div class="claudian-mission-board">
+        <div class="claudian-mission-board-header">
+          <div class="claudian-mission-board-title"><span class="claudian-mission-board-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg></span><span>Team-Mission</span></div>
+          <div class="claudian-mission-board-task">Analysiere das Veylor-Plugin auf Bugs und priorisiere sie nach Schwere.</div>
+          <div class="claudian-mission-board-overall"><div class="claudian-mission-board-overall-fill" style="transform: scaleX(0.55)"></div></div>
+        </div>
+        <div class="claudian-mission-board-list">
+          <div class="claudian-mission-board-row is-done">
+            <div class="claudian-mission-board-identity"><span class="claudian-mission-board-dot"></span><span class="claudian-mission-board-name">Codex</span><span class="claudian-mission-board-meta">codex · gpt-5.2-codex</span></div>
+            <div class="claudian-mission-board-status">Fertig</div>
+            <div class="claudian-mission-board-track"><div class="claudian-mission-board-fill" style="transform: scaleX(1)"></div></div>
+            <div class="claudian-mission-board-preview">…ReentrantLock fehlt in BazaarOrderService.matchOrders — Race bei parallelen Instant-Buys.</div>
+          </div>
+          <div class="claudian-mission-board-row is-running">
+            <div class="claudian-mission-board-identity"><span class="claudian-mission-board-dot"></span><span class="claudian-mission-board-name">Fable</span><span class="claudian-mission-board-meta">claude · fable</span></div>
+            <div class="claudian-mission-board-status">Arbeitet…</div>
+            <div class="claudian-mission-board-track"><div class="claudian-mission-board-fill" style="transform: scaleX(0.62)"></div></div>
+            <div class="claudian-mission-board-preview">…prüfe die Economy-Pfade: withdraw vor deposit ist überall eingehalten, aber der Voucher-…</div>
+          </div>
+          <div class="claudian-mission-board-row is-pending">
+            <div class="claudian-mission-board-identity"><span class="claudian-mission-board-dot"></span><span class="claudian-mission-board-name">Opus</span><span class="claudian-mission-board-meta">claude · opus-4.8</span></div>
+            <div class="claudian-mission-board-status">Bereit</div>
+            <div class="claudian-mission-board-track"><div class="claudian-mission-board-fill"></div></div>
+            <div class="claudian-mission-board-preview"></div>
+          </div>
+        </div>
+        <div class="claudian-mission-board-synthesis">
+          <div class="claudian-mission-board-synth-head"><span class="claudian-mission-board-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg></span><span>Synthese</span></div>
+          <div class="claudian-mission-board-synth-output">Kombiniere die Befunde: 3 kritische Bugs (Bazaar-Race, Voucher-Dupe, …), 5 mittlere…</div>
+        </div>
+      </div>
+            <p>The preflight is parallelized: graph context overlaps memory and RAG, the undo baseline reads in batches, and PATH resolution is memoized.</p>
       <div class="claudian-diff-block claudian-diff-del">The quick <mark class="claudian-diff-word claudian-diff-word-del">brown</mark> fox.</div>
       <div class="claudian-diff-block claudian-diff-ins">The quick <mark class="claudian-diff-word claudian-diff-word-ins">red</mark> fox.</div>
     </div>
