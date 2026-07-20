@@ -39,6 +39,7 @@ import {
 } from './SubagentRenderer';
 import { renderStoredThinkingBlock } from './ThinkingBlockRenderer';
 import { renderStoredToolCall } from './ToolCallRenderer';
+import { renderWelcomeContent } from './welcome';
 import { renderStoredWriteEdit } from './WriteEditRenderer';
 
 export interface RenderContentOptions {
@@ -636,7 +637,7 @@ export class MessageRenderer {
 
     // Recreate welcome element after clearing
     const newWelcomeEl = this.messagesEl.createDiv({ cls: 'claudian-welcome' });
-    newWelcomeEl.createDiv({ cls: 'claudian-welcome-greeting', text: getGreeting() });
+    renderWelcomeContent(newWelcomeEl, getGreeting());
 
     for (let i = 0; i < messages.length; i++) {
       this.renderStoredMessage(messages[i], messages, i);

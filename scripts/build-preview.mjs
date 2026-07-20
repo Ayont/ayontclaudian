@@ -263,7 +263,51 @@ const modal = `
   </div>
 </div>`;
 
-const SURFACES = { Dashboard: dashboard, Chat: chat, 'Chat (Work)': chatWork, 'New Project': modal };
+// Chrome surface: everything around the transcript — welcome screen, tab
+// badges, thinking states, history dropdown — so the frame gets design
+// iteration too, not just messages.
+const chrome = `
+<div class="claudian-container" data-provider="claude" style="max-width:760px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:28px;">
+  <div>
+    <div style="font-size:11px;color:var(--text-faint);margin-bottom:8px;">TAB BADGES</div>
+    <div class="claudian-tab-badges">
+      <div class="claudian-tab-badge claudian-tab-badge-active" data-provider="claude">1</div>
+      <div class="claudian-tab-badge claudian-tab-badge-streaming" data-provider="kimi">2</div>
+      <div class="claudian-tab-badge" data-provider="codex">3</div>
+      <div class="claudian-tab-badge" data-provider="grok">4</div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:11px;color:var(--text-faint);margin-bottom:8px;">WELCOME</div>
+    <div class="claudian-welcome" style="min-height:120px;">
+      <div class="claudian-welcome-greeting">Guten Abend, Niccolo</div>
+      <div class="claudian-welcome-sub claudian-welcome-sub--code">Code-Modus · Dein Vault ist das Arbeitsverzeichnis</div>
+      <div class="claudian-welcome-sub claudian-welcome-sub--work">Work-Modus · Dokumente, Notizen, Recherche</div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:11px;color:var(--text-faint);margin-bottom:8px;">THINKING</div>
+    <div class="claudian-thinking">Denkt nach<span class="claudian-thinking-hint">12s</span></div>
+    <details class="claudian-thinking-block" open>
+      <summary class="claudian-thinking-summary">Reasoning</summary>
+      <div class="claudian-thinking-content">Der Watchdog misst Chunk-Stille — bei Kimi K3 kommen während langer Reasoning-Phasen keine Bytes, also braucht es einen Keepalive.</div>
+    </details>
+  </div>
+  <div>
+    <div style="font-size:11px;color:var(--text-faint);margin-bottom:8px;">HISTORY MENU</div>
+    <div class="claudian-history-menu visible" style="position:static;">
+      <div class="claudian-history-header">
+        <div class="claudian-history-header-top"><span>Chats</span><span class="claudian-history-header-count">24</span></div>
+        <div class="claudian-history-search"><span class="claudian-history-search-icon"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span><input class="claudian-history-search-input" placeholder="Suchen…"></div>
+      </div>
+      <div class="claudian-history-item active"><span class="claudian-history-item-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span>Kimi K3 Timeout-Fix</span></div>
+      <div class="claudian-history-item"><span class="claudian-history-item-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span>Workspace-Modus Design</span></div>
+      <div class="claudian-history-item"><span class="claudian-history-item-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span>Bazaar Order-Book Review</span></div>
+    </div>
+  </div>
+</div>`;
+
+const SURFACES = { Dashboard: dashboard, Chat: chat, 'Chat (Work)': chatWork, Chrome: chrome, 'New Project': modal };
 
 const tabs = Object.keys(SURFACES)
   .map((name, i) => `<button class="pv-tab${i === 0 ? ' is-active' : ''}" data-surface="${name}">${name}</button>`)

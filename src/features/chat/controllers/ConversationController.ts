@@ -10,6 +10,7 @@ import { confirm } from '../../../shared/modals/ConfirmModal';
 import { extractUserDisplayContent } from '../../../utils/context';
 import type { MessageRenderer } from '../rendering/MessageRenderer';
 import { cleanupThinkingBlock } from '../rendering/ThinkingBlockRenderer';
+import { renderWelcomeContent } from '../rendering/welcome';
 import { findRewindContext } from '../rewind';
 import type { SubagentManager } from '../services/SubagentManager';
 import type { ChatState } from '../state/ChatState';
@@ -152,7 +153,7 @@ export class ConversationController {
 
       // Recreate welcome element first (before StatusPanel for consistent ordering)
       const welcomeEl = messagesEl.createDiv({ cls: 'claudian-welcome' });
-      welcomeEl.createDiv({ cls: 'claudian-welcome-greeting', text: this.getGreeting() });
+      renderWelcomeContent(welcomeEl, this.getGreeting());
       this.deps.setWelcomeEl(welcomeEl);
 
       // Remount StatusPanel to restore state for new conversation
@@ -1030,7 +1031,7 @@ export class ConversationController {
 
     // Only add greeting if not already present
     if (!welcomeEl.querySelector('.claudian-welcome-greeting')) {
-      welcomeEl.createDiv({ cls: 'claudian-welcome-greeting', text: this.getGreeting() });
+      renderWelcomeContent(welcomeEl, this.getGreeting());
     }
 
     this.updateWelcomeVisibility();

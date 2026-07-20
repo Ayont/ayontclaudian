@@ -50,6 +50,36 @@
   letter-spacing: -0.02em;
 }
 
+/* Accent hairline under the greeting — picks up the active mode/provider
+   accent, so the empty state already carries the workspace identity. */
+.claudian-welcome-greeting::after {
+  content: '';
+  display: block;
+  width: 56px;
+  height: 2px;
+  margin: 14px auto 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--cl-accent), transparent);
+  opacity: 0.55;
+}
+
+/* Mode-aware subline: both variants are in the DOM, the container's
+   claudian-mode-* class decides which one shows (zero re-render on switch). */
+.claudian-welcome-sub {
+  display: none;
+  color: var(--text-faint);
+  font-size: var(--cl-text-sm);
+  letter-spacing: 0.02em;
+}
+
+.claudian-container:not(.claudian-mode-work) .claudian-welcome-sub--code {
+  display: block;
+}
+
+.claudian-container.claudian-mode-work .claudian-welcome-sub--work {
+  display: block;
+}
+
 .claudian-message {
   padding: var(--cl-space-3) var(--cl-space-4);
   border-radius: var(--cl-radius-md);

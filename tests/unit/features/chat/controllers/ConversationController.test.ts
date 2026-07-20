@@ -324,16 +324,16 @@ describe('ConversationController', () => {
       const welcomeEl = deps.getWelcomeEl()!;
       const createDivSpy = jest.spyOn(welcomeEl, 'createDiv');
 
-      // First call should add greeting
+      // First call adds the greeting + both mode sublines (3 elements).
       controller.initializeWelcome();
-      expect(createDivSpy).toHaveBeenCalledTimes(1);
+      expect(createDivSpy).toHaveBeenCalledTimes(3);
 
       // Mock querySelector to return an element (greeting already exists)
       welcomeEl.querySelector = jest.fn().mockReturnValue(createMockEl());
 
-      // Second call should not add another greeting
+      // Second call should not add more content
       controller.initializeWelcome();
-      expect(createDivSpy).toHaveBeenCalledTimes(1); // Still 1, not 2
+      expect(createDivSpy).toHaveBeenCalledTimes(3); // Unchanged
     });
   });
 
