@@ -21,8 +21,27 @@
   inset-inline-end: 0;
 }
 
+/* Pop-in: fade + tiny rise from the trigger side (opacity/transform only). */
+@keyframes cl-menu-pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .claudian-history-menu.visible {
   display: block;
+  transform-origin: bottom right;
+  animation: cl-menu-pop var(--cl-dur-fast) var(--cl-ease-out);
+}
+
+.claudian-container--header-mode .claudian-history-menu.visible {
+  transform-origin: top right;
 }
 
 /* Header mode: dropdown instead of dropup */

@@ -331,6 +331,15 @@ export class ClaudianView extends ItemView {
     this.chatTitleDividerEl.setAttribute('aria-hidden', 'true');
     this.chatTitleEl = this.titleSlotEl.createSpan({ cls: 'claudian-title-chat claudian-hidden' });
 
+    // Workspace mode switch (Code | Work) — lives NEXT TO THE TITLE so the
+    // active chat's mode is always one glance (and one click) away. The mode
+    // is chat-scoped: it reads/writes the active conversation and only falls
+    // back to the global default for blank tabs.
+    this.workspaceModeToggle = new WorkspaceModeToggle(this.titleSlotEl, {
+      getMode: () => this.resolveActiveWorkspaceMode(),
+      onModeChange: (mode) => this.setWorkspaceMode(mode),
+    });
+
     // Header actions container (for header mode - initially hidden)
     this.headerActionsEl = header.createDiv({ cls: 'claudian-header-actions claudian-header-actions-slot claudian-hidden' });
   }
@@ -362,14 +371,6 @@ export class ClaudianView extends ItemView {
     // Header actions (right side)
     this.headerActionsContent = activeDocument.createElement('div');
     this.headerActionsContent.className = 'claudian-header-actions';
-
-    // Workspace mode switch (Code | Work) — leftmost action, always visible.
-    // The mode is CHAT-SCOPED: it reads/writes the active conversation and
-    // only falls back to the global default for blank tabs.
-    this.workspaceModeToggle = new WorkspaceModeToggle(this.headerActionsContent, {
-      getMode: () => this.resolveActiveWorkspaceMode(),
-      onModeChange: (mode) => this.setWorkspaceMode(mode),
-    });
 
     // New tab button (plus icon)
     this.newTabButtonEl = this.headerActionsContent.createDiv({ cls: 'claudian-header-btn claudian-new-tab-btn' });

@@ -7,11 +7,15 @@
   position: relative;
   display: inline-flex;
   align-items: stretch;
+  flex: 0 0 auto;
   padding: 2px;
-  border: 1px solid var(--cl-border-subtle);
   border-radius: var(--cl-radius-pill);
   background: var(--cl-surface-sunken);
-  margin-right: var(--cl-space-1);
+}
+
+/* Sitting next to the title: breathe, and never shrink with long titles. */
+.claudian-title-slot .claudian-mode-toggle {
+  margin-inline-start: var(--cl-space-2);
 }
 
 .claudian-mode-toggle-thumb {
@@ -21,11 +25,12 @@
   width: calc(50% - 2px);
   height: calc(100% - 4px);
   border-radius: var(--cl-radius-pill);
-  background: var(--cl-surface-raised);
+  background: var(--cl-accent-soft);
   border: 1px solid var(--cl-accent-line);
-  box-shadow: var(--cl-shadow-sm);
   transform: translateX(0);
-  transition: transform var(--cl-dur) var(--cl-ease);
+  transition: transform var(--cl-dur) var(--cl-ease),
+    background var(--cl-dur) var(--cl-ease),
+    border-color var(--cl-dur) var(--cl-ease);
   pointer-events: none;
 }
 
@@ -146,6 +151,20 @@
   cursor: pointer;
   transition: color var(--cl-dur-fast) var(--cl-ease-out),
     border-color var(--cl-dur-fast) var(--cl-ease-out);
+  /* Staggered rise-in: display none→flex on mode switch restarts these. */
+  animation: cl-rise var(--cl-dur) var(--cl-ease) both;
+}
+
+.claudian-mode-quick-chip:nth-child(2) {
+  animation-delay: 40ms;
+}
+
+.claudian-mode-quick-chip:nth-child(3) {
+  animation-delay: 80ms;
+}
+
+.claudian-mode-quick-chip:nth-child(4) {
+  animation-delay: 120ms;
 }
 
 .claudian-mode-quick-chip:hover {

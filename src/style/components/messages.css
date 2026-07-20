@@ -51,7 +51,18 @@
 }
 
 /* Accent hairline under the greeting — picks up the active mode/provider
-   accent, so the empty state already carries the workspace identity. */
+   accent, so the empty state already carries the workspace identity. Draws
+   itself in from the center (transform-only). */
+@keyframes cl-hairline-draw {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
 .claudian-welcome-greeting::after {
   content: '';
   display: block;
@@ -61,6 +72,7 @@
   border-radius: 999px;
   background: linear-gradient(90deg, transparent, var(--cl-accent), transparent);
   opacity: 0.55;
+  animation: cl-hairline-draw 480ms var(--cl-ease) 160ms both;
 }
 
 /* Mode-aware subline: both variants are in the DOM, the container's
@@ -119,21 +131,21 @@
   color: inherit;
 }
 
-/* Assistant turn — a calm full-width surface. Provenance lives in the turn
-   header (provider mark + name), not in decorative edge accents. */
+/* Assistant turn — an OPEN surface: no card, no border, just the answer with
+   its turn header and generous breathing room. The asymmetry (contained user
+   bubble vs. open assistant text) is what makes the transcript read calm and
+   minimal; containment inside the answer comes from tool/thinking cards. */
 .claudian-message-assistant {
   position: relative;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, rgba(var(--claudian-brand-rgb), 0.02) 0%, transparent 100%), var(--cl-surface-sunken);
-  border: 1px solid var(--cl-border-subtle);
-  box-shadow: var(--cl-shadow-sm);
+  background: transparent;
+  border: none;
+  box-shadow: none;
   align-self: stretch;
   width: 100%;
   max-width: 100%;
-  border-radius: var(--cl-radius-lg);
-  border-end-start-radius: var(--cl-radius-xs);
-  padding: 12px 16px;
+  padding: 4px 2px 14px;
 }
 
 /* Persistent turn provenance and live/completed state. The element is appended

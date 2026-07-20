@@ -199,9 +199,9 @@ const chatSurface = (mode) => `
       <h4 class="claudian-title-text">ayontclaudian</h4>
       <span class="claudian-title-divider">⟋</span>
       <span class="claudian-title-chat">Kimi K3 Timeout-Fix</span>
+      ${modeToggle(mode)}
     </div>
     <div class="claudian-header-actions">
-      ${modeToggle(mode)}
       <div class="claudian-header-btn" aria-label="New tab"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg></div>
       <div class="claudian-header-btn" aria-label="History"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
     </div>
