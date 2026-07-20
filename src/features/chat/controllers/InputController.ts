@@ -1755,7 +1755,7 @@ export class InputController {
    * synthesized answer. Shared by the Multi-Agent-Modus toggle and `/team`.
    */
   private async runInlineTeamMission(task: string): Promise<void> {
-    const { streamController, plugin } = this.deps;
+    const { plugin } = this.deps;
     new Notice('🤝 Team-Mission gestartet.');
 
     // LIVE mission board inside the transcript: one row per agent with
@@ -1779,9 +1779,6 @@ export class InputController {
     try {
       const result = await plugin.runInlineTeamTask(task, undefined, onProgress);
       board.remove();
-      await streamController.appendText(
-        `\n\n> [!info]+ 🤝 Team-Mission\n> **Aufgabe:** ${task}\n`,
-      );
 
       const contributions = result.results
         .map((entry) => {
@@ -1806,16 +1803,42 @@ export class InputController {
         ? '\n\n*Rate-Limit-Failover war aktiv — Details im Mission-Log.*'
         : '';
 
-      await streamController.appendText(
-        `\n\n${contributions}\n\n### 🎯 Ergebnis\n${result.synthesis || '_Keine Synthese erzeugt._'}${failoverNote}\n`,
+      await this.appendMissionMessage(
+        `> [!info]+ 🤝 Team-Mission\n> **Aufgabe:** ${task}\n\n${contributions}\n\n### 🎯 Ergebnis\n${result.synthesis || '_Keine Synthese erzeugt._'}${failoverNote}\n`,
       );
       new Notice('Team-Mission abgeschlossen.');
     } catch (error) {
       board.remove();
       const message = error instanceof Error ? error.message : String(error);
       new Notice(`Team-Mission fehlgeschlagen: ${message}`);
-      await streamController.appendText(`\n\n**Team-Fehler:** ${message}\n`);
+      await this.appendMissionMessage(`**Team-Fehler:** ${message}`);
     }
+  }
+
+  /**
+   * Persists the mission result as a REAL assistant message.
+   *
+   * The mission runs OUTSIDE a provider stream, so `appendText` (which
+   * requires an open stream's `currentContentEl`) silently dropped the whole
+   * output — the original "agent mode does nothing" bug. A stored message
+   * renders immediately and survives reloads.
+   */
+  private async appendMissionMessage(markdown: string): Promise<void> {
+    const { state, renderer, conversationController } = this.deps;
+    const message: ChatMessage = {
+      id: this.deps.generateId(),
+      role: 'assistant',
+      content: markdown,
+      timestamp: Date.now(),
+      agentLabel: 'Team-Mission',
+    };
+    state.addMessage(message);
+    renderer.renderStoredMessage(message);
+    conversationController?.updateWelcomeVisibility();
+    await conversationController?.save(false)?.catch(() => {
+      // Blank tabs have no conversation yet — the rendered message stays
+      // visible for this session even when persistence is unavailable.
+    });
   }
 
   private async buildTemplateContext(): Promise<TemplateContext> {

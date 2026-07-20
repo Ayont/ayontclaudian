@@ -10,6 +10,14 @@ jest.mock('@/shared/components/ResumeSessionDropdown', () => ({
   ResumeSessionDropdown: jest.fn(),
 }));
 
+jest.mock('@/features/chat/ui/MissionBoard', () => ({
+  MissionBoard: jest.fn().mockImplementation(() => ({
+    update: jest.fn(),
+    remove: jest.fn(),
+    scrollIntoView: jest.fn(),
+  })),
+}));
+
 beforeAll(() => {
   globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
     cb(0);
@@ -146,6 +154,7 @@ function createMockDeps(overrides: Partial<InputControllerDeps> = {}): InputCont
       refreshActionButtons: jest.fn(),
       removeMessage: jest.fn(),
       updateLiveUserMessage: jest.fn(),
+      renderStoredMessage: jest.fn(),
     } as any,
     streamController: {
       showThinkingIndicator: jest.fn(),
@@ -166,6 +175,7 @@ function createMockDeps(overrides: Partial<InputControllerDeps> = {}): InputCont
       generateFallbackTitle: jest.fn().mockReturnValue('Test Title'),
       updateHistoryDropdown: jest.fn(),
       clearTerminalSubagentsFromMessages: jest.fn(),
+      updateWelcomeVisibility: jest.fn(),
     } as any,
     getInputEl: () => inputEl,
     getInputContainerEl: () => createMockEl() as any,
@@ -3530,6 +3540,69 @@ describe('InputController - Message Queue', () => {
 
       expect(restoreFn).toHaveBeenCalled();
       expect(mockAgentService.query).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Multi-Agent-Modus (inline team mission)', () => {
+    function setupMissionDeps() {
+      const deps = createSendableDeps({
+        isMultiAgentModeActive: () => true,
+      });
+      (deps.plugin as any).getInlineTeamAgents = jest.fn().mockReturnValue([
+        { id: 'agent-codex', name: 'Codex' },
+      ]);
+      (deps.plugin as any).multiAgentService = {
+        getAgent: jest.fn().mockReturnValue({
+          name: 'Codex',
+          providerId: 'codex',
+          model: 'gpt-5',
+        }),
+      };
+      return deps;
+    }
+
+    it('persists the synthesis as a real assistant message (no stream required)', async () => {
+      const deps = setupMissionDeps();
+      (deps.plugin as any).runInlineTeamTask = jest.fn().mockResolvedValue({
+        results: [{ agentId: 'agent-codex', output: 'Beitrag von Codex' }],
+        synthesis: 'Die Synthese',
+      });
+      const controller = new InputController(deps);
+      const inputEl = deps.getInputEl();
+      inputEl.value = 'Analysiere das Plugin';
+
+      await controller.sendMessage();
+
+      // Regression: appendText requires an open stream and silently dropped
+      // the whole mission output — it must not be used for mission results.
+      expect(deps.streamController.appendText).not.toHaveBeenCalled();
+
+      const stored = deps.state.messages.filter((m) => m.role === 'assistant');
+      expect(stored).toHaveLength(1);
+      expect(stored[0].content).toContain('🤝 Team-Mission');
+      expect(stored[0].content).toContain('Beitrag von Codex');
+      expect(stored[0].content).toContain('Die Synthese');
+      expect(stored[0].agentLabel).toBe('Team-Mission');
+      expect(deps.renderer.renderStoredMessage).toHaveBeenCalledWith(stored[0]);
+      expect(deps.conversationController.save).toHaveBeenCalledWith(false);
+    });
+
+    it('persists an error message when the mission fails', async () => {
+      const deps = setupMissionDeps();
+      (deps.plugin as any).runInlineTeamTask = jest
+        .fn()
+        .mockRejectedValue(new Error('Kein Agent erreichbar'));
+      const controller = new InputController(deps);
+      const inputEl = deps.getInputEl();
+      inputEl.value = 'Analysiere das Plugin';
+
+      await controller.sendMessage();
+
+      const stored = deps.state.messages.filter((m) => m.role === 'assistant');
+      expect(stored).toHaveLength(1);
+      expect(stored[0].content).toContain('Team-Fehler');
+      expect(stored[0].content).toContain('Kein Agent erreichbar');
+      expect(deps.renderer.renderStoredMessage).toHaveBeenCalled();
     });
   });
 });
