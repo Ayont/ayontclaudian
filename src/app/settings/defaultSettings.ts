@@ -46,6 +46,8 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
   mediaFolder: '',
   systemPrompt: '',
   workspaceMode: 'code',
+  multiAgentTeam: [],
+  multiAgentUseCustomTeam: false,
   persistentExternalContextPaths: [],
 
   sharedEnvironmentVariables: '',

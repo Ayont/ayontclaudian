@@ -1,14 +1,17 @@
 import { Modal, Notice, setIcon } from 'obsidian';
 
 import { globalEventBus } from '../../core/events/EventBus';
+import { buildCustomTeamAgents } from '../../core/intelligence/multiAgent/customTeam';
 import type { MissionState } from '../../core/intelligence/multiAgent/MissionStateStorage';
 import type {
   AgentProgress,
   MissionProgress,
+  SpecialistAgent,
   SynthesisContribution,
 } from '../../core/intelligence/multiAgent/MultiAgentService';
 import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
 import type ClaudianPlugin from '../../main';
+import { TeamConfigModal } from './TeamConfigModal';
 
 interface AgentCardRefs {
   card: HTMLElement;
@@ -27,6 +30,7 @@ interface AgentCardRefs {
  */
 export class MultiAgentModal extends Modal {
   private missionId: string;
+  private teamTelemetryEl: HTMLElement | null = null;
   private gridEl: HTMLElement | null = null;
   private overallBar: HTMLElement | null = null;
   private statusText: HTMLElement | null = null;
@@ -74,13 +78,25 @@ export class MultiAgentModal extends Modal {
     const titleCopy = titleGroup.createDiv({ cls: 'claudian-multi-agent-title-copy' });
     titleCopy.createSpan({ cls: 'claudian-multi-agent-eyebrow', text: `${providerLabel} · Mission Control` });
     titleCopy.createEl('h2', { text: 'Multi-Agent Mission' });
+
+    // Gear: configure a custom provider team (e.g. Codex + Fable + Opus).
+    const gearBtn = header.createEl('button', { cls: 'claudian-multi-agent-gear' });
+    setIcon(gearBtn, 'settings');
+    gearBtn.setAttribute('aria-label', 'Agenten-Team konfigurieren');
+    gearBtn.addEventListener('click', () => {
+      new TeamConfigModal(this.plugin, () => {
+        this.renderAgentCards();
+        this.updateTeamTelemetry();
+      }).open();
+    });
+
     this.statusText = header.createSpan({ cls: 'claudian-multi-agent-status', text: 'Beschreibe die Mission und starte das Team.' });
     this.statusText.setAttribute('role', 'status');
     this.statusText.setAttribute('aria-live', 'polite');
 
-    const agents = this.plugin.multiAgentService.listAgents();
+    const agents = this.getMissionAgents();
     const telemetry = contentEl.createDiv({ cls: 'claudian-multi-agent-telemetry' });
-    this.createTelemetryItem(telemetry, 'users', 'Team', `${agents.length} Spezialisten`);
+    this.teamTelemetryEl = this.createTelemetryItem(telemetry, 'users', 'Team', this.describeTeam(agents));
     this.createTelemetryItem(telemetry, 'cpu', 'Runtime', providerLabel);
     this.createTelemetryItem(telemetry, 'keyboard', 'Start', '⌘/Ctrl + Enter');
 
@@ -130,12 +146,41 @@ export class MultiAgentModal extends Modal {
     }
   }
 
-  private createTelemetryItem(parent: HTMLElement, iconName: string, label: string, value: string): void {
+  private createTelemetryItem(parent: HTMLElement, iconName: string, label: string, value: string): HTMLElement {
     const item = parent.createDiv({ cls: 'claudian-multi-agent-telemetry-item' });
     setIcon(item.createSpan({ cls: 'claudian-multi-agent-telemetry-icon' }), iconName);
     const copy = item.createDiv();
     copy.createSpan({ cls: 'claudian-multi-agent-telemetry-label', text: label });
-    copy.createSpan({ cls: 'claudian-multi-agent-telemetry-value', text: value });
+    return copy.createSpan({ cls: 'claudian-multi-agent-telemetry-value', text: value });
+  }
+
+  /**
+   * Agents for the NEXT mission launch: the configured custom team when
+   * enabled and non-empty, otherwise every registered built-in specialist.
+   */
+  private getMissionAgents(): SpecialistAgent[] {
+    if (this.plugin.settings.multiAgentUseCustomTeam) {
+      const custom = buildCustomTeamAgents(
+        this.plugin.settings.multiAgentTeam ?? [],
+        this.plugin.settings as unknown as Record<string, unknown>,
+      );
+      if (custom.length > 0) {
+        return custom;
+      }
+    }
+    return this.plugin.multiAgentService.listAgents();
+  }
+
+  private describeTeam(agents: SpecialistAgent[]): string {
+    return this.plugin.settings.multiAgentUseCustomTeam && agents.some((agent) => agent.model)
+      ? `${agents.length} eigene Mitglieder`
+      : `${agents.length} Spezialisten`;
+  }
+
+  private updateTeamTelemetry(): void {
+    if (this.teamTelemetryEl) {
+      this.teamTelemetryEl.setText(this.describeTeam(this.getMissionAgents()));
+    }
   }
 
   onClose(): void {
@@ -241,7 +286,7 @@ export class MultiAgentModal extends Modal {
     this.gridEl.empty();
     this.cards.clear();
 
-    for (const agent of this.plugin.multiAgentService.listAgents()) {
+    for (const agent of this.getMissionAgents()) {
       const card = this.gridEl.createDiv({ cls: 'claudian-multi-agent-card claudian-multi-agent-card--pending' });
       card.setAttribute('data-agent-id', agent.id);
 
@@ -257,6 +302,10 @@ export class MultiAgentModal extends Modal {
 
       const statusEl = card.createDiv({ cls: 'claudian-multi-agent-card-status', text: 'Bereit' });
       const metaEl = card.createDiv({ cls: 'claudian-multi-agent-card-meta' });
+      // Custom team members carry a pinned model — show its provenance up front.
+      if (agent.model && agent.providerId) {
+        metaEl.setText(`${this.getProviderLabel(agent.providerId)} · ${agent.model}`);
+      }
 
       const progressTrack = card.createDiv({ cls: 'claudian-multi-agent-card-progress-track' });
       const progressBar = progressTrack.createDiv({ cls: 'claudian-multi-agent-card-progress-bar' });
@@ -285,7 +334,13 @@ export class MultiAgentModal extends Modal {
     this.setControlsDisabled(true);
     this.startTicker();
 
-    const agents = this.plugin.multiAgentService.listAgents();
+    const agents = this.getMissionAgents();
+    // Custom team members are ad-hoc agents — (re-)register them so the
+    // mission pipeline (progress, failover, synthesis) resolves them by id
+    // and edits (e.g. a changed model) always win over stale registrations.
+    for (const agent of agents) {
+      this.plugin.multiAgentService.registerAgent(agent);
+    }
     const task = { id: this.missionId, prompt, agents: agents.map((a) => a.id) };
 
     globalEventBus.emit('mission:started', { id: this.missionId, prompt, agents: agents.length });

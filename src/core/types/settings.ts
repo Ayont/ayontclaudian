@@ -175,6 +175,11 @@ export interface ClaudianSettings {
   systemPrompt: string;
   /** Workspace mode: 'code' (Software-Arbeit) oder 'work' (Dokumente/Notizen). */
   workspaceMode?: 'code' | 'work';
+
+  /** Custom multi-agent team: members = Name + Rolle + Modell (Provider folgt dem Modell). */
+  multiAgentTeam?: Array<{ id: string; name: string; role: string; model: string }>;
+  /** True → Missionen laufen mit dem eigenen Team statt aller Built-in-Spezialisten. */
+  multiAgentUseCustomTeam?: boolean;
   persistentExternalContextPaths: string[];
 
   // Environment

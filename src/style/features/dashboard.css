@@ -485,6 +485,39 @@ body {
   letter-spacing: -0.02em;
 }
 
+/* Gear: opens the custom-team editor. */
+.claudian-multi-agent-gear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-inline-start: auto;
+  margin-inline-end: 12px;
+  padding: 0;
+  border: 1px solid var(--claudian-border);
+  border-radius: 9px;
+  background: var(--claudian-card-elevated);
+  color: var(--claudian-muted);
+  cursor: pointer;
+  transition: color var(--cl-dur-fast, 120ms) ease, border-color var(--cl-dur-fast, 120ms) ease;
+}
+
+.claudian-multi-agent-gear:hover {
+  color: var(--claudian-text);
+  border-color: rgba(var(--claudian-accent-rgb), 0.45);
+}
+
+.claudian-multi-agent-gear:focus-visible {
+  outline: 2px solid rgba(var(--claudian-accent-rgb), 0.5);
+  outline-offset: 2px;
+}
+
+.claudian-multi-agent-gear svg {
+  width: 15px;
+  height: 15px;
+}
+
 .claudian-multi-agent-status {
   padding: 6px 12px;
   border-radius: 999px;
@@ -493,6 +526,101 @@ body {
   font-size: 0.8em;
   font-weight: 600;
   color: var(--claudian-muted);
+}
+
+/* ── Team editor (gear modal) ──────────────────────────────────────────── */
+.claudian-team-config-subtitle {
+  margin: 0 0 14px;
+  color: var(--claudian-muted);
+  font-size: 0.86em;
+  line-height: 1.5;
+}
+
+.claudian-team-config-toggle-row {
+  margin-bottom: 14px;
+}
+
+.claudian-team-config-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+
+.claudian-team-config-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.claudian-team-config-empty {
+  padding: 18px;
+  border: 1px dashed var(--claudian-border);
+  border-radius: 10px;
+  color: var(--claudian-muted);
+  font-size: 0.86em;
+  text-align: center;
+}
+
+.claudian-team-config-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.8fr) minmax(120px, 1fr) minmax(150px, 1.3fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.claudian-team-config-row input {
+  width: 100%;
+  min-width: 0;
+}
+
+.claudian-team-config-model {
+  overflow: hidden;
+  height: auto;
+  padding: 6px 10px;
+  font-size: 0.85em;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claudian-team-config-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--claudian-muted);
+}
+
+.claudian-team-config-remove:hover {
+  color: var(--color-red, #d35f5f);
+}
+
+.claudian-team-config-remove svg {
+  width: 14px;
+  height: 14px;
+}
+
+.claudian-team-config-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.claudian-team-config-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 560px) {
+  .claudian-team-config-row {
+    grid-template-columns: 1fr auto;
+  }
 }
 
 .claudian-multi-agent-status--running {
