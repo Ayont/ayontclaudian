@@ -33,6 +33,10 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
     autoSetup: true,
     microphoneId: '',
     preferFastBackend: true,
+    cloudEnabled: false,
+    cloudBaseUrl: '',
+    cloudApiKey: '',
+    cloudModel: '',
   },
 
   model: 'haiku',

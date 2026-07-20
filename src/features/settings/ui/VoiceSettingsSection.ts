@@ -1,5 +1,6 @@
 import { Notice, Setting } from 'obsidian';
 
+import { DEFAULT_CLOUD_BASE_URL, DEFAULT_CLOUD_MODEL } from '../../../core/audio/CloudWhisperTranscriber';
 import { areVoiceDependenciesReady, diagnoseVoiceSetup, ensureVoiceDependencies } from '../../../core/audio/voiceSetup';
 import type ClaudianPlugin from '../../../main';
 
@@ -56,7 +57,18 @@ const VOICE_LANGUAGES = [
 
 function getVoiceSettings(plugin: ClaudianPlugin) {
   if (!plugin.settings.voiceSettings) {
-    plugin.settings.voiceSettings = { enabled: true, language: 'auto', model: 'base', autoSetup: true, microphoneId: '', preferFastBackend: true };
+    plugin.settings.voiceSettings = {
+      enabled: true,
+      language: 'auto',
+      model: 'base',
+      autoSetup: true,
+      microphoneId: '',
+      preferFastBackend: true,
+      cloudEnabled: false,
+      cloudBaseUrl: '',
+      cloudApiKey: '',
+      cloudModel: '',
+    };
   }
   return plugin.settings.voiceSettings;
 }
@@ -77,7 +89,7 @@ function renderInto(section: HTMLElement, plugin: ClaudianPlugin): void {
   new Setting(section).setName('Spracheingabe').setHeading();
   section.createEl('p', {
     cls: 'claudian-voice-settings-hint',
-    text: 'Lokale Spracherkennung über whisper-cpp — keine Cloud, kein Netzwerk. Erstmalige Einrichtung installiert ffmpeg, whisper-cpp und das Modell automatisch via Homebrew. Ein warmgehaltener whisper-server hält das Modell zwischen Aufnahmen geladen, damit jede Transkription nach der ersten deutlich schneller ist.',
+    text: 'Spracherkennung lokal über whisper-cpp (privat, kein Netzwerk) oder optional über ein Cloud-Backend (Groq/OpenAI-kompatibel — am schnellsten, Audio verlässt den Mac). Ein warmgehaltener whisper-server hält lokale Modelle zwischen Aufnahmen geladen; mlx-whisper läuft nativ mit Metal-Beschleunigung aus einer eigenen Python-Umgebung.',
   });
 
   // ── Apple Silicon architecture warning ─────────────────────────────
@@ -98,7 +110,7 @@ function renderInto(section: HTMLElement, plugin: ClaudianPlugin): void {
       ].filter(Boolean).join(' und ');
       archWarningEl.addClass('claudian-voice-status-missing');
       archWarningEl.setText(
-        `⚠ ${wrong} läuft aktuell unter Rosetta (Intel-Build via /usr/local) statt nativ auf Apple Silicon — mehrfach langsamer. „Alle installieren" weiter unten installiert die native Version über /opt/homebrew.`,
+        `⚠ ${wrong} läuft aktuell unter Rosetta (Intel-Build via /usr/local) statt nativ auf Apple Silicon — mehrfach langsamer. Schnellere Wege: das Cloud-Backend (unten) oder mlx-whisper nativ — „Alle installieren" richtet mlx-whisper in einer eigenen Umgebung ein, auch ohne natives Homebrew.`,
       );
     });
   }
@@ -167,6 +179,67 @@ function renderInto(section: HTMLElement, plugin: ClaudianPlugin): void {
       );
   }
 
+  // ── Cloud backend (fastest, opt-in) ────────────────────────────────
+  new Setting(section).setName('Cloud-Backend').setHeading();
+  section.createEl('p', {
+    cls: 'claudian-voice-settings-hint',
+    text: 'OpenAI-kompatible Transkription — Antwort in Bruchteilen einer Sekunde, keine lokale Installation. Standard: Groq (kostenloser API-Key auf console.groq.com, Modell whisper-large-v3-turbo). Achtung: Audio verlässt dabei den Mac.',
+  });
+
+  new Setting(section)
+    .setName('Cloud-Backend aktiviert')
+    .setDesc('Wenn aktiv und ein API-Key gesetzt ist, wird die Cloud bevorzugt — lokal bleibt Fallback')
+    .addToggle((toggle) =>
+      toggle
+        .setValue(vs.cloudEnabled ?? false)
+        .onChange(async (value) => {
+          vs.cloudEnabled = value;
+          await plugin.saveSettings();
+          renderInto(section, plugin);
+        }),
+    );
+
+  if (vs.cloudEnabled) {
+    new Setting(section)
+      .setName('API-Key')
+      .setDesc('Groq- oder OpenAI-Key — wird nur lokal in den Plugin-Einstellungen gespeichert')
+      .addText((text) =>
+        text
+          .setPlaceholder('gsk_… / sk-…')
+          .setValue(vs.cloudApiKey ?? '')
+          .onChange(async (value) => {
+            vs.cloudApiKey = value.trim();
+            await plugin.saveSettings();
+          }),
+      );
+
+    new Setting(section)
+      .setName('Basis-URL')
+      .setDesc('OpenAI-kompatible Basis-URL (leer = Groq)')
+      .addText((text) =>
+        text
+          .setPlaceholder(DEFAULT_CLOUD_BASE_URL)
+          .setValue(vs.cloudBaseUrl ?? '')
+          .onChange(async (value) => {
+            vs.cloudBaseUrl = value.trim();
+            await plugin.saveSettings();
+          }),
+      );
+
+    new Setting(section)
+      .setName('Cloud-Modell')
+      .setDesc('Leer = whisper-large-v3-turbo (Groq). OpenAI: whisper-1 oder gpt-4o-transcribe')
+      .addText((text) =>
+        text
+          .setPlaceholder(DEFAULT_CLOUD_MODEL)
+          .setValue(vs.cloudModel ?? '')
+          .onChange(async (value) => {
+            vs.cloudModel = value.trim();
+            await plugin.saveSettings();
+          }),
+      );
+  }
+
   // ── Active Backend ────────────────────────────────────────────────
   const backendStatusEl = section.createEl('p', {
     cls: 'claudian-voice-model-info',
@@ -175,7 +248,14 @@ function renderInto(section: HTMLElement, plugin: ClaudianPlugin): void {
 
   void (async () => {
     const { VoiceBackendResolver } = await import('../../../core/audio/VoiceBackendResolver');
-    const resolver = new VoiceBackendResolver(vs.preferFastBackend);
+    const cloud = vs.cloudEnabled && vs.cloudApiKey?.trim()
+      ? {
+        baseUrl: vs.cloudBaseUrl?.trim() || DEFAULT_CLOUD_BASE_URL,
+        apiKey: vs.cloudApiKey.trim(),
+        model: vs.cloudModel?.trim() || DEFAULT_CLOUD_MODEL,
+      }
+      : null;
+    const resolver = new VoiceBackendResolver(vs.preferFastBackend, process.platform, undefined, cloud);
     const backend = await resolver.resolve();
     backendStatusEl.textContent = backend
       ? `Aktives Backend: ${backend.displayName}`

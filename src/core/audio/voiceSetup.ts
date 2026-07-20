@@ -62,9 +62,29 @@ async function fileExists(p: string): Promise<boolean> {
   }
 }
 
+/**
+ * Dedicated venv for mlx-whisper. Homebrew Python is PEP 668
+ * externally-managed — a plain `pip install mlx-whisper` fails there, which
+ * was the "Spracheingabe kann nicht installiert werden" report. The venv
+ * avoids that and pins a native arm64 interpreter on Apple Silicon.
+ */
+const VOICE_VENV_DIR = `${homedir()}/.cache/claudian/voice-venv`;
+const VOICE_VENV_WHISPER = `${VOICE_VENV_DIR}/bin/mlx_whisper`;
+const VOICE_VENV_PIP = `${VOICE_VENV_DIR}/bin/pip`;
+
+/**
+ * mlx-whisper ≥ 0.4 dropped `python -m mlx_whisper` (no `__main__`) — the CLI
+ * is the `mlx_whisper` console script now. Accept any working invocation.
+ */
 async function mlxWhisperAvailable(): Promise<boolean> {
-  const r = await run('python3', ['-m', 'mlx_whisper', '--help'], { timeoutMs: 10_000 });
-  return r.ok;
+  if (await fileExists(VOICE_VENV_WHISPER)) {
+    const venv = await run(VOICE_VENV_WHISPER, ['--help'], { timeoutMs: 10_000 });
+    if (venv.ok) return true;
+  }
+  const script = await run('mlx_whisper', ['--help'], { timeoutMs: 10_000 });
+  if (script.ok) return true;
+  const legacy = await run('python3', ['-m', 'mlx_whisper', '--help'], { timeoutMs: 10_000 });
+  return legacy.ok;
 }
 
 const NATIVE_BREW_PATH = '/opt/homebrew/bin/brew';
@@ -163,6 +183,21 @@ export async function ensureVoiceDependencies(model = 'base'): Promise<SetupResu
   // ── 2. whisper-cli ─────────────────────────────────────────────────
   if (await checkNativeCli('whisper-cli')) {
     result.whisperOk = true;
+  } else if (isAppleSilicon() && !(await fileExists(NATIVE_BREW_PATH))) {
+    // No NATIVE Homebrew on this machine — only the Intel one at /usr/local.
+    // Reinstalling whisper-cpp through it would just produce another Rosetta
+    // binary (and the next check would fail again → endless setup loop, the
+    // "installiert nicht" bug). A Rosetta whisper-cli still WORKS, just
+    // slower — accept it and say so plainly. The fast paths (whisper-server
+    // is Rosetta-free to run, mlx-whisper native via venv, or the cloud
+    // backend) don't depend on this binary's architecture.
+    const anyWhisper = await run('which', ['whisper-cli']);
+    if (anyWhisper.ok && anyWhisper.stdout.trim()) {
+      result.whisperOk = true;
+      steps.push('Hinweis: whisper-cli läuft unter Rosetta (kein natives Homebrew gefunden) — funktioniert, aber langsamer. Für natives whisper-cpp: Homebrew unter /opt/homebrew installieren.');
+    } else {
+      steps.push('whisper-cli fehlt und es gibt kein natives Homebrew (/opt/homebrew) zum Installieren — bitte Homebrew nativ installieren oder das Cloud-Backend nutzen.');
+    }
   } else {
     steps.push(
       isAppleSilicon()
@@ -209,19 +244,49 @@ export async function ensureVoiceDependencies(model = 'base'): Promise<SetupResu
     if (await mlxWhisperAvailable()) {
       result.mlxOk = true;
     } else {
-      steps.push('Installiere mlx-whisper für schnelle Transkription…');
-      const install = await run('python3', ['-m', 'pip', 'install', 'mlx-whisper'], { timeoutMs: 300_000 });
-      if (install.ok && (await mlxWhisperAvailable())) {
-        result.mlxOk = true;
-        steps.push('mlx-whisper installiert.');
+      steps.push('Installiere mlx-whisper für schnelle native Transkription (eigene Umgebung)…');
+      // Homebrew Python is PEP 668 externally-managed — `pip install` into it
+      // fails. A dedicated venv at ~/.cache/claudian/voice-venv is immune to
+      // that and keeps every dependency out of the system Python.
+      const venvReady = await fileExists(VOICE_VENV_PIP)
+        || (await run('python3', ['-m', 'venv', VOICE_VENV_DIR], { timeoutMs: 120_000 })).ok;
+      if (!venvReady) {
+        steps.push('mlx-whisper-Installation fehlgeschlagen: Python-Umgebung (venv) konnte nicht erstellt werden.');
       } else {
-        steps.push(`mlx-whisper-Installation fehlgeschlagen: ${install.stderr.slice(0, 200)}`);
+        const install = await run(VOICE_VENV_PIP, ['install', 'mlx-whisper'], { timeoutMs: 600_000 });
+        if (install.ok && (await mlxWhisperAvailable())) {
+          result.mlxOk = true;
+          steps.push('mlx-whisper installiert (nativ, Metal-beschleunigt).');
+        } else {
+          steps.push(`mlx-whisper-Installation fehlgeschlagen: ${install.stderr.slice(0, 200)}`);
+        }
       }
     }
   }
 
   result.message = steps.join(' ');
   return result;
+}
+
+/**
+ * Cloud users need exactly ONE local dependency: ffmpeg for the webm→wav
+ * conversion before upload. No whisper binaries, no models, no venv.
+ */
+export async function ensureFfmpegOnly(): Promise<{ ok: boolean; message: string }> {
+  if (await checkNativeCli('ffmpeg')) {
+    return { ok: true, message: '' };
+  }
+  // Any ffmpeg works for a plain format conversion — architecture is
+  // irrelevant here, so accept a Rosetta build without complaint.
+  const anyFfmpeg = await run('which', ['ffmpeg']);
+  if (anyFfmpeg.ok && anyFfmpeg.stdout.trim()) {
+    return { ok: true, message: '' };
+  }
+  const brew = await resolveBrewCommand();
+  const install = await run(brew, ['install', 'ffmpeg'], { timeoutMs: 300_000 });
+  return install.ok
+    ? { ok: true, message: 'ffmpeg installiert.' }
+    : { ok: false, message: `ffmpeg-Installation fehlgeschlagen: ${install.stderr.slice(0, 200)}` };
 }
 
 /**
@@ -232,9 +297,15 @@ export async function ensureVoiceDependencies(model = 'base'): Promise<SetupResu
  */
 export async function areVoiceDependenciesReady(model = 'base', preferFastBackend = false): Promise<boolean> {
   const modelPath = `${MODEL_DIR}/ggml-${model}.bin`;
+  // Mirror the setup's Rosetta acceptance: without a native Homebrew an
+  // x86_64 whisper-cli is the best available option — don't report "missing"
+  // forever when nothing better can be installed anyway.
+  const rosettaAccepted = isAppleSilicon()
+    && !(await fileExists(NATIVE_BREW_PATH))
+    && (await run('which', ['whisper-cli'])).ok;
   const [ffmpegOk, whisperOk, modelOk, mlxOk] = await Promise.all([
     checkNativeCli('ffmpeg'),
-    checkNativeCli('whisper-cli'),
+    rosettaAccepted ? Promise.resolve(true) : checkNativeCli('whisper-cli'),
     fileExists(modelPath),
     preferFastBackend && process.platform === 'darwin' ? mlxWhisperAvailable() : Promise.resolve(true),
   ]);

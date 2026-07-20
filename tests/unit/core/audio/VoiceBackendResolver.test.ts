@@ -45,4 +45,25 @@ describe('VoiceBackendResolver', () => {
     const backend = await resolver.resolve();
     expect(backend?.id).toBe('custom');
   });
+
+  it('prefers the cloud backend when an API key is configured', async () => {
+    // No factories → real candidate list; the cloud transcriber's availability
+    // is config-only (key present), so it must win over every local backend
+    // without any probing.
+    const resolver = new VoiceBackendResolver(true, 'darwin', undefined, {
+      baseUrl: 'https://api.groq.com/openai/v1',
+      apiKey: 'gsk_test',
+      model: 'whisper-large-v3-turbo',
+    });
+    const backend = await resolver.resolve();
+    expect(backend?.id).toBe('cloud-whisper');
+  });
+
+  it('skips the cloud backend when factories are injected (test path)', async () => {
+    const resolver = new VoiceBackendResolver(true, 'darwin', [
+      () => fakeTranscriber('local', true),
+    ], { baseUrl: 'https://api.groq.com/openai/v1', apiKey: 'gsk_test', model: 'whisper-large-v3-turbo' });
+    const backend = await resolver.resolve();
+    expect(backend?.id).toBe('local');
+  });
 });

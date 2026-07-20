@@ -1,8 +1,11 @@
+import type { CloudWhisperConfig } from './CloudWhisperTranscriber';
 import type { TranscriberFactory } from './VoiceBackendResolver';
 import { VoiceBackendResolver } from './VoiceBackendResolver';
 import type { TranscriberOptions, TranscriptionResult, VoiceTranscriber } from './VoiceTranscriber';
 
 export type { TranscriberOptions, TranscriptionResult, VoiceTranscriber };
+export type { CloudWhisperConfig } from './CloudWhisperTranscriber';
+export { DEFAULT_CLOUD_BASE_URL, DEFAULT_CLOUD_MODEL } from './CloudWhisperTranscriber';
 export type { TranscriberFactory } from './VoiceBackendResolver';
 export { parseWhisperOutput, WhisperCliTranscriber } from './WhisperCliTranscriber';
 
@@ -35,6 +38,8 @@ export interface TranscribeOptions extends TranscriberOptions {
   preferFastBackend?: boolean;
   /** Optional backend factories for testing or custom backends. */
   backendFactories?: TranscriberFactory[];
+  /** Cloud transcription config — used first when an API key is set. */
+  cloud?: CloudWhisperConfig | null;
 }
 
 /**
@@ -50,6 +55,7 @@ export async function transcribeAudioFile(
     options.preferFastBackend ?? true,
     process.platform,
     options.backendFactories,
+    options.cloud,
   );
   const backend = await resolver.resolve();
   if (!backend) {

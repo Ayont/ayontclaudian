@@ -1,6 +1,7 @@
 import type { Component } from 'obsidian';
 import { Menu, Notice, Platform, setIcon } from 'obsidian';
 
+import { DEFAULT_CLOUD_BASE_URL, DEFAULT_CLOUD_MODEL } from '../../../core/audio/CloudWhisperTranscriber';
 import { resolveVoiceLanguage } from '../../../core/audio/transcription';
 import { buildConversationContextBootstrap, computeBootstrapCharCap } from '../../../core/conversation/ConversationContextBootstrap';
 import { computeProviderSessionHandoff } from '../../../core/conversation/providerSessionHandoff';
@@ -1390,6 +1391,15 @@ function initializeInputToolbar(
     getModel: () => plugin.settings.voiceSettings?.model ?? 'base',
     getMicrophoneId: () => plugin.settings.voiceSettings?.microphoneId ?? '',
     getPreferFastBackend: () => plugin.settings.voiceSettings?.preferFastBackend ?? true,
+    getCloudConfig: () => {
+      const vs = plugin.settings.voiceSettings;
+      if (!vs?.cloudEnabled || !vs.cloudApiKey?.trim()) return null;
+      return {
+        baseUrl: vs.cloudBaseUrl?.trim() || DEFAULT_CLOUD_BASE_URL,
+        apiKey: vs.cloudApiKey.trim(),
+        model: vs.cloudModel?.trim() || DEFAULT_CLOUD_MODEL,
+      };
+    },
   });
   voiceInput.render(osActionsEl);
   dom.eventCleanups.push(() => voiceInput.destroy());

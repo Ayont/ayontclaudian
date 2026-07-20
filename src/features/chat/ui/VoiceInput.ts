@@ -4,8 +4,9 @@ import { homedir, tmpdir } from 'node:os';
 
 import { Notice, setIcon } from 'obsidian';
 
+import type { CloudWhisperConfig } from '../../../core/audio/CloudWhisperTranscriber';
 import { transcribeAudioFile } from '../../../core/audio/transcription';
-import { ensureVoiceDependencies } from '../../../core/audio/voiceSetup';
+import { ensureFfmpegOnly, ensureVoiceDependencies } from '../../../core/audio/voiceSetup';
 import { getEnhancedPath } from '../../../utils/env';
 
 export interface VoiceInputCallbacks {
@@ -19,6 +20,8 @@ export interface VoiceInputCallbacks {
   getMicrophoneId?: () => string;
   /** Whether to prefer the fast transcription backend (mlx_whisper on macOS). */
   getPreferFastBackend?: () => boolean;
+  /** Cloud transcription config (null = local backends only). */
+  getCloudConfig?: () => CloudWhisperConfig | null;
 }
 
 type VoiceState = 'idle' | 'recording' | 'processing';
@@ -107,6 +110,22 @@ export class VoiceInput {
 
   private async ensureSetup(): Promise<boolean> {
     if (this.setupDone) return true;
+    const cloud = this.callbacks.getCloudConfig?.();
+    // Cloud path: the ONLY local dependency is ffmpeg (webm→wav before
+    // upload) — no whisper binaries, no multi-hundred-MB model downloads.
+    if (cloud?.apiKey) {
+      const ffmpeg = await ensureFfmpegOnly();
+      if (ffmpeg.ok) {
+        this.setupDone = true;
+        return true;
+      }
+      new Notice(
+        `Spracheingabe (Cloud) braucht ffmpeg für die Audio-Konvertierung. ${ffmpeg.message} Manuell: brew install ffmpeg`,
+        10_000,
+      );
+      return false;
+    }
+
     const model = this.callbacks.getModel?.() ?? 'base';
     new Notice('Spracheingabe wird eingerichtet — erste Einrichtung kann 1–3 Minuten dauern…');
     this.setState('processing');
@@ -235,6 +254,7 @@ export class VoiceInput {
         model,
         modelPath,
         preferFastBackend: this.callbacks.getPreferFastBackend?.() ?? true,
+        cloud: this.callbacks.getCloudConfig?.() ?? null,
       });
 
       if (controller.signal.aborted) return;

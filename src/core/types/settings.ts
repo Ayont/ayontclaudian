@@ -159,6 +159,13 @@ export interface ClaudianSettings {
     microphoneId: string;
     /** Prefer a fast backend (mlx_whisper on macOS) when available. */
     preferFastBackend: boolean;
+    /** Cloud transcription (OpenAI-compatible, e.g. Groq) — fastest, opt-in. */
+    cloudEnabled?: boolean;
+    /** OpenAI-compatible base URL; defaults to Groq when empty. */
+    cloudBaseUrl?: string;
+    cloudApiKey?: string;
+    /** Cloud model; defaults to whisper-large-v3-turbo when empty. */
+    cloudModel?: string;
   };
 
   // Model & thinking (provider interprets values)
