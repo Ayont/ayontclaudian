@@ -191,3 +191,38 @@
 
 /* Reduced motion is handled globally in base/animations.css
    (.claudian-container * gets zero-duration transitions). */
+
+/* ── Multi-Agent-Modus (inline team missions) ────────────────────────────
+   The users-button becomes a toggle; while active it pulses gently in the
+   accent and the composer carries a matching focus ring tint. */
+.claudian-os-action-button.is-active {
+  color: var(--claudian-accent);
+  border-color: color-mix(in srgb, var(--claudian-accent) 55%, transparent);
+  animation: cl-tab-pulse 2.2s var(--cl-ease) infinite;
+}
+
+.claudian-multi-agent-active .claudian-input-wrapper {
+  --claudian-input-wrapper-border-color: color-mix(in srgb, var(--claudian-accent) 45%, transparent);
+}
+
+/* Team contribution cards rendered inline in the transcript. */
+.claudian-team-contribution {
+  margin: var(--cl-space-2) 0;
+  padding: 8px 12px;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: var(--cl-radius-md);
+  background: var(--cl-surface-sunken);
+}
+
+.claudian-team-contribution > summary {
+  cursor: pointer;
+  color: var(--text-normal);
+  font-size: var(--cl-text-sm);
+}
+
+.claudian-team-contribution-meta {
+  margin-inline-start: 8px;
+  color: var(--text-muted);
+  font-family: var(--cl-font-mono);
+  font-size: 10px;
+}

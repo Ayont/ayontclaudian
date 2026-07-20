@@ -1,5 +1,5 @@
 import type { Component } from 'obsidian';
-import { Notice, Platform, setIcon } from 'obsidian';
+import { Menu, Notice, Platform, setIcon } from 'obsidian';
 
 import { resolveVoiceLanguage } from '../../../core/audio/transcription';
 import { buildConversationContextBootstrap, computeBootstrapCharCap } from '../../../core/conversation/ConversationContextBootstrap';
@@ -26,11 +26,13 @@ import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
 import type { AutoTurnResult } from '../../../core/runtime/types';
 import { TOOL_AGENT_OUTPUT } from '../../../core/tools/toolNames';
 import type { ChatMessage, ClaudianSettings, Conversation, StreamChunk } from '../../../core/types';
+import { getWorkspaceModeMeta, normalizeWorkspaceMode } from '../../../core/workspace/workspaceMode';
 import { getLocale, t } from '../../../i18n/i18n';
 import type ClaudianPlugin from '../../../main';
 import { SlashCommandDropdown } from '../../../shared/components/SlashCommandDropdown';
 import { getEnhancedPath } from '../../../utils/env';
 import { getVaultPath } from '../../../utils/path';
+import { TeamConfigModal } from '../../multiAgent/TeamConfigModal';
 import { BrowserSelectionController } from '../controllers/BrowserSelectionController';
 import { CanvasSelectionController } from '../controllers/CanvasSelectionController';
 import { ConversationController } from '../controllers/ConversationController';
@@ -1320,8 +1322,42 @@ function initializeInputToolbar(
   createOSButton('Dashboard', 'layout-dashboard', () => {
     void plugin.openDashboard();
   });
-  tab.ui.multiAgentButton = createOSButton('Multi-Agent', 'users', () => {
-    void plugin.runMultiAgentTask();
+  // Multi-Agent-Modus: TOGGLE (not a popup) — while active, plain prompts run
+  // as inline team missions whose contributions render in the chat. Right-
+  // click offers the team editor and the classic Mission-Control view.
+  tab.ui.multiAgentButton = createOSButton('Multi-Agent-Modus umschalten', 'users', () => {
+    const next = !tab.state.multiAgentModeActive;
+    tab.state.multiAgentModeActive = next;
+    tab.ui.multiAgentButton?.classList.toggle('is-active', next);
+    tab.ui.multiAgentButton?.setAttribute('aria-pressed', String(next));
+    dom.inputContainerEl.classList.toggle('claudian-multi-agent-active', next);
+    dom.inputEl.placeholder = next
+      ? 'Mission an dein Agenten-Team…'
+      : getWorkspaceModeMeta(normalizeWorkspaceMode(plugin.settings.workspaceMode)).placeholder;
+    new Notice(next
+      ? 'Multi-Agent-Modus aktiv — Prompts laufen als Team-Mission im Chat.'
+      : 'Multi-Agent-Modus aus.');
+  });
+  tab.ui.multiAgentButton.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+    const menu = new Menu();
+    menu.addItem((item) =>
+      item
+        .setTitle('Agenten-Team konfigurieren…')
+        .setIcon('settings')
+        .onClick(() => {
+          new TeamConfigModal(plugin, () => {}).open();
+        }),
+    );
+    menu.addItem((item) =>
+      item
+        .setTitle('Mission Control öffnen')
+        .setIcon('layout-panel-top')
+        .onClick(() => {
+          void plugin.runMultiAgentTask();
+        }),
+    );
+    menu.showAtMouseEvent(event);
   });
   createOSButton('Index RAG', 'search', () => {
     void plugin.indexVaultRAG();
@@ -1864,6 +1900,7 @@ export function initializeTabControllers(
     getInstructionRefineService: () => services.instructionRefineService,
     getTitleGenerationService: () => services.titleGenerationService,
     getStatusPanel: () => ui.statusPanel,
+    isMultiAgentModeActive: () => tab.state.multiAgentModeActive === true,
     generateId: generateMessageId,
     resetInputHeight: () => {
       autoResizeTextarea(dom.inputEl);

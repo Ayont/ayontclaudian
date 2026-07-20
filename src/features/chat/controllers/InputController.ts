@@ -122,6 +122,8 @@ export interface InputControllerDeps {
   getAuxiliaryModel?: () => string | null;
   getActiveModel?: () => string | null;
   getAgentService?: () => ChatRuntime | null;
+  /** True while the tab's Multi-Agent-Modus toggle is on (inline team missions). */
+  isMultiAgentModeActive?: () => boolean;
   getSubagentManager: () => SubagentManager;
   /**
    * Analyzes a single image via a vision-capable provider (cross-provider
@@ -352,6 +354,21 @@ export class InputController {
       for (const item of commandChain) {
         await this.executeBuiltInCommand(item.command, item.args);
       }
+      return;
+    }
+
+    // Multi-Agent-Modus: plain prompts become inline team missions — the
+    // agents' contributions and the synthesis render directly in the chat.
+    if (
+      this.deps.isMultiAgentModeActive?.()
+      && shouldUseInput
+      && content
+      && !content.startsWith('/')
+      && !hasImages
+    ) {
+      inputEl.value = '';
+      this.deps.resetInputHeight();
+      await this.runInlineTeamMission(content);
       return;
     }
 
@@ -1730,6 +1747,54 @@ export class InputController {
     this.awaitingProviderAssistantStart = false;
   }
 
+  /**
+   * Runs a team mission INLINE in the chat: mission banner, one collapsible
+   * contribution card per agent (name + provider · model), then the
+   * synthesized answer. Shared by the Multi-Agent-Modus toggle and `/team`.
+   */
+  private async runInlineTeamMission(task: string): Promise<void> {
+    const { streamController, plugin } = this.deps;
+    new Notice('🤝 Team-Mission gestartet — Live-Updates im Chat.');
+    await streamController.appendText(
+      `\n\n> [!info]+ 🤝 Team-Mission\n> **Aufgabe:** ${task}\n> Das Team arbeitet parallel — Beiträge und Ergebnis erscheinen unten.\n`,
+    );
+    try {
+      const result = await plugin.runInlineTeamTask(task);
+
+      const contributions = result.results
+        .map((entry) => {
+          const agent = plugin.multiAgentService.getAgent(entry.agentId);
+          const name = agent?.name ?? entry.agentId;
+          const meta = agent?.model && agent?.providerId
+            ? `${agent.providerId} · ${agent.model}`
+            : agent?.role ?? '';
+          const body = (entry.output || '_Kein Beitrag._').trim();
+          return [
+            '<details class="claudian-team-contribution">',
+            `<summary><strong>${name}</strong>${meta ? ` <span class="claudian-team-contribution-meta">${meta}</span>` : ''}</summary>`,
+            '',
+            body,
+            '',
+            '</details>',
+          ].join('\n');
+        })
+        .join('\n');
+
+      const failoverNote = result.results.some((entry) => entry.output.includes('failed over'))
+        ? '\n\n*Rate-Limit-Failover war aktiv — Details im Mission-Log.*'
+        : '';
+
+      await streamController.appendText(
+        `\n\n${contributions}\n\n### 🎯 Ergebnis\n${result.synthesis || '_Keine Synthese erzeugt._'}${failoverNote}\n`,
+      );
+      new Notice('Team-Mission abgeschlossen.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      new Notice(`Team-Mission fehlgeschlagen: ${message}`);
+      await streamController.appendText(`\n\n**Team-Fehler:** ${message}\n`);
+    }
+  }
+
   private async buildTemplateContext(): Promise<TemplateContext> {
     const ctx: TemplateContext = {};
 
@@ -2570,36 +2635,10 @@ export class InputController {
       case 'team': {
         const task = args.trim();
         if (!task) {
-          new Notice('Usage: /team <task description>');
+          new Notice('Usage: /team <Aufgabe>');
           return;
         }
-        new Notice('🚀 Multi-Agent Team gestartet — siehe Chat für Live-Updates.');
-        try {
-          const { streamController } = this.deps;
-          const plugin = this.deps.plugin;
-
-          // Show a header in the chat stream
-          await streamController.appendText(
-            `\n\n---\n## 🚀 Multi-Agent Team\n**Task:** ${task}\n\nSpecialists arbeiten parallel — Live-Updates unten...\n---\n`,
-          );
-
-          const result = await plugin.runInlineTeamTask(task);
-
-          // Show failover log if any
-          const failoverNote = result.results.some((r) => r.output.includes('failed over'))
-            ? '\n\n*Rate-limit failover war aktiv — siehe Mission Log für Details.*'
-            : '';
-
-          await streamController.appendText(
-            `\n\n## 🎯 Synthesized Answer\n${result.synthesis || '_No synthesis produced._'}${failoverNote}\n`,
-          );
-
-          new Notice('Multi-Agent Team abgeschlossen.');
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          new Notice(`Team fehlgeschlagen: ${message}`);
-          await this.deps.streamController.appendText(`\n\n**Team Error:** ${message}\n`);
-        }
+        await this.runInlineTeamMission(task);
         break;
       }
       case 'template': {

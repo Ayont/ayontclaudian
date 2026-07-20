@@ -51,6 +51,8 @@ export interface ChatStateData {
 
   // Streaming control
   isStreaming: boolean;
+  /** Multi-Agent-Modus: Prompts laufen als Team-Mission inline im Chat. */
+  multiAgentModeActive?: boolean;
   cancelRequested: boolean;
   streamGeneration: number;
   /** Guards against concurrent operations during conversation creation. */

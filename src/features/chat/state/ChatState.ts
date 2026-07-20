@@ -100,6 +100,14 @@ export class ChatState {
   // Streaming Control
   // ============================================
 
+  get multiAgentModeActive(): boolean {
+    return this.state.multiAgentModeActive === true;
+  }
+
+  set multiAgentModeActive(value: boolean) {
+    this.state.multiAgentModeActive = value;
+  }
+
   get isStreaming(): boolean {
     return this.state.isStreaming;
   }

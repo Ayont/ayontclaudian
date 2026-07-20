@@ -49,6 +49,7 @@ import {
   BUILT_IN_SPECIALIST_AGENTS,
   DEFAULT_INLINE_TEAM_AGENT_IDS,
 } from './core/intelligence/multiAgent/agentRegistry';
+import { buildCustomTeamAgents } from './core/intelligence/multiAgent/customTeam';
 import {
   multiAgentAvailabilityService,
 } from './core/intelligence/multiAgent/MultiAgentAvailabilityService';
@@ -1816,15 +1817,30 @@ export default class ClaudianPlugin extends Plugin {
    */
   async runInlineTeamTask(
     taskPrompt: string,
-    agentIds: string[] = DEFAULT_INLINE_TEAM_AGENT_IDS,
+    agentIds?: string[],
   ): Promise<{ synthesis: string; results: { agentId: string; output: string }[] }> {
+    // No explicit ids → use the configured custom team when enabled
+    // (Codex + Fable + Opus & Co), otherwise the compact built-in team.
+    let missionAgentIds = agentIds ?? DEFAULT_INLINE_TEAM_AGENT_IDS;
+    if (!agentIds && this.settings.multiAgentUseCustomTeam) {
+      const customAgents = buildCustomTeamAgents(
+        this.settings.multiAgentTeam ?? [],
+        this.settings as unknown as Record<string, unknown>,
+      );
+      if (customAgents.length > 0) {
+        for (const agent of customAgents) {
+          this.multiAgentService.registerAgent(agent);
+        }
+        missionAgentIds = customAgents.map((agent) => agent.id);
+      }
+    }
     const executor = this.buildMultiAgentExecutor();
     const synthesizer = this.buildInlineTeamSynthesizer();
     const taskId = `inline-team-${Date.now()}`;
 
     const activeProviderId = this.getActiveMultiAgentProviderId();
     const result = await this.multiAgentService.runMission(
-      { id: taskId, prompt: taskPrompt, agents: agentIds },
+      { id: taskId, prompt: taskPrompt, agents: missionAgentIds },
       executor,
       synthesizer,
       undefined,
