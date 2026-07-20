@@ -26,21 +26,23 @@
   border-radius: var(--cl-radius-pill);
 }
 
-/* Current selection (visible when collapsed) */
+/* Current selection (visible when collapsed) — a real chip, visually paired
+   with the model pill (border + raised surface, accent carries the value). */
 .claudian-thinking-current {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 2px var(--cl-space-2);
+  min-height: 28px;
+  padding: 3px 10px;
   font-family: var(--cl-font-ui);
   font-size: var(--cl-text-xs);
   color: var(--cl-accent);
   font-weight: 500;
   cursor: pointer;
-  border: 1px solid transparent;
+  border: 1px solid var(--cl-border-subtle);
   border-radius: var(--cl-radius-pill);
   white-space: nowrap;
-  background: transparent;
+  background: var(--cl-surface-raised);
   transition: background var(--cl-dur-fast) var(--cl-ease),
     border-color var(--cl-dur-fast) var(--cl-ease);
 }

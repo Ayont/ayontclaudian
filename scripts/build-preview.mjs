@@ -345,6 +345,29 @@ const chrome = `
     </div>
   </div>
   <div>
+    <div style="font-size:11px;color:var(--text-faint);margin-bottom:8px;">COMPOSER TOOLBAR</div>
+    <div class="claudian-input-wrapper" style="max-width:720px;">
+      <div class="claudian-input-toolbar">
+        <button class="claudian-model-btn" data-provider="kimi" type="button"><span class="claudian-model-provider-mark"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><circle cx="12" cy="12" r="9"/></svg></span><span class="claudian-model-label">K3</span><span class="claudian-model-provider-name">Kimi</span></button>
+        <div class="claudian-thinking-selector">
+          <div class="claudian-thinking-effort"><span class="claudian-thinking-label-text">Effort:</span><div class="claudian-thinking-gears"><div class="claudian-thinking-current">Hoch</div></div></div>
+        </div>
+        <div class="claudian-mode-selector"><span class="claudian-mode-label">Thinking</span><div class="claudian-toggle-switch active"></div></div>
+        <span style="font-size:var(--cl-text-xs);color:var(--text-muted);">≈7%</span>
+        <div class="claudian-permission-toggle"><span class="claudian-permission-label auto-active">AUTO</span><div class="claudian-toggle-switch active auto"></div></div>
+        <div class="claudian-service-tier-toggle"><button class="claudian-service-tier-button" type="button"><span class="claudian-service-tier-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg></span></button></div>
+        <button class="claudian-command-center-trigger" type="button"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"/></svg></button>
+        <div class="claudian-os-actions">
+          <button class="claudian-os-action-button" type="button"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></button>
+          <button class="claudian-os-action-button is-active" type="button"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M2 20c0-3.3 3.1-6 7-6s7 2.7 7 6"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.4c2.9.6 5.5 2.7 5.5 5.6"/></svg></button>
+          <button class="claudian-os-action-button" type="button"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></button>
+          <button class="claudian-os-action-button" type="button"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+        </div>
+      </div>
+      <textarea class="claudian-input" rows="2" placeholder="Was bauen wir?"></textarea>
+    </div>
+  </div>
+  <div>
     <div style="font-size:11px;color:var(--text-faint);margin-bottom:8px;">WELCOME</div>
     <div class="claudian-welcome" style="min-height:120px;">
       <div class="claudian-welcome-greeting">Guten Abend, Niccolo</div>

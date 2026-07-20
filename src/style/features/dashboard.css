@@ -350,8 +350,8 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   background: var(--claudian-card-bg);
   color: var(--claudian-muted);

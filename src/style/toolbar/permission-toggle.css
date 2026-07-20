@@ -21,12 +21,11 @@
 }
 
 /* AUTO ("double YOLO"): a louder, accent-charged label so it never reads like
-   plain YOLO. The active provider accent drives the color + glow. */
+   plain YOLO. Color + weight carry the signal — no glow, that reads cheap. */
 .claudian-permission-label.auto-active {
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-weight: 650;
+  letter-spacing: 0.05em;
   color: var(--cl-accent);
-  text-shadow: 0 0 10px rgba(var(--cl-accent-rgb), 0.55);
 }
 
 .claudian-toggle-switch {

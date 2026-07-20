@@ -80,11 +80,11 @@
 @keyframes cl-tab-pulse {
   0%,
   100% {
-    box-shadow: 0 0 2px 0 rgba(var(--claudian-brand-rgb), 0.35);
+    box-shadow: 0 0 2px 0 rgba(var(--claudian-brand-rgb), 0.28);
   }
 
   50% {
-    box-shadow: 0 0 7px 1px rgba(var(--claudian-brand-rgb), 0.85);
+    box-shadow: 0 0 5px 1px rgba(var(--claudian-brand-rgb), 0.5);
   }
 }
 

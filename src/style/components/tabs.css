@@ -14,11 +14,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: var(--cl-radius-sm);
-  border: 2px solid var(--cl-border-subtle);
-  font-size: var(--cl-text-sm);
+  border: 1px solid var(--cl-border-subtle);
+  font-size: var(--cl-text-xs);
   font-weight: 500;
   cursor: pointer;
   color: var(--text-muted);
@@ -26,6 +26,7 @@
   transition: border-color var(--cl-dur-fast) var(--cl-ease),
     color var(--cl-dur-fast) var(--cl-ease),
     background var(--cl-dur-fast) var(--cl-ease),
+    box-shadow var(--cl-dur-fast) var(--cl-ease),
     transform var(--cl-dur-fast) var(--cl-ease);
 }
 
@@ -33,6 +34,7 @@
   background: var(--cl-accent-soft);
   color: var(--text-normal);
   border-color: var(--cl-accent-line);
+  transform: translateY(-1px);
 }
 
 .claudian-tab-badge:active {
@@ -45,44 +47,45 @@
 }
 
 .claudian-tab-badge-active {
-  border-color: var(--cl-accent);
-  color: var(--text-normal);
+  border-color: var(--cl-accent-line);
+  color: var(--cl-accent);
   background: var(--cl-accent-soft);
+  font-weight: 600;
 }
 
 /* Persistent per-provider accent: a brand-colored underline on every tab badge
    so each tab's provider is identifiable at a glance (multitasking). Sits under
    the state border (active/attention/streaming) without fighting it. */
 .claudian-tab-badge[data-provider="claude"] {
-  box-shadow: inset 0 -3px 0 var(--claudian-brand-claude);
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-claude);
 }
 
 .claudian-tab-badge[data-provider="codex"] {
-  box-shadow: inset 0 -3px 0 var(--claudian-brand-codex);
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-codex);
 }
 
 .claudian-tab-badge[data-provider="opencode"] {
-  box-shadow: inset 0 -3px 0 var(--claudian-brand-opencode);
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-opencode);
 }
 
 .claudian-tab-badge[data-provider="pi"] {
-  box-shadow: inset 0 -3px 0 var(--claudian-brand-pi);
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-pi);
 }
 
 .claudian-tab-badge[data-provider="kimi"] {
-  box-shadow: inset 0 -3px 0 var(--claudian-brand-kimi);
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-kimi);
 }
 
 .claudian-tab-badge[data-provider="antigravity"] {
-  box-shadow: inset 0 -3px 0 var(--claudian-brand-antigravity);
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-antigravity);
 }
 
 .claudian-tab-badge[data-provider="vibe"] {
-  box-shadow: inset 0 -3px 0 var(--claudian-brand-vibe);
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-vibe);
 }
 
 .claudian-tab-badge[data-provider="grok"] {
-  box-shadow: inset 0 -3px 0 var(--claudian-brand-grok);
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-grok);
 }
 
 .claudian-tab-badge-streaming {
