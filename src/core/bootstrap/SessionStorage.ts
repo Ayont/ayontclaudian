@@ -130,6 +130,7 @@ export class SessionStorage {
         : undefined,
       goal: conversation.goal ?? undefined,
       workspaceMode: conversation.workspaceMode,
+      pinned: conversation.pinned || undefined,
       messages: conversation.messages.length > 0
         ? conversation.messages.map((message) => ({
           ...message,

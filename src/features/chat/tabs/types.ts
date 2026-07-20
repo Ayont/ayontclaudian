@@ -273,6 +273,8 @@ export interface PersistedTabState {
   tabId: TabId;
   conversationId: string | null;
   draftModel?: string | null;
+  /** Unsent composer draft, restored into the textarea on reload. */
+  draft?: string;
 }
 
 /**

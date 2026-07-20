@@ -637,10 +637,15 @@ export class TabManager implements TabManagerInterface {
     const openTabs: PersistedTabState[] = [];
 
     for (const tab of this.tabs.values()) {
+      // Unsent composer draft survives restarts (capped — a draft beyond this
+      // size is almost certainly a paste that lives elsewhere anyway).
+      // Optional chaining: a tab mid-construction may not have its DOM yet.
+      const draft = (tab.dom?.inputEl?.value ?? '').slice(0, 20_000);
       openTabs.push({
         ...(tab.lifecycleState === 'blank' && tab.draftModel
           ? { draftModel: tab.draftModel }
           : {}),
+        ...(draft.trim() ? { draft } : {}),
         tabId: tab.id,
         conversationId: tab.conversationId,
       });
@@ -664,11 +669,17 @@ export class TabManager implements TabManagerInterface {
       // tab (previously hydrated once here and again in switchToTab).
       for (const tabState of state.openTabs) {
         try {
-          await this.createTab(tabState.conversationId, tabState.tabId, {
+          const created = await this.createTab(tabState.conversationId, tabState.tabId, {
             activate: false,
             deferHydration: true,
             ...(typeof tabState.draftModel === 'string' ? { draftModel: tabState.draftModel } : {}),
           });
+          // Restore the unsent composer draft; the input event resizes the
+          // textarea and hides the quick-prompt chips.
+          if (created && typeof tabState.draft === 'string' && tabState.draft.trim()) {
+            created.dom.inputEl.value = tabState.draft;
+            created.dom.inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+          }
         } catch {
           // Continue restoring other tabs
         }

@@ -2130,6 +2130,7 @@ export default class ClaudianPlugin extends Plugin {
         providerSessions: meta.providerSessions,
         goal: meta.goal,
         workspaceMode: meta.workspaceMode,
+        pinned: meta.pinned,
         messages: meta.messages ?? [],
         currentNote: meta.currentNote,
         externalContextPaths: meta.externalContextPaths,
@@ -2617,6 +2618,7 @@ export default class ClaudianPlugin extends Plugin {
       lastResponseAt: c.lastResponseAt,
       messageCount: c.messages.length,
       preview: this.getConversationPreview(c),
+      pinned: c.pinned,
       titleGenerationStatus: c.titleGenerationStatus,
     }));
   }

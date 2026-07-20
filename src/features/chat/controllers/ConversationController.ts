@@ -634,6 +634,11 @@ export class ConversationController {
       }
 
       const sorted = [...allConversations].sort((a, b) => {
+        // Pinned conversations first, then most recent activity.
+        const pinDelta = (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
+        if (pinDelta !== 0) {
+          return pinDelta;
+        }
         return (b.lastResponseAt ?? b.createdAt) - (a.lastResponseAt ?? a.createdAt);
       });
       const conversations = query
@@ -698,6 +703,10 @@ export class ConversationController {
         cls: `claudian-history-item${isCurrent ? ' active' : ''}`,
       });
 
+      if (conv.pinned) {
+        item.addClass('is-pinned');
+      }
+
       const iconEl = item.createDiv({ cls: 'claudian-history-item-icon' });
       setIcon(iconEl, isCurrent ? 'message-square-dot' : 'message-square');
 
@@ -707,6 +716,23 @@ export class ConversationController {
       content.createDiv({
         cls: 'claudian-history-item-date',
         text: isCurrent ? 'Current session' : this.formatDate(conv.lastResponseAt ?? conv.createdAt),
+      });
+
+      // Pin toggle at the row end: pinned rows sort to the top of the history.
+      const pinBtn = item.createEl('button', {
+        cls: 'claudian-history-item-pin',
+        attr: {
+          type: 'button',
+          'aria-label': conv.pinned ? 'Chat loslösen' : 'Chat anpinnen',
+        },
+      });
+      setIcon(pinBtn, conv.pinned ? 'pin-off' : 'pin');
+      pinBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        runConversationAction(async () => {
+          await this.deps.plugin.updateConversation(conv.id, { pinned: !conv.pinned });
+          options.onRerender?.();
+        }, 'Anpinnen fehlgeschlagen');
       });
 
       if (!isCurrent) {

@@ -108,6 +108,8 @@ export interface Conversation {
   goal?: string | null;
   /** Per-chat workspace mode (Code/Work). Falls back to the global default. */
   workspaceMode?: 'code' | 'work';
+  /** Pinned conversations sort to the top of the history. */
+  pinned?: boolean;
   messages: ChatMessage[];
   currentNote?: string;
   /** Session-specific external context paths (directories with full access). Resets on new session. */
@@ -133,6 +135,8 @@ export interface ConversationMeta {
   lastResponseAt?: number;
   messageCount: number;
   preview: string;
+  /** Pinned conversations sort to the top of the history. */
+  pinned?: boolean;
   /** Status of AI title generation. */
   titleGenerationStatus?: 'pending' | 'success' | 'failed';
 }
@@ -159,6 +163,8 @@ export interface SessionMetadata {
   goal?: string | null;
   /** Per-chat workspace mode (see {@link Conversation.workspaceMode}). */
   workspaceMode?: 'code' | 'work';
+  /** Pinned conversations sort to the top of the history. */
+  pinned?: boolean;
   /** Fallback messages for providers without SDK-native message storage. */
   messages?: ChatMessage[];
   currentNote?: string;
