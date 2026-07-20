@@ -1270,13 +1270,6 @@ function initializeInputToolbar(
   tab.ui.permissionToggle = toolbarComponents.permissionToggle;
   tab.ui.serviceTierToggle = toolbarComponents.serviceTierToggle;
 
-  const commandCenterButton = inputToolbar.createEl('button', {
-    cls: 'claudian-command-center-trigger',
-    attr: { 'aria-label': 'Produktivitätszentrale öffnen', title: 'Produktivitätszentrale öffnen' },
-  });
-  setIcon(commandCenterButton, 'command');
-  commandCenterButton.addEventListener('click', () => plugin.openCommandCenter());
-
   tab.ui.mcpServerSelector.setMcpManager(getProviderMcpManager(getTabProviderId(tab, plugin)));
 
   // Sync @-mentions to UI selector
@@ -1307,6 +1300,17 @@ function initializeInputToolbar(
 
   // Claudian OS action buttons: dashboard, multi-agent, RAG index.
   const osActionsEl = inputToolbar.createDiv({ cls: 'claudian-os-actions' });
+
+  // Produktivitätszentrale leads the action cluster — one coherent group on
+  // the right instead of a lonely button floating mid-toolbar. Icon wrapped
+  // in a span like every other action button ('command' renders empty on
+  // some Obsidian builds — 'gauge' is proven).
+  const commandCenterButton = osActionsEl.createEl('button', {
+    cls: 'claudian-command-center-trigger',
+    attr: { 'aria-label': 'Produktivitätszentrale öffnen', title: 'Produktivitätszentrale öffnen' },
+  });
+  setIcon(commandCenterButton.createSpan(), 'gauge');
+  commandCenterButton.addEventListener('click', () => plugin.openCommandCenter());
 
   const createOSButton = (label: string, icon: string, onClick: () => void): HTMLButtonElement => {
     const btn = osActionsEl.createEl('button', {
