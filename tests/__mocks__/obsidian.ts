@@ -307,6 +307,24 @@ export const setIcon = jest.fn();
 
 export const setTooltip = jest.fn();
 
+/** Minimal FuzzySuggestModal stub — enough for classes extending it to load. */
+export class FuzzySuggestModal<T> {
+  app: unknown;
+  constructor(app: unknown) {
+    this.app = app;
+  }
+  setPlaceholder(_placeholder: string): void {}
+  open(): void {}
+  close(): void {}
+  getItems(): T[] {
+    return [];
+  }
+  getItemText(_item: T): string {
+    return '';
+  }
+  onChooseItem(_item: T): void {}
+}
+
 // Notice mock that tracks constructor calls
 export const Notice = jest.fn().mockImplementation((_message: string, _timeout?: number) => {});
 

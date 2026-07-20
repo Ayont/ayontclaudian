@@ -1677,6 +1677,30 @@ export function initializeTabControllers(
       : undefined,
     () => getTabCapabilities(tab, plugin),
     () => tab.ui.modelSelector?.openPicker(),
+    // "Erneut generieren": re-send the user prompt that preceded this answer
+    // as a NEW turn through the normal send path (context stays intact).
+    (assistantMsg) => {
+      if (tab.state.isStreaming) {
+        new Notice('Es läuft bereits eine Antwort — bitte warten oder abbrechen.');
+        return;
+      }
+      const messages = (tab.conversationId
+        ? plugin.getConversationSync(tab.conversationId)?.messages
+        : null) ?? [];
+      const index = messages.findIndex((message) => message.id === assistantMsg.id);
+      const pool = index >= 0 ? messages.slice(0, index) : messages;
+      const lastUser = [...pool]
+        .reverse()
+        .find((message) => message.role === 'user' && !message.isInterrupt && !message.isRebuiltContext);
+      const prompt = (lastUser?.displayContent ?? lastUser?.content ?? '').trim();
+      if (!prompt) {
+        new Notice('Kein Prompt zum erneuten Ausführen gefunden.');
+        return;
+      }
+      dom.inputEl.value = prompt;
+      dom.inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      void tab.controllers.inputController?.sendMessage();
+    },
   );
 
   // Selection controller

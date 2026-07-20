@@ -23,6 +23,7 @@ import { replaceImageEmbedsWithHtml } from '../../../utils/imageEmbed';
 import { escapeMathDelimitersForStreaming } from '../../../utils/markdownMath';
 import { findRewindContext } from '../rewind';
 import { exportAssistantResponse } from '../services/ResponseExportService';
+import { AppendToNoteModal } from '../ui/AppendToNoteModal';
 import { attachmentTypeMeta } from '../ui/file-drop/attachmentMeta';
 import { renderAutoMemoryChips } from './AutoMemoryChip';
 import { renderEmailTemplates } from './EmailTemplateRenderer';
@@ -223,6 +224,7 @@ export class MessageRenderer {
   private getCapabilities: () => ProviderCapabilities;
   private forkCallback?: (messageId: string) => Promise<void>;
   private switchModelCallback?: () => void;
+  private regenerateCallback?: (msg: ChatMessage) => void;
   private liveMessageEls = new Map<string, HTMLElement>();
   /**
    * Provider used as a fallback for messages persisted before `agentProvider`
@@ -246,6 +248,7 @@ export class MessageRenderer {
     forkCallback?: (messageId: string) => Promise<void>,
     getCapabilities?: () => ProviderCapabilities,
     switchModelCallback?: () => void,
+    regenerateCallback?: (msg: ChatMessage) => void,
   ) {
     this.app = plugin.app;
     this.plugin = plugin;
@@ -254,6 +257,7 @@ export class MessageRenderer {
     this.rewindCallback = rewindCallback;
     this.forkCallback = forkCallback;
     this.switchModelCallback = switchModelCallback;
+    this.regenerateCallback = regenerateCallback;
     this.getCapabilities = getCapabilities ?? (() => ({
       providerId: DEFAULT_CHAT_PROVIDER_ID,
       supportsPersistentRuntime: false,
@@ -937,8 +941,37 @@ export class MessageRenderer {
     const actionsEl = footerEl.createDiv({ cls: 'claudian-response-actions' });
     if (copyContent) this.addAssistantCopyButton(actionsEl, copyContent);
     if (copyContent) this.addAssistantExportButton(actionsEl, msg);
+    if (copyContent) this.addAssistantAppendButton(actionsEl, copyContent);
+    this.addRegenerateButton(actionsEl, msg);
     this.addAgentUndoButton(actionsEl);
     this.addSwitchModelButton(actionsEl);
+  }
+
+  /** "An Notiz anhängen": append this answer to a picked vault note. */
+  private addAssistantAppendButton(actionsEl: HTMLElement, content: string): void {
+    const btn = actionsEl.createEl('button', { cls: 'claudian-response-action' });
+    btn.setAttribute('type', 'button');
+    btn.setAttribute('aria-label', 'Antwort an eine Notiz anhängen');
+    setIcon(btn.createSpan(), 'file-plus-2');
+    btn.createSpan({ text: 'An Notiz anhängen' });
+    btn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      new AppendToNoteModal(this.app, content).open();
+    });
+  }
+
+  /** "Erneut generieren": re-send the prompt that produced this answer. */
+  private addRegenerateButton(actionsEl: HTMLElement, msg: ChatMessage): void {
+    if (!this.regenerateCallback) return;
+    const btn = actionsEl.createEl('button', { cls: 'claudian-response-action' });
+    btn.setAttribute('type', 'button');
+    btn.setAttribute('aria-label', 'Prompt erneut ausführen');
+    setIcon(btn.createSpan(), 'refresh-cw');
+    btn.createSpan({ text: 'Erneut generieren' });
+    btn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      this.regenerateCallback?.(msg);
+    });
   }
 
   private addAgentUndoButton(actionsEl: HTMLElement): void {
