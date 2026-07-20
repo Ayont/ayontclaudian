@@ -56,6 +56,7 @@ import { ImageContextManager } from '../ui/ImageContext';
 import { createInputToolbar } from '../ui/InputToolbar';
 import { InstructionModeManager as InstructionModeManagerClass } from '../ui/InstructionModeManager';
 import { NavigationSidebar } from '../ui/NavigationSidebar';
+import { extractRecallablePrompts, PromptHistoryCursor } from '../ui/promptHistory';
 import { StatusPanel } from '../ui/StatusPanel';
 import { StreamStatusBar } from '../ui/StreamStatusBar';
 import { autoResizeTextarea } from '../ui/textareaResize';
@@ -1948,6 +1949,51 @@ export function initializeTabControllers(
 export function wireTabInputEvents(tab: TabData, plugin: ClaudianPlugin): void {
   const { dom, ui, state, controllers } = tab;
 
+  // Terminal-style prompt recall: ArrowUp on an empty composer browses the
+  // conversation's previous prompts; typing or Escape exits.
+  const promptHistory = new PromptHistoryCursor(() =>
+    extractRecallablePrompts(
+      tab.conversationId
+        ? plugin.getConversationSync(tab.conversationId)?.messages ?? []
+        : [],
+    ),
+  );
+  const applyRecalledPrompt = (value: string): void => {
+    dom.inputEl.value = value;
+    dom.inputEl.setSelectionRange(value.length, value.length);
+    autoResizeTextarea(dom.inputEl);
+  };
+  const handlePromptRecallKeydown = (e: KeyboardEvent): boolean => {
+    if (e.isComposing || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) {
+      return false;
+    }
+    if (e.key === 'ArrowUp') {
+      const recalled = promptHistory.older(dom.inputEl.value);
+      if (recalled === null) {
+        return false;
+      }
+      e.preventDefault();
+      applyRecalledPrompt(recalled);
+      return true;
+    }
+    if (e.key === 'ArrowDown') {
+      const recalled = promptHistory.newer();
+      if (recalled === null) {
+        return false;
+      }
+      e.preventDefault();
+      applyRecalledPrompt(recalled);
+      return true;
+    }
+    if (e.key === 'Escape' && promptHistory.isBrowsing()) {
+      e.preventDefault();
+      promptHistory.reset();
+      applyRecalledPrompt('');
+      return true;
+    }
+    return false;
+  };
+
   let wasBangBashActive = ui.bangBashModeManager?.isActive() ?? false;
   const syncBangBashSuppression = (): void => {
     const isActive = ui.bangBashModeManager?.isActive() ?? false;
@@ -1996,6 +2042,10 @@ export function wireTabInputEvents(tab: TabData, plugin: ClaudianPlugin): void {
       return;
     }
 
+    if (handlePromptRecallKeydown(e)) {
+      return;
+    }
+
     // Check !e.isComposing for IME support (Chinese, Japanese, Korean, etc.)
     if (e.key === 'Escape' && !e.isComposing && state.isStreaming) {
       e.preventDefault();
@@ -2011,6 +2061,7 @@ export function wireTabInputEvents(tab: TabData, plugin: ClaudianPlugin): void {
   dom.eventCleanups.push(() => dom.inputEl.removeEventListener('keydown', keydownHandler));
 
   const inputHandler = () => {
+    promptHistory.notifyInput(dom.inputEl.value);
     if (!ui.bangBashModeManager?.isActive()) {
       ui.fileContextManager?.handleInputChange();
     }

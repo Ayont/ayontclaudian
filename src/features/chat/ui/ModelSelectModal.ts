@@ -19,7 +19,7 @@ export class ModelSelectModal extends Modal {
   }
 
   onOpen(): void {
-    this.titleEl.setText('Select model');
+    this.titleEl.setText('Modell wählen');
     this.modalEl.addClass('claudian-model-select-modal');
     this.contentEl.addClass('claudian-model-select-content');
 
@@ -33,7 +33,7 @@ export class ModelSelectModal extends Modal {
     const searchContainer = frame.createDiv({ cls: 'claudian-model-select-search' });
     this.searchInput = searchContainer.createEl('input', {
       type: 'text',
-      placeholder: 'Search models…',
+      placeholder: 'Modelle durchsuchen…',
       cls: 'claudian-model-select-search-input',
     });
     this.searchInput.addEventListener('input', (event) => {
