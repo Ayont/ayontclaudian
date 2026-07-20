@@ -32,6 +32,9 @@ export class MissionBoard {
   private readonly rootEl: HTMLElement;
   private readonly overallFillEl: HTMLElement;
   private readonly rows = new Map<string, MissionBoardRow>();
+  private readonly blobs = new Map<string, HTMLElement>();
+  private readonly flowDots = new Map<string, HTMLElement>();
+  private readonly hubEl: HTMLElement;
   private readonly synthSectionEl: HTMLElement;
   private readonly synthOutputEl: HTMLElement;
 
@@ -45,6 +48,36 @@ export class MissionBoard {
     header.createDiv({ cls: 'claudian-mission-board-task', text: task });
     const overallTrack = header.createDiv({ cls: 'claudian-mission-board-overall' });
     this.overallFillEl = overallTrack.createDiv({ cls: 'claudian-mission-board-overall-fill' });
+
+    // Blob strip: each agent is a named, breathing blob; while it works,
+    // pulses travel along the flow rail into the synthesis hub — the visible
+    // "agents are talking to the lead" layer.
+    const blobsEl = this.rootEl.createDiv({ cls: 'claudian-mission-board-blobs' });
+    const blobRow = blobsEl.createDiv({ cls: 'claudian-mission-board-blob-row' });
+    for (const agent of agents) {
+      const blob = blobRow.createDiv({ cls: 'claudian-mission-board-blob is-pending' });
+      if (agent.color) {
+        blob.style.setProperty('--mission-agent-color', agent.color);
+      }
+      blob.createDiv({
+        cls: 'claudian-mission-board-blob-circle',
+        text: (agent.name.trim()[0] ?? '?').toUpperCase(),
+      });
+      blob.createDiv({ cls: 'claudian-mission-board-blob-label', text: agent.name });
+      this.blobs.set(agent.id, blob);
+    }
+    const flowEl = blobsEl.createDiv({ cls: 'claudian-mission-board-flow' });
+    agents.forEach((agent, index) => {
+      const dot = flowEl.createDiv({ cls: 'claudian-mission-board-flow-dot' });
+      if (agent.color) {
+        dot.style.setProperty('--mission-agent-color', agent.color);
+      }
+      dot.style.animationDelay = `${index * 420}ms`;
+      this.flowDots.set(agent.id, dot);
+    });
+    this.hubEl = blobsEl.createDiv({ cls: 'claudian-mission-board-hub is-pending' });
+    setIcon(this.hubEl.createSpan({ cls: 'claudian-mission-board-hub-icon' }), 'sparkles');
+    this.hubEl.createSpan({ cls: 'claudian-mission-board-hub-label', text: 'Synthese' });
 
     const listEl = this.rootEl.createDiv({ cls: 'claudian-mission-board-list' });
     for (const agent of agents) {
@@ -91,10 +124,15 @@ export class MissionBoard {
         continue;
       }
       const status = agent.status ?? 'pending';
-      row.rowEl.classList.toggle('is-pending', status === 'pending');
-      row.rowEl.classList.toggle('is-running', status === 'running');
-      row.rowEl.classList.toggle('is-done', status === 'done');
-      row.rowEl.classList.toggle('is-error', status === 'error');
+      for (const el of [row.rowEl, this.blobs.get(agent.agentId)]) {
+        if (!el) continue;
+        el.classList.toggle('is-pending', status === 'pending');
+        el.classList.toggle('is-running', status === 'running');
+        el.classList.toggle('is-done', status === 'done');
+        el.classList.toggle('is-error', status === 'error');
+      }
+      // Pulses travel toward the hub only while THIS agent is working.
+      this.flowDots.get(agent.agentId)?.classList.toggle('is-active', status === 'running');
       const failover = agent.failedOver ? ' · Failover' : '';
       row.statusEl.setText(`${STATUS_LABELS[status] ?? status}${failover}`);
       row.fillEl.style.transform = `scaleX(${Math.min(1, Math.max(0, (agent.progress ?? 0) / 100))})`;
@@ -107,6 +145,13 @@ export class MissionBoard {
     }
 
     const synthesis = progress.synthesis;
+    if (synthesis) {
+      const synthStatus = synthesis.status ?? 'pending';
+      this.hubEl.classList.toggle('is-pending', synthStatus === 'pending');
+      this.hubEl.classList.toggle('is-running', synthStatus === 'running');
+      this.hubEl.classList.toggle('is-done', synthStatus === 'done');
+      this.hubEl.classList.toggle('is-error', synthStatus === 'error');
+    }
     if (synthesis && (synthesis.output || synthesis.status !== 'pending')) {
       this.synthSectionEl.removeClass('claudian-hidden');
       if (synthesis.output) {

@@ -161,3 +161,216 @@
   line-height: 1.55;
   white-space: pre-wrap;
 }
+
+/* ── Blob strip: agents as breathing blobs "talking" to the synthesis hub ──
+   All motion is opacity/transform. Flow distance uses container-query units
+   (100cqw); on engines without cq support only the opacity fade remains. */
+
+.claudian-mission-board-blobs {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--cl-border-subtle);
+}
+
+.claudian-mission-board-blob-row {
+  display: flex;
+  gap: 14px;
+}
+
+.claudian-mission-board-blob {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  transition: opacity var(--cl-dur) var(--cl-ease);
+}
+
+.claudian-mission-board-blob.is-pending { opacity: 0.5; }
+
+.claudian-mission-board-blob-circle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--mission-agent-color, var(--cl-accent)) 60%, transparent);
+  background: color-mix(in srgb, var(--mission-agent-color, var(--cl-accent)) 16%, var(--cl-surface-raised));
+  color: var(--text-normal);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+@keyframes cl-blob-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+.claudian-mission-board-blob.is-running .claudian-mission-board-blob-circle {
+  animation: cl-blob-breathe 1.6s ease-in-out infinite;
+}
+
+/* Expanding ring while working — the blob "sendet". */
+@keyframes cl-blob-ring {
+  from {
+    opacity: 0.65;
+    transform: scale(0.9);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+.claudian-mission-board-blob-circle::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 1.5px solid var(--mission-agent-color, var(--cl-accent));
+  opacity: 0;
+  pointer-events: none;
+}
+
+.claudian-mission-board-blob.is-running .claudian-mission-board-blob-circle::after {
+  animation: cl-blob-ring 1.6s var(--cl-ease-out) infinite;
+}
+
+/* Done/Fehler-Overlay in der Blob-Ecke. */
+.claudian-mission-board-blob-circle::before {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.claudian-mission-board-blob.is-done .claudian-mission-board-blob-circle::before {
+  content: '✓';
+  background: var(--cl-success);
+  animation: cl-pop 200ms var(--cl-ease) both;
+}
+
+.claudian-mission-board-blob.is-error .claudian-mission-board-blob-circle::before {
+  content: '✕';
+  background: var(--cl-danger);
+  animation: cl-pop 200ms var(--cl-ease) both;
+}
+
+.claudian-mission-board-blob-label {
+  max-width: 64px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Flow rail: pulses travel from the blobs to the hub while agents work. */
+.claudian-mission-board-flow {
+  container-type: inline-size;
+  position: relative;
+  flex: 1;
+  min-width: 56px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--cl-border-subtle);
+}
+
+@keyframes cl-flow-travel {
+  0% {
+    opacity: 0;
+    transform: translate(0, -50%);
+  }
+
+  12% {
+    opacity: 1;
+  }
+
+  82% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(100cqw, -50%);
+  }
+}
+
+.claudian-mission-board-flow-dot {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mission-agent-color, var(--cl-accent));
+  opacity: 0;
+  transform: translate(0, -50%);
+}
+
+.claudian-mission-board-flow-dot.is-active {
+  animation: cl-flow-travel 1.9s linear infinite;
+}
+
+/* Synthesis hub: lights up while the lead writes. */
+.claudian-mission-board-hub {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: opacity var(--cl-dur) var(--cl-ease);
+}
+
+.claudian-mission-board-hub.is-pending { opacity: 0.45; }
+
+.claudian-mission-board-hub-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1.5px solid var(--cl-accent-line);
+  background: var(--cl-accent-softer);
+  color: var(--cl-accent);
+}
+
+.claudian-mission-board-hub.is-running .claudian-mission-board-hub-icon {
+  animation: cl-blob-breathe 1.4s ease-in-out infinite;
+}
+
+.claudian-mission-board-hub.is-done .claudian-mission-board-hub-icon {
+  border-color: color-mix(in srgb, var(--cl-success) 60%, transparent);
+  color: var(--cl-success);
+}
+
+.claudian-mission-board-hub-icon svg { width: 14px; height: 14px; }
+
+.claudian-mission-board-hub-label {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+@media (max-width: 560px) {
+  .claudian-mission-board-blobs { flex-wrap: wrap; }
+  .claudian-mission-board-flow { display: none; }
+}
