@@ -1,4 +1,10 @@
-:root {
+/* Scoped to body ON PURPOSE (not :root): custom properties resolve their
+   var() references on the element they are DECLARED on. Obsidian sets the
+   theme variables on `body.theme-*` — a :root declaration would resolve
+   against html's dark defaults once and inherit that everywhere, making the
+   dashboard dark-only even in light mode (5.63.0 finding). On body, the
+   theme-class overrides win the cascade before resolution. */
+body {
   --claudian-accent: var(--interactive-accent, #7c3aed);
   --claudian-accent-rgb: var(--interactive-accent-rgb, 124, 58, 237);
   --claudian-card-bg: var(--background-primary, #0f0f11);

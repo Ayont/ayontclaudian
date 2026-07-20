@@ -220,6 +220,22 @@ const chatSurface = (mode) => `
   </div>
   <div class="claudian-message claudian-message-assistant">
     <div class="claudian-message-content">
+      <details class="claudian-tool-run-group is-running" open>
+        <summary class="claudian-tool-run-summary">
+          <span class="claudian-tool-run-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
+          <span class="claudian-tool-run-title">Aktivität<span class="claudian-tool-run-breakdown">3× Bash · 2× Read · 1× Edit</span></span>
+          <span class="claudian-tool-run-status"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.56"/></svg></span>
+          <span class="claudian-tool-run-chevron"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </summary>
+        <div class="claudian-tool-run-body">
+          <div class="claudian-tool-call">
+            <div class="claudian-tool-header"><span class="claudian-tool-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/></svg></span><span class="claudian-tool-name">Bash</span><span class="claudian-tool-summary">npm run typecheck</span></div>
+          </div>
+          <div class="claudian-tool-call">
+            <div class="claudian-tool-header"><span class="claudian-tool-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/></svg></span><span class="claudian-tool-name">Read</span><span class="claudian-tool-summary">InputController.ts</span></div>
+          </div>
+        </div>
+      </details>
       <p>The preflight is parallelized: graph context overlaps memory and RAG, the undo baseline reads in batches, and PATH resolution is memoized.</p>
       <div class="claudian-diff-block claudian-diff-del">The quick <mark class="claudian-diff-word claudian-diff-word-del">brown</mark> fox.</div>
       <div class="claudian-diff-block claudian-diff-ins">The quick <mark class="claudian-diff-word claudian-diff-word-ins">red</mark> fox.</div>

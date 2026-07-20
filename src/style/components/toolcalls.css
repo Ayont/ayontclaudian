@@ -1,10 +1,15 @@
 .claudian-tool-call {
   margin: var(--cl-space-2) 0;
+  /* Each tool activity rises in as it streams — the coding heartbeat.
+     (cl-rise on .claudian-message only covers the FIRST paint; cards
+     appended later during the same turn were popping in unanimated.) */
+  animation: cl-rise var(--cl-dur) var(--cl-ease) both;
 }
 
 /* Persisted providers can reconstruct dozens of low-level exec events for one
    completed turn. Collapse that transport noise into one lazy activity stack. */
 .claudian-tool-run-group {
+  position: relative;
   margin: var(--cl-space-3) 0;
   overflow: hidden;
   border: 1px solid rgba(var(--claudian-brand-rgb), 0.2);
@@ -13,6 +18,30 @@
     radial-gradient(circle at 0 0, rgba(var(--claudian-brand-rgb), 0.1), transparent 44%),
     color-mix(in srgb, var(--cl-surface-sunken) 88%, transparent);
   box-shadow: var(--cl-shadow-sm);
+}
+
+/* Live scan along the top edge while the group is executing — a thin accent
+   glint sweeping left→right (transform-only; clipped by overflow: hidden). */
+@keyframes cl-run-scan {
+  from {
+    transform: translateX(-110%);
+  }
+
+  to {
+    transform: translateX(400%);
+  }
+}
+
+.claudian-tool-run-group.is-running::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 30%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(var(--claudian-brand-rgb), 0.85), transparent);
+  animation: cl-run-scan 1.7s var(--cl-ease) infinite;
+  pointer-events: none;
 }
 
 .claudian-tool-run-summary {
