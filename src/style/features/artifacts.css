@@ -53,7 +53,7 @@
 }
 
 .claudian-artifact-card:hover {
-  border-color: rgba(var(--claudian-accent-rgb), 0.4);
+  border-color: color-mix(in srgb, var(--claudian-accent) 40%, transparent);
   transform: translateY(-2px);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }

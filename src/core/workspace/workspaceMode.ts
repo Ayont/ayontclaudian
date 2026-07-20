@@ -61,6 +61,39 @@ export const WORKSPACE_MODE_CLASSES: readonly string[] = Object.freeze([
   'claudian-mode-work',
 ]);
 
+export interface WorkspaceQuickPrompt {
+  /** Chip label (German UI). */
+  label: string;
+  /** Text inserted into the composer. Trailing space/colon → user completes it. */
+  prompt: string;
+  /** Obsidian icon id. */
+  icon: string;
+}
+
+/**
+ * Mode-specific quick actions shown above the composer while it is empty —
+ * the tangible everyday difference between the two modes.
+ */
+const QUICK_PROMPTS: Readonly<Record<WorkspaceMode, readonly WorkspaceQuickPrompt[]>> =
+  Object.freeze({
+    code: Object.freeze([
+      { label: 'Bugs finden', prompt: 'Finde Bugs im aktuellen Projekt und priorisiere sie nach Schwere.', icon: 'bug' },
+      { label: 'Änderungen reviewen', prompt: 'Reviewe meine aktuellen Änderungen (git diff) und gib konkretes Feedback.', icon: 'git-compare' },
+      { label: 'Build & Tests', prompt: 'Führe Build und Tests aus und behebe auftretende Fehler.', icon: 'play' },
+      { label: 'Refactoring', prompt: 'Schlage sinnvolle Refactorings für den Code vor, an dem wir arbeiten: ', icon: 'wrench' },
+    ]),
+    work: Object.freeze([
+      { label: 'Dokument erstellen', prompt: 'Erstelle ein strukturiertes Dokument zu: ', icon: 'file-text' },
+      { label: 'Notiz strukturieren', prompt: 'Strukturiere die aktuelle Notiz: klare Überschriften, Frontmatter-Tags und passende Wikilinks.', icon: 'list-tree' },
+      { label: 'E-Mail schreiben', prompt: 'Schreibe eine E-Mail: ', icon: 'mail' },
+      { label: 'Vault-Recherche', prompt: 'Recherchiere in meinem Vault und fasse zusammen: ', icon: 'search' },
+    ]),
+  });
+
+export function getWorkspaceQuickPrompts(mode: WorkspaceMode): readonly WorkspaceQuickPrompt[] {
+  return QUICK_PROMPTS[mode];
+}
+
 /**
  * Mode section for the system prompt. Deliberately a FOCUS hint, not a
  * restriction — the agent keeps all capabilities in both modes, it just

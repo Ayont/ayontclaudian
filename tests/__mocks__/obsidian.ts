@@ -305,6 +305,8 @@ export const MarkdownRenderer = {
 
 export const setIcon = jest.fn();
 
+export const setTooltip = jest.fn();
+
 // Notice mock that tracks constructor calls
 export const Notice = jest.fn().mockImplementation((_message: string, _timeout?: number) => {});
 

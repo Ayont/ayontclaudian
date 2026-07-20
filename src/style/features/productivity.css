@@ -15,7 +15,7 @@
   border: 1px solid transparent; border-radius: 10px; background: transparent;
   transition: background var(--cl-dur-fast) var(--cl-ease), border-color var(--cl-dur-fast) var(--cl-ease), transform var(--cl-dur-fast) var(--cl-ease);
 }
-.claudian-command-center-item:hover { background: rgba(var(--claudian-accent-rgb), .08); border-color: rgba(var(--claudian-accent-rgb), .2); }
+.claudian-command-center-item:hover { background: color-mix(in srgb, var(--claudian-accent) 8%, transparent); border-color: color-mix(in srgb, var(--claudian-accent) 20%, transparent); }
 .claudian-command-center-item:active { transform: scale(.995); }
 .claudian-command-center-kind { color: var(--claudian-accent); font: 600 9px var(--cl-font-mono); letter-spacing: .08em; text-transform: uppercase; }
 .claudian-command-center-title { color: var(--text-normal); font-size: 13px; font-weight: 650; }
@@ -43,7 +43,7 @@
 .claudian-conversation-tree-node[data-depth="4"] { margin-left: 96px; }
 .claudian-conversation-tree-node[data-depth="5"] { margin-left: 120px; }
 .claudian-conversation-tree-node[data-depth="6"] { margin-left: 144px; }
-.claudian-conversation-tree-node:hover { border-color: rgba(var(--claudian-accent-rgb), .4); }
+.claudian-conversation-tree-node:hover { border-color: color-mix(in srgb, var(--claudian-accent) 40%, transparent); }
 .claudian-conversation-tree-node > span { display: inline-flex; color: var(--claudian-accent); }
 .claudian-conversation-tree-node svg { width: 16px; height: 16px; }
 .claudian-conversation-tree-title { font-size: 12px; font-weight: 650; }

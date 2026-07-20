@@ -144,7 +144,7 @@
   background: transparent;
   transition: color var(--cl-dur-fast) var(--cl-ease), background var(--cl-dur-fast) var(--cl-ease), transform var(--cl-dur-fast) var(--cl-ease);
 }
-.claudian-command-center-trigger:hover { color: var(--text-normal); background: rgba(var(--claudian-accent-rgb), .12); }
+.claudian-command-center-trigger:hover { color: var(--text-normal); background: color-mix(in srgb, var(--claudian-accent) 12%, transparent); }
 .claudian-command-center-trigger:active { transform: scale(.96); }
 .claudian-command-center-trigger:focus-visible { outline: 2px solid var(--claudian-accent); outline-offset: 2px; }
 .claudian-command-center-trigger svg { width: 15px; height: 15px; }

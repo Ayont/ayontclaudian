@@ -108,5 +108,67 @@
   animation: cl-mode-shift var(--cl-dur-slow) var(--cl-ease);
 }
 
+/* ── Mode quick actions ──────────────────────────────────────────────────
+   Chips above the composer, one set per mode; the container's mode class
+   picks the visible set. Hidden while the composer holds text (JS class). */
+.claudian-mode-quick-row {
+  display: flex;
+  padding: 0 0 8px;
+}
+
+.claudian-mode-quick-group {
+  display: none;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.claudian-container:not(.claudian-mode-work) .claudian-mode-quick-group--code {
+  display: flex;
+}
+
+.claudian-container.claudian-mode-work .claudian-mode-quick-group--work {
+  display: flex;
+}
+
+.claudian-mode-quick-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: auto;
+  padding: 4px 10px;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: var(--cl-radius-pill);
+  background: var(--cl-surface-raised);
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: var(--cl-text-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--cl-dur-fast) var(--cl-ease-out),
+    border-color var(--cl-dur-fast) var(--cl-ease-out);
+}
+
+.claudian-mode-quick-chip:hover {
+  color: var(--text-normal);
+  border-color: var(--cl-accent-line);
+  background: var(--cl-surface-raised);
+}
+
+.claudian-mode-quick-chip:focus-visible {
+  outline: none;
+  box-shadow: var(--cl-focus-ring);
+}
+
+.claudian-mode-quick-icon {
+  display: inline-flex;
+  color: var(--cl-accent);
+  opacity: 0.7;
+}
+
+.claudian-mode-quick-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
 /* Reduced motion is handled globally in base/animations.css
    (.claudian-container * gets zero-duration transitions). */

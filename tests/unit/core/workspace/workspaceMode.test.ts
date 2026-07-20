@@ -4,6 +4,7 @@ import {
   getWorkspaceModeClass,
   getWorkspaceModeInstructions,
   getWorkspaceModeMeta,
+  getWorkspaceQuickPrompts,
   normalizeWorkspaceMode,
   WORKSPACE_MODE_CLASSES,
 } from '@/core/workspace/workspaceMode';
@@ -87,5 +88,21 @@ describe('computeSystemPromptKey workspace mode wiring', () => {
     expect(computeSystemPromptKey(base)).toBe(
       computeSystemPromptKey({ ...base, workspaceMode: 'code' }),
     );
+  });
+});
+
+describe('getWorkspaceQuickPrompts', () => {
+  it('provides distinct, non-empty quick actions per mode', () => {
+    const code = getWorkspaceQuickPrompts('code');
+    const work = getWorkspaceQuickPrompts('work');
+    expect(code.length).toBeGreaterThanOrEqual(3);
+    expect(work.length).toBeGreaterThanOrEqual(3);
+    for (const quick of [...code, ...work]) {
+      expect(quick.label.trim()).not.toBe('');
+      expect(quick.prompt.trim()).not.toBe('');
+      expect(quick.icon.trim()).not.toBe('');
+    }
+    const codeLabels = new Set(code.map((quick) => quick.label));
+    expect(work.some((quick) => codeLabels.has(quick.label))).toBe(false);
   });
 });

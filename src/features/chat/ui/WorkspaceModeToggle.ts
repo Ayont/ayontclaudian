@@ -3,6 +3,7 @@ import { setIcon, setTooltip } from 'obsidian';
 import {
   getWorkspaceModeClass,
   getWorkspaceModeMeta,
+  getWorkspaceQuickPrompts,
   WORKSPACE_MODE_CLASSES,
   type WorkspaceMode,
 } from '../../../core/workspace/workspaceMode';
@@ -76,6 +77,50 @@ export class WorkspaceModeToggle {
     await this.options.onModeChange(mode);
     this.render();
   }
+}
+
+/**
+ * Builds the mode quick-prompt row above the composer: BOTH mode sets are in
+ * the DOM, the container's `claudian-mode-*` class shows the matching one
+ * (same zero-rewire pattern as the welcome sublines). The row hides itself
+ * while the composer has text so it never competes with an actual draft.
+ */
+export function buildWorkspaceQuickPromptRow(
+  parent: HTMLElement,
+  inputEl: HTMLTextAreaElement,
+): HTMLElement {
+  const row = parent.createDiv({ cls: 'claudian-mode-quick-row' });
+
+  for (const mode of ['code', 'work'] as const) {
+    const group = row.createDiv({
+      cls: `claudian-mode-quick-group claudian-mode-quick-group--${mode}`,
+    });
+    for (const quick of getWorkspaceQuickPrompts(mode)) {
+      const chip = group.createEl('button', {
+        cls: 'claudian-mode-quick-chip',
+        attr: { type: 'button' },
+      });
+      const iconEl = chip.createSpan({ cls: 'claudian-mode-quick-icon' });
+      setIcon(iconEl, quick.icon);
+      chip.createSpan({ text: quick.label });
+      setTooltip(chip, quick.prompt, { placement: 'top' });
+      chip.addEventListener('click', () => {
+        inputEl.value = quick.prompt;
+        inputEl.focus();
+        // Cursor at the end so "…: " prompts are ready for completion.
+        inputEl.setSelectionRange(inputEl.value.length, inputEl.value.length);
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    }
+  }
+
+  const syncVisibility = (): void => {
+    row.classList.toggle('claudian-hidden', inputEl.value.trim().length > 0);
+  };
+  inputEl.addEventListener('input', syncVisibility);
+  syncVisibility();
+
+  return row;
 }
 
 /** Duration guard for removing the one-shot mode-switch crossfade class. */

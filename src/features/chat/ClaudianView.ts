@@ -205,6 +205,8 @@ export class ClaudianView extends ItemView {
           this.updateNavRowLocation();
           this.persistTabState();
           this.syncProviderBrandColor();
+          // The mode is chat-scoped — re-skin to the newly active chat's mode.
+          this.applyWorkspaceMode();
         },
         onTabClosed: () => {
           this.updateTabBar();
@@ -217,6 +219,7 @@ export class ClaudianView extends ItemView {
           this.updateTabBar();
           this.persistTabState();
           this.syncProviderBrandColor();
+          this.applyWorkspaceMode();
         },
         onTabProviderChanged: () => {
           this.updateTabBar();
@@ -234,26 +237,51 @@ export class ClaudianView extends ItemView {
   }
 
   /**
-   * Toggles between Code and Work mode. Used by the header pill and the
-   * command palette ("Workspace-Modus umschalten").
+   * Mode of the ACTIVE chat: per-conversation value first, then the global
+   * default (covers blank tabs and pre-mode conversations).
    */
-  async toggleWorkspaceMode(): Promise<void> {
-    const current = normalizeWorkspaceMode(this.plugin.settings.workspaceMode);
-    const next: WorkspaceMode = current === 'code' ? 'work' : 'code';
+  private resolveActiveWorkspaceMode(): WorkspaceMode {
+    const conversationId = this.tabManager?.getActiveTab()?.conversationId ?? null;
+    const conversation = conversationId ? this.plugin.getConversationSync(conversationId) : null;
+    return normalizeWorkspaceMode(conversation?.workspaceMode ?? this.plugin.settings.workspaceMode);
+  }
+
+  /**
+   * Sets the mode for the ACTIVE chat (persisted on its conversation) and as
+   * the global default for future chats, then re-skins the view.
+   */
+  async setWorkspaceMode(next: WorkspaceMode): Promise<void> {
     this.plugin.settings.workspaceMode = next;
     await this.plugin.saveSettings();
+    const conversationId = this.tabManager?.getActiveTab()?.conversationId ?? null;
+    if (conversationId) {
+      await this.plugin.updateConversation(conversationId, { workspaceMode: next });
+    }
     this.applyWorkspaceMode(next);
   }
 
   /**
+   * Toggles between Code and Work mode. Used by the header pill and the
+   * command palette ("Workspace-Modus umschalten").
+   */
+  async toggleWorkspaceMode(): Promise<void> {
+    const next: WorkspaceMode = this.resolveActiveWorkspaceMode() === 'code' ? 'work' : 'code';
+    await this.setWorkspaceMode(next);
+  }
+
+  /**
    * Applies the active workspace mode (Code/Work) to the whole view:
-   * container accent class, input placeholders, and toggle state.
+   * container accent class, input placeholders, quick actions and toggle
+   * state. Also mirrors the mode into the in-memory settings so the system
+   * prompt builders (which read plugin.settings at query time) pick up the
+   * ACTIVE chat's mode — persisted only on explicit switches.
    */
   private applyWorkspaceMode(mode?: WorkspaceMode): void {
     if (!this.viewContainerEl) {
       return;
     }
-    const active = mode ?? normalizeWorkspaceMode(this.plugin.settings.workspaceMode);
+    const active = mode ?? this.resolveActiveWorkspaceMode();
+    this.plugin.settings.workspaceMode = active;
     // Animate only on an explicit switch (mode passed), not on open/tab-create.
     applyWorkspaceModeToContainer(this.viewContainerEl, active, { animate: mode !== undefined });
     this.workspaceModeToggle?.render();
@@ -336,13 +364,11 @@ export class ClaudianView extends ItemView {
     this.headerActionsContent.className = 'claudian-header-actions';
 
     // Workspace mode switch (Code | Work) — leftmost action, always visible.
+    // The mode is CHAT-SCOPED: it reads/writes the active conversation and
+    // only falls back to the global default for blank tabs.
     this.workspaceModeToggle = new WorkspaceModeToggle(this.headerActionsContent, {
-      getMode: () => normalizeWorkspaceMode(this.plugin.settings.workspaceMode),
-      onModeChange: async (mode) => {
-        this.plugin.settings.workspaceMode = mode;
-        await this.plugin.saveSettings();
-        this.applyWorkspaceMode(mode);
-      },
+      getMode: () => this.resolveActiveWorkspaceMode(),
+      onModeChange: (mode) => this.setWorkspaceMode(mode),
     });
 
     // New tab button (plus icon)

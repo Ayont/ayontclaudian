@@ -129,6 +129,7 @@ export class SessionStorage {
         ? conversation.providerSessions
         : undefined,
       goal: conversation.goal ?? undefined,
+      workspaceMode: conversation.workspaceMode,
       messages: conversation.messages.length > 0
         ? conversation.messages.map((message) => ({
           ...message,

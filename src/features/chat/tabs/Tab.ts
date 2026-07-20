@@ -60,6 +60,7 @@ import { StatusPanel } from '../ui/StatusPanel';
 import { StreamStatusBar } from '../ui/StreamStatusBar';
 import { autoResizeTextarea } from '../ui/textareaResize';
 import { VoiceInput } from '../ui/VoiceInput';
+import { buildWorkspaceQuickPromptRow } from '../ui/WorkspaceModeToggle';
 import { recalculateUsageForModel } from '../utils/usageInfo';
 import { getTabProviderId } from './providerResolution';
 import type { TabData, TabDOMElements, TabId, TabProviderContext } from './types';
@@ -758,6 +759,13 @@ function buildTabDOM(contentEl: HTMLElement): TabDOMElements {
       dir: 'auto',
     },
   });
+
+  // Mode quick actions (Code/Work) — inserted between nav row and composer;
+  // the container's mode class picks the visible set.
+  inputContainerEl.insertBefore(
+    buildWorkspaceQuickPromptRow(inputContainerEl, inputEl),
+    inputWrapper,
+  );
 
   return {
     contentEl,

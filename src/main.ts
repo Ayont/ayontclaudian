@@ -2129,6 +2129,7 @@ export default class ClaudianPlugin extends Plugin {
         providerState: meta.providerState,
         providerSessions: meta.providerSessions,
         goal: meta.goal,
+        workspaceMode: meta.workspaceMode,
         messages: meta.messages ?? [],
         currentNote: meta.currentNote,
         externalContextPaths: meta.externalContextPaths,

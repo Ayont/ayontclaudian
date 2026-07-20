@@ -10,7 +10,7 @@ body {
   --claudian-card-bg: var(--background-primary, #0f0f11);
   --claudian-card-elevated: var(--background-secondary, #18181b);
   --claudian-border: var(--background-modifier-border, rgba(255, 255, 255, 0.08));
-  --claudian-glow: rgba(var(--claudian-accent-rgb), 0.35);
+  --claudian-glow: color-mix(in srgb, var(--claudian-accent) 35%, transparent);
   --claudian-text: var(--text-normal, #f4f4f5);
   --claudian-muted: var(--text-muted, #a1a1aa);
 
@@ -43,7 +43,7 @@ body {
   margin-bottom: 28px;
   padding: 20px 24px;
   border-radius: 20px;
-  background: linear-gradient(135deg, rgba(var(--claudian-accent-rgb), 0.12), rgba(var(--claudian-accent-rgb), 0.04));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--claudian-accent) 12%, transparent), color-mix(in srgb, var(--claudian-accent) 4%, transparent));
   border: 1px solid var(--claudian-border);
   backdrop-filter: blur(8px);
   position: relative;
@@ -77,7 +77,7 @@ body {
   width: 52px;
   height: 52px;
   border-radius: 16px;
-  background: linear-gradient(135deg, var(--claudian-accent), rgba(var(--claudian-accent-rgb), 0.7));
+  background: linear-gradient(135deg, var(--claudian-accent), color-mix(in srgb, var(--claudian-accent) 70%, transparent));
   color: var(--text-on-accent);
   box-shadow: 0 8px 24px var(--claudian-glow);
 }
@@ -176,8 +176,8 @@ body {
 
 .claudian-dashboard-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(var(--claudian-accent-rgb), 0.2);
-  border-color: rgba(var(--claudian-accent-rgb), 0.35);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18), 0 0 0 1px color-mix(in srgb, var(--claudian-accent) 20%, transparent);
+  border-color: color-mix(in srgb, var(--claudian-accent) 35%, transparent);
 }
 
 .claudian-dashboard-card:hover::before,
@@ -311,9 +311,9 @@ body {
 
 .claudian-dashboard-action-btn:hover {
   background: var(--claudian-card-elevated);
-  border-color: rgba(var(--claudian-accent-rgb), 0.35);
+  border-color: color-mix(in srgb, var(--claudian-accent) 35%, transparent);
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(var(--claudian-accent-rgb), 0.12);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--claudian-accent) 12%, transparent);
 }
 
 .claudian-dashboard-action-btn svg {
@@ -322,7 +322,7 @@ body {
 }
 
 .claudian-dashboard-action-btn--primary {
-  background: linear-gradient(135deg, var(--claudian-accent), rgba(var(--claudian-accent-rgb), 0.85));
+  background: linear-gradient(135deg, var(--claudian-accent), color-mix(in srgb, var(--claudian-accent) 85%, transparent));
   color: var(--text-on-accent);
   border-color: transparent;
   box-shadow: 0 6px 18px var(--claudian-glow);
@@ -361,7 +361,7 @@ body {
 }
 
 .claudian-os-action-button:hover {
-  background: linear-gradient(135deg, var(--claudian-accent), rgba(var(--claudian-accent-rgb), 0.85));
+  background: linear-gradient(135deg, var(--claudian-accent), color-mix(in srgb, var(--claudian-accent) 85%, transparent));
   color: var(--text-on-accent);
   border-color: transparent;
   box-shadow: 0 4px 14px var(--claudian-glow);
@@ -451,7 +451,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 24px 28px;
-  background: linear-gradient(135deg, rgba(var(--claudian-accent-rgb), 0.12), rgba(var(--claudian-accent-rgb), 0.04));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--claudian-accent) 12%, transparent), color-mix(in srgb, var(--claudian-accent) 4%, transparent));
   border-bottom: 1px solid var(--claudian-border);
 }
 
@@ -468,7 +468,7 @@ body {
   width: 44px;
   height: 44px;
   border-radius: 14px;
-  background: linear-gradient(135deg, var(--claudian-accent), rgba(var(--claudian-accent-rgb), 0.75));
+  background: linear-gradient(135deg, var(--claudian-accent), color-mix(in srgb, var(--claudian-accent) 75%, transparent));
   color: var(--text-on-accent);
   box-shadow: 0 8px 24px var(--claudian-glow);
 }
@@ -505,11 +505,11 @@ body {
 
 .claudian-multi-agent-gear:hover {
   color: var(--claudian-text);
-  border-color: rgba(var(--claudian-accent-rgb), 0.45);
+  border-color: color-mix(in srgb, var(--claudian-accent) 45%, transparent);
 }
 
 .claudian-multi-agent-gear:focus-visible {
-  outline: 2px solid rgba(var(--claudian-accent-rgb), 0.5);
+  outline: 2px solid color-mix(in srgb, var(--claudian-accent) 50%, transparent);
   outline-offset: 2px;
 }
 
@@ -625,7 +625,7 @@ body {
 
 .claudian-multi-agent-status--running {
   color: var(--claudian-accent);
-  border-color: rgba(var(--claudian-accent-rgb), 0.3);
+  border-color: color-mix(in srgb, var(--claudian-accent) 30%, transparent);
   animation: claudian-pulse 2s infinite;
 }
 
@@ -669,8 +669,8 @@ body {
 }
 
 .claudian-multi-agent-card--running {
-  border-color: rgba(var(--claudian-accent-rgb), 0.4);
-  box-shadow: 0 0 20px rgba(var(--claudian-accent-rgb), 0.12);
+  border-color: color-mix(in srgb, var(--claudian-accent) 40%, transparent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--claudian-accent) 12%, transparent);
 }
 
 .claudian-multi-agent-card--running::before {
@@ -759,7 +759,7 @@ body {
 .claudian-multi-agent-card-progress-bar {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, var(--claudian-accent), rgba(var(--claudian-accent-rgb), 0.7));
+  background: linear-gradient(90deg, var(--claudian-accent), color-mix(in srgb, var(--claudian-accent) 70%, transparent));
   border-radius: 999px;
   transition: width 200ms ease;
 }
@@ -798,7 +798,7 @@ body {
 .claudian-multi-agent-progress-bar {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, var(--claudian-accent), rgba(var(--claudian-accent-rgb), 0.6), var(--claudian-accent));
+  background: linear-gradient(90deg, var(--claudian-accent), color-mix(in srgb, var(--claudian-accent) 60%, transparent), var(--claudian-accent));
   background-size: 200% 100%;
   border-radius: 999px;
   transition: width 200ms ease;
@@ -938,7 +938,7 @@ body {
   gap: 10px;
   padding: 8px 12px;
   border-radius: 12px;
-  background: rgba(var(--claudian-accent-rgb), 0.04);
+  background: color-mix(in srgb, var(--claudian-accent) 4%, transparent);
   animation: claudian-fade-in 0.25s ease;
 }
 
@@ -1003,7 +1003,7 @@ body {
 .claudian-multi-agent-prompt-input:focus {
   outline: none;
   border-color: var(--claudian-accent);
-  box-shadow: 0 0 0 3px rgba(var(--claudian-accent-rgb), 0.18);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--claudian-accent) 18%, transparent);
 }
 
 .claudian-multi-agent-launch {
@@ -1048,8 +1048,8 @@ body {
   margin-top: 18px;
   padding: 16px 18px;
   border-radius: 16px;
-  background: linear-gradient(135deg, rgba(var(--claudian-accent-rgb), 0.12), rgba(var(--claudian-accent-rgb), 0.03));
-  border: 1px solid rgba(var(--claudian-accent-rgb), 0.32);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--claudian-accent) 12%, transparent), color-mix(in srgb, var(--claudian-accent) 3%, transparent));
+  border: 1px solid color-mix(in srgb, var(--claudian-accent) 32%, transparent);
   animation: claudian-fade-in 0.3s ease;
 }
 
@@ -1186,8 +1186,8 @@ body {
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--claudian-accent);
-  background: rgba(var(--claudian-accent-rgb), 0.12);
-  border: 1px solid rgba(var(--claudian-accent-rgb), 0.35);
+  background: color-mix(in srgb, var(--claudian-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--claudian-accent) 35%, transparent);
 }
 
 .claudian-dashboard-provider-dot {
@@ -1195,7 +1195,7 @@ body {
   height: 7px;
   border-radius: 50%;
   background: var(--claudian-accent);
-  box-shadow: 0 0 8px rgba(var(--claudian-accent-rgb), 0.7);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--claudian-accent) 70%, transparent);
 }
 
 /* Light-theme overrides must also apply inside the modal. */
@@ -1264,7 +1264,7 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
   padding: 22px 24px;
   border-radius: 14px;
   background: var(--claudian-card-bg);
-  border-color: rgba(var(--claudian-accent-rgb), 0.26);
+  border-color: color-mix(in srgb, var(--claudian-accent) 26%, transparent);
   backdrop-filter: none;
   overflow: visible;
 }
@@ -1282,9 +1282,9 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
   width: 44px;
   height: 44px;
   border-radius: 11px;
-  background: rgba(var(--claudian-accent-rgb), 0.12);
+  background: color-mix(in srgb, var(--claudian-accent) 12%, transparent);
   color: var(--claudian-accent);
-  border: 1px solid rgba(var(--claudian-accent-rgb), 0.3);
+  border: 1px solid color-mix(in srgb, var(--claudian-accent) 30%, transparent);
   box-shadow: none;
 }
 
@@ -1399,7 +1399,7 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
   box-shadow: none;
 }
 
-.claudian-dashboard-action-btn:hover { transform: none; box-shadow: none; background: rgba(var(--claudian-accent-rgb), 0.08); }
+.claudian-dashboard-action-btn:hover { transform: none; box-shadow: none; background: color-mix(in srgb, var(--claudian-accent) 8%, transparent); }
 .claudian-dashboard-action-btn--primary { background: var(--claudian-accent); color: var(--background-primary); box-shadow: none; }
 .claudian-dashboard-action-btn--primary:hover { background: var(--claudian-accent); box-shadow: none; filter: brightness(1.06); transform: none; }
 .claudian-dashboard-action-btn.is-loading svg { animation: spin 900ms linear infinite; }
@@ -1476,7 +1476,7 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
 .claudian-dashboard-capability:nth-last-child(-n + 4) { border-bottom: 0; }
 .claudian-dashboard-capability.is-supported { color: var(--claudian-text); }
 .claudian-dashboard-capability-icon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 7px; background: var(--claudian-card-elevated); }
-.claudian-dashboard-capability.is-supported .claudian-dashboard-capability-icon { color: var(--claudian-accent); background: rgba(var(--claudian-accent-rgb), 0.08); }
+.claudian-dashboard-capability.is-supported .claudian-dashboard-capability-icon { color: var(--claudian-accent); background: color-mix(in srgb, var(--claudian-accent) 8%, transparent); }
 .claudian-dashboard-capability-icon svg { width: 14px; height: 14px; }
 .claudian-dashboard-capability-copy { display: flex; flex-direction: column; min-width: 0; }
 .claudian-dashboard-capability-label { overflow: hidden; font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
@@ -1505,7 +1505,7 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
   background: var(--claudian-card-bg);
 }
 .claudian-dashboard-feature-icon { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 1px solid var(--claudian-border); border-radius: 8px; color: var(--text-faint); background: var(--claudian-card-elevated); }
-.claudian-dashboard-feature.is-active .claudian-dashboard-feature-icon { color: var(--claudian-accent); border-color: rgba(var(--claudian-accent-rgb), 0.25); background: rgba(var(--claudian-accent-rgb), 0.08); }
+.claudian-dashboard-feature.is-active .claudian-dashboard-feature-icon { color: var(--claudian-accent); border-color: color-mix(in srgb, var(--claudian-accent) 25%, transparent); background: color-mix(in srgb, var(--claudian-accent) 8%, transparent); }
 .claudian-dashboard-feature-icon svg { width: 16px; height: 16px; }
 .claudian-dashboard-feature-copy { display: flex; flex-direction: column; min-width: 0; }
 .claudian-dashboard-feature-label { color: var(--claudian-text); font-size: 12px; font-weight: 650; }
@@ -1535,7 +1535,7 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
   background: transparent;
 }
 .claudian-dashboard-activity-item:last-child { border-bottom: 0; }
-.claudian-dashboard-activity-item:hover { background: rgba(var(--claudian-accent-rgb), 0.05); }
+.claudian-dashboard-activity-item:hover { background: color-mix(in srgb, var(--claudian-accent) 5%, transparent); }
 
 .claudian-multi-agent-modal .modal {
   max-width: 860px;
@@ -1546,7 +1546,7 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
 .claudian-multi-agent-header {
   padding: 18px 22px;
   background: var(--claudian-card-bg);
-  border-bottom-color: rgba(var(--claudian-accent-rgb), 0.24);
+  border-bottom-color: color-mix(in srgb, var(--claudian-accent) 24%, transparent);
 }
 
 .claudian-multi-agent-logo {
@@ -1554,8 +1554,8 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
   height: 40px;
   border-radius: 10px;
   color: var(--claudian-accent);
-  background: rgba(var(--claudian-accent-rgb), 0.1);
-  border: 1px solid rgba(var(--claudian-accent-rgb), 0.28);
+  background: color-mix(in srgb, var(--claudian-accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--claudian-accent) 28%, transparent);
   box-shadow: none;
 }
 
@@ -1590,7 +1590,7 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
 .claudian-multi-agent-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 0 22px 16px; }
 .claudian-multi-agent-card { min-height: 154px; border-radius: 11px; padding: 14px; box-shadow: none; }
 .claudian-multi-agent-card::before { display: none; }
-.claudian-multi-agent-card--running { box-shadow: inset 0 0 0 1px rgba(var(--claudian-accent-rgb), 0.24); }
+.claudian-multi-agent-card--running { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--claudian-accent) 24%, transparent); }
 .claudian-multi-agent-avatar { width: 34px; height: 34px; margin-bottom: 10px; border-radius: 9px; }
 .claudian-multi-agent-avatar svg { width: 17px; height: 17px; }
 .claudian-multi-agent-info h4 { font-size: 13px; }
@@ -1601,7 +1601,7 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
 .claudian-multi-agent-progress-bar { background: var(--claudian-accent); animation: none; }
 .claudian-multi-agent-progress { padding: 0 22px 16px; }
 .claudian-multi-agent-progress-track { height: 6px; }
-.claudian-multi-agent-synthesis { margin: 0 22px 16px; padding: 14px; border-radius: 10px; background: rgba(var(--claudian-accent-rgb), 0.07); }
+.claudian-multi-agent-synthesis { margin: 0 22px 16px; padding: 14px; border-radius: 10px; background: color-mix(in srgb, var(--claudian-accent) 7%, transparent); }
 .claudian-multi-agent-footer { padding: 12px 22px; }
 
 @media (max-width: 760px) {
@@ -1693,7 +1693,7 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
 .claudian-browser-search-input:focus {
   outline: none;
   border-color: var(--claudian-accent);
-  box-shadow: 0 0 0 3px rgba(var(--claudian-accent-rgb), 0.15);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--claudian-accent) 15%, transparent);
 }
 
 .claudian-browser-list {
@@ -1730,7 +1730,7 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
 }
 
 .claudian-browser-card:hover {
-  border-color: rgba(var(--claudian-accent-rgb), 0.3);
+  border-color: color-mix(in srgb, var(--claudian-accent) 30%, transparent);
   transform: translateY(-1px);
 }
 
@@ -1751,7 +1751,7 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
   font-size: 0.75em;
   padding: 2px 10px;
   border-radius: 100px;
-  background: rgba(var(--claudian-accent-rgb), 0.15);
+  background: color-mix(in srgb, var(--claudian-accent) 15%, transparent);
   color: var(--claudian-accent);
   font-weight: 600;
 }
@@ -1781,7 +1781,7 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   color: var(--claudian-accent);
-  background: rgba(var(--claudian-accent-rgb), 0.12);
+  background: color-mix(in srgb, var(--claudian-accent) 12%, transparent);
   padding: 3px 12px;
   border-radius: 100px;
 }
@@ -1806,7 +1806,7 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
 }
 
 .claudian-memory-source--chat {
-  background: rgba(var(--claudian-accent-rgb), 0.14);
+  background: color-mix(in srgb, var(--claudian-accent) 14%, transparent);
   color: var(--claudian-accent);
 }
 
@@ -1871,7 +1871,7 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
 /* ── Mission Cards ──────────────────────────────────────────────────────────── */
 
 .claudian-mission-card {
-  border: 1px solid rgba(var(--claudian-accent-rgb), 0.4);
+  border: 1px solid color-mix(in srgb, var(--claudian-accent) 40%, transparent);
 }
 
 .claudian-mission-meta {

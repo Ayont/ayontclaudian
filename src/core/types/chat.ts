@@ -106,6 +106,8 @@ export interface Conversation {
   providerSessions?: Record<string, ProviderSessionSnapshot>;
   /** Standing objective set via `/goal`; re-injected into every turn for any provider. */
   goal?: string | null;
+  /** Per-chat workspace mode (Code/Work). Falls back to the global default. */
+  workspaceMode?: 'code' | 'work';
   messages: ChatMessage[];
   currentNote?: string;
   /** Session-specific external context paths (directories with full access). Resets on new session. */
@@ -155,6 +157,8 @@ export interface SessionMetadata {
   providerSessions?: Record<string, ProviderSessionSnapshot>;
   /** Standing objective set via `/goal` (see {@link Conversation.goal}). */
   goal?: string | null;
+  /** Per-chat workspace mode (see {@link Conversation.workspaceMode}). */
+  workspaceMode?: 'code' | 'work';
   /** Fallback messages for providers without SDK-native message storage. */
   messages?: ChatMessage[];
   currentNote?: string;

@@ -2260,7 +2260,9 @@ describe('Tab - Event Handler Behavior', () => {
       wireTabInputEvents(tab, options.plugin);
 
       const listeners = (tab.dom.inputEl as any).getEventListeners();
-      const inputHandler = listeners.get('input')[0];
+      // Fire ALL input listeners — registration order is an implementation
+      // detail (the mode quick-prompt row registers one too).
+      const inputHandler = () => listeners.get('input').forEach((handler: () => void) => handler());
       inputHandler();
 
       expect(mockFileContextManager.handleInputChange).toHaveBeenCalled();
@@ -2302,7 +2304,9 @@ describe('Tab - Event Handler Behavior', () => {
       wireTabInputEvents(tab, options.plugin);
 
       const listeners = (tab.dom.inputEl as any).getEventListeners();
-      const inputHandler = listeners.get('input')[0];
+      // Fire ALL input listeners — registration order is an implementation
+      // detail (the mode quick-prompt row registers one too).
+      const inputHandler = () => listeners.get('input').forEach((handler: () => void) => handler());
       inputHandler();
 
       expect(mockFileContextManager.handleInputChange).not.toHaveBeenCalled();

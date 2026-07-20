@@ -14,7 +14,7 @@ interface HighlightRegistryLike {
 type HighlightConstructor = new (...ranges: AbstractRange[]) => unknown;
 
 function getHighlightApi(): { registry: HighlightRegistryLike; Highlight: HighlightConstructor } | null {
-  const globals = globalThis as {
+  const globals = window as {
     Highlight?: HighlightConstructor;
     CSS?: { highlights?: HighlightRegistryLike };
   };
