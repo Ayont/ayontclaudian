@@ -12,6 +12,7 @@ import {
 } from '../../../core/prompt/mainAgent';
 import type { AppPluginManager } from '../../../core/providers/types';
 import type { ClaudianSettings, PermissionMode } from '../../../core/types/settings';
+import { normalizeWorkspaceMode } from '../../../core/workspace/workspaceMode';
 import {
   type ClaudeSafeMode,
   getClaudeProviderSettings,
@@ -104,6 +105,7 @@ export class QueryOptionsBuilder {
       customPrompt: ctx.settings.systemPrompt,
       vaultPath: ctx.vaultPath,
       userName: ctx.settings.userName,
+      workspaceMode: normalizeWorkspaceMode(ctx.settings.workspaceMode),
     };
 
     const sdkPermissionMode = QueryOptionsBuilder.resolveClaudeSdkPermissionMode(
@@ -282,6 +284,7 @@ export class QueryOptionsBuilder {
       customPrompt: ctx.settings.systemPrompt,
       vaultPath: ctx.vaultPath,
       userName: ctx.settings.userName,
+      workspaceMode: normalizeWorkspaceMode(ctx.settings.workspaceMode),
     };
     const options: Options = {
       cwd: ctx.vaultPath,

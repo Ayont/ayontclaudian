@@ -6,6 +6,7 @@ import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '../../core/providers/ProviderSettingsCoordinator';
 import { DEFAULT_CHAT_PROVIDER_ID, type ProviderId } from '../../core/providers/types';
 import { VIEW_TYPE_CLAUDIAN } from '../../core/types';
+import { normalizeWorkspaceMode, type WorkspaceMode } from '../../core/workspace/workspaceMode';
 import type ClaudianPlugin from '../../main';
 import { createProviderIconSvg } from '../../shared/icons';
 import {
@@ -24,6 +25,7 @@ import {
 import { TabBar } from './tabs/TabBar';
 import { TabManager } from './tabs/TabManager';
 import type { TabData, TabId } from './tabs/types';
+import { applyWorkspaceModeToContainer, WorkspaceModeToggle } from './ui/WorkspaceModeToggle';
 import { recalculateUsageForModel } from './utils/usageInfo';
 
 type LoadableView = {
@@ -37,6 +39,7 @@ export class ClaudianView extends ItemView {
   // Tab management
   private tabManager: TabManager | null = null;
   private tabBar: TabBar | null = null;
+  private workspaceModeToggle: WorkspaceModeToggle | null = null;
   private tabBarContainerEl: HTMLElement | null = null;
   private tabContentEl: HTMLElement | null = null;
   private navRowContent: HTMLElement | null = null;
@@ -193,6 +196,8 @@ export class ClaudianView extends ItemView {
           this.updateNavRowLocation();
           this.persistTabState();
           this.syncProviderBrandColor();
+          // New tab DOM gets the mode placeholder + classes of the active mode.
+          this.applyWorkspaceMode();
         },
         onTabSwitched: () => {
           this.updateTabBar();
@@ -224,7 +229,22 @@ export class ClaudianView extends ItemView {
     await this.restoreOrCreateTabs();
     this.syncProviderBrandColor();
     this.updateLayoutForPosition();
+    this.applyWorkspaceMode();
     this.tabManager?.primeProviderRuntime();
+  }
+
+  /**
+   * Applies the active workspace mode (Code/Work) to the whole view:
+   * container accent class, input placeholders, and toggle state.
+   */
+  private applyWorkspaceMode(mode?: WorkspaceMode): void {
+    if (!this.viewContainerEl) {
+      return;
+    }
+    const active = mode ?? normalizeWorkspaceMode(this.plugin.settings.workspaceMode);
+    // Animate only on an explicit switch (mode passed), not on open/tab-create.
+    applyWorkspaceModeToContainer(this.viewContainerEl, active, { animate: mode !== undefined });
+    this.workspaceModeToggle?.render();
   }
 
   async onClose() {
@@ -302,6 +322,16 @@ export class ClaudianView extends ItemView {
     // Header actions (right side)
     this.headerActionsContent = activeDocument.createElement('div');
     this.headerActionsContent.className = 'claudian-header-actions';
+
+    // Workspace mode switch (Code | Work) — leftmost action, always visible.
+    this.workspaceModeToggle = new WorkspaceModeToggle(this.headerActionsContent, {
+      getMode: () => normalizeWorkspaceMode(this.plugin.settings.workspaceMode),
+      onModeChange: async (mode) => {
+        this.plugin.settings.workspaceMode = mode;
+        await this.plugin.saveSettings();
+        this.applyWorkspaceMode(mode);
+      },
+    });
 
     // New tab button (plus icon)
     this.newTabButtonEl = this.headerActionsContent.createDiv({ cls: 'claudian-header-btn claudian-new-tab-btn' });

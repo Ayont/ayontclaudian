@@ -181,8 +181,32 @@ const dashboard = `
   </div>
 </div>`;
 
-const chat = `
-<div class="claudian-container" data-provider="claude" style="max-width:760px;margin:0 auto;padding:20px;">
+const ICON_CODE = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>';
+const ICON_PEN = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+
+const modeToggle = (active) => `
+  <div class="claudian-mode-toggle" role="group" aria-label="Workspace-Modus">
+    <div class="claudian-mode-toggle-thumb" style="transform: translateX(${active === 'work' ? '100%' : '0'})"></div>
+    <button class="claudian-mode-toggle-segment${active === 'code' ? ' is-active' : ''}" data-mode="code" type="button"><span class="claudian-mode-toggle-icon">${ICON_CODE}</span><span class="claudian-mode-toggle-label">Code</span></button>
+    <button class="claudian-mode-toggle-segment${active === 'work' ? ' is-active' : ''}" data-mode="work" type="button"><span class="claudian-mode-toggle-icon">${ICON_PEN}</span><span class="claudian-mode-toggle-label">Work</span></button>
+  </div>`;
+
+const chatSurface = (mode) => `
+<div class="claudian-container claudian-mode-${mode}" data-provider="claude" style="max-width:760px;margin:0 auto;">
+  <div class="claudian-header">
+    <div class="claudian-title-slot">
+      <span class="claudian-logo"></span>
+      <h4 class="claudian-title-text">ayontclaudian</h4>
+      <span class="claudian-title-divider">⟋</span>
+      <span class="claudian-title-chat">Kimi K3 Timeout-Fix</span>
+    </div>
+    <div class="claudian-header-actions">
+      ${modeToggle(mode)}
+      <div class="claudian-header-btn" aria-label="New tab"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg></div>
+      <div class="claudian-header-btn" aria-label="History"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+    </div>
+  </div>
+  <div style="padding:20px;">
   <div class="claudian-message claudian-message-user">
     <details class="claudian-vault-context-card">
       <summary class="claudian-vault-context-summary"><span class="claudian-vault-context-icon"></span><span class="claudian-vault-context-title">2 Vault sources · 1 memory</span><span class="claudian-vault-context-hint">show</span></summary>
@@ -201,7 +225,16 @@ const chat = `
       <div class="claudian-diff-block claudian-diff-ins">The quick <mark class="claudian-diff-word claudian-diff-word-ins">red</mark> fox.</div>
     </div>
   </div>
+  <div class="claudian-input-container">
+    <div class="claudian-input-wrapper">
+      <textarea class="claudian-input" rows="3" placeholder="${mode === 'work' ? 'Woran arbeiten wir?' : 'Was bauen wir?'}"></textarea>
+    </div>
+  </div>
+  </div>
 </div>`;
+
+const chat = chatSurface('code');
+const chatWork = chatSurface('work');
 
 const modal = `
 <div class="claudian-container">
@@ -214,7 +247,7 @@ const modal = `
   </div>
 </div>`;
 
-const SURFACES = { Dashboard: dashboard, Chat: chat, 'New Project': modal };
+const SURFACES = { Dashboard: dashboard, Chat: chat, 'Chat (Work)': chatWork, 'New Project': modal };
 
 const tabs = Object.keys(SURFACES)
   .map((name, i) => `<button class="pv-tab${i === 0 ? ' is-active' : ''}" data-surface="${name}">${name}</button>`)
@@ -258,6 +291,22 @@ ${panels}
     document.body.classList.toggle('theme-dark');
     document.body.classList.toggle('theme-light');
   });
+  // Headless-friendly deep links: #<surface-slug>[.light] activates a surface
+  // (and optionally the light theme) without clicks, e.g. #chat-work.light
+  const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  const hash = decodeURIComponent(location.hash.slice(1));
+  if (hash) {
+    const [surfaceSlug, theme] = hash.split('.');
+    panels.forEach(p => {
+      const match = slug(p.dataset.surface) === surfaceSlug;
+      p.classList.toggle('is-active', match);
+    });
+    tabs.forEach(t => t.classList.toggle('is-active', slug(t.dataset.surface) === surfaceSlug));
+    if (theme === 'light') {
+      document.body.classList.remove('theme-dark');
+      document.body.classList.add('theme-light');
+    }
+  }
 </script>
 </body>
 </html>`;

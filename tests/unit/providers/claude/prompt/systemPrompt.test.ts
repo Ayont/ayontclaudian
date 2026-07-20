@@ -184,7 +184,8 @@ describe('systemPrompt', () => {
 
       const key = computeSystemPromptKey(settings);
 
-      expect(key).toBe('attachments::Be helpful::/vault::Alice');
+      // The trailing segment is the workspace mode (Code/Work switch).
+      expect(key).toBe('attachments::Be helpful::/vault::Alice::code');
     });
 
     it('handles empty or undefined values', () => {
@@ -195,7 +196,7 @@ describe('systemPrompt', () => {
         userName: '',
       });
 
-      expect(key).toBe('::::::');
+      expect(key).toBe('::::::::code');
     });
   });
 });

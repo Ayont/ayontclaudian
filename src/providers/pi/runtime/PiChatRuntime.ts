@@ -35,6 +35,7 @@ import type {
   ToolCallInfo,
   UsageInfo,
 } from '../../../core/types';
+import { normalizeWorkspaceMode } from '../../../core/workspace/workspaceMode';
 import type ClaudianPlugin from '../../../main';
 import { parseEnvironmentVariables } from '../../../utils/env';
 import { getVaultPath } from '../../../utils/path';
@@ -869,6 +870,7 @@ export class PiChatRuntime implements ChatRuntime {
       mediaFolder: this.plugin.settings.mediaFolder,
       userName: this.plugin.settings.userName,
       vaultPath,
+      workspaceMode: normalizeWorkspaceMode(this.plugin.settings.workspaceMode),
     };
   }
 

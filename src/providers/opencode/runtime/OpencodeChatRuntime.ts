@@ -36,6 +36,7 @@ import type {
   StreamChunk,
   ToolCallInfo,
 } from '../../../core/types';
+import { normalizeWorkspaceMode } from '../../../core/workspace/workspaceMode';
 import type ClaudianPlugin from '../../../main';
 import { getEnhancedPath } from '../../../utils/env';
 import { getVaultPath } from '../../../utils/path';
@@ -683,6 +684,7 @@ export class OpencodeChatRuntime implements ChatRuntime {
       mediaFolder: this.plugin.settings.mediaFolder,
       userName: this.plugin.settings.userName,
       vaultPath,
+      workspaceMode: normalizeWorkspaceMode(this.plugin.settings.workspaceMode),
     };
   }
 

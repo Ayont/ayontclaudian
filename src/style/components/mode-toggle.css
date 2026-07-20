@@ -1,0 +1,111 @@
+/* ── Workspace mode switch (Code | Work) ─────────────────────────────────
+   Segmented pill in the header actions. The thumb slides between segments
+   via transform (compositor-friendly); the active mode recolors the whole
+   container through the accent tokens in base/variables.css. */
+
+.claudian-mode-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  padding: 2px;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: var(--cl-radius-pill);
+  background: var(--cl-surface-sunken);
+  margin-right: var(--cl-space-1);
+}
+
+.claudian-mode-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: calc(50% - 2px);
+  height: calc(100% - 4px);
+  border-radius: var(--cl-radius-pill);
+  background: var(--cl-surface-raised);
+  border: 1px solid var(--cl-accent-line);
+  box-shadow: var(--cl-shadow-sm);
+  transform: translateX(0);
+  transition: transform var(--cl-dur) var(--cl-ease);
+  pointer-events: none;
+}
+
+.claudian-mode-toggle-segment {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  /* Obsidian themes give <button> fixed heights + chrome — neutralize. */
+  height: auto;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  border-radius: var(--cl-radius-pill);
+  font-family: var(--cl-font-ui);
+  font-size: var(--cl-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--cl-dur-fast) var(--cl-ease-out);
+}
+
+.claudian-mode-toggle-segment:hover {
+  color: var(--text-normal);
+  background: transparent;
+  box-shadow: none;
+}
+
+.claudian-mode-toggle-segment.is-active {
+  color: var(--text-normal);
+}
+
+.claudian-mode-toggle-segment:focus-visible {
+  outline: none;
+  box-shadow: var(--cl-focus-ring);
+}
+
+.claudian-mode-toggle-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--cl-accent);
+  opacity: 0.55;
+  transition: opacity var(--cl-dur-fast) var(--cl-ease-out);
+}
+
+.claudian-mode-toggle-segment.is-active .claudian-mode-toggle-icon {
+  opacity: 1;
+}
+
+.claudian-mode-toggle-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* ── Mode-switch crossfade ───────────────────────────────────────────────
+   Switching Code↔Work re-accents the whole container instantly; a soft
+   one-shot opacity dip on the transcript + input makes the change read as a
+   deliberate scene change instead of a color glitch. Opacity-only. */
+@keyframes cl-mode-shift {
+  0% {
+    opacity: 1;
+  }
+
+  35% {
+    opacity: 0.55;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+.claudian-container.claudian-mode-switching .claudian-messages,
+.claudian-container.claudian-mode-switching .claudian-input-wrapper,
+.claudian-container.claudian-mode-switching .claudian-welcome {
+  animation: cl-mode-shift var(--cl-dur-slow) var(--cl-ease);
+}
+
+/* Reduced motion is handled globally in base/animations.css
+   (.claudian-container * gets zero-duration transitions). */

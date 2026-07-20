@@ -45,6 +45,7 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
   excludedTags: [],
   mediaFolder: '',
   systemPrompt: '',
+  workspaceMode: 'code',
   persistentExternalContextPaths: [],
 
   sharedEnvironmentVariables: '',

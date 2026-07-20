@@ -156,3 +156,20 @@ body.theme-light .claudian-container {
   --claudian-brand: var(--claudian-brand-grok);
   --claudian-brand-rgb: var(--claudian-brand-grok-rgb);
 }
+
+/* ── Workspace mode accents ──────────────────────────────────────────────
+   Code mode keeps the active provider's brand accent (engineering identity).
+   Work mode shifts the whole container to a calm editorial teal — one glance
+   tells which job the workspace is set up for. The extra selector weight
+   ([data-provider]) is deliberate: it must beat the provider rules above. */
+.claudian-container.claudian-mode-work,
+.claudian-container.claudian-mode-work[data-provider] {
+  --claudian-brand: oklch(0.72 0.11 190);
+  --claudian-brand-rgb: 47, 191, 180;
+}
+
+body.theme-light .claudian-container.claudian-mode-work,
+body.theme-light .claudian-container.claudian-mode-work[data-provider] {
+  --claudian-brand: oklch(0.55 0.10 190);
+  --claudian-brand-rgb: 22, 138, 130;
+}

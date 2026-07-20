@@ -1,8 +1,16 @@
+import {
+  DEFAULT_WORKSPACE_MODE,
+  getWorkspaceModeInstructions,
+  type WorkspaceMode,
+} from '../workspace/workspaceMode';
+
 export interface SystemPromptSettings {
   mediaFolder?: string;
   customPrompt?: string;
   vaultPath?: string;
   userName?: string;
+  /** Active workspace mode (Code/Work switch). Defaults to 'code'. */
+  workspaceMode?: WorkspaceMode;
 }
 
 export interface SystemPromptBuildOptions {
@@ -437,6 +445,7 @@ export function buildSystemPrompt(
   prompt += getComputerControlInstructions();
   prompt += getSkillCreatorInstructions();
   prompt += getAutoMemoryInstructions();
+  prompt += getWorkspaceModeInstructions(settings.workspaceMode ?? DEFAULT_WORKSPACE_MODE);
   prompt += getAppendixSections(options.appendices);
 
   if (settings.customPrompt?.trim()) {
@@ -460,6 +469,9 @@ export function computeSystemPromptKey(
     settings.customPrompt || '',
     settings.vaultPath || '',
     (settings.userName || '').trim(),
+    // Mode is part of the key: switching Code↔Work must invalidate cached
+    // system prompts / restart persistent queries so the new section applies.
+    settings.workspaceMode ?? DEFAULT_WORKSPACE_MODE,
   ];
 
   if (appendixKey) {

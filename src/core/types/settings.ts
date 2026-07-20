@@ -173,6 +173,8 @@ export interface ClaudianSettings {
   excludedTags: string[];
   mediaFolder: string;
   systemPrompt: string;
+  /** Workspace mode: 'code' (Software-Arbeit) oder 'work' (Dokumente/Notizen). */
+  workspaceMode?: 'code' | 'work';
   persistentExternalContextPaths: string[];
 
   // Environment

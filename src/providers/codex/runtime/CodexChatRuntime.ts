@@ -27,6 +27,7 @@ import type {
   SubagentRuntimeState,
 } from '../../../core/runtime/types';
 import type { ChatMessage, Conversation, ForkSource, SlashCommand, StreamChunk } from '../../../core/types';
+import { normalizeWorkspaceMode } from '../../../core/workspace/workspaceMode';
 import type ClaudianPlugin from '../../../main';
 import { getVaultPath } from '../../../utils/path';
 import { buildContextFromHistory } from '../../../utils/session';
@@ -853,6 +854,7 @@ export class CodexChatRuntime implements ChatRuntime {
       customPrompt: settings.systemPrompt,
       vaultPath: getVaultPath(this.plugin.app) ?? undefined,
       userName: settings.userName,
+      workspaceMode: normalizeWorkspaceMode(settings.workspaceMode),
     };
   }
 
