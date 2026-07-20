@@ -360,6 +360,19 @@ export default class ClaudianPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: 'toggle-workspace-mode',
+      name: 'Workspace-Modus umschalten (Code ⇄ Work)',
+      checkCallback: (checking: boolean) => {
+        const view = this.getView();
+        if (!view) return false;
+        if (!checking) {
+          void view.toggleWorkspaceMode();
+        }
+        return true;
+      },
+    });
+
+    this.addCommand({
       id: 'close-current-tab',
       name: 'Close current tab',
       checkCallback: (checking: boolean) => {

@@ -179,9 +179,7 @@
 }
 
 .claudian-history-item.active {
-  background: var(--background-secondary);
-  border-inline-start: 2px solid var(--interactive-accent);
-  padding-inline-start: 10px;
+  background: color-mix(in srgb, var(--interactive-accent) 8%, var(--background-secondary));
 }
 
 .claudian-history-item.active .claudian-history-item-icon {

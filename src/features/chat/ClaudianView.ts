@@ -234,6 +234,18 @@ export class ClaudianView extends ItemView {
   }
 
   /**
+   * Toggles between Code and Work mode. Used by the header pill and the
+   * command palette ("Workspace-Modus umschalten").
+   */
+  async toggleWorkspaceMode(): Promise<void> {
+    const current = normalizeWorkspaceMode(this.plugin.settings.workspaceMode);
+    const next: WorkspaceMode = current === 'code' ? 'work' : 'code';
+    this.plugin.settings.workspaceMode = next;
+    await this.plugin.saveSettings();
+    this.applyWorkspaceMode(next);
+  }
+
+  /**
    * Applies the active workspace mode (Code/Work) to the whole view:
    * container accent class, input placeholders, and toggle state.
    */
