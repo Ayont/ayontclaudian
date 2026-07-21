@@ -58,6 +58,20 @@ describe('buildAntigravityLaunchSpec', () => {
     expect(buildAntigravityLaunchSpec({ ...BASE, model: '   ' }).args).not.toContain('--model');
   });
 
+  it('passes --agent <name> verbatim before the prompt when a persona is given', () => {
+    const spec = buildAntigravityLaunchSpec({ ...BASE, agent: 'architect' });
+    const aIndex = spec.args.indexOf('--agent');
+    expect(aIndex).toBeGreaterThan(-1);
+    expect(spec.args[aIndex + 1]).toBe('architect');
+    expect(aIndex).toBeLessThan(spec.args.indexOf('-p'));
+  });
+
+  it('omits --agent for "default", empty, or missing (uses agy default persona)', () => {
+    expect(buildAntigravityLaunchSpec(BASE).args).not.toContain('--agent');
+    expect(buildAntigravityLaunchSpec({ ...BASE, agent: 'default' }).args).not.toContain('--agent');
+    expect(buildAntigravityLaunchSpec({ ...BASE, agent: '   ' }).args).not.toContain('--agent');
+  });
+
   it('adds extra dirs via --add-dir (e.g. attachment temp dir), de-duped against cwd', () => {
     const spec = buildAntigravityLaunchSpec({ ...BASE, extraDirs: ['/tmp/claudian-agy-x', '/vault'] });
     const addDirArgs = spec.args.filter((_, i) => spec.args[i - 1] === '--add-dir');
@@ -66,12 +80,17 @@ describe('buildAntigravityLaunchSpec', () => {
     expect(addDirArgs.filter((d) => d === '/vault')).toHaveLength(1);
   });
 
-  it('reflects model + extraDirs in the launch key', () => {
+  it('reflects model + extraDirs + agent in the launch key', () => {
     const a = buildAntigravityLaunchSpec(BASE).launchKey;
     const b = buildAntigravityLaunchSpec({ ...BASE, model: 'Claude Opus 4.6 (Thinking)' }).launchKey;
     const c = buildAntigravityLaunchSpec({ ...BASE, extraDirs: ['/tmp/x'] }).launchKey;
+    const d = buildAntigravityLaunchSpec({ ...BASE, agent: 'debugger' }).launchKey;
     expect(a).not.toBe(b);
     expect(a).not.toBe(c);
+    expect(a).not.toBe(d);
+    // The synthetic "default" persona must hash identically to omitting the
+    // field entirely (both mean "no --agent flag").
+    expect(a).toBe(buildAntigravityLaunchSpec({ ...BASE, agent: 'default' }).launchKey);
   });
 
   it('permissionMode "yolo" passes --dangerously-skip-permissions and omits --sandbox', () => {

@@ -1,6 +1,8 @@
 import {
+  ANTIGRAVITY_AGENT_PRESETS,
   DEFAULT_ANTIGRAVITY_PROVIDER_SETTINGS,
   getAntigravityProviderSettings,
+  normalizeAntigravityAgent,
   updateAntigravityProviderSettings,
 } from '@/providers/antigravity/settings';
 
@@ -68,5 +70,54 @@ describe('Antigravity settings permissionMode', () => {
       permissionMode: 'nonsense' as 'yolo',
     });
     expect(getAntigravityProviderSettings(settings).permissionMode).toBe('yolo');
+  });
+});
+
+// Regression: verified live against `agy agents` (agy 1.1.4) — the builtin
+// persona picker (`--agent`, agy >= 1.1.1) must stay selectable and safe.
+describe('Antigravity settings agent', () => {
+  it('defaults to "default" (no --agent flag) when nothing is persisted', () => {
+    expect(DEFAULT_ANTIGRAVITY_PROVIDER_SETTINGS.agent).toBe('default');
+    expect(getAntigravityProviderSettings({}).agent).toBe('default');
+  });
+
+  it('includes every builtin persona confirmed via `agy agents`', () => {
+    expect(ANTIGRAVITY_AGENT_PRESETS).toEqual(
+      expect.arrayContaining([
+        'architect',
+        'coder',
+        'debugger',
+        'security_engineer',
+        'code-reviewer',
+        'code_reviewer',
+        'ux_designer',
+      ]),
+    );
+    // Both the hyphenated and underscored code-reviewer variants exist in
+    // `agy agents` output and must both stay selectable.
+    expect(ANTIGRAVITY_AGENT_PRESETS.length).toBe(23);
+  });
+
+  it('reads a known persona from persisted config', () => {
+    const settings = { providerConfigs: { antigravity: { agent: 'architect' } } };
+    expect(getAntigravityProviderSettings(settings).agent).toBe('architect');
+  });
+
+  it('falls back to "default" for an unknown persona value', () => {
+    const settings = { providerConfigs: { antigravity: { agent: 'not-a-real-agent' } } };
+    expect(getAntigravityProviderSettings(settings).agent).toBe('default');
+  });
+
+  it('normalizeAntigravityAgent rejects non-string and unknown values', () => {
+    expect(normalizeAntigravityAgent(undefined)).toBe('default');
+    expect(normalizeAntigravityAgent(null)).toBe('default');
+    expect(normalizeAntigravityAgent(42)).toBe('default');
+    expect(normalizeAntigravityAgent('coder')).toBe('coder');
+  });
+
+  it('persists an explicit agent update', () => {
+    const settings: Record<string, unknown> = { providerConfigs: { antigravity: {} } };
+    updateAntigravityProviderSettings(settings, { agent: 'security_engineer' });
+    expect(getAntigravityProviderSettings(settings).agent).toBe('security_engineer');
   });
 });

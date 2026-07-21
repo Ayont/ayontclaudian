@@ -25,6 +25,48 @@ export type AntigravityWorkspaceScope = 'vault-only' | 'allow-home';
  */
 export type AntigravityPermissionMode = 'yolo' | 'sandbox';
 
+/**
+ * Builtin agent personas exposed by `agy --agent` (agy >= 1.1.1; list via
+ * `agy agents`). `'default'` omits the flag and lets agy use its own default
+ * persona. Keep the concrete names in sync with `agy agents`.
+ */
+export const ANTIGRAVITY_AGENT_PRESETS = [
+  'accessibility_specialist',
+  'analytics_engineer',
+  'api_designer',
+  'architect',
+  'code-reviewer',
+  'code_reviewer',
+  'coder',
+  'compliance_reviewer',
+  'content_strategist',
+  'copywriter',
+  'data_engineer',
+  'debugger',
+  'design_system_engineer',
+  'devops_engineer',
+  'i18n_specialist',
+  'performance_engineer',
+  'product_manager',
+  'refactor',
+  'security_engineer',
+  'seo_specialist',
+  'technical_writer',
+  'tester',
+  'ux_designer',
+] as const;
+
+export type AntigravityAgent = 'default' | typeof ANTIGRAVITY_AGENT_PRESETS[number];
+
+const ANTIGRAVITY_AGENT_SET = new Set<string>(ANTIGRAVITY_AGENT_PRESETS);
+
+/** Normalizes a raw agent value; anything unrecognized falls back to `'default'`. */
+export function normalizeAntigravityAgent(value: unknown): AntigravityAgent {
+  return typeof value === 'string' && ANTIGRAVITY_AGENT_SET.has(value)
+    ? (value as AntigravityAgent)
+    : 'default';
+}
+
 /** Settings persisted for the Antigravity provider. */
 export interface PersistedAntigravityProviderSettings {
   /** Explicit path to the `agy` binary (overrides PATH discovery). */
@@ -44,6 +86,8 @@ export interface PersistedAntigravityProviderSettings {
   printTimeout: string;
   /** How much of the filesystem the agent may access. */
   workspaceScope: AntigravityWorkspaceScope;
+  /** Builtin persona passed via `--agent` (agy >= 1.1.1); `'default'` omits the flag. */
+  agent: AntigravityAgent;
 }
 
 export const DEFAULT_ANTIGRAVITY_PROVIDER_SETTINGS: Readonly<PersistedAntigravityProviderSettings> =
@@ -55,6 +99,7 @@ export const DEFAULT_ANTIGRAVITY_PROVIDER_SETTINGS: Readonly<PersistedAntigravit
     permissionMode: 'yolo',
     printTimeout: '',
     workspaceScope: 'vault-only',
+    agent: 'default',
   });
 
 function normalizeWorkspaceScope(value: unknown): AntigravityWorkspaceScope {
@@ -113,6 +158,7 @@ export function getAntigravityProviderSettings(
       DEFAULT_ANTIGRAVITY_PROVIDER_SETTINGS.printTimeout,
     ).trim(),
     workspaceScope: normalizeWorkspaceScope(config.workspaceScope),
+    agent: normalizeAntigravityAgent(config.agent),
   };
 }
 

@@ -290,6 +290,7 @@ export class AntigravityChatRuntime implements ChatRuntime {
       printTimeout: settings.printTimeout,
       workspaceScope: settings.workspaceScope,
       homeDir: os.homedir(),
+      agent: settings.agent,
     });
 
     if (!isRetry) {

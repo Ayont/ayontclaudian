@@ -3,11 +3,11 @@ import type { AntigravityPermissionMode, AntigravityWorkspaceScope } from '../se
 /**
  * Builds the command/args/cwd for a single-shot `agy` print-mode run.
  *
- * Verified `agy` v1.0.8 invocation (`agy --help`):
+ * Verified `agy` v1.1.4 invocation (`agy --help`):
  *   agy --add-dir <vaultPath> \
  *       (--dangerously-skip-permissions | --sandbox) \
- *       [--add-dir <home>] [--print-timeout <v>] \
- *       [--conversation <id>] -p "<prompt>"
+ *       [--add-dir <home>] [--agent <name>] [--model "<name>"] \
+ *       [--print-timeout <v>] [--conversation <id>] -p "<prompt>"
  *
  * CRITICAL — `agy` uses Go's `flag` package, where `-p` / `--print` /
  * `--prompt` is a STRING flag whose value IS the prompt. `agy --print` with no
@@ -54,6 +54,11 @@ export interface BuildAntigravityLaunchSpecParams {
   workspaceScope?: AntigravityWorkspaceScope;
   /** Home directory to add when `workspaceScope === 'allow-home'`. */
   homeDir?: string;
+  /**
+   * Builtin persona passed via `--agent <name>` (agy >= 1.1.1, see `agy
+   * agents`). Omit/`'default'`/empty to let agy use its own default persona.
+   */
+  agent?: string;
 }
 
 export interface AntigravityLaunchSpec {
@@ -97,6 +102,13 @@ export function buildAntigravityLaunchSpec(
     args.push('--add-dir', dir);
   }
 
+  // Builtin persona (agy >= 1.1.1). 'default' is the synthetic "let agy
+  // decide" value and omits the flag, same convention as an empty model.
+  const agent = params.agent?.trim();
+  if (agent && agent !== 'default') {
+    args.push('--agent', agent);
+  }
+
   // Model selection (agy >= 1.0.9). The exact `agy models` name is passed as a
   // single argv element, so spaces/parens need no shell quoting.
   const model = params.model?.trim();
@@ -130,6 +142,7 @@ export function buildAntigravityLaunchSpec(
       cwd: params.cwd,
       envText: params.envText ?? '',
       model: model ?? '',
+      agent: agent && agent !== 'default' ? agent : '',
       extraDirs,
       permissionMode,
       printTimeout: printTimeout ?? '',

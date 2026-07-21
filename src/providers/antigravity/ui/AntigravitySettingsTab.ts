@@ -11,10 +11,20 @@ import { getHostnameKey } from '../../../utils/env';
 import { expandHomePath } from '../../../utils/path';
 import { maybeGetAntigravityWorkspaceServices } from '../app/AntigravityWorkspaceServices';
 import {
+  ANTIGRAVITY_AGENT_PRESETS,
   ANTIGRAVITY_PROVIDER_ID,
   getAntigravityProviderSettings,
+  normalizeAntigravityAgent,
   updateAntigravityProviderSettings,
 } from '../settings';
+
+/** Human-readable label for an agent preset id (e.g. `code-reviewer` -> `Code reviewer`). */
+function formatAgentLabel(preset: string): string {
+  const words = preset.replace(/[-_]+/g, ' ').split(' ').filter(Boolean);
+  return words
+    .map((word, index) => (index === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word))
+    .join(' ');
+}
 import { AgyChangelogModal } from './AgyChangelogModal';
 
 function validateCliPath(value: string): string | null {
@@ -163,6 +173,22 @@ export const antigravitySettingsTabRenderer: ProviderSettingsTabRenderer = {
             await context.plugin.saveSettings();
           }),
       );
+
+    new Setting(container)
+      .setName('Agent')
+      .setDesc(
+        'Builtin persona passed via `--agent` (agy ≥ 1.1.1, see `agy agents`). Default lets Antigravity use its own configured persona.',
+      )
+      .addDropdown((dropdown) => {
+        dropdown.addOption('default', 'Default');
+        for (const preset of ANTIGRAVITY_AGENT_PRESETS) {
+          dropdown.addOption(preset, formatAgentLabel(preset));
+        }
+        dropdown.setValue(settings.agent).onChange(async (value) => {
+          updateAntigravityProviderSettings(settingsBag, { agent: normalizeAntigravityAgent(value) });
+          await context.plugin.saveSettings();
+        });
+      });
 
     // Read the active account from Google Accounts
     let activeEmail: string | null = null;
