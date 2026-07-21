@@ -27,6 +27,18 @@ describe('AntigravityChatUIConfig models', () => {
     );
   });
 
+  // Regression: verified live against `agy models` (agy 1.1.4) — Gemini 3.6
+  // Flash shipped alongside 3.5 Flash and must stay selectable.
+  it('includes all three Gemini 3.6 Flash reasoning tiers', () => {
+    expect(ANTIGRAVITY_MODEL_NAMES).toEqual(
+      expect.arrayContaining([
+        'Gemini 3.6 Flash (Low)',
+        'Gemini 3.6 Flash (Medium)',
+        'Gemini 3.6 Flash (High)',
+      ]),
+    );
+  });
+
   it('owns the default id and every model name', () => {
     expect(antigravityChatUIConfig.ownsModel(ANTIGRAVITY_DEFAULT_MODEL_ID, {})).toBe(true);
     expect(antigravityChatUIConfig.ownsModel('Gemini 3.1 Pro (High)', {})).toBe(true);

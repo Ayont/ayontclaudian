@@ -24,6 +24,9 @@ export const ANTIGRAVITY_DEFAULT_MODEL_ID = 'antigravity-default';
  * sync with `agy models`.
  */
 export const ANTIGRAVITY_MODEL_NAMES: readonly string[] = [
+  'Gemini 3.6 Flash (Low)',
+  'Gemini 3.6 Flash (Medium)',
+  'Gemini 3.6 Flash (High)',
   'Gemini 3.5 Flash (Low)',
   'Gemini 3.5 Flash (Medium)',
   'Gemini 3.5 Flash (High)',
