@@ -5,7 +5,7 @@ import { type ColdStartQueryConfig, runColdStartQuery } from '@/providers/claude
 const sdkMock = sdkModule as unknown as {
   setMockMessages: (messages: any[], options?: { appendResult?: boolean }) => void;
   resetMockMessages: () => void;
-  simulateCrash: (afterChunks?: number) => void;
+  simulateCrash: (afterChunks?: number, message?: string) => void;
   getLastOptions: () => sdkModule.Options | undefined;
 };
 

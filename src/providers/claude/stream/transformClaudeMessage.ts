@@ -209,6 +209,49 @@ function shouldSurfaceResultError(message: SDKResultError): boolean {
   return terminal !== undefined && FATAL_TERMINAL_REASONS.has(terminal);
 }
 
+/**
+ * Stop reasons (the raw Anthropic API `stop_reason` enum, not the `result`
+ * message's `terminal_reason`) that represent a normal turn boundary rather
+ * than a failure: the turn paused for a tool call, ended normally, hit a
+ * stop sequence, or was paused for interleaved thinking.
+ */
+const BENIGN_SDK_STOP_REASONS = new Set<string>(['tool_use', 'end_turn', 'pause_turn', 'stop_sequence']);
+
+/**
+ * Detects benign `[ede_diagnostic]` text emitted by the Claude CLI's native
+ * runtime when it can't otherwise describe how a turn ended (observed as a
+ * raw thrown Error whose message reads like
+ * `[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use(background task completed)`
+ * or `[ede_diagnostic] turn aborted (...) stop_reason=...`).
+ *
+ * This diagnostic bypasses the typed `SDKResultError` handling above (it
+ * arrives as a thrown JS exception from the persistent/cold-start query loop,
+ * not a `type: 'result'` message), so `shouldSurfaceResultError` never sees
+ * it. Reported bug: interrupting a turn while a background task (e.g. a
+ * long-running Bash command) was still active reliably produced this
+ * diagnostic with `stop_reason=tool_use`, surfacing as a scary "Unerwarteter
+ * Fehler" card for what is actually a normal turn boundary — mirrors the
+ * benign-terminal-reason philosophy above, applied to raw diagnostic text.
+ */
+export function isBenignSdkDiagnostic(message: string): boolean {
+  if (!message || !message.includes('[ede_diagnostic]')) {
+    return false;
+  }
+  // An aborted/interrupted turn is always a benign cancellation boundary.
+  if (/turn aborted/i.test(message)) {
+    return true;
+  }
+  const stopReasonMatch = message.match(/stop_reason=([^\s(]+)/i);
+  const stopReason = stopReasonMatch?.[1]?.toLowerCase();
+  // No parseable / absent stop reason: the CLI itself couldn't explain the
+  // boundary, which is exactly the "no error text, no fatal signal" case the
+  // SDKResultError path already treats as benign.
+  if (!stopReason || stopReason === 'null' || stopReason === 'undefined') {
+    return true;
+  }
+  return BENIGN_SDK_STOP_REASONS.has(stopReason);
+}
+
 /** Human-readable message for a genuine error result that carries no `errors[]`. */
 function describeResultError(message: SDKResultError): string {
   const realErrors = (message.errors ?? []).filter((e) => e.trim().length > 0);

@@ -132,6 +132,7 @@ let lastResponse: (AsyncGenerator<any> & {
 // Crash simulation control
 let shouldThrowOnIteration = false;
 let throwAfterChunks = 0;
+let crashMessage = 'Simulated consumer crash';
 let queryCallCount = 0;
 
 // Allow tests to set custom mock messages
@@ -148,6 +149,7 @@ export function resetMockMessages() {
   lastResponse = null;
   shouldThrowOnIteration = false;
   throwAfterChunks = 0;
+  crashMessage = 'Simulated consumer crash';
   queryCallCount = 0;
 }
 
@@ -160,10 +162,13 @@ export function setMockSupportedCommands(
 /**
  * Configure the mock to throw an error during iteration.
  * @param afterChunks - Number of chunks to emit before throwing (0 = throw immediately)
+ * @param message - Optional custom error message (defaults to 'Simulated consumer crash').
+ *   Used e.g. to simulate the Claude CLI's benign `[ede_diagnostic]` messages.
  */
-export function simulateCrash(afterChunks = 0) {
+export function simulateCrash(afterChunks = 0, message = 'Simulated consumer crash') {
   shouldThrowOnIteration = true;
   throwAfterChunks = afterChunks;
+  crashMessage = message;
 }
 
 /**
@@ -232,7 +237,7 @@ async function* emitMessages(messages: any[], options: Options) {
     if (shouldThrowOnIteration && chunksEmitted >= throwAfterChunks) {
       // Reset for next query (allows recovery to work)
       shouldThrowOnIteration = false;
-      throw new Error('Simulated consumer crash');
+      throw new Error(crashMessage);
     }
 
     // Check for tool_use in assistant messages and run hooks

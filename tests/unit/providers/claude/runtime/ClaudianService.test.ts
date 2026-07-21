@@ -14,7 +14,7 @@ import * as sessionUtils from '@/utils/session';
 const sdkMock = sdkModule as unknown as {
   setMockMessages: (messages: any[], options?: { appendResult?: boolean }) => void;
   resetMockMessages: () => void;
-  simulateCrash: (afterChunks?: number) => void;
+  simulateCrash: (afterChunks?: number, message?: string) => void;
   query: typeof sdkModule.query;
 };
 
@@ -1984,6 +1984,27 @@ describe('ClaudianService', () => {
       expect(errorChunks).toHaveLength(1);
       expect(errorChunks[0].content).toContain('Simulated consumer crash');
     });
+
+    it('should NOT surface a benign [ede_diagnostic] as an error in cold-start query', async () => {
+      // Regression: interrupting a turn while a background task was still
+      // running produced this exact raw diagnostic from the Claude CLI's
+      // native runtime — it used to render as a scary "Unerwarteter Fehler"
+      // card even though the turn ended at a normal boundary (stop_reason
+      // tool_use / a completed background task).
+      sdkMock.setMockMessages([
+        { type: 'assistant', message: { content: [{ type: 'text', text: 'Hi' }] } },
+      ]);
+      sdkMock.simulateCrash(
+        0,
+        '[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use(background task completed)',
+      );
+
+      const chunks = await collectChunks(
+        service.query('hello', undefined, undefined, { forceColdStart: true })
+      );
+
+      expect(chunks.filter(c => c.type === 'error')).toHaveLength(0);
+    });
   });
 
   describe('buildHistoryRebuildRequest', () => {
@@ -2972,6 +2993,36 @@ describe('ClaudianService', () => {
       const errorChunks = chunks.filter(c => c.type === 'error');
       expect(errorChunks).toHaveLength(1);
       expect(errorChunks[0].content).toContain('retry also failed');
+    });
+
+    it('should NOT surface a benign [ede_diagnostic] from the session-expired retry path', async () => {
+      service.setSessionId('old-persistent-session');
+      const history: any[] = [
+        { id: '1', role: 'user', content: 'Previous question', timestamp: 1000 },
+      ];
+
+      jest.spyOn(service as any, 'queryViaPersistent').mockImplementation(
+        // eslint-disable-next-line require-yield
+        async function* () {
+          throw new Error('session expired');
+        }
+      );
+
+      jest.spyOn(service as any, 'queryViaSDK').mockImplementation(
+        // eslint-disable-next-line require-yield
+        async function* () {
+          throw new Error(
+            '[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use(background task completed)',
+          );
+        }
+      );
+
+      (service as any).persistentQuery = { interrupt: jest.fn().mockResolvedValue(undefined) };
+      (service as any).shuttingDown = false;
+
+      const chunks = await collectChunks(service.query('follow up', undefined, history));
+
+      expect(chunks.filter(c => c.type === 'error')).toHaveLength(0);
     });
 
     it('should re-throw non-session-expired errors from persistent path', async () => {

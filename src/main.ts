@@ -186,7 +186,7 @@ export default class ClaudianPlugin extends Plugin {
   private conversations: Conversation[] = [];
   private lastKnownTabManagerState: AppTabManagerState | null = null;
   tokenBudgetTracker = new TokenBudgetTracker();
-  private usagePersistTimer: ReturnType<typeof setTimeout> | null = null;
+  private usagePersistTimer: number | null = null;
 
   /**
    * Loads persisted token-usage events from `.claudian/usage.json`.

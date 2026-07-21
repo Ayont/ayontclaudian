@@ -76,6 +76,7 @@ import { getClaudeProviderSettings } from '../settings';
 import {
   createTransformStreamState,
   createTransformUsageState,
+  isBenignSdkDiagnostic,
   transformSDKMessage,
 } from '../stream/transformClaudeMessage';
 import { type ClaudeProviderState, getClaudeState } from '../types/providerState';
@@ -1283,7 +1284,9 @@ export class ClaudianService implements ChatRuntime {
               );
             } catch (retryError) {
               const msg = retryError instanceof Error ? retryError.message : 'Unknown error';
-              yield { type: 'error', content: msg };
+              if (!isBenignSdkDiagnostic(msg)) {
+                yield { type: 'error', content: msg };
+              }
             } finally {
               this.coldStartInProgress = false;
               this.abortController = null;
@@ -1319,13 +1322,17 @@ export class ClaudianService implements ChatRuntime {
           );
         } catch (retryError) {
           const msg = retryError instanceof Error ? retryError.message : 'Unknown error';
-          yield { type: 'error', content: msg };
+          if (!isBenignSdkDiagnostic(msg)) {
+            yield { type: 'error', content: msg };
+          }
         }
         return;
       }
 
       const msg = error instanceof Error ? error.message : 'Unknown error';
-      yield { type: 'error', content: msg };
+      if (!isBenignSdkDiagnostic(msg)) {
+        yield { type: 'error', content: msg };
+      }
     } finally {
       this.coldStartInProgress = false;
       this.abortController = null;
@@ -1485,7 +1492,12 @@ export class ClaudianService implements ChatRuntime {
         if (isSessionExpiredError(state.error)) {
           throw state.error;
         }
-        yield { type: 'error', content: state.error.message };
+        // Benign CLI-internal diagnostics (e.g. a turn interrupted while a
+        // background task was still running) end the turn quietly — see
+        // isBenignSdkDiagnostic for why this must not surface as an error.
+        if (!isBenignSdkDiagnostic(state.error.message)) {
+          yield { type: 'error', content: state.error.message };
+        }
       }
 
       // Clear message tracking after completion
@@ -1683,7 +1695,10 @@ export class ClaudianService implements ChatRuntime {
         throw error;
       }
       const msg = error instanceof Error ? error.message : 'Unknown error';
-      yield { type: 'error', content: msg };
+      // Benign CLI-internal diagnostic — see isBenignSdkDiagnostic.
+      if (!isBenignSdkDiagnostic(msg)) {
+        yield { type: 'error', content: msg };
+      }
     } finally {
       this.sessionManager.clearPendingModel();
       this.currentAllowedTools = null; // Clear tool restriction after query
