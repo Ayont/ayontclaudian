@@ -293,13 +293,8 @@ export class ClaudianDashboardView extends ItemView {
         id: 'usage', title: s.cardUsage, icon: 'gauge',
         value: usage.dailyTotal.toLocaleString(), numericValue: usage.dailyTotal,
         subtitle: s.session(usage.sessionTotal.toLocaleString()),
-        status: usage.dailyTotal > 100_000 ? 'warning' : 'ok', action: s.actReset,
-        onClick: () => {
-          this.plugin.tokenBudgetTracker.resetSession();
-          this.plugin.tokenBudgetTracker.resetDaily();
-          new Notice(s.tokenReset);
-          void this.refreshCards();
-        },
+        status: usage.dailyTotal > 100_000 ? 'warning' : 'ok', action: s.actBrowse,
+        onClick: () => this.openTokenUsageModal(),
       },
       {
         id: 'rag', title: s.cardRag, icon: 'search',

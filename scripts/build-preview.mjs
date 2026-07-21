@@ -368,6 +368,48 @@ const chrome = `
     </div>
   </div>
   <div>
+    <div style="font-size:11px;color:var(--text-faint);margin-bottom:8px;">VERBRAUCH &amp; LIMITS</div>
+    <div style="max-width:560px;background:var(--background-secondary);border:1px solid var(--background-modifier-border);border-radius:12px;padding:16px;">
+      <div class="claudian-usage-totals">
+        <div class="claudian-usage-total-card"><span class="claudian-usage-total-label">Heute</span><span class="claudian-usage-total-value">48,2k</span></div>
+        <div class="claudian-usage-total-card"><span class="claudian-usage-total-label">7 Tage</span><span class="claudian-usage-total-value">312k</span></div>
+        <div class="claudian-usage-total-card"><span class="claudian-usage-total-label">Session</span><span class="claudian-usage-total-value">12,7k</span></div>
+      </div>
+      <div class="claudian-usage-provider-card">
+        <div class="claudian-usage-provider-head"><span class="claudian-usage-provider-name">Claude</span>
+          <div class="claudian-usage-editors">
+            <span class="claudian-usage-editor"><span class="claudian-usage-editor-label">Fenster</span><input class="claudian-usage-editor-input" type="number" value="5"><span class="claudian-usage-editor-suffix">h</span></span>
+            <span class="claudian-usage-editor"><span class="claudian-usage-editor-label">Limit</span><input class="claudian-usage-editor-input" type="number" value="100000"><span class="claudian-usage-editor-suffix">Tokens</span></span>
+          </div>
+        </div>
+        <div class="claudian-usage-consumption"><span class="claudian-usage-consumption-value">38,4k / 100k Tokens</span><span class="claudian-usage-consumption-sub">38% im 5-h-Fenster · noch 61,6k</span></div>
+        <div class="claudian-usage-limit-bar"><div class="claudian-usage-limit-fill" style="width:38%"></div></div>
+        <div class="claudian-usage-provider-meta"><span class="claudian-usage-reset-chip">↻ Reset in 2 h 14 min</span><span class="claudian-usage-provider-sums">Heute 38,4k · 7 Tage 210k</span></div>
+      </div>
+      <div class="claudian-usage-provider-card">
+        <div class="claudian-usage-provider-head"><span class="claudian-usage-provider-name">Kimi</span>
+          <div class="claudian-usage-editors">
+            <span class="claudian-usage-editor"><span class="claudian-usage-editor-label">Fenster</span><input class="claudian-usage-editor-input" type="number" value="5"><span class="claudian-usage-editor-suffix">h</span></span>
+            <span class="claudian-usage-editor"><span class="claudian-usage-editor-label">Limit</span><input class="claudian-usage-editor-input" type="number" placeholder="aus"><span class="claudian-usage-editor-suffix">Tokens</span></span>
+          </div>
+        </div>
+        <div class="claudian-usage-consumption"><span class="claudian-usage-consumption-value">9,8k Tokens</span><span class="claudian-usage-consumption-sub">im 5-h-Fenster · 14 Turns</span></div>
+        <div class="claudian-usage-provider-meta"><span class="claudian-usage-reset-chip">↻ Reset in 43 min</span><span class="claudian-usage-provider-sums">Heute 9,8k · 7 Tage 102k</span></div>
+      </div>
+      <div class="claudian-usage-provider-card">
+        <div class="claudian-usage-provider-head"><span class="claudian-usage-provider-name">Codex</span>
+          <div class="claudian-usage-editors">
+            <span class="claudian-usage-editor"><span class="claudian-usage-editor-label">Fenster</span><input class="claudian-usage-editor-input" type="number" value="5"><span class="claudian-usage-editor-suffix">h</span></span>
+            <span class="claudian-usage-editor"><span class="claudian-usage-editor-label">Limit</span><input class="claudian-usage-editor-input" type="number" value="50000"><span class="claudian-usage-editor-suffix">Tokens</span></span>
+          </div>
+        </div>
+        <div class="claudian-usage-consumption"><span class="claudian-usage-consumption-value">43,5k / 50k Tokens</span><span class="claudian-usage-consumption-sub">87% im 5-h-Fenster · noch 6,5k</span></div>
+        <div class="claudian-usage-limit-bar"><div class="claudian-usage-limit-fill is-warn" style="width:87%"></div></div>
+        <div class="claudian-usage-provider-meta"><span class="claudian-usage-reset-chip">↻ Reset in 1 h 2 min</span><span class="claudian-usage-provider-sums">Heute 43,5k · 7 Tage 88k</span></div>
+      </div>
+    </div>
+  </div>
+  <div>
     <div style="font-size:11px;color:var(--text-faint);margin-bottom:8px;">WELCOME</div>
     <div class="claudian-welcome" style="min-height:120px;">
       <div class="claudian-welcome-greeting">Guten Abend, Niccolo</div>

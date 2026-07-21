@@ -1,11 +1,12 @@
 import type { App } from 'obsidian';
 import { Modal, Notice, setIcon } from 'obsidian';
 
+import { DEFAULT_USAGE_WINDOW_HOURS, type ProviderWindow } from '../../core/budget/tokenBudget';
 import type { MissionEvent, MissionState } from '../../core/intelligence/multiAgent/MissionStateStorage';
 import { loadMemoryNotes } from '../../core/memory/memoryService';
 import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
+import type { ProviderId } from '../../core/types/provider';
 import type ClaudianPlugin from '../../main';
-import { animateNumber } from '../../utils/animateNumber';
 
 /**
  * Tints a dashboard modal with the active provider's brand color via the shared
@@ -300,9 +301,39 @@ export class WorkflowBrowserModal extends Modal {
   }
 }
 
-// ── Token Usage Chart Modal ───────────────────────────────────────────────────
+// ── Verbrauch & Limits Modal ─────────────────────────────────────────────────
 
+const MS_PER_MINUTE = 60_000;
+const MS_PER_HOUR = 60 * MS_PER_MINUTE;
+
+/** 38.400 → „38,4k" · 1.200.000 → „1,2M" — deutsches Dezimalkomma. */
+function formatTokens(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toLocaleString('de-DE', { maximumFractionDigits: 1 })} M`;
+  if (value >= 1_000) return `${(value / 1_000).toLocaleString('de-DE', { maximumFractionDigits: 1 })}k`;
+  return String(Math.round(value));
+}
+
+/** 8.040.000 ms → „2 h 14 min" · „43 min" · „< 1 min". */
+function formatDuration(ms: number): string {
+  if (ms < MS_PER_MINUTE) return '< 1 min';
+  const hours = Math.floor(ms / MS_PER_HOUR);
+  const minutes = Math.round((ms % MS_PER_HOUR) / MS_PER_MINUTE);
+  if (hours === 0) return `${minutes} min`;
+  return minutes > 0 ? `${hours} h ${minutes} min` : `${hours} h`;
+}
+
+/**
+ * „Verbrauch & Limits": per-provider rate-limit windows with a fill bar and a
+ * live reset countdown.
+ *
+ * What we show is MEASURED locally: the plugin sees every turn's token report
+ * (input/context tokens) and aggregates it. Official provider caps depend on
+ * the user's plan and are not queryable — so window length + cap are editable
+ * per provider, and without a cap we show plain consumption, no made-up %.
+ */
 export class TokenUsageModal extends Modal {
+  private tickTimer: number | null = null;
+
   constructor(app: App, private readonly plugin: ClaudianPlugin) {
     super(app);
     this.modalEl.addClass('claudian-dashboard-browser-modal');
@@ -310,122 +341,153 @@ export class TokenUsageModal extends Modal {
   }
 
   onOpen(): void {
+    this.renderContent();
+    // Countdown ticks live while the modal is open.
+    this.tickTimer = window.setInterval(() => this.renderContent(), 30_000);
+  }
+
+  onClose(): void {
+    if (this.tickTimer !== null) {
+      window.clearInterval(this.tickTimer);
+      this.tickTimer = null;
+    }
+    this.contentEl.empty();
+  }
+
+  private renderContent(): void {
     const { contentEl } = this;
     contentEl.empty();
 
     const header = contentEl.createDiv({ cls: 'claudian-browser-header' });
     setIcon(header.createSpan({ cls: 'claudian-browser-icon' }), 'gauge');
-    header.createEl('h2', { text: 'Token Usage' });
+    header.createEl('h2', { text: 'Verbrauch & Limits' });
 
-    const usage = this.plugin.tokenBudgetTracker.getState();
-    const stats = contentEl.createDiv({ cls: 'claudian-usage-stats' });
+    contentEl.createEl('p', {
+      cls: 'claudian-usage-hint',
+      text: 'Gemessen wird der Token-Verbrauch deiner Chats in dieser App (Input-/Kontext-Tokens, wie vom Provider gemeldet). Offizielle Limits hängen von deinem Plan ab und sind nicht abfragbar — trage Fenster und Limit pro Provider ein, um Füllstand und Restmenge zu sehen. Das Fenster startet mit der ersten Nachricht und resettet komplett (Claude-Code-Modell).',
+    });
 
-    this.createStatCard(stats, 'Daily Total', usage.dailyTotal, 'tokens');
-    this.createStatCard(stats, 'Session Total', usage.sessionTotal, 'tokens');
+    const tracker = this.plugin.tokenBudgetTracker;
+    const settings = this.plugin.settings;
+    const windows = tracker.getWindowedProviders(settings.usageWindowHours ?? {});
+    const state = tracker.getState();
+    const weekTotal = windows.reduce((sum, w) => sum + w.weekTokens, 0);
 
-    // Canvas-rendered mini bar chart
-    const chartWrap = contentEl.createDiv({ cls: 'claudian-usage-chart-wrap' });
-    chartWrap.createEl('h3', { text: 'Usage Breakdown' });
-    const canvas = chartWrap.createEl('canvas', { cls: 'claudian-usage-chart' });
-    canvas.width = 500;
-    canvas.height = 200;
-    const accent = this.resolveAccent();
-    this.drawBarChart(canvas, [
-      { label: 'Daily', value: usage.dailyTotal, color: accent.strong },
-      { label: 'Session', value: usage.sessionTotal, color: accent.soft },
-    ]);
+    // ── Totals ────────────────────────────────────────────────────────
+    const totals = contentEl.createDiv({ cls: 'claudian-usage-totals' });
+    this.renderTotal(totals, 'Heute', state.dailyTotal);
+    this.renderTotal(totals, '7 Tage', weekTotal);
+    this.renderTotal(totals, 'Session', state.sessionTotal);
 
-    const breakdown = Object.entries(usage.breakdown ?? {}).sort((a, b) => b[1].tokens - a[1].tokens);
-    if (breakdown.length > 0) {
-      const breakdownEl = contentEl.createDiv({ cls: 'claudian-usage-breakdown-list' });
-      breakdownEl.createEl('h3', { text: 'Provider und Modelle' });
-      for (const [key, entry] of breakdown) {
-        const row = breakdownEl.createDiv({ cls: 'claudian-usage-breakdown-row' });
-        row.createSpan({ text: key.replace(':', ' · ') });
-        row.createSpan({ text: `${entry.tokens.toLocaleString('de-DE')} Tokens · ${entry.runs} Updates` });
-      }
+    // ── Provider cards ────────────────────────────────────────────────
+    if (windows.length === 0) {
+      contentEl.createEl('p', {
+        cls: 'claudian-usage-empty',
+        text: 'Noch keine Verbrauchsdaten — schick eine Nachricht, dann erscheinen hier Fenster, Reset-Countdown und Tages-/Wochensummen.',
+      });
     }
 
+    for (const win of windows) {
+      this.renderProviderCard(contentEl, win);
+    }
+
+    // ── Reset ─────────────────────────────────────────────────────────
     const actions = contentEl.createDiv({ cls: 'claudian-usage-actions' });
-    const resetBtn = actions.createEl('button', { cls: 'claudian-usage-reset-btn', text: 'Reset Session' });
+    const resetBtn = actions.createEl('button', { cls: 'claudian-usage-reset-btn', text: 'Statistik zurücksetzen' });
     resetBtn.addEventListener('click', () => {
-      this.plugin.tokenBudgetTracker.resetSession();
-      this.plugin.tokenBudgetTracker.resetDaily();
-      new Notice('Token budget reset.');
-      this.onOpen();
+      tracker.resetSession();
+      tracker.resetDaily();
+      this.plugin.persistTokenUsage();
+      new Notice('Verbrauchsstatistik zurückgesetzt.');
+      this.renderContent();
     });
   }
 
-  /**
-   * Resolves the active provider's accent into concrete canvas colors. Canvas
-   * cannot consume CSS custom properties, so we read the computed `--claudian-*`
-   * tokens (set via `[data-provider]`) and fall back to sensible defaults.
-   */
-  private resolveAccent(): { strong: string; soft: string; grid: string; text: string; muted: string } {
-    const styles = getComputedStyle(this.modalEl);
-    const accent = styles.getPropertyValue('--claudian-accent').trim() || '#7c3aed';
-    const rgb = styles.getPropertyValue('--claudian-accent-rgb').trim();
-    const text = styles.getPropertyValue('--text-normal').trim() || '#e6e6e6';
-    const muted = styles.getPropertyValue('--text-muted').trim() || '#9a9a9a';
-    return {
-      strong: accent,
-      soft: rgb ? `rgba(${rgb}, 0.5)` : accent,
-      grid: rgb ? `rgba(${rgb}, 0.12)` : 'rgba(255,255,255,0.1)',
-      text,
-      muted,
-    };
+  private renderTotal(parent: HTMLElement, label: string, value: number): void {
+    const card = parent.createDiv({ cls: 'claudian-usage-total-card' });
+    card.createSpan({ cls: 'claudian-usage-total-label', text: label });
+    card.createSpan({ cls: 'claudian-usage-total-value', text: formatTokens(value) });
   }
 
-  private createStatCard(parent: HTMLElement, title: string, value: number, subtitle: string): void {
-    const card = parent.createDiv({ cls: 'claudian-usage-stat-card' });
-    card.createEl('span', { cls: 'claudian-usage-stat-title', text: title });
-    const valueEl = card.createEl('span', { cls: 'claudian-usage-stat-value', text: '0' });
-    animateNumber(valueEl, value);
-    card.createEl('span', { cls: 'claudian-usage-stat-sub', text: subtitle });
-  }
+  private renderProviderCard(parent: HTMLElement, win: ProviderWindow): void {
+    const settings = this.plugin.settings;
+    const windowHours = settings.usageWindowHours?.[win.providerId] ?? DEFAULT_USAGE_WINDOW_HOURS;
+    const cap = settings.usageTokenCaps?.[win.providerId] ?? 0;
 
-  private drawBarChart(canvas: HTMLCanvasElement, bars: { label: string; value: number; color: string }[]): void {
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const card = parent.createDiv({ cls: 'claudian-usage-provider-card' });
 
-    const w = canvas.width;
-    const h = canvas.height;
-    const padding = 40;
-    const barWidth = (w - padding * 2) / bars.length - 20;
-    const maxValue = Math.max(...bars.map(b => b.value), 1);
-    const accent = this.resolveAccent();
+    // Head: provider name + inline window/cap editors
+    const head = card.createDiv({ cls: 'claudian-usage-provider-head' });
+    head.createSpan({ cls: 'claudian-usage-provider-name', text: ProviderRegistry.getProviderDisplayName(win.providerId as ProviderId) });
 
-    ctx.clearRect(0, 0, w, h);
+    const editors = head.createDiv({ cls: 'claudian-usage-editors' });
+    this.renderNumberEditor(editors, 'Fenster', windowHours, 'h', (value) => {
+      settings.usageWindowHours = { ...(settings.usageWindowHours ?? {}), [win.providerId]: value };
+      void this.plugin.saveSettings().then(() => this.renderContent());
+    });
+    this.renderNumberEditor(editors, 'Limit', cap, 'Tokens', (value) => {
+      settings.usageTokenCaps = { ...(settings.usageTokenCaps ?? {}), [win.providerId]: value };
+      void this.plugin.saveSettings().then(() => this.renderContent());
+    });
 
-    // Grid lines
-    ctx.strokeStyle = accent.grid;
-    ctx.lineWidth = 1;
-    for (let i = 0; i <= 4; i++) {
-      const y = padding + ((h - padding * 2) / 4) * i;
-      ctx.beginPath();
-      ctx.moveTo(padding, y);
-      ctx.lineTo(w - padding, y);
-      ctx.stroke();
+    // Consumption line + optional fill bar
+    const pct = cap > 0 ? Math.min(100, Math.round((win.tokens / cap) * 100)) : null;
+    const consumption = card.createDiv({ cls: 'claudian-usage-consumption' });
+    consumption.createSpan({
+      cls: 'claudian-usage-consumption-value',
+      text: cap > 0
+        ? `${formatTokens(win.tokens)} / ${formatTokens(cap)} Tokens`
+        : `${formatTokens(win.tokens)} Tokens`,
+    });
+    consumption.createSpan({
+      cls: 'claudian-usage-consumption-sub',
+      text: cap > 0
+        ? `${pct}% im ${windowHours}-h-Fenster · noch ${formatTokens(Math.max(0, cap - win.tokens))}`
+        : `im ${windowHours}-h-Fenster · ${win.runs} Turns`,
+    });
+
+    if (cap > 0 && pct !== null) {
+      const bar = card.createDiv({ cls: 'claudian-usage-limit-bar' });
+      const fill = bar.createDiv({ cls: 'claudian-usage-limit-fill' });
+      fill.style.width = `${pct}%`;
+      if (pct >= 100) fill.addClass('is-error');
+      else if (pct >= 80) fill.addClass('is-warn');
     }
 
-    // Bars
-    bars.forEach((bar, i) => {
-      const x = padding + i * (barWidth + 20) + 10;
-      const barHeight = ((h - padding * 2) * bar.value) / maxValue;
-      const y = h - padding - barHeight;
-
-      ctx.fillStyle = bar.color;
-      ctx.fillRect(x, y, barWidth, barHeight);
-
-      // Label
-      ctx.fillStyle = accent.muted;
-      ctx.font = '12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(bar.label, x + barWidth / 2, h - padding + 20);
-
-      // Value
-      ctx.fillStyle = accent.text;
-      ctx.fillText(bar.value.toLocaleString(), x + barWidth / 2, y - 8);
+    // Meta: reset countdown + day/week sums
+    const meta = card.createDiv({ cls: 'claudian-usage-provider-meta' });
+    const now = Date.now();
+    const resetChip = meta.createSpan({ cls: 'claudian-usage-reset-chip' });
+    if (win.resetAt !== null && win.resetAt > now) {
+      resetChip.setText(`↻ Reset in ${formatDuration(win.resetAt - now)}`);
+    } else {
+      resetChip.setText('Fenster frei');
+      resetChip.addClass('is-free');
+    }
+    meta.createSpan({
+      cls: 'claudian-usage-provider-sums',
+      text: `Heute ${formatTokens(win.todayTokens)} · 7 Tage ${formatTokens(win.weekTokens)}`,
     });
+  }
+
+  private renderNumberEditor(
+    parent: HTMLElement,
+    label: string,
+    value: number,
+    suffix: string,
+    onCommit: (value: number) => void,
+  ): void {
+    const wrap = parent.createSpan({ cls: 'claudian-usage-editor' });
+    wrap.createSpan({ cls: 'claudian-usage-editor-label', text: label });
+    const input = wrap.createEl('input', { cls: 'claudian-usage-editor-input' });
+    input.type = 'number';
+    input.min = '0';
+    input.value = value > 0 ? String(value) : '';
+    input.placeholder = suffix === 'Tokens' ? 'aus' : String(DEFAULT_USAGE_WINDOW_HOURS);
+    input.addEventListener('change', () => {
+      const parsed = Number.parseInt(input.value, 10);
+      onCommit(Number.isFinite(parsed) && parsed >= 0 ? parsed : 0);
+    });
+    wrap.createSpan({ cls: 'claudian-usage-editor-suffix', text: suffix });
   }
 }

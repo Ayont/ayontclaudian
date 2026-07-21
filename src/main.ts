@@ -14,7 +14,7 @@ import { SharedStorageService } from './app/storage/SharedStorageService';
 import { PluginUpdater } from './app/update/PluginUpdater';
 import { whisperServerManager } from './core/audio/WhisperServerManager';
 import type { SharedAppStorage } from './core/bootstrap/storage';
-import { TokenBudgetTracker } from './core/budget/tokenBudget';
+import { type TokenBudgetState,TokenBudgetTracker } from './core/budget/tokenBudget';
 import {
   type ComparisonEntry,
   type ComparisonOutcome,
@@ -186,6 +186,42 @@ export default class ClaudianPlugin extends Plugin {
   private conversations: Conversation[] = [];
   private lastKnownTabManagerState: AppTabManagerState | null = null;
   tokenBudgetTracker = new TokenBudgetTracker();
+  private usagePersistTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * Loads persisted token-usage events from `.claudian/usage.json`.
+   * The file lives in a hidden dot-folder — Obsidian's vault index never
+   * sees those, so every read/write MUST go through vault.adapter.
+   */
+  private async loadTokenUsage(): Promise<void> {
+    const usagePath = '.claudian/usage.json';
+    try {
+      if (!(await this.app.vault.adapter.exists(usagePath))) return;
+      const parsed = JSON.parse(await this.app.vault.adapter.read(usagePath)) as TokenBudgetState;
+      this.tokenBudgetTracker = new TokenBudgetTracker(parsed);
+    } catch {
+      // Corrupt or partially written file — start fresh rather than crash onload.
+    }
+  }
+
+  /** Debounced persist of the usage state (called after every tracked turn). */
+  persistTokenUsage(): void {
+    if (this.usagePersistTimer) window.clearTimeout(this.usagePersistTimer);
+    this.usagePersistTimer = window.setTimeout(() => {
+      this.usagePersistTimer = null;
+      void (async () => {
+        try {
+          if (!(await this.app.vault.adapter.exists('.claudian'))) await this.app.vault.adapter.mkdir('.claudian');
+          await this.app.vault.adapter.write(
+            '.claudian/usage.json',
+            JSON.stringify(this.tokenBudgetTracker.getState()),
+          );
+        } catch {
+          // Persistence is best-effort — never break the chat flow for stats.
+        }
+      })();
+    }, 5000);
+  }
   metadataStore!: MetadataStore;
   auditLogService!: AuditLogService;
   workflowEngine!: WorkflowEngine;
@@ -2046,6 +2082,7 @@ export default class ClaudianPlugin extends Plugin {
 
     this.projectService = new ProjectService(this.app.vault);
     this.agenticMemoryService = new AgenticMemoryService(this.app.vault);
+    await this.loadTokenUsage();
     this.cachedMemoryStore = new CachedMemoryStore(this.app.vault);
     this.multiAgentService = new MultiAgentService();
     this.missionStateStorage = new MissionStateStorage(this.storage.getAdapter());

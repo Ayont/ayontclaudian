@@ -142,6 +142,10 @@ export interface ClaudianSettings {
   tokenBudgetEnabled?: boolean;
   dailyTokenBudget?: number;
   sessionTokenBudget?: number;
+  /** Rate-limit window length per provider in hours (default 5 — Claude Code's subscription window). */
+  usageWindowHours?: Record<string, number>;
+  /** Optional token cap per provider for the fill bar (0/unset = show consumption only). */
+  usageTokenCaps?: Record<string, number>;
 
   /** Ollama local embedding configuration. */
   ollamaEmbedding?: {

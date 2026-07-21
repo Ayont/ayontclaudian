@@ -334,6 +334,7 @@ export class StreamController {
             ? { ...chunk.usage, model: activeModel }
             : chunk.usage;
           this.deps.plugin.tokenBudgetTracker?.trackUsage(state.usage, this.getActiveProviderId());
+          this.deps.plugin.persistTokenUsage?.();
         }
         break;
       }
