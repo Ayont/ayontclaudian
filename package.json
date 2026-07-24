@@ -61,6 +61,6 @@
   "overrides": {
     "@eslint/js": "$@eslint/js",
     "typescript-eslint": "$@typescript-eslint/eslint-plugin",
-    "js-yaml": "5.2.1"
+    "js-yaml": "5.2.2"
   }
 }
