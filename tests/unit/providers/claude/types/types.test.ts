@@ -661,6 +661,39 @@ describe('types.ts', () => {
         expect(getContextWindowSize('FABLE')).toBe(CONTEXT_WINDOW_1M);
         expect(getContextWindowSize('claude-fable-5')).toBe(CONTEXT_WINDOW_1M);
       });
+
+      // Regression: pinned Opus 4.6+ dated ids ship a 1M context window as their
+      // documented default (Opus 5: "1M context window (default and maximum)"), so
+      // reporting them at 200K under-counted the window 5x in the usage badge.
+      it('should return 1M for pinned Opus 4.6+ ids (1M context is their default)', () => {
+        expect(getContextWindowSize('claude-opus-5')).toBe(CONTEXT_WINDOW_1M);
+        expect(getContextWindowSize('claude-opus-4-8')).toBe(CONTEXT_WINDOW_1M);
+        expect(getContextWindowSize('claude-opus-4-7')).toBe(CONTEXT_WINDOW_1M);
+        expect(getContextWindowSize('claude-opus-4-6')).toBe(CONTEXT_WINDOW_1M);
+      });
+
+      it('should return 1M for pinned Opus 4.6+ ids regardless of casing or a redundant [1m]', () => {
+        // The CLI accepts a stray `[1m]` on these (verified live) — it is a no-op,
+        // and either spelling must resolve to the same 1M window.
+        expect(getContextWindowSize('CLAUDE-OPUS-5')).toBe(CONTEXT_WINDOW_1M);
+        expect(getContextWindowSize('claude-opus-5[1m]')).toBe(CONTEXT_WINDOW_1M);
+        expect(getContextWindowSize('claude-opus-4-8[1M]')).toBe(CONTEXT_WINDOW_1M);
+      });
+
+      it('should still report 200K for pre-4.6 Opus ids and non-Opus families', () => {
+        // 1M context landed with Opus 4.6; older pinned ids keep the standard window.
+        expect(getContextWindowSize('claude-opus-4-5')).toBe(CONTEXT_WINDOW_STANDARD);
+        expect(getContextWindowSize('claude-opus-4-1')).toBe(CONTEXT_WINDOW_STANDARD);
+        expect(getContextWindowSize('claude-sonnet-4-5')).toBe(CONTEXT_WINDOW_STANDARD);
+        expect(getContextWindowSize('claude-haiku-4-5')).toBe(CONTEXT_WINDOW_STANDARD);
+      });
+
+      it('leaves the floating `opus` alias governed by the enableOpus1M toggle', () => {
+        // Deliberate: the bare alias floats to whatever Anthropic ships next, so we
+        // don't hardcode a 1M default for it — `opus[1m]` is how the plugin asks.
+        expect(getContextWindowSize('opus')).toBe(CONTEXT_WINDOW_STANDARD);
+        expect(getContextWindowSize('opus[1m]')).toBe(CONTEXT_WINDOW_1M);
+      });
     });
 
     describe('filterVisibleModelOptions', () => {

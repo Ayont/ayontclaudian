@@ -19,8 +19,10 @@ export const DEFAULT_CLAUDE_MODELS: { value: ClaudeModel; label: string; descrip
   // reachable today (`claude --model claude-opus-5|claude-opus-4-8 -p ...` both responded,
   // 2026-07-28) — Anthropic keeps prior dated Opus snapshots available after a new default
   // ships, same precedent as `claude-opus-4-5`/`claude-opus-4-6`/`claude-opus-4-7`.
-  { value: 'claude-opus-5', label: 'Opus 5', description: 'Pinned to Opus 5 — stays fixed even once a newer Opus becomes the `opus` default' },
-  { value: 'claude-opus-4-8', label: 'Opus 4.8', description: 'Pinned to the previous Opus 4.8 release' },
+  // Both ship 1M context by default, so they are NOT gated behind the `enableOpus1M`
+  // toggle — there is no 200K variant to toggle back to. See isOneMContextDefaultModel().
+  { value: 'claude-opus-5', label: 'Opus 5', description: 'Pinned to Opus 5 (1M context by default) — stays fixed even once a newer Opus becomes the `opus` default' },
+  { value: 'claude-opus-4-8', label: 'Opus 4.8', description: 'Pinned to the previous Opus 4.8 release (1M context by default)' },
   // Fable 5 is Anthropic's Mythos-class flagship (introduced with Claude Code 2.1.170).
   // It ships with a 1M context window by default, so there is no separate `[1m]` variant —
   // the CLI strips a `[1m]` suffix automatically (changelog 2.1.173). Placed last (not at
@@ -93,6 +95,29 @@ function isBuiltInFamilyVariant(model: string, family: 'sonnet' | 'opus' | 'fabl
 function isFableFamilyModel(model: string): boolean {
   const normalized = normalizeModelId(model);
   return normalized === 'fable' || normalized === 'fable[1m]' || /claude-fable-\d/.test(normalized);
+}
+
+/**
+ * Whether `model` ships with a 1M context window **by default** — no `[1m]` opt-in
+ * needed, and no long-context price premium.
+ *
+ * Covers Fable (Mythos-class) plus every pinned Opus 4.6+ dated id. Per Anthropic's
+ * model catalog, Opus 4.6 / 4.7 / 4.8 / 5 all list a 1M context window as the
+ * default (Opus 5: "1M context window (default and maximum)"), which is why the
+ * `[1m]` suffix is accepted but a no-op on them (verified live: `claude --model
+ * "claude-opus-5[1m]"` and `"claude-opus-4-8[1m]"` both answer normally).
+ *
+ * Deliberately does NOT match the bare `opus` / `opus[1m]` aliases: those stay
+ * governed by the `enableOpus1M` toggle, because the alias floats to whatever
+ * Anthropic ships next and we shouldn't assume a future Opus keeps 1M as its
+ * default. Pinned ids are a known quantity; the floating alias is not.
+ */
+function isOneMContextDefaultModel(model: string): boolean {
+  const normalized = normalizeModelId(model);
+  if (isFableFamilyModel(normalized)) return true;
+  // Same version-parsing shape as supportsXHighEffort, one minor version wider
+  // (1M context landed in Opus 4.6; xhigh effort only in 4.7).
+  return /claude-opus-(4-[6-9]|[5-9])/.test(normalized);
 }
 
 function isValidContextLimit(limit: unknown): limit is number {
@@ -226,9 +251,10 @@ export function getContextWindowSize(
     return CONTEXT_WINDOW_1M;
   }
 
-  // Fable 5 ships with a 1M context window by default (no opt-out), so the bare
-  // `fable` alias, `fable[1m]`, and full names like `claude-fable-5` resolve to 1M.
-  if (isFableFamilyModel(model)) {
+  // Models that ship with a 1M context window by default (no `[1m]` opt-in): the
+  // bare `fable` alias, `fable[1m]`, `claude-fable-5`, and every pinned Opus 4.6+
+  // dated id (`claude-opus-5`, `claude-opus-4-8`, ...).
+  if (isOneMContextDefaultModel(model)) {
     return CONTEXT_WINDOW_1M;
   }
 
