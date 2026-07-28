@@ -290,6 +290,10 @@ export class ClaudianService implements ChatRuntime {
         contextWindow,
         contextWindowIsAuthoritative: true,
         percentage,
+        // The buffered chunk was already yielded (and counted) with a heuristic
+        // window. This re-emission carries the SAME contextTokens with a corrected
+        // denominator — flag it so the token budget doesn't count the turn twice.
+        isRestatedSnapshot: true,
       },
     };
     this.bufferedUsageChunk = nextChunk;

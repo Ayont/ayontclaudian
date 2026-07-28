@@ -61,13 +61,18 @@ ayontclaudian embeds popular coding-agent CLIs as first-class collaborators in y
 
 ## Installation
 
-### From Obsidian Community Plugins (recommended)
+> **Not in the Obsidian community registry.** ayontclaudian is a fork distributed
+> via GitHub releases only. Searching the community plugin browser for
+> "ayontclaudian" will not find it — and installing the similarly named
+> **Claudian** from the registry gets you [the upstream
+> project](https://github.com/YishenTu/claudian), not this one. Use BRAT (below)
+> or install the release files by hand.
 
-1. Open Obsidian → **Settings → Community plugins → Browse**
-2. Search for **"ayontclaudian"** and click **Install**
-3. Enable the plugin
+### Via BRAT (recommended)
 
-Or install directly from the [community plugin page](https://community.obsidian.md/plugins/realclaudian).
+BRAT keeps the plugin updated automatically from this repo's releases — see
+[Via BRAT](#via-brat-beta-plugin-installer) below for the steps. Repository to add:
+`Ayont/ayontclaudian`.
 
 ### From GitHub Release
 

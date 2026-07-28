@@ -149,6 +149,25 @@ describe('CodexChatUIConfig', () => {
     it('should return 200000 for legacy models', () => {
       expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_55_MODEL)).toBe(200_000);
     });
+
+    // Regression: the signature omitted the `customLimits` argument that every
+    // caller passes, so a per-model override entered in Settings validated, saved,
+    // and was then silently ignored — every other provider honours it.
+    it('prefers a user-configured custom context limit', () => {
+      const customLimits = { 'gpt-5.6-sol-preview': 400_000 };
+      expect(codexChatUIConfig.getContextWindowSize('gpt-5.6-sol-preview', customLimits)).toBe(400_000);
+    });
+
+    it('overrides even a known built-in model when a custom limit is set', () => {
+      const customLimits = { [CODEX_GPT_55_MODEL]: 512_000 };
+      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_55_MODEL, customLimits)).toBe(512_000);
+    });
+
+    it('ignores invalid custom limits and falls back to the built-in value', () => {
+      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_55_MODEL, { [CODEX_GPT_55_MODEL]: 0 })).toBe(200_000);
+      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_55_MODEL, { [CODEX_GPT_55_MODEL]: -5 })).toBe(200_000);
+      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_55_MODEL, { other: 999 })).toBe(200_000);
+    });
   });
 
   describe('applyModelDefaults', () => {

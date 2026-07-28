@@ -2,79 +2,142 @@
 
 ## Project Overview
 
-Claudian is an Obsidian plugin that embeds provider-backed chat runtimes in a sidebar and inline-edit flow. Claude is the default provider. Codex is optional and joins the same conversation model through `Conversation.providerId` plus provider-owned `providerState`.
+**ayontclaudian** (`Ayont/ayontclaudian`) embeds coding-agent CLIs as chat runtimes
+directly inside an Obsidian vault. The vault is the agent's working directory: it
+reads and writes notes, searches, runs bash, and drives agentic workflows in place.
 
-## Architecture Status
+This is a fork of [`YishenTu/claudian`](https://github.com/YishenTu/claudian) that
+has diverged substantially. **It is not in the Obsidian community registry** — it
+ships via GitHub releases and BRAT.
 
-- Product status: Claudian is a multi-provider product. Claude is the full-feature provider. Codex is opt-in and currently supports send, stream, cancel, resume, history reload, fork, plan mode, image attachments, inline edit, `#` instruction mode, `$` skills, and subagents. Unsupported or gated Codex surfaces are rewind, runtime-discovered provider commands, in-app MCP management, and Claude plugin integration.
-- App shell: `src/app/` owns shared settings defaults and plugin-level storage helpers. `src/core/` owns provider-neutral runtime, registry, tool, and type contracts.
-- Provider boundary: `src/core/runtime/` and `src/core/providers/` define the chat-facing seam. `ProviderRegistry` creates runtimes and provider-owned auxiliary services. `ProviderWorkspaceRegistry` owns workspace services such as command catalogs, agent mention providers, CLI resolution, MCP managers, and provider settings tabs.
-- Claude adaptor: `src/providers/claude/` owns the Claude runtime, prompt encoding, stream transforms, history hydration, CLI resolution, plugin and agent discovery, MCP storage, and Claude-specific settings UI. `ClaudeCommandCatalog` merges vault commands, vault skills, and runtime-supported commands behind the shared command catalog contract.
-- Codex adaptor: `src/providers/codex/` owns the `codex app-server` runtime, JSON-RPC transport, prompt encoding, raw live stream projection, JSONL history reload, settings reconciliation, normalization, skill cataloging, subagent storage, and Codex settings UI. `CodexSkillCatalog` provides `$` skill discovery from `.codex/skills/` and `.agents/skills/` without relying on runtime command discovery.
-- Conversations: `Conversation` carries `providerId` and opaque `providerState`. Claude state is typed behind `ClaudeProviderState`. Codex state is typed behind `CodexProviderState` and currently stores `threadId`, `sessionFilePath`, and optional fork metadata.
+- Plugin id: `realclaudian` · display name: `ayontclaudian` · author: `Ayont`
+- Deployed folder in a vault: `.obsidian/plugins/realclaudian/`
+
+## Conventions that are easy to get wrong
+
+- **User-facing strings are German.** Chat copy, notices, settings descriptions,
+  GUI labels. Code — identifiers, comments, commit messages, docs — is English.
+  There are 10 locale files under `src/i18n/locales/`, but German is the product
+  voice; new UI text should be written in German unless it is a code-level label.
+- **Comment why, not what.** No narration, no redundant JSDoc.
+- **No `console.*` in production code.**
+- **TDD for behavior changes:** failing test first in the mirrored `tests/` path.
+- Throwaway scripts and handoff notes go in `.context/` (git-ignored), not `dev/`.
+
+## Providers (8)
+
+Every provider is a directory under `src/providers/<id>/` plus two calls in
+`src/providers/index.ts` and one entry in `defaultProviderConfigs.ts`.
+`ProviderId` is a bare `string` (`src/core/types/provider.ts`) — there is no union
+to extend. What differs between providers is the **transport shape**:
+
+| Provider | Integration shape |
+|---|---|
+| `claude` | Official Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`). Full-feature reference implementation. |
+| `codex` | `codex app-server` over JSON-RPC, plus JSONL transcript reload |
+| `opencode` | ACP (shared code in `src/providers/acp/`) |
+| `kimi` | `--print` + full-message NDJSON |
+| `vibe` | `--print` + full-message NDJSON |
+| `grok` | `--print` + delta JSON with resume |
+| `antigravity` | `agy --print`, single-shot; state recovered by tailing `transcript.jsonl` |
+| `pi` | `--print` |
+
+`Conversation` carries `providerId` plus opaque, provider-owned `providerState`.
+
+**Adding a provider is mechanical but touches ~10 files outside its own directory.**
+See [`docs/adding-a-provider.md`](docs/adding-a-provider.md) for the checklist —
+do not try to infer the list by reading one existing provider, you will miss
+several (icons, brand CSS vars, status-bar colors, CLI install catalog, locales,
+usage estimation, keepalive, command expansion).
+
+## Architecture
+
+| Layer | Purpose |
+|---|---|
+| `src/app/` | Shared settings defaults, plugin-level storage helpers |
+| `src/core/` | Provider-neutral contracts and infrastructure — see [`src/core/CLAUDE.md`](src/core/CLAUDE.md) |
+| `src/providers/<id>/` | One adaptor per CLI; `acp/` is shared transport code |
+| `src/features/chat/` | The main chat surface — see [`src/features/chat/CLAUDE.md`](src/features/chat/CLAUDE.md) |
+| `src/features/` | `artifacts`, `dashboard`, `inline-edit`, `multiAgent`, `productivity`, `related`, `settings`, `templates` |
+| `src/shared/` | Reusable UI building blocks (dropdowns, modals, mention UI, icons) |
+| `src/style/` | Modular CSS — see [`src/style/CLAUDE.md`](src/style/CLAUDE.md) |
+| `src/i18n/` | 10 locales |
+| `src/utils/` | Cross-cutting helpers (env, path, markdown, diff, context, image, session) |
+
+`src/core/` has ~31 subdirectories. The larger ones a newcomer will not guess from
+the name: `intelligence/` (multi-agent orchestration + RAG), `control/` (workflow
+engine, scheduled jobs), `budget/` (token budget + rate-limit windows),
+`bootstrap/` (session storage), `undo/` (vault snapshots for turn undo),
+`timeline/` (run timelines), `memory/`, `audio/`, `diagnostics/`.
+
+## Traps
+
+Each of these has cost a real debugging session. They are not theoretical.
+
+1. **`ChatState.messages` returns a copy.** The getter is `return [...this.state.messages]`
+   (`src/features/chat/state/ChatState.ts`). Calling `.push()` on it silently
+   no-ops *and* skips the `onMessagesChanged` callback — use `addMessage()`.
+   This is how multi-agent results once vanished from the UI.
+2. **Theme-dependent CSS custom properties go on `body`, never `:root`.**
+   Obsidian sets `theme-light`/`theme-dark` on `body`, and `var()` resolves against
+   the declaring element. Declaring on `:root` silently locks the surface to one
+   theme — this is what broke the dashboard in light mode.
+3. **Never hand a foreign `sessionId` to a CLI after a mid-chat provider switch.**
+   Read only your own `providerState`. Reference: `AntigravityChatRuntime.syncConversationState`.
+4. **A new CSS module must be `@import`-ed in `src/style/index.css`** or the build fails.
+5. **Provider capability claims must be verified against the real CLI or the
+   bundled SDK typings**, never assumed. Model context windows, effort levels, and
+   flag support have all been wrong in shipped code because they were guessed.
+   `node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts` is authoritative for
+   Claude; for the others, run the binary (`--help`, `models`, `changelog`).
 
 ## Commands
 
 ```bash
-npm run dev
-npm run build
+npm run dev          # watch build
+npm run build        # production build (also builds CSS)
 npm run typecheck
-npm run lint
+npm run lint         # 0 errors required; ~190 pre-existing warnings are expected
 npm run lint:fix
 npm run test
-npm run test:watch
 npm run test:coverage
+npm run preview      # design preview harness
+npm run test:visual  # visual regression
 ```
 
-## Architecture
-
-| Layer | Purpose | Details |
-|-------|---------|---------|
-| **app** | Shared defaults and plugin-level storage helpers | `defaultSettings`, `ClaudianSettingsStorage`, `SharedStorageService` |
-| **core** | Provider-neutral contracts and infrastructure | See [`src/core/CLAUDE.md`](src/core/CLAUDE.md) |
-| **providers/claude** | Claude SDK adaptor | See [`src/providers/claude/CLAUDE.md`](src/providers/claude/CLAUDE.md) |
-| **providers/codex** | Codex app-server adaptor | See [`src/providers/codex/CLAUDE.md`](src/providers/codex/CLAUDE.md) |
-| **features/chat** | Main sidebar interface | See [`src/features/chat/CLAUDE.md`](src/features/chat/CLAUDE.md) |
-| **features/inline-edit** | Inline edit modal and provider-backed edit services | `InlineEditModal` plus provider-owned inline edit services |
-| **features/settings** | Shared settings shell with provider tabs | General tab plus provider-owned Claude and Codex tab renderers |
-| **shared** | Reusable UI building blocks | Dropdowns, modals, mention UI, icons |
-| **i18n** | Internationalization | 10 locales |
-| **utils** | Cross-cutting utilities | env, path, markdown, diff, context, file-link, image, browser, canvas, session, subagent helpers |
-| **style** | Modular CSS | See [`src/style/CLAUDE.md`](src/style/CLAUDE.md) |
-
-## Tests
+Tests mirror `src/` under `tests/unit/` and `tests/integration/`:
 
 ```bash
 npm run test -- --selectProjects unit
 npm run test -- --selectProjects integration
-npm run test:coverage -- --selectProjects unit
 ```
 
-Tests mirror the `src/` layout under `tests/unit/` and `tests/integration/`.
+## Releasing
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). The one thing to internalize before your
+first release: **`origin` is a different fork.** Releases go to the `ayont` remote.
 
 ## Storage
 
 | Path | Contents |
 |------|----------|
-| `.claude/settings.json` | Claude Code-compatible project settings, permissions, and plugin overrides |
-| `.claudian/claudian-settings.json` | Shared Claudian app settings plus provider-specific configuration |
+| `.claudian/claudian-settings.json` | Shared app settings + per-provider config |
+| `.claudian/sessions/*.meta.json` | Provider-neutral session metadata |
+| `.claudian/usage.json` | Token usage, budgets, rate-limit window events |
+| `.claude/settings.json` | Claude Code-compatible project settings and permissions |
 | `.claude/mcp.json` | Claudian-managed MCP servers for Claude |
 | `.claude/commands/**/*.md` | Claude slash commands |
-| `.claude/skills/*/SKILL.md` | Claude skills |
-| `.claude/agents/*.md` | Claude vault agents |
-| `.claudian/sessions/*.meta.json` | Provider-neutral session metadata |
-| `.codex/skills/*/SKILL.md` | Codex vault skills |
-| `.agents/skills/*/SKILL.md` | Alternate Codex vault skill root |
+| `.claude/skills/*/SKILL.md` · `.claude/agents/*.md` | Claude skills / vault agents |
+| `.codex/skills/*/SKILL.md` · `.agents/skills/*/SKILL.md` | Codex vault skills |
 | `.codex/agents/*.toml` | Codex vault subagent definitions |
 | `~/.claude/projects/{vault}/*.jsonl` | Claude-native transcripts |
 | `~/.codex/sessions/**/*.jsonl` | Codex-native transcripts |
 
 ## Development Notes
 
-- **Provider-native first**: Prefer the official Claude SDK and Codex app-server behavior over reimplementing provider features locally. When the provider already owns a capability, adapt to it instead of shadowing it.
-- **Runtime exploration**: For provider integrations, inspect real runtime output first. Claude data lands under `~/.claude/` and Codex data under `~/.codex/`. Real transcripts beat guessed event shapes. Put throwaway local scripts in `.context/`; only promote durable tooling into `dev/`.
-- **Comments**: Comment why, not what. Avoid narration and redundant JSDoc.
-- **TDD workflow**: For new behavior or bug fixes, write the failing test first in the mirrored `tests/` path, make it pass, then refactor.
+- **Provider-native first.** Adapt to what the CLI/SDK already does instead of
+  shadowing it locally.
+- **Inspect real runtime output before integrating.** Claude data lands under
+  `~/.claude/`, Codex under `~/.codex/`, Antigravity under its brain dir. Real
+  transcripts beat guessed event shapes.
 - Run `npm run typecheck && npm run lint && npm run test && npm run build` after editing.
-- No `console.*` in production code.
-- Put non-committed notes, handoff files, and throwaway scripts in `.context/`.

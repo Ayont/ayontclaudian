@@ -1,6 +1,11 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+> **This file is not maintained per release and is not complete.** It stops at
+> 5.48.0 while the plugin ships far beyond it. The authoritative, per-release
+> changelog is the [GitHub releases page](https://github.com/Ayont/ayontclaudian/releases),
+> which carries German release notes for every version.
+>
+> Entries below are kept for history only.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).

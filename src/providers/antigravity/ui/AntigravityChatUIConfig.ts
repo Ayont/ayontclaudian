@@ -51,6 +51,33 @@ export function isAntigravityModelName(model: string): boolean {
 
 const DEFAULT_CONTEXT_WINDOW = 1_000_000;
 
+/**
+ * Per-model context windows. The model list above deliberately spans three
+ * vendors, so a single flat window mis-scales the usage badge: at ~120K estimated
+ * tokens GPT-OSS 120B was showing 12% full when it is actually near its limit.
+ *
+ * Keyed by name prefix so the reasoning-level suffix ("(Low)", "(Medium)",
+ * "(High)", "(Thinking)") doesn't need its own entry. Anything unmatched falls
+ * back to DEFAULT_CONTEXT_WINDOW — correct for the Gemini 3.x and Claude 4.6
+ * entries, which are all 1M per their vendors' own model docs.
+ *
+ * agy reports no token counts at all, so nothing ever corrects these downstream
+ * (unlike Claude/Codex/opencode, where a runtime event overwrites the estimate).
+ * Keep in sync with ANTIGRAVITY_MODEL_NAMES.
+ */
+const ANTIGRAVITY_CONTEXT_WINDOWS: readonly (readonly [string, number])[] = [
+  ['GPT-OSS 120B', 131_072],
+] as const;
+
+/** Context window for an exact `agy models` name, or the 1M default. */
+export function getAntigravityContextWindow(model: string): number {
+  if (!model) return DEFAULT_CONTEXT_WINDOW;
+  for (const [prefix, window] of ANTIGRAVITY_CONTEXT_WINDOWS) {
+    if (model.startsWith(prefix)) return window;
+  }
+  return DEFAULT_CONTEXT_WINDOW;
+}
+
 // agy has no plan mode, so the toolbar control is a two-state YOLO <-> Sandbox
 // toggle (no `planValue`). YOLO is the active/default posture because `--print`
 // is non-interactive and cannot answer permission prompts; Sandbox is opt-in.
@@ -93,8 +120,10 @@ export const antigravityChatUIConfig: ProviderChatUIConfig = {
     return '';
   },
 
-  getContextWindowSize(): number {
-    return DEFAULT_CONTEXT_WINDOW;
+  getContextWindowSize(model: string, customLimits?: Record<string, number>): number {
+    const custom = customLimits?.[model];
+    if (typeof custom === 'number' && custom > 0 && isFinite(custom)) return custom;
+    return getAntigravityContextWindow(model);
   },
 
   isDefaultModel(model: string): boolean {

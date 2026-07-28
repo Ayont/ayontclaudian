@@ -67,7 +67,19 @@ export class TokenBudgetTracker {
 
   constructor(initial?: TokenBudgetState) {
     this.state = initial && initial.lastResetDay
-      ? { ...initial }
+      ? {
+        ...initial,
+        // Rehydrating from disk starts a NEW session, so the session counter must
+        // not carry over. It used to, which turned a "Session token budget" of e.g.
+        // 1,000,000 into a permanent lockout: once the persisted total crossed the
+        // cap, every send was refused forever, across restarts, with no way back
+        // except the explicit reset command.
+        //
+        // `dailyTotal` (day-rollover logic below), `breakdown`, and `events` are
+        // deliberately preserved — `events` in particular drives the rolling
+        // rate-limit window, which is the entire reason usage is persisted at all.
+        sessionTotal: 0,
+      }
       : {
         dailyTotal: 0,
         sessionTotal: 0,

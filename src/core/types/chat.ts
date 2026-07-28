@@ -254,4 +254,15 @@ export interface UsageInfo {
   contextWindowIsAuthoritative?: boolean;
   contextTokens: number;
   percentage: number;
+  /**
+   * True when this usage object restates a snapshot that was already emitted (and
+   * therefore already counted), only with a corrected `contextWindow`/`percentage`.
+   *
+   * Claude's runtime buffers each `usage` chunk and re-emits it once the `result`
+   * message reveals the authoritative context window — same `contextTokens`, better
+   * denominator. Consumers must still apply it to the UI (that is the entire point)
+   * but must NOT add its tokens to a running total again, or every turn is counted
+   * twice. See ClaudeChatRuntime.updateBufferedUsageContextWindow().
+   */
+  isRestatedSnapshot?: boolean;
 }

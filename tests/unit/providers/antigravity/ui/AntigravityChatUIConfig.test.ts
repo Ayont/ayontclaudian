@@ -111,4 +111,40 @@ describe('AntigravityChatUIConfig permission mode', () => {
       expect(() => antigravityChatUIConfig.applyPermissionMode!('sandbox', null)).not.toThrow();
     });
   });
+
+  // Regression: getContextWindowSize() took no model argument and returned a flat
+  // 1M for every entry, but the agy model list deliberately spans three vendors.
+  // GPT-OSS 120B is 131K, so at ~120K tokens the badge read 12% full instead of
+  // ~92% — and agy reports no token counts, so nothing ever corrected it.
+  describe('getContextWindowSize', () => {
+    it('returns the GPT-OSS window, not the 1M default', () => {
+      expect(antigravityChatUIConfig.getContextWindowSize('GPT-OSS 120B (Medium)', undefined)).toBe(131_072);
+    });
+
+    it('returns 1M for the Gemini and Claude entries', () => {
+      expect(antigravityChatUIConfig.getContextWindowSize('Gemini 3.6 Flash (High)', undefined)).toBe(1_000_000);
+      expect(antigravityChatUIConfig.getContextWindowSize('Gemini 3.1 Pro (Low)', undefined)).toBe(1_000_000);
+      expect(antigravityChatUIConfig.getContextWindowSize('Claude Sonnet 4.6 (Thinking)', undefined)).toBe(1_000_000);
+      expect(antigravityChatUIConfig.getContextWindowSize('Claude Opus 4.6 (Thinking)', undefined)).toBe(1_000_000);
+    });
+
+    it('matches on name prefix so every reasoning-level suffix is covered', () => {
+      for (const level of ['(Low)', '(Medium)', '(High)']) {
+        expect(antigravityChatUIConfig.getContextWindowSize(`GPT-OSS 120B ${level}`, undefined)).toBe(131_072);
+      }
+    });
+
+    it('falls back to 1M for the synthetic default and unknown names', () => {
+      expect(antigravityChatUIConfig.getContextWindowSize(ANTIGRAVITY_DEFAULT_MODEL_ID, undefined)).toBe(1_000_000);
+      expect(antigravityChatUIConfig.getContextWindowSize('', undefined)).toBe(1_000_000);
+      expect(antigravityChatUIConfig.getContextWindowSize('Some Future Model (High)', undefined)).toBe(1_000_000);
+    });
+
+    it('prefers a user-configured custom limit', () => {
+      expect(
+        antigravityChatUIConfig.getContextWindowSize('GPT-OSS 120B (Medium)', { 'GPT-OSS 120B (Medium)': 64_000 }),
+      ).toBe(64_000);
+    });
+  });
+
 });

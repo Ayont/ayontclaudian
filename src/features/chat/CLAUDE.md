@@ -97,9 +97,18 @@ The feature layer consumes provider-neutral `StreamChunk` values. Providers own 
 
 ## Key Patterns
 
-### Lazy Runtime Initialization
+### Runtime Initialization — warmup, NOT lazy
 
-Tabs stay cold until the first send. The tab wiring exposes `ensureServiceInitialized()` so provider runtime creation happens only when needed.
+`ensureServiceInitialized()` is the single entry point for provider runtime
+creation, and `InputController` calls it before every send.
+
+**Tabs do not stay cold until the first send.** Providers may declare a
+`tabWarmupPolicy` that spawns the CLI as soon as a tab is opened or switched to, so
+the cold-start cost is paid while the user is still typing. Claude
+(`ClaudeWorkspaceServices`), Pi, and Opencode all register one.
+
+If you are debugging an unexpected CLI process, look at the warmup policy first —
+not at the send path.
 
 ### Message Streaming
 

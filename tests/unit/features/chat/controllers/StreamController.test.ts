@@ -467,6 +467,62 @@ describe('StreamController - Text Content', () => {
 
       expect(deps.state.usage).toBeNull();
     });
+
+    // Regression: Claude's runtime buffers each usage chunk and re-emits it once the
+    // `result` message reveals the authoritative context window. Both emissions used
+    // to reach trackUsage(), so every Claude turn was counted TWICE — the budget and
+    // the rate-limit window read ~2x reality, and a daily cap blocked at ~half.
+    describe('restated snapshots (context-window correction)', () => {
+      const attachTracker = () => {
+        const trackUsage = jest.fn();
+        (deps.plugin as any).tokenBudgetTracker = { trackUsage };
+        (deps.plugin as any).persistTokenUsage = jest.fn();
+        return trackUsage;
+      };
+
+      it('counts a first-emission usage chunk exactly once', async () => {
+        const trackUsage = attachTracker();
+        const usage = createMockUsage();
+
+        await controller.handleStreamChunk({ type: 'usage', usage, sessionId: 'session-1' }, createTestMessage());
+
+        expect(trackUsage).toHaveBeenCalledTimes(1);
+      });
+
+      it('does NOT count a restated snapshot again', async () => {
+        const trackUsage = attachTracker();
+        const usage = createMockUsage();
+
+        // First emission: heuristic context window.
+        await controller.handleStreamChunk({ type: 'usage', usage, sessionId: 'session-1' }, createTestMessage());
+        // Re-emission: same contextTokens, corrected window.
+        await controller.handleStreamChunk(
+          {
+            type: 'usage',
+            usage: { ...usage, contextWindow: 1_000_000, contextWindowIsAuthoritative: true, isRestatedSnapshot: true },
+            sessionId: 'session-1',
+          },
+          createTestMessage(),
+        );
+
+        expect(trackUsage).toHaveBeenCalledTimes(1);
+      });
+
+      it('still applies the restated snapshot to the UI (that is its whole purpose)', async () => {
+        attachTracker();
+        const usage = createMockUsage();
+        const corrected = {
+          ...usage,
+          contextWindow: 1_000_000,
+          contextWindowIsAuthoritative: true,
+          isRestatedSnapshot: true,
+        };
+
+        await controller.handleStreamChunk({ type: 'usage', usage: corrected, sessionId: 'session-1' }, createTestMessage());
+
+        expect(deps.state.usage).toEqual(corrected);
+      });
+    });
   });
 
   describe('Tool handling', () => {

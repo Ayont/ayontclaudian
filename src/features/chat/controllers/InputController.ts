@@ -713,6 +713,12 @@ export class InputController {
     const agentService = this.getAgentService();
     if (!agentService) {
       new Notice('Agent service not available. Please reload the plugin.');
+      // Must clear isStreaming (and the indicator) like every sibling bail-out
+      // above/below. Leaving it set stranded the tab: subsequent sends silently
+      // queued forever, cancel only sets a flag, and the tab even refused to
+      // close — a plugin reload was the only way out.
+      streamController.hideThinkingIndicator();
+      state.isStreaming = false;
       this.activeStreamingAssistantMessage = null;
       this.resetProviderMessageBoundaryState();
       return;
@@ -731,6 +737,9 @@ export class InputController {
     perfSince(healthStart, 'provider-health-check', agentService.providerId);
     if (!health.ok) {
       new Notice(health.error ?? 'Provider is not reachable.');
+      // Without this the "(esc to interrupt · mm:ss)" row keeps ticking forever
+      // even though the turn never started.
+      streamController.hideThinkingIndicator();
       this.activeStreamingAssistantMessage = null;
       this.resetProviderMessageBoundaryState();
       state.isStreaming = false;

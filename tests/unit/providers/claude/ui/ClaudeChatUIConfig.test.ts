@@ -132,10 +132,22 @@ describe('claudeChatUIConfig', () => {
   });
 
   describe('getReasoningOptions', () => {
-    it('hides xhigh on models that do not support it', () => {
+    it('hides xhigh AND max on Sonnet 4.5 (the SDK rejects both there)', () => {
       const options = claudeChatUIConfig.getReasoningOptions('claude-sonnet-4-5', {});
 
+      expect(options.map(option => option.value)).toEqual(['low', 'medium', 'high']);
+    });
+
+    it('hides xhigh but keeps max on Sonnet 4.6 (max landed one version earlier)', () => {
+      const options = claudeChatUIConfig.getReasoningOptions('claude-sonnet-4-6', {});
+
       expect(options.map(option => option.value)).toEqual(['low', 'medium', 'high', 'max']);
+    });
+
+    it('offers the full ladder on the sonnet alias (resolves to Sonnet 5)', () => {
+      const options = claudeChatUIConfig.getReasoningOptions('sonnet', {});
+
+      expect(options.map(option => option.value)).toEqual(['low', 'medium', 'high', 'xhigh', 'max', 'ultracode']);
     });
 
     it('keeps xhigh on supported opus models', () => {

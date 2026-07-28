@@ -797,17 +797,45 @@ describe('types.ts', () => {
       expect(supportsXHighEffort('claude-fable-5')).toBe(true);
     });
 
-    it('returns false for non-opus models and older opus ids', () => {
-      expect(supportsXHighEffort('sonnet')).toBe(false);
+    // Regression: `sonnet` used to be asserted as NOT xhigh-capable, which hid the
+    // level in the picker and made normalizeEffortLevel() silently rewrite a user's
+    // `xhigh` to `high` when they switched to Sonnet. The bundled SDK is explicit:
+    // "'xhigh' — Deeper than high (Fable 5, Opus 4.7+, Sonnet 5)", and it documents
+    // the alias resolution 'sonnet' -> 'claude-sonnet-5'.
+    it('returns true for the sonnet alias and Sonnet 5+ ids', () => {
+      expect(supportsXHighEffort('sonnet')).toBe(true);
+      expect(supportsXHighEffort('sonnet[1m]')).toBe(true);
+      expect(supportsXHighEffort('claude-sonnet-5')).toBe(true);
+    });
+
+    it('returns false for pre-xhigh ids in both families', () => {
+      // xhigh landed in Opus 4.7 and Sonnet 5 — one minor version later than `max`.
+      expect(supportsXHighEffort('claude-sonnet-4-6')).toBe(false);
       expect(supportsXHighEffort('claude-sonnet-4-5')).toBe(false);
       expect(supportsXHighEffort('claude-opus-4-6')).toBe(false);
+      expect(supportsXHighEffort('haiku')).toBe(false);
     });
   });
 
   describe('normalizeEffortLevel', () => {
     it('preserves supported effort levels', () => {
       expect(normalizeEffortLevel('claude-opus-4-7', 'xhigh')).toBe('xhigh');
-      expect(normalizeEffortLevel('claude-sonnet-4-5', 'max')).toBe('max');
+      expect(normalizeEffortLevel('claude-sonnet-4-6', 'max')).toBe('max');
+    });
+
+    // Regression: `max` was offered on every model, including ones where the SDK
+    // documents it as an error rather than a silent downgrade.
+    it('clamps max on models where the SDK rejects it', () => {
+      expect(normalizeEffortLevel('haiku', 'max')).toBe('high');
+      expect(normalizeEffortLevel('claude-haiku-4-5', 'max')).toBe('high');
+      expect(normalizeEffortLevel('claude-sonnet-4-5', 'max')).toBe('high');
+    });
+
+    it('keeps max on unknown/custom model ids', () => {
+      // supportsMaxEffort is a deny-list on purpose: stripping `max` from custom
+      // gateway models to prevent a mislabel would be the worse trade.
+      expect(normalizeEffortLevel('my-gateway-model', 'max')).toBe('max');
+      expect(normalizeEffortLevel('claude-opus-9', 'max')).toBe('max');
     });
 
     it('clamps unsupported xhigh values to the model default', () => {
@@ -822,12 +850,14 @@ describe('types.ts', () => {
   });
 
   describe('ultracode effort', () => {
-    it('allows ultracode on xhigh-capable models (Opus) and clamps elsewhere', () => {
+    it('allows ultracode on xhigh-capable models and clamps elsewhere', () => {
       expect(normalizeEffortLevel('opus', 'ultracode')).toBe('ultracode');
       expect(normalizeEffortLevel('opus[1m]', 'ultracode')).toBe('ultracode');
+      // Sonnet resolves to Sonnet 5, which is xhigh-capable, so ultracode applies.
+      expect(normalizeEffortLevel('sonnet', 'ultracode')).toBe('ultracode');
       // Non-xhigh models cannot select ultracode -> clamped to the model default.
-      expect(normalizeEffortLevel('sonnet', 'ultracode')).toBe('high');
       expect(normalizeEffortLevel('haiku', 'ultracode')).toBe('high');
+      expect(normalizeEffortLevel('claude-sonnet-4-6', 'ultracode')).toBe('high');
     });
 
     it('isUltracodeEffort only matches the ultracode value', () => {

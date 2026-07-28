@@ -64,7 +64,7 @@ import {
   buildPersistedAntigravityState,
   getAntigravityState,
 } from '../types';
-import { isAntigravityModelName } from '../ui/AntigravityChatUIConfig';
+import { getAntigravityContextWindow, isAntigravityModelName } from '../ui/AntigravityChatUIConfig';
 import {
   buildAttachmentMentionPrefix,
   decodeBase64Attachment,
@@ -363,7 +363,10 @@ export class AntigravityChatRuntime implements ChatRuntime {
           prompt,
           responseText,
         ]),
-        contextWindow: 1_000_000,
+        // Per-model, not a flat 1M: the agy model list spans Gemini, Claude and
+        // GPT-OSS, and GPT-OSS 120B is 131K. Since agy reports no token counts,
+        // a wrong denominator here is never corrected downstream.
+        contextWindow: getAntigravityContextWindow(selectedModel ?? ''),
       }),
       sessionId: this.conversationId,
     });

@@ -150,14 +150,62 @@ export function isDefaultClaudeModel(model: string): boolean {
 }
 
 /**
- * Whether the model supports the `xhigh` effort level. Opus 4.7+ and Fable 5+
- * (Mythos-class) — the SDK silently falls back to `high` on other models.
+ * Whether the model supports the `xhigh` effort level.
+ *
+ * Per the bundled SDK (`sdk.d.ts`: "`'xhigh'` — Deeper than high (Fable 5, Opus
+ * 4.7+, Sonnet 5)"): Fable/Mythos, Opus 4.7+, and Sonnet 5+. The SDK silently
+ * falls back to `high` elsewhere.
+ *
+ * Both bare aliases count. Unlike the context-window default (see
+ * isOneMContextDefaultModel, which deliberately excludes the floating aliases),
+ * being wrong here is cheap and one-directional: the SDK documents `sonnet` ->
+ * `claude-sonnet-5`, and if a future alias ever loses xhigh the SDK just downgrades
+ * to `high`. Gating the alias OFF was the expensive mistake — it hid the level
+ * entirely and made normalizeEffortLevel() silently rewrite a user's `xhigh` to
+ * `high` on switching to Sonnet, with no way to get it back.
  */
 export function supportsXHighEffort(model: string): boolean {
   const normalized = normalizeModelId(model);
   if (isBuiltInFamilyVariant(normalized, 'opus')) return true;
+  if (isBuiltInFamilyVariant(normalized, 'sonnet')) return true;
   if (isFableFamilyModel(normalized)) return true;
-  return /claude-opus-(4-[7-9]|[5-9])/.test(normalized);
+  return /claude-opus-(4-[7-9]|[5-9])/.test(normalized)
+    || /claude-sonnet-[5-9]/.test(normalized);
+}
+
+/**
+ * Whether the model supports the `max` effort level.
+ *
+ * Per the bundled SDK (`sdk.d.ts`: "`'max'` — Maximum effort (Fable 5, Opus 4.6+,
+ * Sonnet 4.6+)"), with `max` *erroring* rather than silently downgrading on
+ * Haiku 4.5 and Sonnet 4.5.
+ *
+ * Deliberately a DENY-list, unlike supportsXHighEffort's allow-list: an unknown
+ * or custom model id (a gateway model, a pinned id newer than this build) keeps
+ * `max`. Flipping this to an allow-list would strip the level from every custom
+ * model — a regression for a real use case — to guard against a mislabel. So we
+ * only refuse where the SDK says it actually breaks.
+ */
+export function supportsMaxEffort(model: string): boolean {
+  const normalized = normalizeModelId(model);
+  if (normalized === 'haiku' || /claude-haiku-/.test(normalized)) return false;
+  // Sonnet 4.5 and older; 4.6+ and 5+ are fine.
+  if (/claude-sonnet-(4-[0-5]|3)/.test(normalized)) return false;
+  return true;
+}
+
+/**
+ * Single source of truth for "may this model run at this effort level".
+ *
+ * Both the UI picker and the persisted-value clamp go through here. They used to
+ * encode the rule independently, which is exactly how they drifted apart — the
+ * picker offered `max` on every model while the clamp gated only `xhigh`.
+ */
+export function isEffortLevelSupported(model: string, level: EffortLevel): boolean {
+  // `ultracode` is xhigh + multi-agent orchestration, so it inherits xhigh's gate.
+  if (level === 'xhigh' || level === 'ultracode') return supportsXHighEffort(model);
+  if (level === 'max') return supportsMaxEffort(model);
+  return true;
 }
 
 /** Clamp stored effort values to what the selected model actually supports. */
@@ -165,11 +213,8 @@ export function normalizeEffortLevel(
   model: string,
   effortLevel: unknown,
 ): EffortLevel {
-  const allowsXHigh = supportsXHighEffort(model);
-  // `xhigh` and `ultracode` are both gated to xhigh-capable models (Opus 4.7+).
   const isSupported = EFFORT_LEVELS.some((level) =>
-    level.value === effortLevel
-    && (allowsXHigh || (level.value !== 'xhigh' && level.value !== 'ultracode'))
+    level.value === effortLevel && isEffortLevelSupported(model, level.value)
   );
 
   if (isSupported) {

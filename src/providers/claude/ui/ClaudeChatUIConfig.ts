@@ -13,9 +13,9 @@ import {
   DEFAULT_EFFORT_LEVEL,
   EFFORT_LEVELS,
   getContextWindowSize,
+  isEffortLevelSupported,
   normalizeEffortLevel,
   normalizeVisibleModelVariant,
-  supportsXHighEffort,
 } from '../types/models';
 
 const CLAUDE_PERMISSION_MODE_TOGGLE: ProviderPermissionModeToggleConfig = {
@@ -41,10 +41,10 @@ export const claudeChatUIConfig: ProviderChatUIConfig = {
   },
 
   getReasoningOptions(model: string, _settings: Record<string, unknown>): ProviderReasoningOption[] {
-    const levels = supportsXHighEffort(model)
-      ? EFFORT_LEVELS
-      : EFFORT_LEVELS.filter(e => e.value !== 'xhigh' && e.value !== 'ultracode');
-    return levels.map(e => ({ value: e.value, label: e.label, description: e.description }));
+    // Shared gate with normalizeEffortLevel() — see isEffortLevelSupported().
+    return EFFORT_LEVELS
+      .filter(e => isEffortLevelSupported(model, e.value))
+      .map(e => ({ value: e.value, label: e.label, description: e.description }));
   },
 
   getDefaultReasoningValue(model: string, _settings: Record<string, unknown>): string {

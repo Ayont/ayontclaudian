@@ -266,8 +266,10 @@ describe('QueryOptionsBuilder', () => {
     });
 
     it('normalizes unsupported xhigh effort for adaptive models', () => {
+      // `sonnet` resolves to Sonnet 5, which IS xhigh-capable — use a pinned
+      // pre-xhigh id so this still exercises the clamp.
       const ctx = createMockContext({
-        settings: createMockSettings({ model: 'sonnet', effortLevel: 'xhigh' }),
+        settings: createMockSettings({ model: 'claude-sonnet-4-6', effortLevel: 'xhigh' }),
       });
       const config = QueryOptionsBuilder.buildPersistentQueryConfig(ctx);
 
@@ -438,7 +440,7 @@ describe('QueryOptionsBuilder', () => {
     it('clamps unsupported xhigh effort before building adaptive options', () => {
       const ctx = {
         ...createMockContext({
-          settings: createMockSettings({ model: 'sonnet', effortLevel: 'xhigh' }),
+          settings: createMockSettings({ model: 'claude-sonnet-4-6', effortLevel: 'xhigh' }),
         }),
         abortController: new AbortController(),
         hooks: {},

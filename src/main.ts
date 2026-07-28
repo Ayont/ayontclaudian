@@ -204,23 +204,42 @@ export default class ClaudianPlugin extends Plugin {
     }
   }
 
+  /** Writes the usage state to disk. Best-effort — never breaks the chat flow. */
+  private async writeTokenUsage(): Promise<void> {
+    try {
+      if (!(await this.app.vault.adapter.exists('.claudian'))) await this.app.vault.adapter.mkdir('.claudian');
+      await this.app.vault.adapter.write(
+        '.claudian/usage.json',
+        JSON.stringify(this.tokenBudgetTracker.getState()),
+      );
+    } catch {
+      // Persistence is best-effort — never break the chat flow for stats.
+    }
+  }
+
   /** Debounced persist of the usage state (called after every tracked turn). */
   persistTokenUsage(): void {
     if (this.usagePersistTimer) window.clearTimeout(this.usagePersistTimer);
     this.usagePersistTimer = window.setTimeout(() => {
       this.usagePersistTimer = null;
-      void (async () => {
-        try {
-          if (!(await this.app.vault.adapter.exists('.claudian'))) await this.app.vault.adapter.mkdir('.claudian');
-          await this.app.vault.adapter.write(
-            '.claudian/usage.json',
-            JSON.stringify(this.tokenBudgetTracker.getState()),
-          );
-        } catch {
-          // Persistence is best-effort — never break the chat flow for stats.
-        }
-      })();
+      void this.writeTokenUsage();
     }, 5000);
+  }
+
+  /**
+   * Cancels the pending debounced usage write and flushes it. Called from
+   * `onunload`, mirroring the RAG-index pattern.
+   *
+   * Without this, every `usage` chunk re-armed the 5 s timer, so quitting mid-turn
+   * discarded the whole turn's usage — and the orphaned timer still fired after
+   * teardown, letting a dead instance overwrite `.claudian/usage.json` and clobber
+   * the state a freshly re-enabled plugin had just loaded.
+   */
+  private flushTokenUsage(): void {
+    if (this.usagePersistTimer === null) return;
+    window.clearTimeout(this.usagePersistTimer);
+    this.usagePersistTimer = null;
+    void this.writeTokenUsage();
   }
   metadataStore!: MetadataStore;
   auditLogService!: AuditLogService;
@@ -899,8 +918,12 @@ export default class ClaudianPlugin extends Plugin {
       this.ragSaveTimer = null;
     }
     if (this.ragDirty) void this.saveRAGIndex();
+    this.flushTokenUsage();
     this.cachedMemoryStore?.dispose();
-    void this.persistOpenTabStates();
+    void this.persistOpenTabStates().catch(() => {
+      // Teardown is best-effort; an unhandled rejection here would surface as a
+      // console error on every plugin disable.
+    });
     void this.persistOpenConversations();
   }
 

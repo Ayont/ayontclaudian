@@ -82,7 +82,13 @@ export const codexChatUIConfig: ProviderChatUIConfig = {
     return 'medium';
   },
 
-  getContextWindowSize(model: string): number {
+  getContextWindowSize(model: string, customLimits?: Record<string, number>): number {
+    // Codex feeds the custom-model UI via getCustomModelIds(), so a user CAN set a
+    // per-model context override in Settings. This used to omit the parameter
+    // entirely, so the value validated, saved, and was then silently ignored —
+    // every other provider honours it.
+    const custom = customLimits?.[model];
+    if (typeof custom === 'number' && custom > 0 && isFinite(custom)) return custom;
     return model ? getCodexModelContextWindow(model) : DEFAULT_CODEX_CONTEXT_WINDOW;
   },
 

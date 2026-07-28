@@ -78,6 +78,54 @@ describe('TokenBudgetTracker', () => {
     expect(tracker.getState().dailyTotal).toBe(0);
   });
 
+  // ── Rehydration from disk (.claudian/usage.json) ─────────────────────
+
+  // Regression: sessionTotal used to be restored verbatim, which turned a
+  // "Session token budget" into a permanent lockout — once the persisted total
+  // crossed the cap, every send was refused forever, across restarts.
+  describe('rehydration starts a new session', () => {
+    it('zeroes sessionTotal when restoring persisted state', () => {
+      const tracker = new TokenBudgetTracker({
+        dailyTotal: 900_000,
+        sessionTotal: 900_000,
+        lastResetDay: 'seeded',
+        breakdown: {},
+      });
+
+      expect(tracker.getState().sessionTotal).toBe(0);
+    });
+
+    it('does not let a rehydrated total trip the session budget', () => {
+      const tracker = new TokenBudgetTracker({
+        dailyTotal: 0,
+        sessionTotal: 5_000_000,
+        lastResetDay: 'seeded',
+        breakdown: {},
+      });
+
+      expect(tracker.checkBudget({ sessionTokenBudget: 1_000_000 }).ok).toBe(true);
+    });
+
+    it('preserves dailyTotal, breakdown and events across rehydration', () => {
+      const now = Date.now();
+      // Read today's key off a fresh tracker so the day-rollover doesn't wipe
+      // dailyTotal (and so this test doesn't duplicate getTodayKey's logic).
+      const todayKey = new TokenBudgetTracker().getState().lastResetDay;
+      const tracker = new TokenBudgetTracker({
+        dailyTotal: 1_234,
+        sessionTotal: 999,
+        lastResetDay: todayKey,
+        breakdown: { 'claude:opus': { tokens: 1_234, runs: 2 } },
+        events: [{ ts: now, providerId: 'claude', model: 'opus', tokens: 1_234 }],
+      });
+
+      const state = tracker.getState();
+      expect(state.dailyTotal).toBe(1_234);
+      expect(state.breakdown['claude:opus']).toEqual({ tokens: 1_234, runs: 2 });
+      expect(state.events).toHaveLength(1);
+    });
+  });
+
   // ── Rate-limit windows (Verbrauch & Limits) ──────────────────────────
 
   const HOUR = 60 * 60 * 1000;

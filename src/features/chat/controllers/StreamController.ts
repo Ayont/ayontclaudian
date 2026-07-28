@@ -333,8 +333,13 @@ export class StreamController {
           state.usage = activeModel && !chunk.usage.model
             ? { ...chunk.usage, model: activeModel }
             : chunk.usage;
-          this.deps.plugin.tokenBudgetTracker?.trackUsage(state.usage, this.getActiveProviderId());
-          this.deps.plugin.persistTokenUsage?.();
+          // A restated snapshot still updates the UI (it carries the corrected
+          // context window) but was already counted when first emitted — adding it
+          // again would double every Claude turn in the budget and rate-limit window.
+          if (!state.usage.isRestatedSnapshot) {
+            this.deps.plugin.tokenBudgetTracker?.trackUsage(state.usage, this.getActiveProviderId());
+            this.deps.plugin.persistTokenUsage?.();
+          }
         }
         break;
       }
