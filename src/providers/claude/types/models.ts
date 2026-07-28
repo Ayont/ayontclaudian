@@ -9,8 +9,18 @@ export const DEFAULT_CLAUDE_MODELS: { value: ClaudeModel; label: string; descrip
   { value: 'haiku', label: 'Haiku', description: 'Fast and efficient' },
   { value: 'sonnet', label: 'Sonnet', description: 'Balanced performance' },
   { value: 'sonnet[1m]', label: 'Sonnet 1M', description: 'Balanced performance (1M context window)' },
-  { value: 'opus', label: 'Opus', description: 'Most capable' },
+  // `opus` is a floating alias — the CLI resolves it to "the latest model" server-side,
+  // so it always tracks the newest Opus release without a plugin change (verified live:
+  // `claude --model opus` self-reported `claude-opus-5` on 2026-07-28).
+  { value: 'opus', label: 'Opus', description: 'Most capable (tracks the latest release — currently Opus 5)' },
   { value: 'opus[1m]', label: 'Opus 1M', description: 'Most capable (1M context window)' },
+  // Pinned dated IDs alongside the floating `opus` alias, so a specific generation stays
+  // selectable even after `opus` moves on to a newer release. Both verified live and still
+  // reachable today (`claude --model claude-opus-5|claude-opus-4-8 -p ...` both responded,
+  // 2026-07-28) — Anthropic keeps prior dated Opus snapshots available after a new default
+  // ships, same precedent as `claude-opus-4-5`/`claude-opus-4-6`/`claude-opus-4-7`.
+  { value: 'claude-opus-5', label: 'Opus 5', description: 'Pinned to Opus 5 — stays fixed even once a newer Opus becomes the `opus` default' },
+  { value: 'claude-opus-4-8', label: 'Opus 4.8', description: 'Pinned to the previous Opus 4.8 release' },
   // Fable 5 is Anthropic's Mythos-class flagship (introduced with Claude Code 2.1.170).
   // It ships with a 1M context window by default, so there is no separate `[1m]` variant —
   // the CLI strips a `[1m]` suffix automatically (changelog 2.1.173). Placed last (not at
@@ -48,6 +58,8 @@ export const DEFAULT_EFFORT_LEVEL: Record<string, EffortLevel> = {
   'sonnet[1m]': 'high',
   'opus': 'high',
   'opus[1m]': 'high',
+  'claude-opus-5': 'high',
+  'claude-opus-4-8': 'high',
   'fable': 'high',
   'fable[1m]': 'high',
 };

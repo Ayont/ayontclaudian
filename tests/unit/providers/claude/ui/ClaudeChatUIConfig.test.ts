@@ -15,6 +15,8 @@ describe('claudeChatUIConfig', () => {
         'haiku',
         'sonnet',
         'opus',
+        'claude-opus-5',
+        'claude-opus-4-8',
         'fable',
         'claude-opus-4-6',
         'claude-opus-4-6[1m]',
@@ -46,6 +48,8 @@ describe('claudeChatUIConfig', () => {
         'haiku',
         'sonnet',
         'opus',
+        'claude-opus-5',
+        'claude-opus-4-8',
         'fable',
         'claude-opus-4-6',
       ]);

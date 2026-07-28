@@ -15,8 +15,10 @@ import {
   CONTEXT_WINDOW_1M,
   CONTEXT_WINDOW_STANDARD,
   DEFAULT_CLAUDE_MODELS,
+  DEFAULT_EFFORT_LEVEL,
   filterVisibleModelOptions,
   getContextWindowSize,
+  isDefaultClaudeModel,
   isUltracodeEffort,
   normalizeEffortLevel,
   normalizeVisibleModelVariant,
@@ -664,22 +666,31 @@ describe('types.ts', () => {
     describe('filterVisibleModelOptions', () => {
       it('should hide 1M variants when toggles are disabled', () => {
         const models = filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, false, false).map((model) => model.value);
-        expect(models).toEqual(['haiku', 'sonnet', 'opus', 'fable']);
+        expect(models).toEqual(['haiku', 'sonnet', 'opus', 'claude-opus-5', 'claude-opus-4-8', 'fable']);
       });
 
       it('should swap in 1M variants when toggles are enabled', () => {
         const models = filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, true, true).map((model) => model.value);
-        expect(models).toEqual(['haiku', 'sonnet[1m]', 'opus[1m]', 'fable']);
+        expect(models).toEqual(['haiku', 'sonnet[1m]', 'opus[1m]', 'claude-opus-5', 'claude-opus-4-8', 'fable']);
       });
 
       it('should swap only opus when enableOpus1M is true and enableSonnet1M is false', () => {
         const models = filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, true, false).map((model) => model.value);
-        expect(models).toEqual(['haiku', 'sonnet', 'opus[1m]', 'fable']);
+        expect(models).toEqual(['haiku', 'sonnet', 'opus[1m]', 'claude-opus-5', 'claude-opus-4-8', 'fable']);
       });
 
       it('should swap only sonnet when enableSonnet1M is true and enableOpus1M is false', () => {
         const models = filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, false, true).map((model) => model.value);
-        expect(models).toEqual(['haiku', 'sonnet[1m]', 'opus', 'fable']);
+        expect(models).toEqual(['haiku', 'sonnet[1m]', 'opus', 'claude-opus-5', 'claude-opus-4-8', 'fable']);
+      });
+
+      it('should always show the pinned Opus 5 / Opus 4.8 entries regardless of the 1M toggles', () => {
+        // Pinned dated IDs aren't the bare `opus` alias, so filterVisibleModelOptions'
+        // opus-family branch never touches them — they always pass through.
+        expect(filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, false, false).map(m => m.value))
+          .toEqual(expect.arrayContaining(['claude-opus-5', 'claude-opus-4-8']));
+        expect(filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, true, true).map(m => m.value))
+          .toEqual(expect.arrayContaining(['claude-opus-5', 'claude-opus-4-8']));
       });
 
       it('should always show fable (1M context is its default, no toggle)', () => {
@@ -710,12 +721,39 @@ describe('types.ts', () => {
     });
   });
 
+  // Regression: verified live against the installed CLI (Claude Code 2.1.219) —
+  // `claude --model claude-opus-5 -p ...` and `claude --model claude-opus-4-8 -p ...`
+  // both responded (not the "model may not exist" error a bogus id produces), and
+  // `claude --model opus -p "what is your exact model id?"` self-reported
+  // `claude-opus-5`. So the floating `opus` alias already tracks the newest release,
+  // while the pinned dated ids let a user stay on a specific generation deliberately.
+  describe('DEFAULT_CLAUDE_MODELS pinned Opus generations', () => {
+    it('offers both the floating `opus` alias and pinned Opus 5 / Opus 4.8 ids', () => {
+      const values = DEFAULT_CLAUDE_MODELS.map(m => m.value);
+      expect(values).toContain('opus');
+      expect(values).toContain('claude-opus-5');
+      expect(values).toContain('claude-opus-4-8');
+    });
+
+    it('recognizes the pinned ids as default (non-custom) models', () => {
+      expect(isDefaultClaudeModel('claude-opus-5')).toBe(true);
+      expect(isDefaultClaudeModel('claude-opus-4-8')).toBe(true);
+      expect(isDefaultClaudeModel('CLAUDE-OPUS-5')).toBe(true);
+    });
+
+    it('gives the pinned ids a default effort level of high', () => {
+      expect(DEFAULT_EFFORT_LEVEL['claude-opus-5']).toBe('high');
+      expect(DEFAULT_EFFORT_LEVEL['claude-opus-4-8']).toBe('high');
+    });
+  });
+
   describe('supportsXHighEffort', () => {
     it('returns true for opus aliases and 4.7+ opus ids', () => {
       expect(supportsXHighEffort('opus')).toBe(true);
       expect(supportsXHighEffort('opus[1m]')).toBe(true);
       expect(supportsXHighEffort('opus[1M]')).toBe(true);
       expect(supportsXHighEffort('claude-opus-4-7')).toBe(true);
+      expect(supportsXHighEffort('claude-opus-4-8')).toBe(true);
       expect(supportsXHighEffort('claude-opus-5')).toBe(true);
     });
 
