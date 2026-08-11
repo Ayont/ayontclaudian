@@ -702,7 +702,7 @@ export class InputController {
     // only waits for any remaining cold-start time instead of the full sum.
     const ready = await serviceInitialization;
     if (!ready) {
-      new Notice('Failed to initialize agent service. Please try again.');
+      new Notice('Agent-Dienst konnte nicht gestartet werden. Bitte erneut versuchen.');
       streamController.hideThinkingIndicator();
       state.isStreaming = false;
       this.activeStreamingAssistantMessage = null;
@@ -712,7 +712,7 @@ export class InputController {
 
     const agentService = this.getAgentService();
     if (!agentService) {
-      new Notice('Agent service not available. Please reload the plugin.');
+      new Notice('Agent-Dienst nicht verfügbar. Bitte das Plugin neu laden.');
       // Must clear isStreaming (and the indicator) like every sibling bail-out
       // above/below. Leaving it set stranded the tab: subsequent sends silently
       // queued forever, cancel only sets a flag, and the tab even refused to
@@ -1668,7 +1668,7 @@ export class InputController {
       });
     } catch {
       this.restoreQueuedMessageAfterSteerFailure(queuedMessage);
-      new Notice('Failed to steer the queued message. It is still available.');
+      new Notice('Die eingereihte Nachricht konnte nicht übernommen werden. Sie bleibt erhalten.');
     }
   }
 
@@ -1707,7 +1707,7 @@ export class InputController {
     } catch {
       this.clearPendingSteerState();
       this.restoreQueuedMessageAfterSteerFailure(queuedMessage);
-      new Notice('Failed to steer the queued message. It is still available.');
+      new Notice('Die eingereihte Nachricht konnte nicht übernommen werden. Sie bleibt erhalten.');
     }
   }
 
@@ -2134,7 +2134,7 @@ export class InputController {
               plugin.settings.systemPrompt = appendMarkdownSnippet(currentPrompt, finalInstruction);
               await plugin.saveSettings();
 
-              new Notice('Instruction added to custom system prompt');
+              new Notice('Anweisung zum eigenen System-Prompt hinzugefügt.');
               instructionModeManager?.clear();
             })();
           },
@@ -2197,8 +2197,8 @@ export class InputController {
       } else if (result.refinedInstruction) {
         modal.showConfirmation(result.refinedInstruction);
       } else {
-        new Notice('No instruction received');
-        modal.showError('No instruction received');
+        new Notice('Keine Anweisung erhalten.');
+        modal.showError('Keine Anweisung erhalten.');
         instructionModeManager?.clear();
       }
     } catch (error) {
@@ -2279,7 +2279,7 @@ export class InputController {
       input,
       (inline) => { this.pendingApprovalInline = inline; },
       undefined,
-      { title: 'Permission required', headerEl, showCustomInput: false, immediateSelect: true },
+      { title: 'Berechtigung erforderlich', headerEl, showCustomInput: false, immediateSelect: true },
     );
 
     if (!result) return 'cancel';
@@ -2613,7 +2613,7 @@ export class InputController {
       case 'add-dir': {
         const externalContextSelector = this.deps.getExternalContextSelector();
         if (!externalContextSelector) {
-          new Notice('External context selector not available.');
+          new Notice('Auswahl für externen Kontext nicht verfügbar.');
           return;
         }
         const result = externalContextSelector.addExternalContext(args);
@@ -2629,11 +2629,11 @@ export class InputController {
         break;
       case 'fork': {
         if (!this.getActiveCapabilities().supportsFork) {
-          new Notice('Fork is not supported by this provider.');
+          new Notice('Dieser Provider unterstützt kein Fork.');
           return;
         }
         if (!this.deps.onForkAll) {
-          new Notice('Fork not available.');
+          new Notice('Fork nicht verfügbar.');
           return;
         }
         await this.deps.onForkAll();
@@ -2664,7 +2664,7 @@ export class InputController {
         const inputEl = this.deps.getInputEl();
         const [name, ...rest] = args.split(/\s+/).filter(Boolean);
         if (!name) {
-          new Notice('Usage: /workflow <name> [args]');
+          new Notice('Verwendung: /workflow <Name> [Argumente]');
           return;
         }
         const expanded = await this.deps.plugin.expandWorkflow(name, inputEl.value, rest.join(' '));
@@ -2700,7 +2700,7 @@ export class InputController {
         const inputEl = this.deps.getInputEl();
         const name = args.trim();
         if (!name) {
-          new Notice('Usage: /template <name>');
+          new Notice('Verwendung: /template <Name>');
           return;
         }
 
@@ -2764,7 +2764,7 @@ export class InputController {
       case 'artifact': {
         const description = args.trim();
         if (!description) {
-          new Notice('Usage: /artifact <description of what to build>');
+          new Notice('Verwendung: /artifact <Beschreibung, was gebaut werden soll>');
           return;
         }
 
@@ -2789,7 +2789,7 @@ export class InputController {
           html = this.extractHtmlFromResponse(html);
 
           if (!html || html.length < 50) {
-            new Notice('Artifact generation produced no usable HTML. Try a more specific prompt.');
+            new Notice('Die Artifact-Erzeugung hat kein brauchbares HTML geliefert. Formuliere den Prompt konkreter.');
             await streamController.appendText('\n\n**Artifact Error:** No usable HTML generated.\n');
             return;
           }
@@ -2821,7 +2821,7 @@ export class InputController {
       case 'document': {
         const request = args.trim();
         if (!request) {
-          new Notice('Usage: /document <what should be created>');
+          new Notice('Verwendung: /document <was erstellt werden soll>');
           return;
         }
         await this.sendMessage({
@@ -2889,7 +2889,7 @@ export class InputController {
 
         if (operation === 'read') {
           if (!payload) {
-            new Notice('Usage: /pkt read <vault-path-to-file.pkt>');
+            new Notice('Verwendung: /pkt read <Vault-Pfad zur .pkt-Datei>');
             return;
           }
           try {
@@ -2908,7 +2908,7 @@ export class InputController {
 
         if (operation === 'export') {
           if (!payload) {
-            new Notice('Usage: /pkt export <vault-path-to-topology.xml>');
+            new Notice('Verwendung: /pkt export <Vault-Pfad zur topology.xml>');
             return;
           }
           try {
@@ -3052,7 +3052,7 @@ export class InputController {
 
     const conversations = plugin.getConversationList();
     if (conversations.length === 0) {
-      new Notice('No conversations to resume');
+      new Notice('Keine Unterhaltung zum Fortsetzen vorhanden.');
       return;
     }
 

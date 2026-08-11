@@ -436,7 +436,7 @@ export class ClaudianView extends ItemView {
         void this.handleTabClose(tabId);
       },
       onNewTab: () => {
-        void this.createNewTab().catch(() => new Notice('Failed to create tab'));
+        void this.createNewTab().catch(() => new Notice('Tab konnte nicht erstellt werden.'));
       },
     });
     fragment.appendChild(this.tabBarContainerEl);
@@ -448,27 +448,27 @@ export class ClaudianView extends ItemView {
     // New tab button (plus icon)
     this.newTabButtonEl = this.headerActionsContent.createDiv({ cls: 'claudian-header-btn claudian-new-tab-btn' });
     setIcon(this.newTabButtonEl, 'square-plus');
-    this.newTabButtonEl.setAttribute('aria-label', 'New tab');
+    this.newTabButtonEl.setAttribute('aria-label', 'Neuer Tab');
     this.newTabButtonEl.addEventListener('click', () => {
-      void this.createNewTab().catch(() => new Notice('Failed to create tab'));
+      void this.createNewTab().catch(() => new Notice('Tab konnte nicht erstellt werden.'));
     });
 
     // New conversation button (square-pen icon - new conversation in current tab)
     const newBtn = this.headerActionsContent.createDiv({ cls: 'claudian-header-btn' });
     setIcon(newBtn, 'square-pen');
-    newBtn.setAttribute('aria-label', 'New conversation');
+    newBtn.setAttribute('aria-label', 'Neue Unterhaltung');
     newBtn.addEventListener('click', () => {
       void (async () => {
         await this.tabManager?.createNewConversation();
         this.updateHistoryDropdown();
-      })().catch(() => new Notice('Failed to create conversation'));
+      })().catch(() => new Notice('Unterhaltung konnte nicht erstellt werden.'));
     });
 
     // History dropdown
     const historyContainer = this.headerActionsContent.createDiv({ cls: 'claudian-history-container' });
     const historyBtn = historyContainer.createDiv({ cls: 'claudian-header-btn' });
     setIcon(historyBtn, 'history');
-    historyBtn.setAttribute('aria-label', 'Chat history');
+    historyBtn.setAttribute('aria-label', 'Chat-Verlauf');
 
     this.historyDropdown = historyContainer.createDiv({ cls: 'claudian-history-menu' });
 
@@ -552,7 +552,7 @@ export class ClaudianView extends ItemView {
   private handleTabClick(tabId: TabId): void {
     const switched = this.tabManager?.switchToTab(tabId);
     if (switched) {
-      void switched.catch(() => new Notice('Failed to switch tab'));
+      void switched.catch(() => new Notice('Tab-Wechsel fehlgeschlagen.'));
     }
   }
 
@@ -564,7 +564,7 @@ export class ClaudianView extends ItemView {
       await this.tabManager?.closeTab(tabId, force);
       this.updateTabBarVisibility();
     } catch {
-      new Notice('Failed to close tab');
+      new Notice('Tab konnte nicht geschlossen werden.');
     }
   }
 

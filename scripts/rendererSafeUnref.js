@@ -1,113 +1,45 @@
-const JS_IDENTIFIER = '[A-Za-z_$][A-Za-z0-9_$]*';
-
-const UNSAFE_TIMER_UNREF_PATTERNS = [
-  {
-    name: 'claude-sdk-process-transport-close-async',
-    pattern: new RegExp(
-      `if \\((${JS_IDENTIFIER}) && !\\1\\.killed && \\1\\.exitCode === null\\) setTimeout\\(\\((${JS_IDENTIFIER}), (${JS_IDENTIFIER})\\) => \\{\\s*` +
-      `if \\(\\2\\.exitCode !== null\\) \\{\\s*` +
-      `\\3\\(\\);\\s*` +
-      `return;\\s*` +
-      `\\}\\s*` +
-      `if \\(process\\.platform === "win32"\\) \\{\\s*` +
-      `setTimeout\\(\\((${JS_IDENTIFIER}), (${JS_IDENTIFIER})\\) => \\{\\s*` +
-      `if \\(\\4\\.exitCode === null\\) \\4\\.kill\\("SIGKILL"\\);\\s*` +
-      `\\5\\(\\);\\s*` +
-      `\\}, 5e3, \\2, \\3\\)\\.unref\\(\\);\\s*` +
-      `return;\\s*` +
-      `\\}\\s*` +
-      `\\2\\.kill\\("SIGTERM"\\), setTimeout\\(\\((${JS_IDENTIFIER})\\) => \\{\\s*` +
-      `if \\(\\6\\.exitCode === null\\) \\6\\.kill\\("SIGKILL"\\);\\s*` +
-      `\\}, 5e3, \\2\\)\\.unref\\(\\), \\3\\(\\);\\s*` +
-      `\\}, (${JS_IDENTIFIER}), \\1, (${JS_IDENTIFIER})\\)\\.unref\\(\\), \\1\\.once\\("exit", (\\(\\) => (?:\\{[^{}]*\\}|[^;{}]+))\\);`,
-      'g',
-    ),
-    replacement:
-      'if ($1 && !$1.killed && $1.exitCode === null) {' +
-      '\n      const processKillTimer = setTimeout(($2, $3) => {' +
-      '\n        if ($2.exitCode !== null) {' +
-      '\n          $3();' +
-      '\n          return;' +
-      '\n        }' +
-      '\n        if (process.platform === "win32") {' +
-      '\n          const windowsForceKillTimer = setTimeout(($4, $5) => {' +
-      '\n            if ($4.exitCode === null) $4.kill("SIGKILL");' +
-      '\n            $5();' +
-      '\n          }, 5e3, $2, $3);' +
-      '\n          windowsForceKillTimer.unref?.();' +
-      '\n          return;' +
-      '\n        }' +
-      '\n        $2.kill("SIGTERM");' +
-      '\n        const forceKillTimer = setTimeout(($6) => {' +
-      '\n          if ($6.exitCode === null) $6.kill("SIGKILL");' +
-      '\n        }, 5e3, $2);' +
-      '\n        forceKillTimer.unref?.();' +
-      '\n        $3();' +
-      '\n      }, $7, $1, $8);' +
-      '\n      processKillTimer.unref?.();' +
-      '\n      $1.once("exit", $9);' +
-      '\n    }',
-  },
-  {
-    name: 'claude-sdk-process-transport-close',
-    pattern: new RegExp(
-      `if \\((${JS_IDENTIFIER}) && !\\1\\.killed && \\1\\.exitCode === null\\) setTimeout\\(\\((${JS_IDENTIFIER})\\) => \\{\\s*` +
-      `if \\(\\2\\.killed \\|\\| \\2\\.exitCode !== null\\) return;\\s*` +
-      `\\2\\.kill\\("SIGTERM"\\), setTimeout\\(\\((${JS_IDENTIFIER})\\) => \\{\\s*` +
-      `if \\(\\3\\.exitCode === null\\) \\3\\.kill\\("SIGKILL"\\);\\s*` +
-      `\\}, 5e3, \\2\\)\\.unref\\(\\);\\s*` +
-      `\\}, (${JS_IDENTIFIER}), \\1\\)\\.unref\\(\\), \\1\\.once\\("exit", (\\(\\) => (?:\\{[^{}]*\\}|[^;{}]+))\\);`,
-      'g',
-    ),
-    replacement:
-      'if ($1 && !$1.killed && $1.exitCode === null) {' +
-      '\n      const processKillTimer = setTimeout(($2) => {' +
-      '\n        if ($2.killed || $2.exitCode !== null) return;' +
-      '\n        $2.kill("SIGTERM");' +
-      '\n        const forceKillTimer = setTimeout(($3) => {' +
-      '\n          if ($3.exitCode === null) $3.kill("SIGKILL");' +
-      '\n        }, 5e3, $2);' +
-      '\n        forceKillTimer.unref?.();' +
-      '\n      }, $4, $1);' +
-      '\n      processKillTimer.unref?.();' +
-      '\n      $1.once("exit", $5);' +
-      '\n    }',
-  },
-  {
-    name: 'mcp-sdk-stdio-close-wait',
-    pattern: /new Promise\(\((resolve\d+)\) => setTimeout\(\1, 2e3\)\.unref\(\)\)/g,
-    replacement:
-      'new Promise(($1) => {' +
-      '\n        const closeTimeout = setTimeout($1, 2e3);' +
-      '\n        closeTimeout.unref?.();' +
-      '\n      })',
-  },
-];
+/**
+ * Makes bundled `setTimeout(...).unref()` / `setInterval(...).unref()` calls
+ * safe to run in Electron's renderer process.
+ *
+ * Obsidian plugins execute in the renderer, where the timer functions follow
+ * BROWSER semantics and return a number — not a Node `Timeout` object. Any
+ * bundled dependency that calls `.unref()` on the return value (the Claude
+ * Agent SDK's process transport and the MCP SDK's stdio close path both do)
+ * therefore throws `TypeError: ....unref is not a function` at runtime.
+ *
+ * The fix is to make the call optional: `.unref?.()` is a no-op on a number and
+ * still unrefs a real Node timer, so one rewrite is correct under both runtimes.
+ *
+ * This used to be done with regexes that matched the *entire* surrounding
+ * statement and rewrote it into named `const` timers. Those patterns encoded
+ * esbuild's unminified spacing (`if (x) {\n  ...`), which made them silently
+ * stop matching the moment minification was enabled — the verifier below then
+ * failed the build. Locating the call site by paren matching and rewriting only
+ * the `.unref()` itself has no formatting assumptions at all, handles minified
+ * and unminified output identically, and needs no new pattern when a dependency
+ * changes the shape of the code around the timer.
+ */
 
 const TIMER_CALL_PREFIXES = ['setTimeout(', 'setInterval('];
 
-function patchRendererUnsafeUnrefSites(contents) {
-  let nextContents = contents;
-  const appliedPatches = [];
+const SAFE_UNREF_CALL = '.unref?.()';
 
-  for (const patch of UNSAFE_TIMER_UNREF_PATTERNS) {
-    const matchCount = [...nextContents.matchAll(patch.pattern)].length;
-    if (matchCount === 0) {
-      continue;
-    }
-    nextContents = nextContents.replace(patch.pattern, patch.replacement);
-    appliedPatches.push({ name: patch.name, count: matchCount });
-  }
+/**
+ * Every `setTimeout(...)`/`setInterval(...)` call whose result has `.unref()`
+ * invoked directly on it, with the source offsets of that `.unref()`.
+ *
+ * @returns {{ line: number, snippet: string, unrefStart: number, unrefEnd: number }[]}
+ */
+function locateTimerUnrefSites(contents) {
+  const sites = [];
+  const seenUnrefStarts = new Set();
 
-  return {
-    contents: nextContents,
-    appliedPatches,
-  };
-}
-
-function findUnsafeTimerUnrefSites(contents) {
-  const matches = [];
-
+  // Advance past the timer's OPENING paren, never past its closing one: the
+  // SDK's kill path nests a `setTimeout(...).unref()` inside another timer's
+  // callback, and skipping to the end of the outer call would step straight
+  // over the inner sites. That is exactly what the previous scanner did, which
+  // left the nested calls both unpatched and invisible to the verifier.
   let searchIndex = 0;
   while (searchIndex < contents.length) {
     const timerStart = findNextTimerCall(contents, searchIndex);
@@ -115,29 +47,67 @@ function findUnsafeTimerUnrefSites(contents) {
       break;
     }
 
+    searchIndex = timerStart.openParenIndex + 1;
+
     const callEnd = findMatchingParen(contents, timerStart.openParenIndex);
     if (callEnd === -1) {
-      searchIndex = timerStart.startIndex + timerStart.prefix.length;
       continue;
     }
 
-    const unrefMatch = contents.slice(callEnd + 1).match(/^\s*\.unref\(\)/);
-    if (unrefMatch) {
-      const startIndex = timerStart.startIndex;
-      const endIndex = callEnd + 1 + unrefMatch[0].length;
-      const line = contents.slice(0, startIndex).split('\n').length;
-      matches.push({
-        line,
-        snippet: contents.slice(startIndex, endIndex),
-      });
-      searchIndex = endIndex;
+    // `.unref?.()` deliberately does NOT match — already-safe calls are skipped,
+    // which is what makes patching idempotent and the post-patch verify pass.
+    const unrefMatch = contents.slice(callEnd + 1).match(/^(\s*)\.unref\(\)/);
+    if (!unrefMatch) {
       continue;
     }
 
-    searchIndex = callEnd + 1;
+    const unrefStart = callEnd + 1 + unrefMatch[1].length;
+    if (seenUnrefStarts.has(unrefStart)) {
+      continue;
+    }
+
+    seenUnrefStarts.add(unrefStart);
+    sites.push({
+      line: contents.slice(0, timerStart.startIndex).split('\n').length,
+      snippet: contents.slice(timerStart.startIndex, callEnd + 1 + unrefMatch[0].length),
+      unrefStart,
+      unrefEnd: callEnd + 1 + unrefMatch[0].length,
+    });
   }
 
-  return matches;
+  // Nested sites are discovered after their enclosing one, so sort into source
+  // order — both the back-to-front splice and the failure report assume it.
+  return sites.sort((left, right) => left.unrefStart - right.unrefStart);
+}
+
+/** Rewrites every unsafe timer `.unref()` in `contents` to `.unref?.()`. */
+function patchRendererUnsafeUnrefSites(contents) {
+  const sites = locateTimerUnrefSites(contents);
+  if (sites.length === 0) {
+    return { contents, appliedPatches: [] };
+  }
+
+  // Back to front so each splice leaves the earlier offsets valid.
+  let nextContents = contents;
+  for (let index = sites.length - 1; index >= 0; index -= 1) {
+    const site = sites[index];
+    nextContents = nextContents.slice(0, site.unrefStart)
+      + SAFE_UNREF_CALL
+      + nextContents.slice(site.unrefEnd);
+  }
+
+  return {
+    contents: nextContents,
+    appliedPatches: [{ name: 'timer-unref-optional-call', count: sites.length }],
+  };
+}
+
+/**
+ * Build-time guard: anything still reported here would throw in the renderer.
+ * The build fails on a non-empty result rather than shipping the bundle.
+ */
+function findUnsafeTimerUnrefSites(contents) {
+  return locateTimerUnrefSites(contents).map(({ line, snippet }) => ({ line, snippet }));
 }
 
 function findNextTimerCall(contents, startIndex) {

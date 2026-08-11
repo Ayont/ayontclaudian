@@ -206,7 +206,7 @@ export class ImageContextManager {
     svg.appendChild(polyline);
     svg.appendChild(line);
     dropContent.appendChild(svg);
-    dropContent.createSpan({ text: 'Drop image, text or file here' });
+    dropContent.createSpan({ text: 'Bild, Text oder Datei hier ablegen' });
 
     const dropZone = inputWrapper;
 
@@ -434,7 +434,7 @@ export class ImageContextManager {
 
   private async addImageFromFile(file: File, source: 'paste' | 'drop'): Promise<boolean> {
     if (!this.enabled) {
-      new Notice('Image attachments are not supported by this provider.');
+      new Notice('Dieser Provider unterstützt keine Bildanhänge.');
       return false;
     }
 
@@ -563,7 +563,7 @@ export class ImageContextManager {
 
     const removeEl = previewEl.createSpan({ cls: 'claudian-image-remove' });
     removeEl.setText('\u00D7');
-    removeEl.setAttribute('aria-label', 'Remove image');
+    removeEl.setAttribute('aria-label', 'Bild entfernen');
 
     removeEl.addEventListener('click', (e) => {
       e.stopPropagation();

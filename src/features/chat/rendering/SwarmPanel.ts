@@ -111,7 +111,7 @@ export class SwarmPanel {
     this.toggleEl.setAttribute('type', 'button');
     const titleIconEl = this.toggleEl.createSpan({ cls: 'claudian-swarm-toggle-icon' });
     setIcon(titleIconEl, 'workflow');
-    this.toggleEl.createSpan({ cls: 'claudian-swarm-toggle-label', text: 'Live work' });
+    this.toggleEl.createSpan({ cls: 'claudian-swarm-toggle-label', text: 'Live-Arbeit' });
     this.countEl = this.toggleEl.createSpan({ cls: 'claudian-swarm-count' });
     this.autoContinueEl = this.toggleEl.createSpan({
       cls: 'claudian-swarm-auto-continue claudian-hidden',

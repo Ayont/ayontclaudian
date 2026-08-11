@@ -58,7 +58,7 @@ export class FileChipsView {
 
     const removeEl = chipEl.createSpan({ cls: 'claudian-file-chip-remove' });
     removeEl.setText('\u00D7');
-    removeEl.setAttribute('aria-label', 'Remove');
+    removeEl.setAttribute('aria-label', 'Entfernen');
 
     chipEl.addEventListener('click', (e) => {
       if (!(e.target as HTMLElement).closest('.claudian-file-chip-remove')) {

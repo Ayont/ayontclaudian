@@ -46,7 +46,7 @@ export class InlineExitPlanMode {
     this.rootEl = this.containerEl.createDiv({ cls: 'claudian-plan-approval-inline' });
 
     const titleEl = this.rootEl.createDiv({ cls: 'claudian-plan-inline-title' });
-    titleEl.setText('Plan complete');
+    titleEl.setText('Plan fertig');
 
     this.planContent = this.readPlanContent();
     if (this.planContent) {
@@ -66,7 +66,7 @@ export class InlineExitPlanMode {
     const allowedPrompts = this.input.allowedPrompts as Array<{ tool: string; prompt: string }> | undefined;
     if (allowedPrompts && Array.isArray(allowedPrompts) && allowedPrompts.length > 0) {
       const permEl = this.rootEl.createDiv({ cls: 'claudian-plan-permissions' });
-      permEl.createDiv({ text: 'Requested permissions:', cls: 'claudian-plan-permissions-label' });
+      permEl.createDiv({ text: 'Angeforderte Berechtigungen:', cls: 'claudian-plan-permissions-label' });
       const listEl = permEl.createEl('ul', { cls: 'claudian-plan-permissions-list' });
       for (const perm of allowedPrompts) {
         listEl.createEl('li', { text: perm.prompt });
@@ -79,7 +79,7 @@ export class InlineExitPlanMode {
     newSessionRow.addClass('is-focused');
     newSessionRow.createSpan({ text: '\u203A', cls: 'claudian-ask-cursor' });
     newSessionRow.createSpan({ text: '1. ', cls: 'claudian-ask-item-num' });
-    newSessionRow.createSpan({ text: 'Approve (new session)', cls: 'claudian-ask-item-label' });
+    newSessionRow.createSpan({ text: 'Freigeben (neue Sitzung)', cls: 'claudian-ask-item-label' });
     newSessionRow.addEventListener('click', () => {
       this.focusedIndex = 0;
       this.updateFocus();
@@ -93,7 +93,7 @@ export class InlineExitPlanMode {
     const approveRow = actionsEl.createDiv({ cls: 'claudian-ask-item' });
     approveRow.createSpan({ text: '\u00A0', cls: 'claudian-ask-cursor' });
     approveRow.createSpan({ text: '2. ', cls: 'claudian-ask-item-num' });
-    approveRow.createSpan({ text: 'Approve (current session)', cls: 'claudian-ask-item-label' });
+    approveRow.createSpan({ text: 'Freigeben (aktuelle Sitzung)', cls: 'claudian-ask-item-label' });
     approveRow.addEventListener('click', () => {
       this.focusedIndex = 1;
       this.updateFocus();
@@ -107,7 +107,7 @@ export class InlineExitPlanMode {
     this.feedbackInput = feedbackRow.createEl('input', {
       type: 'text',
       cls: 'claudian-ask-custom-text',
-      placeholder: 'Enter feedback to continue planning...',
+      placeholder: 'Feedback eingeben, um weiterzuplanen …',
     });
     this.feedbackInput.addEventListener('focus', () => { this.isInputFocused = true; });
     this.feedbackInput.addEventListener('blur', () => { this.isInputFocused = false; });

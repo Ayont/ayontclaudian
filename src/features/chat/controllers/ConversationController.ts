@@ -787,23 +787,23 @@ export class ConversationController {
       if (conv.titleGenerationStatus === 'pending') {
         const loadingEl = actions.createEl('span', { cls: 'claudian-action-btn claudian-action-loading' });
         setIcon(loadingEl, 'loader-2');
-        loadingEl.setAttribute('aria-label', 'Generating title...');
+        loadingEl.setAttribute('aria-label', 'Titel wird erzeugt …');
       } else if (conv.titleGenerationStatus === 'failed') {
         const regenerateBtn = actions.createEl('button', { cls: 'claudian-action-btn' });
         setIcon(regenerateBtn, 'refresh-cw');
-        regenerateBtn.setAttribute('aria-label', 'Regenerate title');
+        regenerateBtn.setAttribute('aria-label', 'Titel neu erzeugen');
         regenerateBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           runConversationAction(
             () => this.regenerateTitle(conv.id),
-            'Failed to regenerate response',
+            'Titel konnte nicht neu erzeugt werden.',
           );
         });
       }
 
       const renameBtn = actions.createEl('button', { cls: 'claudian-action-btn' });
       setIcon(renameBtn, 'pencil');
-      renameBtn.setAttribute('aria-label', 'Rename');
+      renameBtn.setAttribute('aria-label', 'Umbenennen');
       renameBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         this.showRenameInput(item, conv.id, conv.title);
@@ -824,7 +824,7 @@ export class ConversationController {
 
       const deleteBtn = actions.createEl('button', { cls: 'claudian-action-btn claudian-delete-btn' });
       setIcon(deleteBtn, 'trash-2');
-      deleteBtn.setAttribute('aria-label', 'Delete');
+      deleteBtn.setAttribute('aria-label', 'Löschen');
       deleteBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         runConversationAction(
@@ -952,12 +952,12 @@ export class ConversationController {
         await this.deps.plugin.renameConversation(convId, newTitle);
         this.updateHistoryDropdown();
       } catch {
-        new Notice('Failed to rename conversation');
+        new Notice('Unterhaltung konnte nicht umbenannt werden.');
       }
     };
 
     input.addEventListener('blur', () => {
-      runConversationAction(finishRename, 'Failed to rename conversation');
+      runConversationAction(finishRename, 'Unterhaltung konnte nicht umbenannt werden.');
     });
     input.addEventListener('keydown', (e) => {
       // Check !e.isComposing for IME support (Chinese, Japanese, Korean, etc.)

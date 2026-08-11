@@ -2037,7 +2037,7 @@ describe('MessageRenderer', () => {
         (c: any) => c.hasClass('claudian-render-error')
       );
       expect(errorDiv).toBeDefined();
-      expect(errorDiv!.textContent).toBe('Failed to render message content.');
+      expect(errorDiv!.textContent).toBe('Nachrichteninhalt konnte nicht dargestellt werden.');
     });
   });
 

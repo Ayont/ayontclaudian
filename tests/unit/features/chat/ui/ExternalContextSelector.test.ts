@@ -320,7 +320,7 @@ describe('ExternalContextSelector', () => {
 
       expect(result).toEqual({
         success: false,
-        error: 'This folder is already added as an external context.',
+        error: 'Dieser Ordner ist bereits als externer Kontext hinterlegt.',
       });
       expect(selector.getExternalContexts()).toEqual([absolutePath]);
     });

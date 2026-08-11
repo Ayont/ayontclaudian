@@ -54,7 +54,7 @@ describe('suggestCommitMessage', () => {
 
 describe('describeChangeCount', () => {
   test('handles zero, singular, and plural', () => {
-    expect(describeChangeCount(0)).toBe('No changes');
+    expect(describeChangeCount(0)).toBe('Keine Änderungen');
     expect(describeChangeCount(1)).toBe('1 changed file');
     expect(describeChangeCount(3)).toBe('3 changed files');
   });

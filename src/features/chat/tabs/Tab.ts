@@ -1585,7 +1585,7 @@ async function handleForkRequest(
   const { state } = tab;
 
   if (!getTabCapabilities(tab, plugin).supportsFork) {
-    new Notice('Fork is not supported by this provider.');
+    new Notice('Dieser Provider unterstützt kein Fork.');
     return;
   }
 
@@ -1635,7 +1635,7 @@ async function handleForkAll(
   const { state } = tab;
 
   if (!getTabCapabilities(tab, plugin).supportsFork) {
-    new Notice('Fork is not supported by this provider.');
+    new Notice('Dieser Provider unterstützt kein Fork.');
     return;
   }
 

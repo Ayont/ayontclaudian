@@ -29,7 +29,7 @@ export class InlinePlanApproval {
   render(): void {
     this.rootEl = this.containerEl.createDiv({ cls: 'claudian-plan-approval-inline' });
 
-    this.rootEl.createDiv({ cls: 'claudian-plan-inline-title', text: 'Plan complete' });
+    this.rootEl.createDiv({ cls: 'claudian-plan-inline-title', text: 'Plan fertig' });
 
     const actionsEl = this.rootEl.createDiv({ cls: 'claudian-ask-list' });
 
@@ -53,7 +53,7 @@ export class InlinePlanApproval {
     this.feedbackInput = reviseRow.createEl('input', {
       type: 'text',
       cls: 'claudian-ask-custom-text',
-      placeholder: 'Enter feedback to revise plan...',
+      placeholder: 'Feedback eingeben, um den Plan zu überarbeiten …',
     });
     this.feedbackInput.addEventListener('focus', () => { this.isInputFocused = true; });
     this.feedbackInput.addEventListener('blur', () => { this.isInputFocused = false; });

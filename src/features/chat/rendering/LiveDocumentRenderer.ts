@@ -249,7 +249,7 @@ export async function renderLiveDocument(
   const identity = toolbar.createDiv({ cls: 'claudian-live-document-identity' });
   const icon = identity.createSpan({ cls: 'claudian-live-document-icon' });
   setIcon(icon, 'file-pen-line');
-  identity.createSpan({ cls: 'claudian-live-document-label', text: 'Live document' });
+  identity.createSpan({ cls: 'claudian-live-document-label', text: 'Live-Dokument' });
   identity.createSpan({ cls: 'claudian-live-document-live', text: 'LIVE' });
 
   const actions = toolbar.createDiv({ cls: 'claudian-live-document-actions' });

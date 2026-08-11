@@ -28,7 +28,9 @@ and BRAT disagree about what is installed.
 ```bash
 # 1. Gate — all four must pass before anything else
 npm run typecheck && npm run lint && npm run test && npm run build
-#    lint must report 0 ERRORS. ~190 pre-existing warnings are expected.
+#    lint must report 0 ERRORS. ~12 pre-existing warnings are expected — they are
+#    all actionable. `obsidianmd/ui/sentence-case` is off on purpose (it enforces
+#    English sentence case against a German UI); see eslint.config.mjs.
 
 # 2. Bump. `npm version` runs scripts/sync-version.js, which propagates the
 #    version into manifest.json and versions.json and stages them.

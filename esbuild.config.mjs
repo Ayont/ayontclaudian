@@ -188,6 +188,15 @@ const context = await esbuild.context({
   logLevel: 'info',
   sourcemap: prod ? false : 'inline',
   treeShaking: true,
+  // Obsidian parses main.js on every vault start, and the bundle carries three
+  // vendored agent SDKs. Unminified it is ~4.7 MB of mostly whitespace.
+  //
+  // Identifiers are minified too: nothing in the plugin reads `Function.name`
+  // or `constructor.name`, and the one build step that rewrites the bundle
+  // afterwards (patchRendererUnsafeUnref) locates its targets by paren matching
+  // rather than by source formatting, so it is unaffected by mangled names.
+  // Dev builds stay readable so stack traces remain useful.
+  minify: prod,
   outfile: 'main.js',
 });
 

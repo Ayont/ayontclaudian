@@ -607,7 +607,7 @@ describe('InputController - Message Queue', () => {
         canvasContext: null,
       });
       expect(mockNotice).toHaveBeenCalledWith(
-        'Failed to steer the queued message. It is still available.',
+        'Die eingereihte Nachricht konnte nicht übernommen werden. Sie bleibt erhalten.',
       );
     });
 
@@ -1014,7 +1014,7 @@ describe('InputController - Message Queue', () => {
         canvasContext: null,
       });
       expect(mockNotice).toHaveBeenCalledWith(
-        'Failed to steer the queued message. It is still available.',
+        'Die eingereihte Nachricht konnte nicht übernommen werden. Sie bleibt erhalten.',
       );
     });
 
@@ -1886,7 +1886,7 @@ describe('InputController - Message Queue', () => {
 
       await controller.sendMessage();
 
-      expect(mockNotice).toHaveBeenCalledWith('External context selector not available.');
+      expect(mockNotice).toHaveBeenCalledWith('Auswahl für externen Kontext nicht verfügbar.');
       expect(inputEl.value).toBe('');
     });
 
@@ -2042,7 +2042,7 @@ describe('InputController - Message Queue', () => {
 
       await controller.sendMessage();
 
-      expect(mockNotice).toHaveBeenCalledWith('No conversations to resume');
+      expect(mockNotice).toHaveBeenCalledWith('Keine Unterhaltung zum Fortsetzen vorhanden.');
       expect(ResumeSessionDropdown).not.toHaveBeenCalled();
       expect(inputEl.value).toBe('');
     });
@@ -2170,7 +2170,7 @@ describe('InputController - Message Queue', () => {
 
       await controller.sendMessage();
 
-      expect(mockNotice).toHaveBeenCalledWith('Fork not available.');
+      expect(mockNotice).toHaveBeenCalledWith('Fork nicht verfügbar.');
       expect(inputEl.value).toBe('');
     });
   });
@@ -2245,7 +2245,7 @@ describe('InputController - Message Queue', () => {
 
       await controller.sendMessage();
 
-      expect(mockNotice).toHaveBeenCalledWith('Failed to initialize agent service. Please try again.');
+      expect(mockNotice).toHaveBeenCalledWith('Agent-Dienst konnte nicht gestartet werden. Bitte erneut versuchen.');
       expect(deps.streamController.hideThinkingIndicator).toHaveBeenCalled();
       expect(deps.state.isStreaming).toBe(false);
       expect(deps.state.hasPendingConversationSave).toBe(true);
@@ -2269,7 +2269,7 @@ describe('InputController - Message Queue', () => {
 
       await controller.sendMessage();
 
-      expect(mockNotice).toHaveBeenCalledWith('Agent service not available. Please reload the plugin.');
+      expect(mockNotice).toHaveBeenCalledWith('Agent-Dienst nicht verfügbar. Bitte das Plugin neu laden.');
       expect(deps.state.hasPendingConversationSave).toBe(true);
       expect((deps as any).mockAgentService.query).not.toHaveBeenCalled();
     });
@@ -3080,7 +3080,7 @@ describe('InputController - Message Queue', () => {
 
       await controller.handleInstructionSubmit('empty result');
 
-      expect(mockNotice).toHaveBeenCalledWith('No instruction received');
+      expect(mockNotice).toHaveBeenCalledWith('Keine Anweisung erhalten.');
       expect(mockInstructionModeManager.clear).toHaveBeenCalled();
     });
 

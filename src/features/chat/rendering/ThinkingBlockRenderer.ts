@@ -53,12 +53,12 @@ export function createThinkingBlock(
   const { header, labelEl } = buildHeader(wrapperEl);
 
   const startTime = Date.now();
-  labelEl.setText('Thinking 0s...');
+  labelEl.setText('Denkt 0s …');
 
   // Update the label once per second while reasoning streams in.
   const timerInterval = window.setInterval(() => {
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
-    labelEl.setText(`Thinking ${elapsed}s...`);
+    labelEl.setText(`Denkt ${elapsed}s …`);
   }, TIMER_TICK_MS);
 
   // Collapsible content (collapsed by default)
@@ -104,7 +104,7 @@ export function finalizeThinkingBlock(state: ThinkingBlockState): number {
   const durationSeconds = Math.floor((Date.now() - state.startTime) / 1000);
 
   // Update label to show final duration (without "...")
-  state.labelEl.setText(`Thought for ${durationSeconds}s`);
+  state.labelEl.setText(`Nachgedacht: ${durationSeconds}s`);
 
   // Collapse when done and sync state
   const header = state.wrapperEl.querySelector('.claudian-thinking-header');
@@ -131,7 +131,7 @@ export function renderStoredThinkingBlock(
 
   const { header, labelEl } = buildHeader(wrapperEl);
 
-  const labelText = durationSeconds !== undefined ? `Thought for ${durationSeconds}s` : 'Thought';
+  const labelText = durationSeconds !== undefined ? `Nachgedacht: ${durationSeconds}s` : 'Nachgedacht';
   labelEl.setText(labelText);
 
   // Collapsible content

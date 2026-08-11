@@ -1669,7 +1669,7 @@ describe('ClaudianPlugin', () => {
               mode: 'async',
               asyncStatus: 'running',
               status: 'running',
-              result: 'Running in background',
+              result: 'Läuft im Hintergrund',
               toolCalls: [],
               isExpanded: false,
             } as any,

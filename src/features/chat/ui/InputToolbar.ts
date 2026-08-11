@@ -834,7 +834,7 @@ export class ExternalContextSelector {
 
     // Check for duplicate (normalized comparison for cross-platform support)
     if (isDuplicatePath(normalizedPath, this.externalContextPaths)) {
-      return { success: false, error: 'This folder is already added as an external context.' };
+      return { success: false, error: 'Dieser Ordner ist bereits als externer Kontext hinterlegt.' };
     }
 
     // Check for nested/overlapping paths
@@ -901,7 +901,7 @@ export class ExternalContextSelector {
       }
       const result = await remote.dialog.showOpenDialog({
         properties: ['openDirectory'],
-        title: 'Select External Context',
+        title: 'Externen Kontext wählen',
       });
 
       if (!result.canceled && result.filePaths.length > 0) {
@@ -909,7 +909,7 @@ export class ExternalContextSelector {
 
         // Check for duplicate (normalized comparison for cross-platform support)
         if (isDuplicatePath(selectedPath, this.externalContextPaths)) {
-          new Notice('This folder is already added as an external context.', 3000);
+          new Notice('Dieser Ordner ist bereits als externer Kontext hinterlegt.', 3000);
           return;
         }
 
@@ -926,7 +926,7 @@ export class ExternalContextSelector {
         this.renderDropdown();
       }
     } catch {
-      new Notice('Unable to open folder picker.', 5000);
+      new Notice('Ordnerauswahl konnte nicht geöffnet werden.', 5000);
     }
   }
 
@@ -946,14 +946,14 @@ export class ExternalContextSelector {
 
     // Header
     const headerEl = this.dropdownEl.createDiv({ cls: 'claudian-external-context-header' });
-    headerEl.setText('External contexts');
+    headerEl.setText('Externe Kontexte');
 
     // Path list
     const listEl = this.dropdownEl.createDiv({ cls: 'claudian-external-context-list' });
 
     if (this.externalContextPaths.length === 0) {
       const emptyEl = listEl.createDiv({ cls: 'claudian-external-context-empty' });
-      emptyEl.setText('Click folder icon to add');
+      emptyEl.setText('Zum Hinzufügen auf das Ordner-Symbol klicken');
     } else {
       for (const pathStr of this.externalContextPaths) {
         const itemEl = listEl.createDiv({ cls: 'claudian-external-context-item' });
@@ -1149,7 +1149,7 @@ export class McpServerSelector {
 
     // Header
     const headerEl = this.dropdownEl.createDiv({ cls: 'claudian-mcp-selector-header' });
-    headerEl.setText('Mcp servers');
+    headerEl.setText('MCP-Server');
 
     // Server list
     const listEl = this.dropdownEl.createDiv({ cls: 'claudian-mcp-selector-list' });

@@ -78,7 +78,7 @@ export function createWriteEditBlock(
   const statsEl = headerEl.createDiv({ cls: 'claudian-write-edit-stats' });
 
   const statusEl = headerEl.createDiv({ cls: 'claudian-write-edit-status status-running' });
-  statusEl.setAttribute('aria-label', 'Status: running');
+  statusEl.setAttribute('aria-label', 'Status: läuft');
 
   // Content area (collapsed by default)
   const contentEl = wrapperEl.createDiv({ cls: 'claudian-write-edit-content' });
@@ -134,7 +134,7 @@ export function finalizeWriteEditBlock(state: WriteEditState, isError: boolean):
   if (isError) {
     state.statusEl.addClass('status-error');
     setIcon(state.statusEl, 'x');
-    state.statusEl.setAttribute('aria-label', 'Status: error');
+    state.statusEl.setAttribute('aria-label', 'Status: Fehler');
 
     // Show error in content if no diff was shown
     if (!state.diffLines) {

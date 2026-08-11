@@ -20,12 +20,11 @@ describe('rendererSafeUnref helpers', () => {
     const result = patchRendererUnsafeUnrefSites(input);
 
     expect(result.appliedPatches).toEqual([
-      { name: 'claude-sdk-process-transport-close', count: 1 },
-      { name: 'mcp-sdk-stdio-close-wait', count: 1 },
+      { name: 'timer-unref-optional-call', count: 3 },
     ]);
-    expect(result.contents).toContain('processKillTimer.unref?.();');
-    expect(result.contents).toContain('forceKillTimer.unref?.();');
-    expect(result.contents).toContain('closeTimeout.unref?.();');
+    expect(result.contents).toContain('}, 5e3, Q).unref?.();');
+    expect(result.contents).toContain('}, wx, $).unref?.(),');
+    expect(result.contents).toContain('setTimeout(resolve5, 2e3).unref?.()');
     expect(findUnsafeTimerUnrefSites(result.contents)).toEqual([]);
   });
 
@@ -39,16 +38,14 @@ describe('rendererSafeUnref helpers', () => {
       '}, LM, $).unref(), $.once("exit", () => {',
       '  if (this.processExitHandler) process.off("exit", this.processExitHandler), this.processExitHandler = void 0;',
       '});',
-      'else if (this.processExitHandler) process.off("exit", this.processExitHandler), this.processExitHandler = void 0;',
     ].join('\n');
 
     const result = patchRendererUnsafeUnrefSites(input);
 
     expect(result.appliedPatches).toEqual([
-      { name: 'claude-sdk-process-transport-close', count: 1 },
+      { name: 'timer-unref-optional-call', count: 2 },
     ]);
-    expect(result.contents).toContain('processKillTimer.unref?.();');
-    expect(result.contents).toContain('forceKillTimer.unref?.();');
+    // The surrounding statement is left untouched — only the call is made optional.
     expect(result.contents).toContain('this.processExitHandler');
     expect(findUnsafeTimerUnrefSites(result.contents)).toEqual([]);
   });
@@ -76,11 +73,28 @@ describe('rendererSafeUnref helpers', () => {
     const result = patchRendererUnsafeUnrefSites(input);
 
     expect(result.appliedPatches).toEqual([
-      { name: 'claude-sdk-process-transport-close-async', count: 1 },
+      { name: 'timer-unref-optional-call', count: 3 },
     ]);
-    expect(result.contents).toContain('processKillTimer.unref?.();');
-    expect(result.contents).toContain('windowsForceKillTimer.unref?.();');
-    expect(result.contents).toContain('forceKillTimer.unref?.();');
+    expect(findUnsafeTimerUnrefSites(result.contents)).toEqual([]);
+  });
+
+  // The reason this rewrite exists: the previous implementation matched whole
+  // statements with regexes built around esbuild's UNMINIFIED spacing, so
+  // enabling minification silently stopped patching (and the verifier then
+  // failed the build). Patching the call site itself is formatting-agnostic.
+  it('patches the same sites after minification collapses the formatting', () => {
+    const minified = 'if(r&&!r.killed&&r.exitCode===null)setTimeout((n,i)=>{'
+      + 'if(n.exitCode!==null){i();return}'
+      + 'if(process.platform==="win32"){setTimeout((a,c)=>{a.exitCode===null&&a.kill("SIGKILL"),c()},5e3,n,i).unref();return}'
+      + 'n.kill("SIGTERM"),setTimeout(a=>{a.exitCode===null&&a.kill("SIGKILL")},5e3,n).unref(),i()'
+      + '},rZ,r,e).unref(),r.once("exit",()=>t.delete(r));'
+      + 'new Promise(resolve9=>setTimeout(resolve9,2e3).unref())';
+
+    const result = patchRendererUnsafeUnrefSites(minified);
+
+    expect(result.appliedPatches).toEqual([
+      { name: 'timer-unref-optional-call', count: 4 },
+    ]);
     expect(findUnsafeTimerUnrefSites(result.contents)).toEqual([]);
   });
 
@@ -97,5 +111,23 @@ describe('rendererSafeUnref helpers', () => {
       { line: 4, snippet: 'setTimeout(run, 1000).unref()' },
       { line: 5, snippet: 'setInterval(run, 1000).unref()' },
     ]);
+  });
+
+  it('leaves a bundle without unsafe sites byte-identical', () => {
+    const input = 'const timer = setTimeout(run, 1000);\ntimer.unref?.();\n';
+
+    const result = patchRendererUnsafeUnrefSites(input);
+
+    expect(result.contents).toBe(input);
+    expect(result.appliedPatches).toEqual([]);
+  });
+
+  it('patches every site when several appear on one line', () => {
+    const input = 'setTimeout(a, 1).unref(), setTimeout(b, 2).unref();';
+
+    const result = patchRendererUnsafeUnrefSites(input);
+
+    expect(result.contents).toBe('setTimeout(a, 1).unref?.(), setTimeout(b, 2).unref?.();');
+    expect(findUnsafeTimerUnrefSites(result.contents)).toEqual([]);
   });
 });

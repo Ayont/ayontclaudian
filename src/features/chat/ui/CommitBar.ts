@@ -40,7 +40,7 @@ export function suggestCommitMessage(files: ReadonlyArray<GitFileChange>): strin
 /** Human-readable summary of the change count, e.g. "1 changed file". */
 export function describeChangeCount(count: number): string {
   if (count === 0) {
-    return 'No changes';
+    return 'Keine Änderungen';
   }
   return count === 1 ? '1 changed file' : `${count} changed files`;
 }

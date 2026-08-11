@@ -1610,7 +1610,7 @@ export class StreamController {
     if (!state.currentContentEl) return;
     this.hideThinkingIndicator();
     const el = state.currentContentEl.createDiv({ cls: 'claudian-compact-boundary' });
-    el.createSpan({ cls: 'claudian-compact-boundary-label', text: 'Conversation compacted' });
+    el.createSpan({ cls: 'claudian-compact-boundary-label', text: 'Unterhaltung verdichtet' });
   }
 
   // ============================================

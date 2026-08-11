@@ -125,7 +125,7 @@ export function renderDiffContent(
   if (hunks.length === 0) {
     // No changes
     const noChanges = containerEl.createDiv({ cls: 'claudian-diff-no-changes' });
-    noChanges.setText('No changes');
+    noChanges.setText('Keine Änderungen');
     return;
   }
 

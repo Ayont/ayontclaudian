@@ -64,7 +64,7 @@ export class ModelSelectModal extends Modal {
 
     if (filtered.length === 0) {
       const emptyEl = this.listEl.createDiv({ cls: 'claudian-model-select-empty' });
-      emptyEl.setText('No models match your search.');
+      emptyEl.setText('Keine Modelle passen zur Suche.');
       return;
     }
 

@@ -250,7 +250,7 @@ export function createSubagentBlock(
   labelEl.setText(truncateDescription(description));
 
   const statusEl = headerEl.createDiv({ cls: 'claudian-subagent-status status-running' });
-  statusEl.setAttribute('aria-label', 'Status: running');
+  statusEl.setAttribute('aria-label', 'Status: läuft');
   setIcon(statusEl, 'loader-2');
 
   const contentEl = wrapperEl.createDiv({ cls: 'claudian-subagent-content' });
@@ -411,7 +411,7 @@ function getAsyncStatusText(asyncStatus: string | undefined): string {
     case 'completed': return ''; // Just show tick icon, no text
     case 'error': return 'Error';
     case 'orphaned': return 'Orphaned';
-    default: return 'Running in background';
+    default: return 'Läuft im Hintergrund';
   }
 }
 
@@ -421,7 +421,7 @@ function getAsyncStatusAriaLabel(asyncStatus: string | undefined): string {
     case 'completed': return 'Completed';
     case 'error': return 'Error';
     case 'orphaned': return 'Orphaned';
-    default: return 'Running in background';
+    default: return 'Läuft im Hintergrund';
   }
 }
 
@@ -517,7 +517,7 @@ export function createAsyncSubagentBlock(
   statusTextEl.setText('Initializing');
 
   const statusEl = headerEl.createDiv({ cls: 'claudian-subagent-status status-running' });
-  statusEl.setAttribute('aria-label', 'Status: running');
+  statusEl.setAttribute('aria-label', 'Status: läuft');
   setIcon(statusEl, 'loader-2');
 
   const contentEl = wrapperEl.createDiv({ cls: 'claudian-subagent-content' });
@@ -546,7 +546,7 @@ export function updateAsyncSubagentRunning(
   setAsyncWrapperStatus(state.wrapperEl, 'running');
   updateAsyncLabel(state);
 
-  state.statusTextEl.setText('Running in background');
+  state.statusTextEl.setText('Läuft im Hintergrund');
 
   renderAsyncContentLikeSync(state.contentEl, state.info, 'running');
 }

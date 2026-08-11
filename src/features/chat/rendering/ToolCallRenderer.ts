@@ -70,7 +70,7 @@ export function getToolName(name: string, input: Record<string, unknown>): strin
     case TOOL_ENTER_PLAN_MODE:
       return 'Entering plan mode';
     case TOOL_EXIT_PLAN_MODE:
-      return 'Plan complete';
+      return 'Plan fertig';
     default:
       return name;
   }
@@ -160,7 +160,7 @@ export function getToolLabel(name: string, input: Record<string, unknown>): stri
     case TOOL_ENTER_PLAN_MODE:
       return 'Entering plan mode';
     case TOOL_EXIT_PLAN_MODE:
-      return 'Plan complete';
+      return 'Plan fertig';
     case TOOL_APPLY_PATCH: {
       const summary = getApplyPatchSummary(input);
       return summary ? `apply_patch: ${summary}` : 'apply_patch';
@@ -302,7 +302,7 @@ function getWebSearchSummary(input: Record<string, unknown>, maxLength: number):
     case 'open_page':
       return truncateText(`Open ${data.url || 'page'}`, maxLength);
     case 'find_in_page': {
-      const target = data.pattern ? `Find "${data.pattern}"` : 'Find in page';
+      const target = data.pattern ? `Suche "${data.pattern}"` : 'Auf Seite suchen';
       const suffix = data.url ? ` in ${data.url}` : '';
       return truncateText(target + suffix, maxLength);
     }
@@ -363,23 +363,23 @@ function renderWebSearchActionExpanded(container: HTMLElement, input: Record<str
 
   switch (data.actionType) {
     case 'open_page':
-      linesEl.createDiv({ cls: 'claudian-tool-line', text: 'Open page' });
+      linesEl.createDiv({ cls: 'claudian-tool-line', text: 'Seite öffnen' });
       if (data.url) {
         appendToolLink(linesEl, data.url, data.url);
       } else {
-        linesEl.createDiv({ cls: 'claudian-tool-line', text: 'URL unavailable' });
+        linesEl.createDiv({ cls: 'claudian-tool-line', text: 'URL nicht verfügbar' });
       }
       return true;
 
     case 'find_in_page':
-      linesEl.createDiv({ cls: 'claudian-tool-line', text: 'Find in page' });
+      linesEl.createDiv({ cls: 'claudian-tool-line', text: 'Auf Seite suchen' });
       if (data.url) {
         appendToolLink(linesEl, data.url, data.url);
       } else {
-        linesEl.createDiv({ cls: 'claudian-tool-line', text: 'URL unavailable' });
+        linesEl.createDiv({ cls: 'claudian-tool-line', text: 'URL nicht verfügbar' });
       }
       if (data.pattern) {
-        linesEl.createDiv({ cls: 'claudian-tool-line', text: `Pattern: ${data.pattern}` });
+        linesEl.createDiv({ cls: 'claudian-tool-line', text: `Muster: ${data.pattern}` });
       }
       return true;
 
@@ -453,13 +453,13 @@ function renderWebSearchExpanded(
     return;
   }
 
-  container.createDiv({ cls: 'claudian-tool-empty', text: 'No result' });
+  container.createDiv({ cls: 'claudian-tool-empty', text: 'Kein Ergebnis' });
 }
 
 function renderFileSearchExpanded(container: HTMLElement, result: string): void {
   const lines = result.split(/\r?\n/).filter(line => line.trim());
   if (lines.length === 0) {
-    container.createDiv({ cls: 'claudian-tool-empty', text: 'No matches found' });
+    container.createDiv({ cls: 'claudian-tool-empty', text: 'Keine Treffer' });
     return;
   }
   renderLinesExpanded(container, result, 15, true);
@@ -587,7 +587,7 @@ function renderApplyPatchExpanded(
     return;
   }
 
-  container.createDiv({ cls: 'claudian-tool-empty', text: 'No result' });
+  container.createDiv({ cls: 'claudian-tool-empty', text: 'Kein Ergebnis' });
 }
 
 function renderApplyPatchDiffSections(
@@ -598,12 +598,12 @@ function renderApplyPatchDiffSections(
     const sectionEl = container.createDiv({ cls: 'claudian-tool-patch-section' });
 
     if (fileDiff.operation === 'delete' && fileDiff.diffLines.length === 0) {
-      sectionEl.createDiv({ cls: 'claudian-tool-empty', text: 'File deleted' });
+      sectionEl.createDiv({ cls: 'claudian-tool-empty', text: 'Datei gelöscht' });
       continue;
     }
 
     if (fileDiff.diffLines.length === 0) {
-      sectionEl.createDiv({ cls: 'claudian-tool-empty', text: 'No textual diff available' });
+      sectionEl.createDiv({ cls: 'claudian-tool-empty', text: 'Kein Text-Diff verfügbar' });
       continue;
     }
 
@@ -682,7 +682,7 @@ export function renderExpandedContent(
   input: Record<string, unknown> = {},
 ): void {
   if (!result && toolName !== TOOL_WEB_SEARCH && toolName !== TOOL_BASH && toolName !== TOOL_APPLY_PATCH) {
-    container.createDiv({ cls: 'claudian-tool-empty', text: 'No result' });
+    container.createDiv({ cls: 'claudian-tool-empty', text: 'Kein Ergebnis' });
     return;
   }
 
@@ -805,7 +805,7 @@ export function renderTodoWriteResult(
   const todos = input.todos as TodoItem[] | undefined;
   if (!todos || !Array.isArray(todos)) {
     const item = container.createSpan({ cls: 'claudian-tool-result-item' });
-    item.setText('Tasks updated');
+    item.setText('Aufgaben aktualisiert');
     return;
   }
 
@@ -942,7 +942,7 @@ function renderAskUserQuestionFallback(container: HTMLElement, toolCall: ToolCal
     bodyEl.createDiv({ text: question.question, cls: 'claudian-ask-review-q-text' });
 
     if (!Array.isArray(question.options) || question.options.length === 0) {
-      bodyEl.createDiv({ cls: 'claudian-ask-review-empty', text: 'No options recorded' });
+      bodyEl.createDiv({ cls: 'claudian-ask-review-empty', text: 'Keine Optionen erfasst' });
       continue;
     }
 
@@ -1004,7 +1004,7 @@ function renderBashContent(
     const outputEl = container.createDiv({ cls: 'claudian-tool-bash-output' });
     renderLinesExpanded(outputEl, result, 20);
   } else {
-    container.createDiv({ cls: 'claudian-tool-empty', text: 'No result' });
+    container.createDiv({ cls: 'claudian-tool-empty', text: 'Kein Ergebnis' });
   }
 }
 

@@ -348,7 +348,7 @@ describe('ToolCallRenderer', () => {
 
     it('should return plan mode labels', () => {
       expect(getToolName('EnterPlanMode', {})).toBe('Entering plan mode');
-      expect(getToolName('ExitPlanMode', {})).toBe('Plan complete');
+      expect(getToolName('ExitPlanMode', {})).toBe('Plan fertig');
     });
 
   });
@@ -387,7 +387,7 @@ describe('ToolCallRenderer', () => {
         actionType: 'find_in_page',
         url: 'https://example.com/docs',
         pattern: 'tools',
-      })).toBe('Find "tools" in https://example.com/docs');
+      })).toBe('Suche "tools" in https://example.com/docs');
     });
 
     it('should return url for WebFetch', () => {
@@ -562,7 +562,7 @@ describe('ToolCallRenderer', () => {
       const links = toolEl.querySelectorAll('.claudian-tool-link');
       const lines = Array.from(toolEl.querySelectorAll('.claudian-tool-line')).map(line => line.textContent);
 
-      expect(lines).toContain('Open page');
+      expect(lines).toContain('Seite öffnen');
       expect(links).toHaveLength(1);
       expect(links[0].getAttribute('href')).toBe('https://example.com/docs');
       expect(links[0].querySelector('.claudian-tool-link-title')?.textContent).toBe('https://example.com/docs');
@@ -844,13 +844,13 @@ describe('ToolCallRenderer', () => {
     it('should show fallback text when no todos array', () => {
       const container = createMockEl();
       renderTodoWriteResult(container as unknown as HTMLElement, {});
-      expect(container._children[0].textContent).toBe('Tasks updated');
+      expect(container._children[0].textContent).toBe('Aufgaben aktualisiert');
     });
 
     it('should show fallback text for non-array todos', () => {
       const container = createMockEl();
       renderTodoWriteResult(container as unknown as HTMLElement, { todos: 'invalid' });
-      expect(container._children[0].textContent).toBe('Tasks updated');
+      expect(container._children[0].textContent).toBe('Aufgaben aktualisiert');
     });
   });
 

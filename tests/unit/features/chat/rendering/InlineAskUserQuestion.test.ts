@@ -168,7 +168,7 @@ describe('InlineAskUserQuestion', () => {
       );
       items[0]?.click();
 
-      expect(container.querySelector('claudian-ask-review-title')?.textContent).toBe('Review your answers');
+      expect(container.querySelector('claudian-ask-review-title')?.textContent).toBe('Antworten prüfen');
     });
 
     it('truncates header to 12 characters', () => {
@@ -915,9 +915,9 @@ describe('InlineAskUserQuestion - immediateSelect mode', () => {
 
     it('uses custom title when provided', () => {
       const input = makeInput([{ question: 'Pick', options: ['A'] }]);
-      const { container } = renderImmediateWidget(input, { title: 'Permission required' });
+      const { container } = renderImmediateWidget(input, { title: 'Berechtigung erforderlich' });
       const title = container.querySelector('claudian-ask-inline-title');
-      expect(title?.textContent).toBe('Permission required');
+      expect(title?.textContent).toBe('Berechtigung erforderlich');
     });
 
     it('renders headerEl between title and content', () => {

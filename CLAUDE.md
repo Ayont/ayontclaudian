@@ -90,6 +90,16 @@ Each of these has cost a real debugging session. They are not theoretical.
    flag support have all been wrong in shipped code because they were guessed.
    `node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts` is authoritative for
    Claude; for the others, run the binary (`--help`, `models`, `changelog`).
+   For a context window, the most reliable source is a one-token turn read back
+   from `modelUsage[<id>].contextWindow` — published summaries have been wrong.
+6. **The production bundle is minified, and one build step rewrites it afterwards.**
+   `scripts/rendererSafeUnref.js` turns bundled `setTimeout(...).unref()` into
+   `.unref?.()`, because timers return a number in Electron's renderer and the
+   bare call throws. It finds its targets by paren matching, NOT by matching the
+   surrounding source formatting — an earlier regex version silently stopped
+   working the moment minification was switched on. If you touch it, keep it
+   formatting-agnostic and keep it descending into nested timer calls; the build
+   fails loudly when any unsafe site survives.
 
 ## Commands
 
@@ -97,7 +107,7 @@ Each of these has cost a real debugging session. They are not theoretical.
 npm run dev          # watch build
 npm run build        # production build (also builds CSS)
 npm run typecheck
-npm run lint         # 0 errors required; ~190 pre-existing warnings are expected
+npm run lint         # 0 errors required; ~12 pre-existing warnings are expected
 npm run lint:fix
 npm run test
 npm run test:coverage

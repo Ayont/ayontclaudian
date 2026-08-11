@@ -811,7 +811,7 @@ export class MessageRenderer {
     textEl.appendText(' ');
     textEl.createSpan({
       cls: 'claudian-interrupted-hint',
-      text: '\u00B7 What should Claudian do instead?',
+      text: '\u00B7 Was soll Claudian stattdessen tun?',
     });
   }
 
@@ -863,7 +863,7 @@ export class MessageRenderer {
           }
         } else if (block.type === 'context_compacted') {
           const boundaryEl = contentEl.createDiv({ cls: 'claudian-compact-boundary' });
-          boundaryEl.createSpan({ cls: 'claudian-compact-boundary-label', text: 'Conversation compacted' });
+          boundaryEl.createSpan({ cls: 'claudian-compact-boundary-label', text: 'Unterhaltung verdichtet' });
         } else if (block.type === 'subagent') {
           const taskToolCall = msg.toolCalls?.find(
             tc => tc.id === block.subagentId && isSubagentToolName(tc.name)
@@ -1558,7 +1558,7 @@ export class MessageRenderer {
     } catch {
       el.createDiv({
         cls: 'claudian-render-error',
-        text: 'Failed to render message content.',
+        text: 'Nachrichteninhalt konnte nicht dargestellt werden.',
       });
     }
   }

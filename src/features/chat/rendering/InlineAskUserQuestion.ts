@@ -341,7 +341,7 @@ export class InlineAskUserQuestion {
 
   private renderSubmitTab(): void {
     this.contentArea.createDiv({
-      text: 'Review your answers',
+      text: 'Antworten prüfen',
       cls: 'claudian-ask-review-title',
     });
 
@@ -363,7 +363,7 @@ export class InlineAskUserQuestion {
     }
 
     this.contentArea.createDiv({
-      text: 'Ready to submit your answers?',
+      text: 'Antworten absenden?',
       cls: 'claudian-ask-review-prompt',
     });
 
@@ -375,7 +375,7 @@ export class InlineAskUserQuestion {
     if (!allAnswered) submitRow.addClass('is-disabled');
     submitRow.createSpan({ text: this.focusedItemIndex === 0 ? '\u203A' : '\u00A0', cls: 'claudian-ask-cursor' });
     submitRow.createSpan({ text: '1. ', cls: 'claudian-ask-item-num' });
-    submitRow.createSpan({ text: 'Submit answers', cls: 'claudian-ask-item-label' });
+    submitRow.createSpan({ text: 'Antworten absenden', cls: 'claudian-ask-item-label' });
     submitRow.addEventListener('click', () => {
       this.focusedItemIndex = 0;
       this.updateFocusIndicator();

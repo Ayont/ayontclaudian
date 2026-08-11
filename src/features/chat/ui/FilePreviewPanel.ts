@@ -26,7 +26,7 @@ export class FilePreviewPanel {
     // Toggle button — top-right of chat area
     this.toggleBtn = this.containerEl.createDiv({ cls: 'claudian-preview-toggle' });
     setIcon(this.toggleBtn, 'panel-right');
-    this.toggleBtn.setAttribute('aria-label', 'Toggle file preview panel');
+    this.toggleBtn.setAttribute('aria-label', 'Dateivorschau ein-/ausblenden');
     this.toggleBtn.addEventListener('click', () => this.toggle());
 
     // Panel — slides in from the right
@@ -129,7 +129,7 @@ export class FilePreviewPanel {
       void this.previewFile(activeFile.path);
     } else if (this.contentEl) {
       this.contentEl.empty();
-      this.contentEl.createEl('p', { cls: 'claudian-preview-empty', text: 'No file open. Click a file link in the chat to preview it.' });
+      this.contentEl.createEl('p', { cls: 'claudian-preview-empty', text: 'Keine Datei geöffnet. Klicke im Chat auf einen Dateilink, um sie anzuzeigen.' });
     }
   }
 
@@ -189,7 +189,7 @@ export class FilePreviewPanel {
     const content = await this.plugin.app.vault.read(file);
     const rows = this.parseCsv(content);
     if (rows.length === 0) {
-      this.contentEl.createEl('p', { cls: 'claudian-preview-empty', text: 'Empty CSV file.' });
+      this.contentEl.createEl('p', { cls: 'claudian-preview-empty', text: 'Leere CSV-Datei.' });
       return;
     }
 

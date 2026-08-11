@@ -2,8 +2,6 @@ import js from '@eslint/js';
 import tseslint from '@typescript-eslint/eslint-plugin';
 import jestPlugin from 'eslint-plugin-jest';
 import obsidianmd from 'eslint-plugin-obsidianmd';
-import { DEFAULT_ACRONYMS } from 'eslint-plugin-obsidianmd/dist/lib/rules/ui/acronyms.js';
-import { DEFAULT_BRANDS } from 'eslint-plugin-obsidianmd/dist/lib/rules/ui/brands.js';
 import simpleImportSort from 'eslint-plugin-simple-import-sort';
 import { defineConfig } from 'eslint/config';
 import { dirname } from 'node:path';
@@ -42,16 +40,19 @@ const stagedObsidianRules = {
   'obsidianmd/sample-names': obsidianRuleSeverity,
   'obsidianmd/settings-tab/no-manual-html-headings': obsidianRuleSeverity,
   'obsidianmd/settings-tab/no-problematic-settings-headings': obsidianRuleSeverity,
-  'obsidianmd/ui/sentence-case': [
-    obsidianRuleSeverity,
-    {
-      ignoreWords: ['Claudian', 'Codex', 'OpenCode', 'Pi', 'WSL'],
-      brands: [...DEFAULT_BRANDS, 'Claudian', 'Codex', 'OpenCode', 'Pi'],
-      acronyms: [...DEFAULT_ACRONYMS, 'TOML', 'WSL'],
-      ignoreRegex: ['\\.(?:claude|codex|opencode)/'],
-      enforceCamelCaseLower: true,
-    },
-  ],
+  // Off, and it has to be: this rule enforces ENGLISH sentence case, but the
+  // product voice is German (see CLAUDE.md). German capitalises every noun, so
+  // the rule's own suggestions are grammatically wrong — it asked for
+  // 'Team-mission abgeschlossen.', 'Install-anleitung öffnen' and
+  // 'Index vault for rag'. Following them would degrade the UI; not following
+  // them produced 200+ permanently-unfixable warnings that buried the ~12
+  // genuinely actionable ones (TFile casts, static style assignments,
+  // Vault.delete) in the same output.
+  //
+  // The ignoreWords/brands/acronyms escape hatches only cover proper nouns, not
+  // "every noun in the language", so there is no configuration that makes this
+  // rule correct for a German UI.
+  'obsidianmd/ui/sentence-case': 'off',
   'obsidianmd/vault/iterate': obsidianRuleSeverity,
 };
 
