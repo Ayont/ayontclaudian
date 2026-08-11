@@ -77,12 +77,12 @@ export class McpServerModal extends Modal {
     const { contentEl } = this;
 
     new Setting(contentEl)
-      .setName('Server name')
-      .setDesc('Unique identifier for this server')
+      .setName('Servername')
+      .setDesc('Eindeutige Kennung für diesen Server')
       .addText((text) => {
         this.nameInputEl = text.inputEl;
         text.setValue(this.serverName);
-        text.setPlaceholder('My-mcp-server');
+        text.setPlaceholder('mein-mcp-server');
         text.onChange((value) => {
           this.serverName = value;
         });
@@ -90,8 +90,8 @@ export class McpServerModal extends Modal {
       });
 
     new Setting(contentEl)
-      .setName('Type')
-      .setDesc('Server connection type')
+      .setName('Typ')
+      .setDesc('Art der Serververbindung')
       .addDropdown((dropdown) => {
         dropdown.addOption('stdio', 'Stdio (local command)');
         dropdown.addOption('sse', 'Sse (server-sent events)');
@@ -107,8 +107,8 @@ export class McpServerModal extends Modal {
     this.renderTypeFields();
 
     new Setting(contentEl)
-      .setName('Enabled')
-      .setDesc('Whether this server is active')
+      .setName('Aktiviert')
+      .setDesc('Ob dieser Server aktiv ist')
       .addToggle((toggle) => {
         toggle.setValue(this.enabled);
         toggle.onChange((value) => {
@@ -117,8 +117,8 @@ export class McpServerModal extends Modal {
       });
 
     new Setting(contentEl)
-      .setName('Context-saving mode')
-      .setDesc('Hide tools from agent unless @-mentioned (saves context window)')
+      .setName('Kontextsparender Modus')
+      .setDesc('Tools vor dem Agenten verbergen, bis sie per @ erwähnt werden (spart Kontextfenster)')
       .addToggle((toggle) => {
         toggle.setValue(this.contextSaving);
         toggle.onChange((value) => {
@@ -156,8 +156,8 @@ export class McpServerModal extends Modal {
     if (!this.typeFieldsEl) return;
 
     const cmdSetting = new Setting(this.typeFieldsEl)
-      .setName('Command')
-      .setDesc('Full command with arguments');
+      .setName('Befehl')
+      .setDesc('Vollständiger Befehl mit Argumenten');
     cmdSetting.settingEl.addClass('claudian-mcp-cmd-setting');
 
     const cmdTextarea = cmdSetting.controlEl.createEl('textarea', {
@@ -171,8 +171,8 @@ export class McpServerModal extends Modal {
     });
 
     const envSetting = new Setting(this.typeFieldsEl)
-      .setName('Environment variables')
-      .setDesc('Key=value per line (optional)');
+      .setName('Umgebungsvariablen')
+      .setDesc('Schlüssel=Wert pro Zeile (optional)');
     envSetting.settingEl.addClass('claudian-mcp-env-setting');
 
     const envTextarea = envSetting.controlEl.createEl('textarea', {
@@ -194,7 +194,7 @@ export class McpServerModal extends Modal {
       .setDesc(this.serverType === 'sse' ? 'SSE endpoint URL' : 'HTTP endpoint URL')
       .addText((text) => {
         text.setValue(this.url);
-        text.setPlaceholder('HTTP://localhost:3000/sse');
+        text.setPlaceholder('http://localhost:3000/sse');
         text.onChange((value) => {
           this.url = value;
         });
@@ -202,8 +202,8 @@ export class McpServerModal extends Modal {
       });
 
     const headersSetting = new Setting(this.typeFieldsEl)
-      .setName('Headers')
-      .setDesc('HTTP headers (key=value per line)');
+      .setName('Header')
+      .setDesc('HTTP-Header (Schlüssel=Wert pro Zeile)');
     headersSetting.settingEl.addClass('claudian-mcp-env-setting');
 
     const headersTextarea = headersSetting.controlEl.createEl('textarea', {

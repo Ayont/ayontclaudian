@@ -1,9 +1,16 @@
 #!/usr/bin/env node
 /**
  * CSS Build Script
- * Concatenates modular CSS files from src/style/ into root styles.css
+ * Concatenates modular CSS files from src/style/ into root styles.css.
+ *
+ * Pass `production` (as `npm run build` does) to minify the result. Plain
+ * `npm run build:css`, `npm run dev` and `npm run preview` deliberately emit the
+ * readable, per-module-commented build: the design workflow is "screenshot →
+ * tweak CSS → rebuild", and inspecting a minified stylesheet in DevTools makes
+ * the rule you are looking for unfindable.
  */
 
+import esbuild from 'esbuild';
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'fs';
 import { join, dirname, resolve, relative } from 'path';
 import { fileURLToPath } from 'url';
@@ -54,7 +61,23 @@ function listCssFiles(dir, baseDir = dir) {
   return files;
 }
 
-function build() {
+/**
+ * Minifies with esbuild rather than a hand-rolled regex pass. A naive
+ * whitespace/comment strip corrupts `content: "…"` strings, `@media` queries and
+ * `url()` values; esbuild parses the CSS, so it cannot.
+ */
+async function minifyCss(css) {
+  const result = await esbuild.transform(css, { loader: 'css', minify: true });
+  if (result.warnings.length > 0) {
+    for (const warning of result.warnings) {
+      console.warn(`CSS minify warning: ${warning.text}`);
+    }
+  }
+  return result.code;
+}
+
+async function build() {
+  const isProduction = process.argv.includes('production');
   const moduleOrder = getModuleOrder();
   const parts = ['/* Claudian Plugin Styles */\n/* Built from src/style/ modules */\n'];
   const missingFiles = [];
@@ -111,9 +134,14 @@ function build() {
     process.exit(1);
   }
 
-  const output = parts.join('\n');
+  const readable = parts.join('\n');
+  const output = isProduction ? await minifyCss(readable) : readable;
   writeFileSync(OUTPUT, output);
-  console.log(`Built styles.css (${(output.length / 1024).toFixed(1)} KB)`);
+
+  const size = `${(output.length / 1024).toFixed(1)} KB`;
+  console.log(isProduction
+    ? `Built styles.css (${size}, minified from ${(readable.length / 1024).toFixed(1)} KB)`
+    : `Built styles.css (${size})`);
 }
 
-build();
+await build();

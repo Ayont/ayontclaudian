@@ -478,7 +478,7 @@ describe('OpencodeSettingsTab', () => {
 
     opencodeSettingsTabRenderer.render(createContainer(), createContext(plugin));
 
-    const cliPathSetting = findSetting('CLI path');
+    const cliPathSetting = findSetting('CLI-Pfad');
     await cliPathSetting.textComponents[0].onChangeCallback?.('/custom/opencode');
 
     expect(plugin.settings.providerConfigs.opencode.cliPathsByHost).toEqual({
@@ -501,7 +501,7 @@ describe('OpencodeSettingsTab', () => {
 
     opencodeSettingsTabRenderer.render(createContainer(), context);
 
-    expect(findSetting('Commands and skills').heading).toBe(true);
+    expect(findSetting('Befehle und Skills').heading).toBe(true);
     expect(context.renderHiddenProviderCommandSetting).toHaveBeenCalledWith(
       expect.anything(),
       'opencode',
@@ -523,7 +523,7 @@ describe('OpencodeSettingsTab', () => {
 
     opencodeSettingsTabRenderer.render(createContainer(), createContext(plugin));
 
-    expect(findSetting('Subagents').heading).toBe(true);
+    expect(findSetting('Subagenten').heading).toBe(true);
     expect(createdElements).toContainEqual({
       cls: 'setting-item-description',
       tag: 'p',

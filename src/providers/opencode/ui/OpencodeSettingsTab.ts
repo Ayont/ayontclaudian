@@ -43,11 +43,11 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
     const opencodeSettings = getOpencodeProviderSettings(settingsBag);
     const hostnameKey = getHostnameKey();
 
-    new Setting(container).setName('Setup').setHeading();
+    new Setting(container).setName('Einrichtung').setHeading();
 
     new Setting(container)
-      .setName('Enable OpenCode')
-      .setDesc('Launch `opencode acp` as a provider.')
+      .setName('OpenCode aktivieren')
+      .setDesc('`opencode acp` als Provider starten.')
       .addToggle((toggle) =>
         toggle
           .setValue(opencodeSettings.enabled)
@@ -59,8 +59,8 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
       );
 
     const cliPathSetting = new Setting(container)
-      .setName('CLI path')
-      .setDesc('Optional absolute path to the OpenCode CLI for this computer. Leave empty to use `opencode` from PATH.');
+      .setName('CLI-Pfad')
+      .setDesc('Optionaler absoluter Pfad zur OpenCode-CLI auf diesem Rechner. Leer lassen, um `opencode` aus dem PATH zu nehmen.');
 
     const validationEl = container.createDiv({
       cls: 'claudian-cli-path-validation claudian-setting-validation claudian-setting-validation-error claudian-hidden',
@@ -192,11 +192,11 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
           button.setDisabled(false);
         }));
 
-    new Setting(container).setName('Models').setHeading();
+    new Setting(container).setName('Modelle').setHeading();
 
     new Setting(container)
-      .setName('Visible models')
-      .setDesc('Choose which OpenCode models appear in the chat selector. Filter by provider or type to search. The current session model stays pinned even if it is not selected here.');
+      .setName('Sichtbare Modelle')
+      .setDesc('Wähle, welche OpenCode-Modelle in der Chat-Auswahl erscheinen. Nach Provider filtern oder tippen, um zu suchen. Das Modell der laufenden Sitzung bleibt sichtbar, auch wenn es hier nicht ausgewählt ist.');
 
     const pickerEl = container.createDiv({ cls: 'claudian-opencode-model-picker' });
 
@@ -613,7 +613,7 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
       void loadModelCatalog();
     }
 
-    new Setting(container).setName('Commands and skills').setHeading();
+    new Setting(container).setName('Befehle und Skills').setHeading();
 
     const commandsDesc = container.createDiv({ cls: 'claudian-sp-settings-desc' });
     commandsDesc.createEl('p', {
@@ -628,7 +628,7 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
     });
 
     if (opencodeWorkspace?.agentStorage) {
-      new Setting(container).setName('Subagents').setHeading();
+      new Setting(container).setName('Subagenten').setHeading();
 
       const subagentsDesc = container.createDiv({ cls: 'claudian-sp-settings-desc' });
       subagentsDesc.createEl('p', {

@@ -48,8 +48,8 @@ export const kimiSettingsTabRenderer: ProviderSettingsTabRenderer = {
     new Setting(container).setName(t('settings.setup')).setHeading();
 
     new Setting(container)
-      .setName('Enable Kimi')
-      .setDesc('Launch Kimi Code (`kimi --output-format stream-json`) or legacy `kimi-cli` as a provider.')
+      .setName('Kimi aktivieren')
+      .setDesc('Kimi Code (`kimi --output-format stream-json`) oder das ältere `kimi-cli` als Provider starten.')
       .addToggle((toggle) =>
         toggle.setValue(settings.enabled).onChange(async (value) => {
           updateKimiProviderSettings(settingsBag, { enabled: value });
@@ -59,8 +59,8 @@ export const kimiSettingsTabRenderer: ProviderSettingsTabRenderer = {
       );
 
     new Setting(container)
-      .setName('Use ACP mode')
-      .setDesc('Run `kimi acp` for a persistent interactive session with native plan mode, approvals, subagents and background tasks. Requires the modern `kimi` binary.')
+      .setName('ACP-Modus verwenden')
+      .setDesc('`kimi acp` für eine dauerhafte interaktive Sitzung mit nativem Plan-Modus, Freigaben, Subagenten und Hintergrundaufgaben. Setzt die neue `kimi`-Binary voraus.')
       .addToggle((toggle) =>
         toggle.setValue(settings.useAcp).onChange(async (value) => {
           updateKimiProviderSettings(settingsBag, { useAcp: value });
@@ -98,8 +98,8 @@ export const kimiSettingsTabRenderer: ProviderSettingsTabRenderer = {
     };
 
     new Setting(container)
-      .setName('API key')
-      .setDesc('Moonshot API key for Kimi. Stored locally and injected as MOONSHOT_API_KEY.')
+      .setName('API-Key')
+      .setDesc('Moonshot-API-Key für Kimi. Wird lokal gespeichert und als MOONSHOT_API_KEY übergeben.')
       .addText((text) => {
         text.inputEl.type = 'password';
         text
@@ -143,8 +143,8 @@ export const kimiSettingsTabRenderer: ProviderSettingsTabRenderer = {
     };
 
     new Setting(container)
-      .setName('CLI path')
-      .setDesc('Optional absolute path to the `kimi-cli` binary for this computer. Leave empty to use `kimi-cli` from PATH.')
+      .setName('CLI-Pfad')
+      .setDesc('Optionaler absoluter Pfad zur `kimi-cli`-Binary auf diesem Rechner. Leer lassen, um `kimi-cli` aus dem PATH zu nehmen.')
       .addText((text) => {
         const currentValue = settings.cliPathsByHost[hostnameKey] || '';
         text
@@ -164,8 +164,8 @@ export const kimiSettingsTabRenderer: ProviderSettingsTabRenderer = {
     new Setting(container).setName(t('settings.models')).setHeading();
 
     new Setting(container)
-      .setName('Default model')
-      .setDesc('Model passed via `-m` for new conversations. Discovered from `~/.kimi/config.toml` plus any custom models below.')
+      .setName('Standardmodell')
+      .setDesc('Modell, das neue Unterhaltungen via `-m` bekommen. Ermittelt aus `~/.kimi/config.toml` plus den eigenen Modellen unten.')
       .addDropdown((dropdown) => {
         const options = getKimiModelOptions(settingsBag);
         for (const option of options) {
@@ -183,7 +183,7 @@ export const kimiSettingsTabRenderer: ProviderSettingsTabRenderer = {
       });
 
     new Setting(container)
-      .setName('Custom models')
+      .setName('Eigene Modelle')
       .setDesc('Zusätzliche Modell-Ids für die Auswahl, eine pro Zeile. Jede Id muss in `~/.kimi/config.toml` unter `[models.*]` deklariert sein — die verwalteten `kimi-code/*`-Modelle sind bereits enthalten.')
       .addTextArea((text) => {
         text
@@ -201,11 +201,11 @@ export const kimiSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     // --- Behavior ---
 
-    new Setting(container).setName('Behavior').setHeading();
+    new Setting(container).setName('Verhalten').setHeading();
 
     new Setting(container)
-      .setName('Thinking by default')
-      .setDesc('Start new conversations with `--thinking` enabled. Toggle per-conversation from the chat toolbar.')
+      .setName('Standardmäßig denken')
+      .setDesc('Neue Unterhaltungen mit aktivem `--thinking` starten. Pro Unterhaltung in der Chat-Leiste umschaltbar.')
       .addToggle((toggle) =>
         toggle.setValue(settings.thinkingDefault).onChange(async (value) => {
           updateKimiProviderSettings(settingsBag, { thinkingDefault: value });
@@ -214,8 +214,8 @@ export const kimiSettingsTabRenderer: ProviderSettingsTabRenderer = {
       );
 
     new Setting(container)
-      .setName('Skip permissions (YOLO)')
-      .setDesc('Pass `--yolo` so Kimi auto-approves all actions. Print mode already auto-approves per invocation; enable for explicit YOLO behavior.')
+      .setName('Berechtigungen überspringen (YOLO)')
+      .setDesc('`--yolo` mitgeben, damit Kimi alle Aktionen selbst freigibt. Der Print-Modus gibt pro Aufruf ohnehin frei — dies ist die ausdrückliche YOLO-Variante.')
       .addToggle((toggle) =>
         toggle.setValue(settings.permissionMode === 'yolo').onChange(async (value) => {
           updateKimiProviderSettings(settingsBag, { permissionMode: value ? 'yolo' : 'normal' });
@@ -228,8 +228,8 @@ export const kimiSettingsTabRenderer: ProviderSettingsTabRenderer = {
     new Setting(container).setName('Agent').setHeading();
 
     new Setting(container)
-      .setName('Agent preset')
-      .setDesc('Builtin agent specification passed via `--agent`.')
+      .setName('Agenten-Preset')
+      .setDesc('Eingebaute Agenten-Spezifikation, die via `--agent` übergeben wird.')
       .addDropdown((dropdown) => {
         dropdown
           .addOption('default', 'Default')
@@ -247,8 +247,8 @@ export const kimiSettingsTabRenderer: ProviderSettingsTabRenderer = {
     });
 
     new Setting(container)
-      .setName('Custom agent file')
-      .setDesc('Optional path to a custom agent spec file passed via `--agent-file`.')
+      .setName('Eigene Agenten-Datei')
+      .setDesc('Optionaler Pfad zu einer eigenen Agenten-Spezifikation, die via `--agent-file` übergeben wird.')
       .addText((text) => {
         text
           .setPlaceholder('/Users/you/.kimi/agents/custom.toml')
@@ -277,8 +277,8 @@ export const kimiSettingsTabRenderer: ProviderSettingsTabRenderer = {
     });
 
     new Setting(container)
-      .setName('MCP config file')
-      .setDesc('Optional path to an MCP servers config file passed via `--mcp-config-file`.')
+      .setName('MCP-Konfigurationsdatei')
+      .setDesc('Optionaler Pfad zu einer MCP-Server-Konfiguration, die via `--mcp-config-file` übergeben wird.')
       .addText((text) => {
         text
           .setPlaceholder('/Users/you/.kimi/mcp.json')

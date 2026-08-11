@@ -43,8 +43,8 @@ export const grokSettingsTabRenderer: ProviderSettingsTabRenderer = {
     new Setting(container).setName(t('settings.setup')).setHeading();
 
     new Setting(container)
-      .setName('Enable Grok')
-      .setDesc('Launch Grok (`grok --print --output-format stream-json`) as a provider.')
+      .setName('Grok aktivieren')
+      .setDesc('Grok (`grok --print --output-format stream-json`) als Provider starten.')
       .addToggle((toggle) =>
         toggle.setValue(settings.enabled).onChange(async (value) => {
           updateGrokProviderSettings(settingsBag, { enabled: value });
@@ -89,8 +89,8 @@ export const grokSettingsTabRenderer: ProviderSettingsTabRenderer = {
     };
 
     new Setting(container)
-      .setName('CLI path')
-      .setDesc('Optional absolute path to the `grok` binary for this computer. Leave empty to use `grok` from PATH.')
+      .setName('CLI-Pfad')
+      .setDesc('Optionaler absoluter Pfad zur `grok`-Binary auf diesem Rechner. Leer lassen, um `grok` aus dem PATH zu nehmen.')
       .addText((text) => {
         const currentValue = settings.cliPathsByHost[hostnameKey] || '';
         text
@@ -110,8 +110,8 @@ export const grokSettingsTabRenderer: ProviderSettingsTabRenderer = {
     new Setting(container).setName(t('settings.models')).setHeading();
 
     new Setting(container)
-      .setName('Default model')
-      .setDesc('Model passed via `-m` for new conversations. Discovered from `~/.grok/config.toml` plus any custom models below.')
+      .setName('Standardmodell')
+      .setDesc('Modell, das neue Unterhaltungen via `-m` bekommen. Ermittelt aus `~/.grok/config.toml` plus den eigenen Modellen unten.')
       .addDropdown((dropdown) => {
         const options = getGrokModelOptions(settingsBag);
         for (const option of options) {
@@ -129,7 +129,7 @@ export const grokSettingsTabRenderer: ProviderSettingsTabRenderer = {
       });
 
     new Setting(container)
-      .setName('Custom models')
+      .setName('Eigene Modelle')
       .setDesc('Zusätzliche Modell-Ids für die Auswahl, eine pro Zeile. `grok models` zeigt, was die CLI tatsächlich ausliefert — alles andere wird beim Start abgelehnt.')
       .addTextArea((text) => {
         text
@@ -147,11 +147,11 @@ export const grokSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     // --- Behavior ---
 
-    new Setting(container).setName('Behavior').setHeading();
+    new Setting(container).setName('Verhalten').setHeading();
 
     new Setting(container)
-      .setName('Thinking by default')
-      .setDesc('Start new conversations with `--thinking` enabled. Toggle per-conversation from the chat toolbar.')
+      .setName('Standardmäßig denken')
+      .setDesc('Neue Unterhaltungen mit aktivem `--thinking` starten. Pro Unterhaltung in der Chat-Leiste umschaltbar.')
       .addToggle((toggle) =>
         toggle.setValue(settings.thinkingDefault).onChange(async (value) => {
           updateGrokProviderSettings(settingsBag, { thinkingDefault: value });
@@ -160,8 +160,8 @@ export const grokSettingsTabRenderer: ProviderSettingsTabRenderer = {
       );
 
     new Setting(container)
-      .setName('Skip permissions (YOLO)')
-      .setDesc('Pass `--yolo` so Grok auto-approves all actions. Print mode already auto-approves per invocation; enable for explicit YOLO behavior.')
+      .setName('Berechtigungen überspringen (YOLO)')
+      .setDesc('`--yolo` mitgeben, damit Grok alle Aktionen selbst freigibt. Der Print-Modus gibt pro Aufruf ohnehin frei — dies ist die ausdrückliche YOLO-Variante.')
       .addToggle((toggle) =>
         toggle.setValue(settings.permissionMode === 'yolo').onChange(async (value) => {
           updateGrokProviderSettings(settingsBag, { permissionMode: value ? 'yolo' : 'normal' });
@@ -174,8 +174,8 @@ export const grokSettingsTabRenderer: ProviderSettingsTabRenderer = {
     new Setting(container).setName('Agent').setHeading();
 
     new Setting(container)
-      .setName('Agent preset')
-      .setDesc('Builtin agent specification passed via `--agent`.')
+      .setName('Agenten-Preset')
+      .setDesc('Eingebaute Agenten-Spezifikation, die via `--agent` übergeben wird.')
       .addDropdown((dropdown) => {
         dropdown
           .addOption('default', 'Default')
@@ -192,8 +192,8 @@ export const grokSettingsTabRenderer: ProviderSettingsTabRenderer = {
     });
 
     new Setting(container)
-      .setName('Custom agent file')
-      .setDesc('Optional path to a custom agent spec file passed via `--agent-file`.')
+      .setName('Eigene Agenten-Datei')
+      .setDesc('Optionaler Pfad zu einer eigenen Agenten-Spezifikation, die via `--agent-file` übergeben wird.')
       .addText((text) => {
         text
           .setPlaceholder('/Users/you/.grok/agents/custom.toml')
@@ -222,8 +222,8 @@ export const grokSettingsTabRenderer: ProviderSettingsTabRenderer = {
     });
 
     new Setting(container)
-      .setName('MCP config file')
-      .setDesc('Optional path to an MCP servers config file passed via `--mcp-config-file`.')
+      .setName('MCP-Konfigurationsdatei')
+      .setDesc('Optionaler Pfad zu einer MCP-Server-Konfiguration, die via `--mcp-config-file` übergeben wird.')
       .addText((text) => {
         text
           .setPlaceholder('/Users/you/.grok/mcp.json')

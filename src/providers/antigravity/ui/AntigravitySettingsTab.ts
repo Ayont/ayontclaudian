@@ -50,11 +50,11 @@ export const antigravitySettingsTabRenderer: ProviderSettingsTabRenderer = {
     const hostnameKey = getHostnameKey();
     const workspace = maybeGetAntigravityWorkspaceServices();
 
-    new Setting(container).setName('Setup').setHeading();
+    new Setting(container).setName('Einrichtung').setHeading();
 
     new Setting(container)
-      .setName('Enable Antigravity')
-      .setDesc('Launch Google Antigravity (`agy --print`) as a provider.')
+      .setName('Antigravity aktivieren')
+      .setDesc('Google Antigravity (`agy --print`) als Provider starten.')
       .addToggle((toggle) =>
         toggle
           .setValue(settings.enabled)
@@ -105,8 +105,8 @@ export const antigravitySettingsTabRenderer: ProviderSettingsTabRenderer = {
     };
 
     new Setting(container)
-      .setName('CLI path')
-      .setDesc('Optional absolute path to the `agy` binary for this computer. Leave empty to use `agy` from PATH.')
+      .setName('CLI-Pfad')
+      .setDesc('Optionaler absoluter Pfad zur `agy`-Binary auf diesem Rechner. Leer lassen, um `agy` aus dem PATH zu nehmen.')
       .addText((text) => {
         const currentValue = settings.cliPathsByHost[hostnameKey] || '';
         text
@@ -121,12 +121,12 @@ export const antigravitySettingsTabRenderer: ProviderSettingsTabRenderer = {
         updateValidation(currentValue, text.inputEl);
       });
 
-    new Setting(container).setName('Runtime').setHeading();
+    new Setting(container).setName('Laufzeit').setHeading();
 
     new Setting(container)
-      .setName('Workspace scope')
+      .setName('Arbeitsbereich')
       .setDesc(
-        'Vault only confines Antigravity to your vault directory. Allow home additionally lets it read and write anywhere under your home folder.',
+        '„Nur Vault“ hält Antigravity in deinem Vault-Verzeichnis. „Home erlauben“ lässt es zusätzlich überall unterhalb deines Home-Ordners lesen und schreiben.',
       )
       .addDropdown((dropdown) =>
         dropdown
@@ -142,7 +142,7 @@ export const antigravitySettingsTabRenderer: ProviderSettingsTabRenderer = {
       );
 
     new Setting(container)
-      .setName('Permission mode')
+      .setName('Berechtigungsmodus')
       .setDesc(
         'YOLO passes `--dangerously-skip-permissions` so the non-interactive `--print` run never stalls on a prompt (recommended default). Sandbox runs Antigravity inside its OS sandbox (`--sandbox`) without skipping permissions, for an extra isolation layer. You can also flip this from the chat toolbar.',
       )
@@ -160,9 +160,9 @@ export const antigravitySettingsTabRenderer: ProviderSettingsTabRenderer = {
       );
 
     new Setting(container)
-      .setName('Print timeout')
+      .setName('Print-Timeout')
       .setDesc(
-        'Optional time limit per turn passed as `--print-timeout` (e.g. `10m`, `90s`). Leave empty for no limit.',
+        'Optionales Zeitlimit pro Zug, übergeben als `--print-timeout` (z. B. `10m`, `90s`). Leer lassen für kein Limit.',
       )
       .addText((text) =>
         text
@@ -177,7 +177,7 @@ export const antigravitySettingsTabRenderer: ProviderSettingsTabRenderer = {
     new Setting(container)
       .setName('Agent')
       .setDesc(
-        'Builtin persona passed via `--agent` (agy ≥ 1.1.1, see `agy agents`). Default lets Antigravity use its own configured persona.',
+        'Eingebaute Persona, übergeben via `--agent` (agy ≥ 1.1.1, siehe `agy agents`). „Standard“ überlässt Antigravity seine eigene konfigurierte Persona.',
       )
       .addDropdown((dropdown) => {
         dropdown.addOption('default', 'Default');

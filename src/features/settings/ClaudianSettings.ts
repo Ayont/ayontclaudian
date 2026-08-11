@@ -440,7 +440,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
       .setDesc(t('settings.mediaFolder.desc'))
       .addText((text) => {
         text
-          .setPlaceholder('Attachments')
+          .setPlaceholder('Anhänge')
           .setValue(this.plugin.settings.mediaFolder)
           .onChange(async (value) => {
             this.plugin.settings.mediaFolder = value.trim();
@@ -454,11 +454,11 @@ export class ClaudianSettingTab extends PluginSettingTab {
 
     // --- Model Router ---
 
-    new Setting(container).setName('Auto model routing').setHeading();
+    new Setting(container).setName('Automatische Modellwahl').setHeading();
 
     new Setting(container)
-      .setName('Enable model router')
-      .setDesc('When enabled, the "Auto" model option in the dropdown automatically picks the best model for your prompt. Keyword-based: code, writing, vision, planning, quick.')
+      .setName('Modell-Router aktivieren')
+      .setDesc('Die Option „Auto“ in der Modellauswahl sucht dann selbst das passende Modell zum Prompt. Schlüsselwortbasiert: Code, Schreiben, Vision, Planung, Schnell.')
       .addToggle((toggle) => {
         toggle
           .setValue(this.plugin.settings.modelRouterEnabled ?? true)
@@ -469,8 +469,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
       });
 
     new Setting(container)
-      .setName('Prompt template folder')
-      .setDesc('Folder containing reusable Markdown prompt templates. Built-in templates are always available.')
+      .setName('Ordner für Prompt-Vorlagen')
+      .setDesc('Ordner mit wiederverwendbaren Markdown-Prompt-Vorlagen. Die eingebauten Vorlagen stehen immer zur Verfügung.')
       .addText((text) => {
         text
           .setPlaceholder('Templates/Prompt Templates')
@@ -482,8 +482,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
       });
 
     new Setting(container)
-      .setName('Conversation export folder')
-      .setDesc('Vault folder where "Export conversation to note" saves Markdown notes. Exported notes are auto-indexed for RAG.')
+      .setName('Ordner für exportierte Unterhaltungen')
+      .setDesc('Vault-Ordner, in den „Unterhaltung als Notiz exportieren“ schreibt. Exportierte Notizen werden automatisch für RAG indexiert.')
       .addText((text) => {
         text
           .setPlaceholder('Claudian/Conversations')
@@ -539,7 +539,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
 
     // --- Ollama local embeddings ---
 
-    new Setting(container).setName('Ollama embeddings').setHeading();
+    new Setting(container).setName('Ollama-Embeddings').setHeading();
 
     const ollamaEmbedding = this.plugin.settings.ollamaEmbedding ?? {
       enabled: true,
@@ -548,8 +548,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
     };
 
     new Setting(container)
-      .setName('Enable Ollama embeddings')
-      .setDesc('Use a local Ollama server for vault RAG embeddings. Disabled falls back to keyword search.')
+      .setName('Ollama-Embeddings aktivieren')
+      .setDesc('Einen lokalen Ollama-Server für die RAG-Embeddings des Vaults nutzen. Ausgeschaltet greift die Stichwortsuche.')
       .addToggle((toggle) => {
         toggle
           .setValue(ollamaEmbedding.enabled)
@@ -562,8 +562,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
 
     if (ollamaEmbedding.enabled) {
       new Setting(container)
-        .setName('Ollama base URL')
-        .setDesc('Base URL of the Ollama server (e.g. http://localhost:11434).')
+        .setName('Ollama-Basis-URL')
+        .setDesc('Basis-URL des Ollama-Servers (z. B. http://localhost:11434).')
         .addText((text) => {
           text
             .setPlaceholder('http://localhost:11434')
@@ -575,8 +575,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
         });
 
       new Setting(container)
-        .setName('Ollama embedding model')
-        .setDesc('Name of the embedding model that must be available via Ollama (e.g. nomic-embed-text).')
+        .setName('Ollama-Embedding-Modell')
+        .setDesc('Name des Embedding-Modells, das über Ollama verfügbar sein muss (z. B. nomic-embed-text).')
         .addText((text) => {
           text
             .setPlaceholder('nomic-embed-text')

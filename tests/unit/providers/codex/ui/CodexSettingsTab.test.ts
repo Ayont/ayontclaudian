@@ -394,8 +394,8 @@ describe('CodexSettingsTab', () => {
 
     codexSettingsTabRenderer.render(createContainer(), createContext(plugin));
 
-    expect(findSetting('Installation method').dropdownComponents).toHaveLength(1);
-    expect(findSetting('WSL distro override').textComponents).toHaveLength(1);
+    expect(findSetting('Installationsart').dropdownComponents).toHaveLength(1);
+    expect(findSetting('WSL-Distribution überschreiben').textComponents).toHaveLength(1);
   });
 
   it('hides Windows-only installation controls on non-Windows platforms', () => {
@@ -404,8 +404,8 @@ describe('CodexSettingsTab', () => {
 
     codexSettingsTabRenderer.render(createContainer(), createContext(plugin));
 
-    expect(findOptionalSetting('Installation method')).toBeUndefined();
-    expect(findOptionalSetting('WSL distro override')).toBeUndefined();
+    expect(findOptionalSetting('Installationsart')).toBeUndefined();
+    expect(findOptionalSetting('WSL-Distribution überschreiben')).toBeUndefined();
   });
 
   it('uses host-native CLI path behavior on non-Windows even when WSL is saved', async () => {
@@ -434,7 +434,7 @@ describe('CodexSettingsTab', () => {
 
     codexSettingsTabRenderer.render(createContainer(), createContext(plugin));
 
-    const cliPathSetting = findSetting('Codex CLI path');
+    const cliPathSetting = findSetting('Codex-CLI-Pfad');
     expect(cliPathSetting.desc).toBe('Custom path to the local Codex CLI. Leave empty for auto-detection from PATH.');
     expect(cliPathSetting.textComponents[0].placeholder).toBe('/usr/local/bin/codex');
 
@@ -451,10 +451,10 @@ describe('CodexSettingsTab', () => {
 
     codexSettingsTabRenderer.render(createContainer(), createContext(plugin));
 
-    const installationMethodSetting = findSetting('Installation method');
+    const installationMethodSetting = findSetting('Installationsart');
     await installationMethodSetting.dropdownComponents[0].onChangeCallback?.('wsl');
 
-    const cliPathSetting = findSetting('Codex CLI path');
+    const cliPathSetting = findSetting('Codex-CLI-Pfad');
     await cliPathSetting.textComponents[0].onChangeCallback?.('codex');
 
     expect(plugin.settings.providerConfigs.codex.installationMethodsByHost).toEqual({
@@ -481,10 +481,10 @@ describe('CodexSettingsTab', () => {
 
     codexSettingsTabRenderer.render(createContainer(), createContext(plugin));
 
-    const installationMethodSetting = findSetting('Installation method');
+    const installationMethodSetting = findSetting('Installationsart');
     await installationMethodSetting.dropdownComponents[0].onChangeCallback?.('wsl');
 
-    const cliPathSetting = findSetting('Codex CLI path');
+    const cliPathSetting = findSetting('Codex-CLI-Pfad');
     await cliPathSetting.textComponents[0].onChangeCallback?.('C:\\Users\\me\\AppData\\Roaming\\npm\\codex.exe');
 
     expect(plugin.settings.providerConfigs.codex.installationMethodsByHost).toEqual({
@@ -503,7 +503,7 @@ describe('CodexSettingsTab', () => {
 
     codexSettingsTabRenderer.render(createContainer(), context);
 
-    const customModelsSetting = findSetting('Custom models');
+    const customModelsSetting = findSetting('Eigene Modelle');
     const customModelsTextArea = customModelsSetting.textAreaComponents[0];
 
     await customModelsTextArea.onChangeCallback?.('different-custom-model');
@@ -520,7 +520,7 @@ describe('CodexSettingsTab', () => {
 
     codexSettingsTabRenderer.render(createContainer(), createContext(plugin));
 
-    const customModelsSetting = findSetting('Custom models');
+    const customModelsSetting = findSetting('Eigene Modelle');
     expect(customModelsSetting.textAreaComponents[0].placeholder).toBe(
       'gpt-5.4\ngpt-5.3-codex-spark',
     );
@@ -535,7 +535,7 @@ describe('CodexSettingsTab', () => {
 
     codexSettingsTabRenderer.render(createContainer(), context);
 
-    const customModelsSetting = findSetting('Custom models');
+    const customModelsSetting = findSetting('Eigene Modelle');
     const customModelsTextArea = customModelsSetting.textAreaComponents[0];
 
     await customModelsTextArea.onChangeCallback?.('different-custom-model');
@@ -562,7 +562,7 @@ describe('CodexSettingsTab', () => {
 
     codexSettingsTabRenderer.render(createContainer(), context);
 
-    const customModelsSetting = findSetting('Custom models');
+    const customModelsSetting = findSetting('Eigene Modelle');
     const customModelsTextArea = customModelsSetting.textAreaComponents[0];
 
     await customModelsTextArea.onChangeCallback?.('different-custom-model');

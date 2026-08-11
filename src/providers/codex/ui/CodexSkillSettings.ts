@@ -49,8 +49,8 @@ export class CodexSkillModal extends Modal {
     const { contentEl } = this;
 
     new Setting(contentEl)
-      .setName('Directory')
-      .setDesc('Where to store the skill')
+      .setName('Verzeichnis')
+      .setDesc('Wo der Skill gespeichert wird')
       .addDropdown(dropdown => {
         for (const opt of CODEX_SKILL_ROOT_OPTIONS) {
           dropdown.addOption(opt.id, opt.label);
@@ -60,25 +60,25 @@ export class CodexSkillModal extends Modal {
       });
 
     new Setting(contentEl)
-      .setName('Skill name')
-      .setDesc('The name used after $ (e.g., "analyze" for $analyze)')
+      .setName('Skill-Name')
+      .setDesc('Der Name nach dem $ (z. B. „analyze“ für $analyze)')
       .addText(text => {
         this._nameInput = text.inputEl;
         text.setValue(this.existing?.name || '')
-          .setPlaceholder('Analyze-code');
+          .setPlaceholder('analyze-code');
       });
 
     new Setting(contentEl)
-      .setName('Description')
-      .setDesc('Optional description shown in dropdown')
+      .setName('Beschreibung')
+      .setDesc('Optionale Beschreibung, die im Dropdown erscheint')
       .addText(text => {
         this._descInput = text.inputEl;
         text.setValue(this.existing?.description || '');
       });
 
     new Setting(contentEl)
-      .setName('Instructions')
-      .setDesc('The skill instructions (SKILL.md content)');
+      .setName('Anweisungen')
+      .setDesc('Die Skill-Anweisungen (Inhalt der SKILL.md)');
 
     const contentArea = contentEl.createEl('textarea', {
       cls: 'claudian-sp-content-area',

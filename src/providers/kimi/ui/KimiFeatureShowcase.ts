@@ -97,7 +97,7 @@ export function renderKimiFeatureShowcase(
 ): void {
   const activeFlags = getActiveFlags(settings);
 
-  const heading = new Setting(container).setName('Kimi Code Features').setHeading();
+  const heading = new Setting(container).setName('Kimi-Code-Funktionen').setHeading();
   heading.addExtraButton((button) => {
     button.setIcon('help-circle').setTooltip('Kimi Code Dokumentation öffnen');
     button.onClick(() => window.open(KIMI_DOCS_URL, '_blank'));

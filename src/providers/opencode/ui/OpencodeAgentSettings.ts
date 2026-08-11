@@ -87,20 +87,20 @@ class OpencodeAgentModal extends Modal {
 
     new Setting(contentEl)
       .setName('Name')
-      .setDesc('OpenCode agent name. Use slash-separated segments for nested agents.')
+      .setDesc('OpenCode-Agentenname. Verschachtelte Agenten werden mit Schrägstrichen getrennt.')
       .addText((text) => {
         nameInput = text.inputEl;
         text.setValue(this.existing?.name ?? '')
-          .setPlaceholder('Review');
+          .setPlaceholder('review');
       });
 
     new Setting(contentEl)
-      .setName('Description')
-      .setDesc('When OpenCode should use this subagent')
+      .setName('Beschreibung')
+      .setDesc('Wann OpenCode diesen Subagenten einsetzen soll')
       .addText((text) => {
         descriptionInput = text.inputEl;
         text.setValue(this.existing?.description ?? '')
-          .setPlaceholder('Reviews code for correctness and maintainability');
+          .setPlaceholder('Prüft Code auf Korrektheit und Wartbarkeit');
       });
 
     const details = contentEl.createEl('details', { cls: 'claudian-sp-advanced-section' });
@@ -125,26 +125,26 @@ class OpencodeAgentModal extends Modal {
     }
 
     new Setting(details)
-      .setName('Model')
-      .setDesc('Model override in provider/model format')
+      .setName('Modell')
+      .setDesc('Modell überschreiben, im Format provider/modell')
       .addText((text) => {
         modelInput = text.inputEl;
         text.setValue(this.existing?.model ?? '')
-          .setPlaceholder('Anthropic/Claude-sonnet-4-20250514');
+          .setPlaceholder('anthropic/claude-sonnet-4-20250514');
       });
 
     new Setting(details)
-      .setName('Variant')
-      .setDesc('Model variant override')
+      .setName('Variante')
+      .setDesc('Modellvariante überschreiben')
       .addText((text) => {
         variantInput = text.inputEl;
         text.setValue(this.existing?.variant ?? '')
-          .setPlaceholder('High');
+          .setPlaceholder('high');
       });
 
     new Setting(details)
-      .setName('Temperature')
-      .setDesc('Optional sampling temperature')
+      .setName('Temperatur')
+      .setDesc('Optionale Sampling-Temperatur')
       .addText((text) => {
         temperatureInput = text.inputEl;
         text.setValue(this.existing?.temperature !== undefined ? String(this.existing.temperature) : '')
@@ -152,8 +152,8 @@ class OpencodeAgentModal extends Modal {
       });
 
     new Setting(details)
-      .setName('Top p')
-      .setDesc('Optional nucleus sampling value')
+      .setName('Top-p')
+      .setDesc('Optionaler Nucleus-Sampling-Wert')
       .addText((text) => {
         topPInput = text.inputEl;
         text.setValue(this.existing?.topP !== undefined ? String(this.existing.topP) : '')
@@ -161,17 +161,17 @@ class OpencodeAgentModal extends Modal {
       });
 
     new Setting(details)
-      .setName('Color')
-      .setDesc('Hex color or theme token')
+      .setName('Farbe')
+      .setDesc('Hex-Farbe oder Theme-Token')
       .addText((text) => {
         colorInput = text.inputEl;
         text.setValue(this.existing?.color ?? '')
-          .setPlaceholder('#Ff5733');
+          .setPlaceholder('#ff5733');
       });
 
     new Setting(details)
-      .setName('Steps')
-      .setDesc('Maximum agentic iterations before forcing text-only output')
+      .setName('Schritte')
+      .setDesc('Maximale Agenten-Durchläufe, bevor nur noch Text ausgegeben wird')
       .addText((text) => {
         stepsInput = text.inputEl;
         text.setValue(this.existing?.steps !== undefined ? String(this.existing.steps) : '')
@@ -179,8 +179,8 @@ class OpencodeAgentModal extends Modal {
       });
 
     new Setting(details)
-      .setName('Hide from @mention')
-      .setDesc('Hide this subagent from the @ autocomplete menu')
+      .setName('Aus @-Erwähnung ausblenden')
+      .setDesc('Diesen Subagenten nicht in der @-Autovervollständigung anzeigen')
       .addToggle((toggle) => {
         toggle.setValue(hiddenValue).onChange((value) => {
           hiddenValue = value;
@@ -188,8 +188,8 @@ class OpencodeAgentModal extends Modal {
       });
 
     new Setting(details)
-      .setName('Disable agent')
-      .setDesc('Disable the agent without deleting the file')
+      .setName('Agent deaktivieren')
+      .setDesc('Den Agenten deaktivieren, ohne die Datei zu löschen')
       .addToggle((toggle) => {
         toggle.setValue(disableValue).onChange((value) => {
           disableValue = value;
@@ -197,8 +197,8 @@ class OpencodeAgentModal extends Modal {
       });
 
     new Setting(details)
-      .setName('Enabled tools (JSON)')
-      .setDesc('Optional deprecated tools map, e.g. {"write":false,"edit":false}')
+      .setName('Aktivierte Tools (JSON)')
+      .setDesc('Optionale (veraltete) Tool-Zuordnung, z. B. {"write":false,"edit":false}')
       .addTextArea((text) => {
         toolsInput = text.inputEl;
         text.setValue(this.existing?.tools ? JSON.stringify(this.existing.tools, null, 2) : '')
@@ -206,8 +206,8 @@ class OpencodeAgentModal extends Modal {
       });
 
     new Setting(details)
-      .setName('Permission (JSON)')
-      .setDesc('Optional permission config, e.g. {"edit":"deny","bash":"allow"}')
+      .setName('Berechtigungen (JSON)')
+      .setDesc('Optionale Berechtigungskonfiguration, z. B. {"edit":"deny","bash":"allow"}')
       .addTextArea((text) => {
         permissionInput = text.inputEl;
         text.setValue(this.existing?.permission !== undefined ? JSON.stringify(this.existing.permission, null, 2) : '')
@@ -215,8 +215,8 @@ class OpencodeAgentModal extends Modal {
       });
 
     new Setting(details)
-      .setName('Options (JSON)')
-      .setDesc('Optional custom agent options')
+      .setName('Optionen (JSON)')
+      .setDesc('Optionale eigene Agenten-Optionen')
       .addTextArea((text) => {
         optionsInput = text.inputEl;
         text.setValue(this.existing?.options ? JSON.stringify(this.existing.options, null, 2) : '')
@@ -225,7 +225,7 @@ class OpencodeAgentModal extends Modal {
 
     new Setting(contentEl)
       .setName('Prompt')
-      .setDesc('Markdown body used as the agent prompt');
+      .setDesc('Markdown-Text, der als Agenten-Prompt dient');
 
     const promptArea = contentEl.createEl('textarea', {
       cls: 'claudian-sp-content-area',
@@ -279,7 +279,7 @@ class OpencodeAgentModal extends Modal {
         return;
       }
 
-      const temperature = parseOptionalNumber(temperatureInput.value, 'Temperature');
+      const temperature = parseOptionalNumber(temperatureInput.value, 'Temperatur');
       if (temperature.error) {
         new Notice(temperature.error);
         return;
@@ -291,7 +291,7 @@ class OpencodeAgentModal extends Modal {
         return;
       }
 
-      const steps = parseOptionalPositiveInteger(stepsInput.value, 'Steps');
+      const steps = parseOptionalPositiveInteger(stepsInput.value, 'Schritte');
       if (steps.error) {
         new Notice(steps.error);
         return;
@@ -503,7 +503,7 @@ function parseOptionalNumber(
 
   const parsed = Number(trimmed);
   if (!Number.isFinite(parsed)) {
-    return { error: `${label} must be a valid number` };
+    return { error: `${label} muss eine gültige Zahl sein` };
   }
 
   return { value: parsed };
@@ -520,7 +520,7 @@ function parseOptionalPositiveInteger(
 
   const parsed = Number(trimmed);
   if (!Number.isInteger(parsed) || parsed <= 0) {
-    return { error: `${label} must be a positive integer` };
+    return { error: `${label} muss eine positive ganze Zahl sein` };
   }
 
   return { value: parsed };

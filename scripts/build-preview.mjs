@@ -69,11 +69,51 @@ body.theme-light {
 html, body { margin: 0; background: var(--background-primary); color: var(--text-normal); font-family: var(--font-interface); }
 `;
 
+// ── Icons ────────────────────────────────────────────────────────────────────
+// The product renders icons with Obsidian's `setIcon()`, which injects Lucide
+// SVGs — unavailable to this standalone script. Without them every icon slot
+// rendered as an empty rounded box, which misrepresented the surface badly
+// (icon colour, size and optical weight are load-bearing in this design).
+// These are the same Lucide glyphs the real views ask for, keyed by the same
+// name, so adding an icon here means copying the name out of the `setIcon` call.
+const LUCIDE = {
+  'folder-kanban': '<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/><path d="M8 10v4"/><path d="M12 10v2"/><path d="M16 10v6"/>',
+  'brain-circuit': '<path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M9 13a4.5 4.5 0 0 0 3-4"/><path d="M6.003 5.125A3 3 0 0 0 6.401 6.5"/><path d="M3.477 10.896a4 4 0 0 1 .585-.396"/><path d="M6 18a4 4 0 0 1-1.967-.516"/><path d="M12 13h4"/><path d="M12 18h6a2 2 0 0 1 2 2v1"/><path d="M12 8h8"/><path d="M16 8V5a2 2 0 0 1 2-2"/><circle cx="16" cy="13" r=".5"/><circle cx="18" cy="3" r=".5"/><circle cx="20" cy="21" r=".5"/><circle cx="20" cy="8" r=".5"/>',
+  brain: '<path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/>',
+  gauge: '<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>',
+  search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  workflow: '<rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  image: '<rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
+  'list-checks': '<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>',
+  plug: '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
+  history: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
+  'git-fork': '<circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9"/><path d="M12 12v3"/>',
+  'message-square-code': '<path d="M10 7.5 8 10l2 2.5"/><path d="m14 7.5 2 2.5-2 2.5"/><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  route: '<circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/>',
+  'scan-eye': '<path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="1"/><path d="M18.944 12.33a1 1 0 0 0 0-.66 7.5 7.5 0 0 0-13.888 0 1 1 0 0 0 0 .66 7.5 7.5 0 0 0 13.888 0"/>',
+  bot: '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>',
+  'file-diff': '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M9 10h6"/><path d="M12 13V7"/><path d="M9 17h6"/>',
+  'shield-check': '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+  'scroll-text': '<path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/>',
+  'layout-dashboard': '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
+  'refresh-cw': '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  'library-big': '<rect width="8" height="18" x="3" y="3" rx="1"/><path d="M7 3v18"/><path d="M20.4 18.9c.2.5-.1 1.1-.6 1.3l-1.9.7c-.5.2-1.1-.1-1.3-.6L11.1 5.1c-.2-.5.1-1.1.6-1.3l1.9-.7c.5-.2 1.1.1 1.3.6Z"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  minus: '<path d="M5 12h14"/>',
+};
+
+const icon = (name, size = 16) => {
+  const body = LUCIDE[name];
+  if (!body) throw new Error(`[preview] unknown Lucide icon: ${name}`);
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+};
+
 // ── Mock helpers (mirror the real DOM classes) ───────────────────────────────
-const statCard = (status, action, value, title, subtitle) => `
+const statCard = (status, iconName, action, value, title, subtitle) => `
   <div class="claudian-dashboard-card claudian-dashboard-card--${status}" role="button" tabindex="0">
     <div class="claudian-dashboard-card-header">
-      <span class="claudian-dashboard-card-icon"></span>
+      <span class="claudian-dashboard-card-icon">${icon(iconName)}</span>
       <span class="claudian-dashboard-card-action">${action}</span>
     </div>
     <div class="claudian-dashboard-card-value">${value}</div>
@@ -81,19 +121,19 @@ const statCard = (status, action, value, title, subtitle) => `
     <p class="claudian-dashboard-card-subtitle">${subtitle}</p>
   </div>`;
 
-const capability = (label, state, supported) => `
+const capability = (iconName, label, supported) => `
   <div class="claudian-dashboard-capability${supported ? ' is-supported' : ''}">
-    <span class="claudian-dashboard-capability-icon"></span>
+    <span class="claudian-dashboard-capability-icon">${icon(iconName, 14)}</span>
     <div class="claudian-dashboard-capability-copy">
       <span class="claudian-dashboard-capability-label">${label}</span>
-      <span class="claudian-dashboard-capability-state">${state}</span>
+      <span class="claudian-dashboard-capability-state">${supported ? 'Verfügbar' : 'Nicht unterstützt'}</span>
     </div>
-    <span class="claudian-dashboard-capability-check"></span>
+    <span class="claudian-dashboard-capability-check">${icon(supported ? 'check' : 'minus', 13)}</span>
   </div>`;
 
-const feature = (label, detail, value, active) => `
+const feature = (iconName, label, detail, value, active) => `
   <div class="claudian-dashboard-feature${active ? ' is-active' : ''}" role="listitem">
-    <span class="claudian-dashboard-feature-icon"></span>
+    <span class="claudian-dashboard-feature-icon">${icon(iconName, 15)}</span>
     <div class="claudian-dashboard-feature-copy">
       <span class="claudian-dashboard-feature-label">${label}</span>
       <span class="claudian-dashboard-feature-detail">${detail}</span>
@@ -101,83 +141,86 @@ const feature = (label, detail, value, active) => `
     <span class="claudian-dashboard-feature-value">${value}</span>
   </div>`;
 
-const actionBtn = (label, primary = false) =>
-  `<button class="claudian-dashboard-action-btn${primary ? ' claudian-dashboard-action-btn--primary' : ''}"><span></span><span>${label}</span></button>`;
+const actionBtn = (iconName, label, primary = false) =>
+  `<button class="claudian-dashboard-action-btn${primary ? ' claudian-dashboard-action-btn--primary' : ''}"><span>${icon(iconName, 14)}</span><span>${label}</span></button>`;
 
 const section = (title, detail) =>
   `<div class="claudian-dashboard-section-heading"><h3>${title}</h3><span>${detail}</span></div>`;
 
 // ── Surfaces ─────────────────────────────────────────────────────────────────
+// Labels, icons and section copy mirror src/features/dashboard/ — the German
+// locale, because that is the product voice. Previously this harness carried the
+// English strings, so it showed a UI the user never sees.
 const dashboard = `
 <div class="claudian-dashboard" data-provider="claude">
   <div class="claudian-dashboard-header">
     <div class="claudian-dashboard-title-group">
-      <span class="claudian-dashboard-logo"></span>
+      <span class="claudian-dashboard-logo">${icon('bot', 20)}</span>
       <div class="claudian-dashboard-text-group">
         <h2>Claudian OS</h2>
-        <p>Agent workspace for your vault</p>
+        <p>Agenten-Arbeitsplatz für deinen Vault</p>
       </div>
     </div>
     <div class="claudian-dashboard-status">
       <span class="claudian-dashboard-provider-chip" data-provider="claude"><span class="claudian-dashboard-provider-dot"></span><span>Claude</span></span>
       <span class="claudian-dashboard-status-dot claudian-dashboard-status-dot--active"></span>
-      <span class="claudian-dashboard-live">Active</span>
+      <span class="claudian-dashboard-live">Aktiv</span>
     </div>
   </div>
 
-  ${section('System overview', 'Live state of your agent workspace')}
+  ${section('Systemübersicht', 'Live-Zustand deines Agenten-Arbeitsplatzes')}
   <div class="claudian-dashboard-grid">
-    ${statCard('info', 'Create', '3', 'Projects', 'Latest: Veylor Backend')}
-    ${statCard('ok', 'Browse', '17', 'Memory', 'Latest: Performance architecture')}
-    ${statCard('warning', 'Reset', '130,144', 'Token usage', 'Session: 130,144 tokens')}
-    ${statCard('ok', 'Index', '1,960', 'RAG index', 'Vault chunks indexed')}
-    ${statCard('info', 'View', '2', 'Workflows', 'Scheduled automations')}
-    ${statCard('accent', 'Run', '20', 'Agents', 'Specialist agents ready')}
+    ${statCard('info', 'folder-kanban', 'Erstellen', '3', 'Projekte', 'Zuletzt: Veylor Backend')}
+    ${statCard('ok', 'brain-circuit', 'Öffnen', '17', 'Erinnerungen', 'Zuletzt: Performance-Architektur')}
+    ${statCard('warning', 'gauge', 'Zurücksetzen', '130.144', 'Token-Verbrauch', 'Sitzung: 130.144 Tokens')}
+    ${statCard('ok', 'search', 'Indexieren', '1.960', 'RAG-Index', 'Vault-Chunks indexiert')}
+    ${statCard('info', 'workflow', 'Anzeigen', '2', 'Workflows', 'Geplante Automationen')}
+    ${statCard('accent', 'users', 'Starten', '20', 'Agenten', 'Spezialisten bereit')}
   </div>
 
-  ${section('Provider capabilities', 'What your active runtime provider supports directly')}
+  ${section('Provider-Fähigkeiten', 'Was dein aktiver Runtime-Provider direkt unterstützt')}
   <div class="claudian-dashboard-capabilities">
     <div class="claudian-dashboard-provider-rail">
-      <span class="claudian-dashboard-provider-rail-label">Enabled providers</span>
+      <span class="claudian-dashboard-provider-rail-label">Aktivierte Provider</span>
       <div class="claudian-dashboard-provider-list">
         <span class="claudian-dashboard-provider-item" data-provider="opencode"><span class="claudian-dashboard-provider-item-dot"></span><span>OpenCode</span></span>
         <span class="claudian-dashboard-provider-item" data-provider="kimi"><span class="claudian-dashboard-provider-item-dot"></span><span>Kimi</span></span>
-        <span class="claudian-dashboard-provider-item is-active" data-provider="claude"><span class="claudian-dashboard-provider-item-dot"></span><span>Claude</span><span class="claudian-dashboard-provider-item-current">active</span></span>
+        <span class="claudian-dashboard-provider-item is-active" data-provider="claude"><span class="claudian-dashboard-provider-item-dot"></span><span>Claude</span><span class="claudian-dashboard-provider-item-current">aktiv</span></span>
       </div>
     </div>
     <div class="claudian-dashboard-capability-grid">
-      ${capability('Images & Vision', 'Available', true)}
-      ${capability('Plan Mode', 'Available', true)}
-      ${capability('MCP Tools', 'Available', true)}
-      ${capability('Multi-Agent', 'Available', true)}
-      ${capability('Rewind', 'Available', true)}
-      ${capability('Fork', 'Available', true)}
-      ${capability('Instructions', 'Available', true)}
-      ${capability('Live Steering', 'Not supported', false)}
+      ${capability('image', 'Bilder &amp; Vision', true)}
+      ${capability('list-checks', 'Plan Mode', true)}
+      ${capability('plug', 'MCP Tools', true)}
+      ${capability('users', 'Multi-Agent', true)}
+      ${capability('history', 'Rewind', true)}
+      ${capability('git-fork', 'Fork', true)}
+      ${capability('message-square-code', 'Instructions', true)}
+      ${capability('route', 'Live Steering', false)}
     </div>
   </div>
 
-  ${section('Feature map', 'Your key Claudian systems at a glance')}
+  ${section('Feature Map', 'Deine wichtigsten Claudian-Systeme auf einen Blick')}
   <div class="claudian-dashboard-feature-map" role="list">
-    ${feature('Model Router', 'Picks the best model automatically', 'Off', false)}
-    ${feature('Agent Memory', 'Remembers project-scoped facts', 'Active', true)}
-    ${feature('Vault RAG', 'Semantic context from your vault', '1960 chunks', true)}
-    ${feature('Vision', 'Analyzes images and screenshots', 'Ready', true)}
-    ${feature('Auto Mode', 'Continues long goals unattended', 'Active', true)}
-    ${feature('Diff Preview', 'Shows changes before applying', 'Active', true)}
-    ${feature('Token Guard', 'Watches session and daily budget', 'Off', false)}
-    ${feature('Workflows', 'Time- and event-driven automations', '0/2 active', false)}
+    ${feature('route', 'Model Router', 'Wählt automatisch das passende Modell', 'Aus', false)}
+    ${feature('brain-circuit', 'Agent Memory', 'Erinnert projektbezogene Fakten', 'Aktiv', true)}
+    ${feature('search', 'Vault RAG', 'Semantischer Kontext aus deinem Vault', '1960 Chunks', true)}
+    ${feature('scan-eye', 'Vision', 'Analysiert Bilder und Screenshots', 'Bereit', true)}
+    ${feature('bot', 'Auto Mode', 'Führt lange Ziele unbeaufsichtigt fort', 'Aktiv', true)}
+    ${feature('file-diff', 'Diff Preview', 'Zeigt Änderungen vor der Freigabe', 'Aktiv', true)}
+    ${feature('shield-check', 'Token Guard', 'Überwacht Session- und Tagesbudget', 'Aus', false)}
+    ${feature('workflow', 'Workflows', 'Zeit- und eventgesteuerte Automationen', '0/2 aktiv', false)}
   </div>
 
-  ${section('Quick actions', 'Common tasks without detours')}
+  ${section('Schnellaktionen', 'Häufige Aufgaben ohne Umwege')}
   <div class="claudian-dashboard-actions">
-    ${actionBtn('Index Vault RAG')}
-    ${actionBtn('Run Multi-Agent', true)}
-    ${actionBtn('New Project')}
-    ${actionBtn('Mission Log')}
-    ${actionBtn('Token Usage')}
-    ${actionBtn('Artifacts')}
-    ${actionBtn('Refresh')}
+    ${actionBtn('search', 'Vault-RAG indexieren')}
+    ${actionBtn('users', 'Multi-Agent starten', true)}
+    ${actionBtn('folder-kanban', 'Neues Projekt')}
+    ${actionBtn('scroll-text', 'Missions-Log')}
+    ${actionBtn('gauge', 'Token-Verbrauch')}
+    ${actionBtn('layout-dashboard', 'Artefakte')}
+    ${actionBtn('refresh-cw', 'Aktualisieren')}
   </div>
 </div>`;
 
@@ -202,21 +245,21 @@ const chatSurface = (mode) => `
       ${modeToggle(mode)}
     </div>
     <div class="claudian-header-actions">
-      <div class="claudian-header-btn" aria-label="New tab"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg></div>
-      <div class="claudian-header-btn" aria-label="History"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+      <div class="claudian-header-btn" aria-label="Neuer Tab"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg></div>
+      <div class="claudian-header-btn" aria-label="Chat-Verlauf"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
     </div>
   </div>
   <div style="padding:20px;">
   <div class="claudian-message claudian-message-user">
     <details class="claudian-vault-context-card">
-      <summary class="claudian-vault-context-summary"><span class="claudian-vault-context-icon"></span><span class="claudian-vault-context-title">2 Vault sources · 1 memory</span><span class="claudian-vault-context-hint">show</span></summary>
+      <summary class="claudian-vault-context-summary"><span class="claudian-vault-context-icon">${icon('brain', 14)}</span><span class="claudian-vault-context-title">2 Vault-Quellen · 1 Erinnerung</span><span class="claudian-vault-context-hint">anzeigen</span></summary>
     </details>
     <div class="claudian-context-sources">
-      <span class="claudian-context-sources-label">Sources</span>
-      <button class="claudian-context-source-chip">Performance architecture</button>
-      <button class="claudian-context-source-chip">Veylor backend audit</button>
+      <span class="claudian-context-sources-label">Quellen</span>
+      <button class="claudian-context-source-chip">Performance-Architektur</button>
+      <button class="claudian-context-source-chip">Veylor Backend-Audit</button>
     </div>
-    <div class="claudian-message-content">How does the response path stay fast?</div>
+    <div class="claudian-message-content">Wie bleibt der Antwortpfad schnell?</div>
   </div>
   <div class="claudian-message claudian-message-assistant">
     <div class="claudian-message-content">
@@ -238,7 +281,7 @@ const chatSurface = (mode) => `
       </details>
 <div class="claudian-code-wrapper">
         <div class="claudian-code-header">
-          <div class="claudian-code-identity"><span class="claudian-code-lang">typescript</span><span class="claudian-code-lines">12 Zeilen</span></div>
+          <div class="claudian-code-identity"><span class="claudian-code-lang">typescript</span><span class="claudian-code-lines">5 Zeilen</span></div>
           <div class="claudian-code-actions"><button class="claudian-code-copy">Kopieren</button></div>
         </div>
         <div class="claudian-code-body has-line-numbers">
@@ -302,7 +345,7 @@ const chatSurface = (mode) => `
           <div class="claudian-mission-board-synth-output">Kombiniere die Befunde: 3 kritische Bugs (Bazaar-Race, Voucher-Dupe, …), 5 mittlere…</div>
         </div>
       </div>
-            <p>The preflight is parallelized: graph context overlaps memory and RAG, the undo baseline reads in batches, and PATH resolution is memoized.</p>
+            <p>Der Preflight läuft parallel: Graph-Kontext überlappt Memory und RAG, die Undo-Baseline liest in Stapeln, und die PATH-Auflösung ist memoisiert.</p>
       <div class="claudian-diff-block claudian-diff-del">The quick <mark class="claudian-diff-word claudian-diff-word-del">brown</mark> fox.</div>
       <div class="claudian-diff-block claudian-diff-ins">The quick <mark class="claudian-diff-word claudian-diff-word-ins">red</mark> fox.</div>
     </div>
@@ -468,7 +511,7 @@ const html = `<!doctype html>
 <div class="pv-bar">
   ${tabs}
   <span class="pv-spacer"></span>
-  <button class="pv-tab" id="pv-theme">Toggle theme</button>
+  <button class="pv-tab" id="pv-theme">Theme wechseln</button>
 </div>
 ${panels}
 <script>

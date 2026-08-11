@@ -11,9 +11,10 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 
-// Run CSS build silently
-execSync('node scripts/build-css.mjs', { cwd: ROOT, stdio: 'inherit' });
+// Run CSS build silently. The mode arg is forwarded so a production build also
+// minifies the stylesheet; `npm run build:css` on its own stays readable.
+const args = process.argv.slice(2).join(' ');
+execSync(`node scripts/build-css.mjs ${args}`, { cwd: ROOT, stdio: 'inherit' });
 
 // Run esbuild with args passed through
-const args = process.argv.slice(2).join(' ');
 execSync(`node esbuild.config.mjs ${args}`, { cwd: ROOT, stdio: 'inherit' });

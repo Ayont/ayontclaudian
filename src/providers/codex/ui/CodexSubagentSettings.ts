@@ -103,20 +103,20 @@ class CodexSubagentModal extends Modal {
 
     new Setting(contentEl)
       .setName('Name')
-      .setDesc('Agent name Codex uses when spawning (lowercase, hyphens, underscores)')
+      .setDesc('Agentenname, den Codex beim Starten verwendet (Kleinbuchstaben, Binde- und Unterstriche)')
       .addText(text => {
         this._nameInput = text.inputEl;
         text.setValue(this.existing?.name ?? '')
-          .setPlaceholder('Code_reviewer');
+          .setPlaceholder('code_reviewer');
       });
 
     new Setting(contentEl)
-      .setName('Description')
-      .setDesc('When Codex should use this agent')
+      .setName('Beschreibung')
+      .setDesc('Wann Codex diesen Agenten einsetzen soll')
       .addText(text => {
         this._descInput = text.inputEl;
         text.setValue(this.existing?.description ?? '')
-          .setPlaceholder('Reviews code for correctness and security');
+          .setPlaceholder('Prüft Code auf Korrektheit und Sicherheit');
       });
 
     // Advanced options
@@ -135,8 +135,8 @@ class CodexSubagentModal extends Modal {
     }
 
     new Setting(details)
-      .setName('Model')
-      .setDesc('Model override (leave empty to inherit)')
+      .setName('Modell')
+      .setDesc('Modell überschreiben (leer = erben)')
       .addText(text => {
         this._modelInput = text.inputEl;
         text.setValue(this.existing?.model ?? '')
@@ -144,8 +144,8 @@ class CodexSubagentModal extends Modal {
       });
 
     new Setting(details)
-      .setName('Reasoning effort')
-      .setDesc('Model reasoning effort level')
+      .setName('Reasoning-Aufwand')
+      .setDesc('Aufwandsstufe für das Reasoning des Modells')
       .addDropdown(dropdown => {
         for (const opt of REASONING_EFFORT_OPTIONS) {
           dropdown.addOption(opt.value, opt.label);
@@ -155,8 +155,8 @@ class CodexSubagentModal extends Modal {
       });
 
     new Setting(details)
-      .setName('Sandbox mode')
-      .setDesc('Sandbox restriction for this agent')
+      .setName('Sandbox-Modus')
+      .setDesc('Sandbox-Einschränkung für diesen Agenten')
       .addDropdown(dropdown => {
         for (const opt of SANDBOX_MODE_OPTIONS) {
           dropdown.addOption(opt.value, opt.label);
@@ -166,8 +166,8 @@ class CodexSubagentModal extends Modal {
       });
 
     new Setting(details)
-      .setName('Nickname candidates')
-      .setDesc('Comma-separated display nicknames (e.g., atlas, delta, echo)')
+      .setName('Mögliche Rufnamen')
+      .setDesc('Kommagetrennte Anzeigenamen (z. B. atlas, delta, echo)')
       .addText(text => {
         this._nicknamesInput = text.inputEl;
         text.setValue(this.existing?.nicknameCandidates?.join(', ') ?? '');
@@ -175,8 +175,8 @@ class CodexSubagentModal extends Modal {
 
     // Developer instructions
     new Setting(contentEl)
-      .setName('Developer instructions')
-      .setDesc('Core instructions that define the agent\'s behavior');
+      .setName('Entwickler-Anweisungen')
+      .setDesc('Kernanweisungen, die das Verhalten des Agenten festlegen');
 
     const instructionsArea = contentEl.createEl('textarea', {
       cls: 'claudian-sp-content-area',

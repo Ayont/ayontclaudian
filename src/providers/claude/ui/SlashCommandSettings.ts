@@ -74,8 +74,8 @@ export class SlashCommandModal extends Modal {
     };
 
     new Setting(contentEl)
-      .setName('Type')
-      .setDesc('Command or skill')
+      .setName('Typ')
+      .setDesc('Befehl oder Skill')
       .addDropdown(dropdown => {
         dropdown
           .addOption('command', 'Command')
@@ -92,17 +92,17 @@ export class SlashCommandModal extends Modal {
       });
 
     new Setting(contentEl)
-      .setName('Command name')
-      .setDesc('The name used after / (e.g., "review" for /review)')
+      .setName('Befehlsname')
+      .setDesc('Der Name nach dem / (z. B. „review“ für /review)')
       .addText(text => {
         nameInput = text.inputEl;
         text.setValue(this.existingEntry?.name || '')
-          .setPlaceholder('Review-code');
+          .setPlaceholder('review-code');
       });
 
     new Setting(contentEl)
-      .setName('Description')
-      .setDesc('Optional description shown in dropdown')
+      .setName('Beschreibung')
+      .setDesc('Optionale Beschreibung, die im Dropdown erscheint')
       .addText(text => {
         descInput = text.inputEl;
         text.setValue(this.existingEntry?.description || '');
@@ -126,41 +126,41 @@ export class SlashCommandModal extends Modal {
     }
 
     new Setting(details)
-      .setName('Argument hint')
-      .setDesc('Placeholder text for arguments (e.g., "[file] [focus]")')
+      .setName('Argument-Hinweis')
+      .setDesc('Platzhaltertext für Argumente (z. B. „[Datei] [Fokus]“)')
       .addText(text => {
         hintInput = text.inputEl;
         text.setValue(this.existingEntry?.argumentHint || '');
       });
 
     new Setting(details)
-      .setName('Model override')
-      .setDesc('Optional model to use for this command')
+      .setName('Modell überschreiben')
+      .setDesc('Optionales Modell für diesen Befehl')
       .addText(text => {
         modelInput = text.inputEl;
         text.setValue(this.existingEntry?.model || '')
-          .setPlaceholder('Claude-sonnet-4-5');
+          .setPlaceholder('claude-sonnet-5');
       });
 
     new Setting(details)
-      .setName('Allowed tools')
-      .setDesc('Comma-separated list of tools to allow (empty = all)')
+      .setName('Erlaubte Tools')
+      .setDesc('Kommagetrennte Liste erlaubter Tools (leer = alle)')
       .addText(text => {
         toolsInput = text.inputEl;
         text.setValue(this.existingEntry?.allowedTools?.join(', ') || '');
       });
 
     new Setting(details)
-      .setName('Disable model invocation')
-      .setDesc('Prevent the model from invoking this command itself')
+      .setName('Aufruf durch das Modell sperren')
+      .setDesc('Verhindert, dass das Modell diesen Befehl selbst aufruft')
       .addToggle(toggle => {
         toggle.setValue(disableModelToggle)
           .onChange(value => { disableModelToggle = value; });
       });
 
     disableUserSetting = new Setting(details)
-      .setName('Disable user invocation')
-      .setDesc('Prevent the user from invoking this skill directly')
+      .setName('Aufruf durch dich sperren')
+      .setDesc('Verhindert, dass dieser Skill direkt aufgerufen wird')
       .addToggle(toggle => {
         disableUserToggle = toggle;
         toggle.setValue(disableUserInvocation)
@@ -170,8 +170,8 @@ export class SlashCommandModal extends Modal {
     updateSkillOnlyFields();
 
     new Setting(details)
-      .setName('Context')
-      .setDesc('Run in a subagent (fork)')
+      .setName('Kontext')
+      .setDesc('In einem Subagenten ausführen (Fork)')
       .addToggle(toggle => {
         toggle.setValue(contextValue === 'fork')
           .onChange(value => {
@@ -182,17 +182,17 @@ export class SlashCommandModal extends Modal {
 
     const agentSetting = new Setting(details)
       .setName('Agent')
-      .setDesc('Subagent type when context is fork')
+      .setDesc('Subagenten-Typ, wenn der Kontext „Fork“ ist')
       .addText(text => {
         agentInput = text.inputEl;
         text.setValue(this.existingEntry?.agent || '')
-          .setPlaceholder('Code-reviewer');
+          .setPlaceholder('code-reviewer');
       });
     agentSetting.settingEl.toggleClass('claudian-hidden', contextValue !== 'fork');
 
     new Setting(contentEl)
-      .setName('Prompt template')
-      .setDesc('Use $ARGUMENTS, $1, $2, @file, !`bash`');
+      .setName('Prompt-Vorlage')
+      .setDesc('Nutzbar: $ARGUMENTS, $1, $2, @datei, !`bash`');
 
     const contentArea = contentEl.createEl('textarea', {
       cls: 'claudian-sp-content-area',

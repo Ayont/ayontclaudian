@@ -37,11 +37,11 @@ export const piSettingsTabRenderer: ProviderSettingsTabRenderer = {
     const hostnameKey = getHostnameKey();
     const workspace = maybeGetPiWorkspaceServices();
 
-    new Setting(container).setName('Setup').setHeading();
+    new Setting(container).setName('Einrichtung').setHeading();
 
     new Setting(container)
-      .setName('Enable Pi')
-      .setDesc('Launch `pi --mode rpc` as a provider.')
+      .setName('Pi aktivieren')
+      .setDesc('`pi --mode rpc` als Provider starten.')
       .addToggle((toggle) =>
         toggle
           .setValue(piSettings.enabled)
@@ -94,8 +94,8 @@ export const piSettingsTabRenderer: ProviderSettingsTabRenderer = {
     };
 
     new Setting(container)
-      .setName('CLI path')
-      .setDesc('Optional absolute path to the Pi CLI for this computer. Leave empty to use `pi` from PATH.')
+      .setName('CLI-Pfad')
+      .setDesc('Optionaler absoluter Pfad zur Pi-CLI auf diesem Rechner. Leer lassen, um `pi` aus dem PATH zu nehmen.')
       .addText((text) => {
         const currentValue = piSettings.cliPathsByHost[hostnameKey] || '';
         text
@@ -110,11 +110,11 @@ export const piSettingsTabRenderer: ProviderSettingsTabRenderer = {
         updateCliPathValidation(currentValue, text.inputEl);
       });
 
-    new Setting(container).setName('Models').setHeading();
+    new Setting(container).setName('Modelle').setHeading();
 
     new Setting(container)
-      .setName('Visible models')
-      .setDesc('Choose which Pi models appear in the chat selector. Filter by provider or type to search. The current session model stays pinned even if it is not selected here.');
+      .setName('Sichtbare Modelle')
+      .setDesc('Wähle, welche Pi-Modelle in der Chat-Auswahl erscheinen. Nach Provider filtern oder tippen, um zu suchen. Das Modell der laufenden Sitzung bleibt sichtbar, auch wenn es hier nicht ausgewählt ist.');
 
     const pickerEl = container.createDiv({ cls: 'claudian-provider-model-picker claudian-provider-model-picker--pi' });
 

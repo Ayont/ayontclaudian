@@ -44,8 +44,8 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
     new Setting(container).setName(t('settings.setup')).setHeading();
 
     new Setting(container)
-      .setName('Enable Codex provider')
-      .setDesc('When enabled, Codex models appear in the model selector for new conversations. Existing Codex sessions are preserved.')
+      .setName('Codex-Provider aktivieren')
+      .setDesc('Dann erscheinen die Codex-Modelle in der Modellauswahl für neue Unterhaltungen. Bestehende Codex-Sitzungen bleiben erhalten.')
       .addToggle((toggle) =>
         toggle
           .setValue(codexSettings.enabled)
@@ -58,8 +58,8 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     if (isWindowsHost) {
       new Setting(container)
-        .setName('Installation method')
-        .setDesc('How Claudian should launch Codex on Windows. Native Windows uses a Windows executable path. WSL launches the Linux CLI inside a selected distro.')
+        .setName('Installationsart')
+        .setDesc('Wie Claudian Codex unter Windows startet. „Nativ“ nutzt einen Windows-Programmpfad, „WSL“ startet die Linux-CLI in der gewählten Distribution.')
         .addDropdown((dropdown) => {
           dropdown
             .addOption('native-windows', 'Native Windows')
@@ -98,7 +98,7 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
     const shouldValidateCliPathAsFile = (): boolean => !isWindowsHost || installationMethod !== 'wsl';
 
     const cliPathSetting = new Setting(container)
-      .setName('Codex CLI path')
+      .setName('Codex-CLI-Pfad')
       .setDesc(getCliPathCopy().desc);
 
     const validationEl = container.createDiv({
@@ -205,8 +205,8 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     if (isWindowsHost) {
       const wslDistroSetting = new Setting(container)
-        .setName('WSL distro override')
-        .setDesc('Optional advanced override. Leave empty to infer the distro from a WSL workspace path when possible, otherwise use the default WSL distro.');
+        .setName('WSL-Distribution überschreiben')
+        .setDesc('Optionale Feineinstellung. Leer lassen, damit die Distribution nach Möglichkeit aus dem WSL-Arbeitsverzeichnis abgeleitet wird — sonst gilt die WSL-Standarddistribution.');
 
       wslDistroSettingEl = wslDistroSetting.settingEl;
       wslDistroSetting.addText((text) => {
@@ -259,8 +259,8 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
     ];
 
     new Setting(container)
-      .setName('Custom models')
-      .setDesc('Append additional Codex model ids to the picker, one per line. `OPENAI_MODEL` still takes precedence when set.')
+      .setName('Eigene Modelle')
+      .setDesc('Weitere Codex-Modell-Ids für die Auswahl, eine pro Zeile. Ein gesetztes `OPENAI_MODEL` hat weiterhin Vorrang.')
       .addTextArea((text) => {
         let pendingCustomModels = codexSettings.customModels;
         let savedCustomModels = codexSettings.customModels;
@@ -349,8 +349,8 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
       });
 
     new Setting(container)
-      .setName('Reasoning summary')
-      .setDesc('Show a summary of the model\'s reasoning process in the thinking block.')
+      .setName('Reasoning-Zusammenfassung')
+      .setDesc('Eine Zusammenfassung des Denkprozesses im Denk-Block anzeigen.')
       .addDropdown((dropdown) => {
         for (const opt of SUMMARY_OPTIONS) {
           dropdown.addOption(opt.value, opt.label);
@@ -369,7 +369,7 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     const codexCatalog = codexWorkspace.commandCatalog;
     if (codexCatalog) {
-      new Setting(container).setName('Codex skills').setHeading();
+      new Setting(container).setName('Codex-Skills').setHeading();
 
       const skillsDesc = container.createDiv({ cls: 'claudian-sp-settings-desc' });
       skillsDesc.createEl('p', {
@@ -389,7 +389,7 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     // --- Subagents ---
 
-    new Setting(container).setName('Codex subagents').setHeading();
+    new Setting(container).setName('Codex-Subagenten').setHeading();
 
     const subagentDesc = container.createDiv({ cls: 'claudian-sp-settings-desc' });
     subagentDesc.createEl('p', {

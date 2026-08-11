@@ -43,8 +43,8 @@ export const vibeSettingsTabRenderer: ProviderSettingsTabRenderer = {
     new Setting(container).setName(t('settings.setup')).setHeading();
 
     new Setting(container)
-      .setName('Enable Vibe')
-      .setDesc('Launch Vibe (`vibe --print --output-format stream-json`) as a provider.')
+      .setName('Vibe aktivieren')
+      .setDesc('Vibe (`vibe --print --output-format stream-json`) als Provider starten.')
       .addToggle((toggle) =>
         toggle.setValue(settings.enabled).onChange(async (value) => {
           updateVibeProviderSettings(settingsBag, { enabled: value });
@@ -89,8 +89,8 @@ export const vibeSettingsTabRenderer: ProviderSettingsTabRenderer = {
     };
 
     new Setting(container)
-      .setName('CLI path')
-      .setDesc('Optional absolute path to the `vibe` binary for this computer. Leave empty to use `vibe` from PATH.')
+      .setName('CLI-Pfad')
+      .setDesc('Optionaler absoluter Pfad zur `vibe`-Binary auf diesem Rechner. Leer lassen, um `vibe` aus dem PATH zu nehmen.')
       .addText((text) => {
         const currentValue = settings.cliPathsByHost[hostnameKey] || '';
         text
@@ -110,8 +110,8 @@ export const vibeSettingsTabRenderer: ProviderSettingsTabRenderer = {
     new Setting(container).setName(t('settings.models')).setHeading();
 
     new Setting(container)
-      .setName('Default model')
-      .setDesc('Model passed via `-m` for new conversations. Discovered from `~/.vibe/config.toml` plus any custom models below.')
+      .setName('Standardmodell')
+      .setDesc('Modell, das neue Unterhaltungen via `-m` bekommen. Ermittelt aus `~/.vibe/config.toml` plus den eigenen Modellen unten.')
       .addDropdown((dropdown) => {
         const options = getVibeModelOptions(settingsBag);
         for (const option of options) {
@@ -129,11 +129,11 @@ export const vibeSettingsTabRenderer: ProviderSettingsTabRenderer = {
       });
 
     new Setting(container)
-      .setName('Custom models')
-      .setDesc('Extra model ids to show in the selector, one per line (e.g. `vibe-k2`).')
+      .setName('Eigene Modelle')
+      .setDesc('Zusätzliche Modell-Ids für die Auswahl, eine pro Zeile. `~/.vibe/config.toml` bestimmt, was die CLI wirklich kennt.')
       .addTextArea((text) => {
         text
-          .setPlaceholder('vibe-k2\nvibe-code/vibe-for-coding')
+          .setPlaceholder('mein-eigenes-modell')
           .setValue(settings.customModels)
           .onChange(async (value) => {
             updateVibeProviderSettings(settingsBag, { customModels: value });
@@ -147,11 +147,11 @@ export const vibeSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     // --- Behavior ---
 
-    new Setting(container).setName('Behavior').setHeading();
+    new Setting(container).setName('Verhalten').setHeading();
 
     new Setting(container)
-      .setName('Thinking by default')
-      .setDesc('Start new conversations with `--thinking` enabled. Toggle per-conversation from the chat toolbar.')
+      .setName('Standardmäßig denken')
+      .setDesc('Neue Unterhaltungen mit aktivem `--thinking` starten. Pro Unterhaltung in der Chat-Leiste umschaltbar.')
       .addToggle((toggle) =>
         toggle.setValue(settings.thinkingDefault).onChange(async (value) => {
           updateVibeProviderSettings(settingsBag, { thinkingDefault: value });
@@ -160,8 +160,8 @@ export const vibeSettingsTabRenderer: ProviderSettingsTabRenderer = {
       );
 
     new Setting(container)
-      .setName('Skip permissions (YOLO)')
-      .setDesc('Pass `--yolo` so Vibe auto-approves all actions. Print mode already auto-approves per invocation; enable for explicit YOLO behavior.')
+      .setName('Berechtigungen überspringen (YOLO)')
+      .setDesc('`--yolo` mitgeben, damit Vibe alle Aktionen selbst freigibt. Der Print-Modus gibt pro Aufruf ohnehin frei — dies ist die ausdrückliche YOLO-Variante.')
       .addToggle((toggle) =>
         toggle.setValue(settings.permissionMode === 'yolo').onChange(async (value) => {
           updateVibeProviderSettings(settingsBag, { permissionMode: value ? 'yolo' : 'normal' });
@@ -174,8 +174,8 @@ export const vibeSettingsTabRenderer: ProviderSettingsTabRenderer = {
     new Setting(container).setName('Agent').setHeading();
 
     new Setting(container)
-      .setName('Agent preset')
-      .setDesc('Builtin agent specification passed via `--agent`.')
+      .setName('Agenten-Preset')
+      .setDesc('Eingebaute Agenten-Spezifikation, die via `--agent` übergeben wird.')
       .addDropdown((dropdown) => {
         dropdown
           .addOption('default', 'Default')
@@ -192,8 +192,8 @@ export const vibeSettingsTabRenderer: ProviderSettingsTabRenderer = {
     });
 
     new Setting(container)
-      .setName('Custom agent file')
-      .setDesc('Optional path to a custom agent spec file passed via `--agent-file`.')
+      .setName('Eigene Agenten-Datei')
+      .setDesc('Optionaler Pfad zu einer eigenen Agenten-Spezifikation, die via `--agent-file` übergeben wird.')
       .addText((text) => {
         text
           .setPlaceholder('/Users/you/.vibe/agents/custom.toml')
@@ -222,8 +222,8 @@ export const vibeSettingsTabRenderer: ProviderSettingsTabRenderer = {
     });
 
     new Setting(container)
-      .setName('MCP config file')
-      .setDesc('Optional path to an MCP servers config file passed via `--mcp-config-file`.')
+      .setName('MCP-Konfigurationsdatei')
+      .setDesc('Optionaler Pfad zu einer MCP-Server-Konfiguration, die via `--mcp-config-file` übergeben wird.')
       .addText((text) => {
         text
           .setPlaceholder('/Users/you/.vibe/mcp.json')

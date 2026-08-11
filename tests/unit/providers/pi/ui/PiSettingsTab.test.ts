@@ -383,7 +383,7 @@ describe('PiSettingsTab', () => {
     const settings: Record<string, unknown> = { providerConfigs: { pi: { enabled: false } } };
     const context = render(settings);
 
-    await findSetting('Enable Pi').toggleComponents[0].onChangeCallback?.(true);
+    await findSetting('Pi aktivieren').toggleComponents[0].onChangeCallback?.(true);
 
     expect(getPiProviderSettings(settings).enabled).toBe(true);
     expect(context.plugin.saveSettings).toHaveBeenCalled();
@@ -406,7 +406,7 @@ describe('PiSettingsTab', () => {
   it('validates host-scoped CLI paths and resets the resolver after valid changes', async () => {
     const settings: Record<string, unknown> = { providerConfigs: { pi: {} } };
     const context = render(settings);
-    const cliInput = findSetting('CLI path').textComponents[0];
+    const cliInput = findSetting('CLI-Pfad').textComponents[0];
 
     mockedExists.mockReturnValue(false);
     await cliInput.onChangeCallback?.('/missing/pi');
