@@ -130,10 +130,10 @@ export const grokSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     new Setting(container)
       .setName('Custom models')
-      .setDesc('Extra model ids to show in the selector, one per line (e.g. `grok-k2`).')
+      .setDesc('Zusätzliche Modell-Ids für die Auswahl, eine pro Zeile. `grok models` zeigt, was die CLI tatsächlich ausliefert — alles andere wird beim Start abgelehnt.')
       .addTextArea((text) => {
         text
-          .setPlaceholder('grok-k2\ngrok-code/grok-for-coding')
+          .setPlaceholder('mein-eigenes-modell')
           .setValue(settings.customModels)
           .onChange(async (value) => {
             updateGrokProviderSettings(settingsBag, { customModels: value });

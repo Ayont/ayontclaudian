@@ -10,18 +10,21 @@ export const DEFAULT_CLAUDE_MODELS: { value: ClaudeModel; label: string; descrip
   { value: 'sonnet', label: 'Sonnet', description: 'Balanced performance' },
   { value: 'sonnet[1m]', label: 'Sonnet 1M', description: 'Balanced performance (1M context window)' },
   // `opus` is a floating alias — the CLI resolves it to "the latest model" server-side,
-  // so it always tracks the newest Opus release without a plugin change (verified live:
-  // `claude --model opus` self-reported `claude-opus-5` on 2026-07-28).
-  { value: 'opus', label: 'Opus', description: 'Most capable (tracks the latest release — currently Opus 5)' },
+  // so it always tracks the newest Opus release without a plugin change. The SDK's own
+  // `supportedModels()` reports the alias resolving to `claude-opus-4-8[1m]` today.
+  { value: 'opus', label: 'Opus', description: 'Most capable (tracks the latest release)' },
   { value: 'opus[1m]', label: 'Opus 1M', description: 'Most capable (1M context window)' },
   // Pinned dated IDs alongside the floating `opus` alias, so a specific generation stays
   // selectable even after `opus` moves on to a newer release. Both verified live and still
-  // reachable today (`claude --model claude-opus-5|claude-opus-4-8 -p ...` both responded,
-  // 2026-07-28) — Anthropic keeps prior dated Opus snapshots available after a new default
-  // ships, same precedent as `claude-opus-4-5`/`claude-opus-4-6`/`claude-opus-4-7`.
-  // Both ship 1M context by default, so they are NOT gated behind the `enableOpus1M`
-  // toggle — there is no 200K variant to toggle back to. See isOneMContextDefaultModel().
-  { value: 'claude-opus-5', label: 'Opus 5', description: 'Pinned to Opus 5 (1M context by default) — stays fixed even once a newer Opus becomes the `opus` default' },
+  // reachable today — Anthropic keeps prior dated Opus snapshots available after a new
+  // default ships, same precedent as `claude-opus-4-5`/`claude-opus-4-6`/`claude-opus-4-7`.
+  //
+  // Unlike Opus 4.8, `claude-opus-5` defaults to a 200K window and offers 1M as an opt-in
+  // (measured: `claude-opus-5` -> 200000, `claude-opus-5[1m]` -> 1000000). Both spellings
+  // are listed so the `enableOpus1M` toggle governs the pinned entry the same way it
+  // governs the floating alias — see filterVisibleModelOptions().
+  { value: 'claude-opus-5', label: 'Opus 5', description: 'Pinned to Opus 5 — stays fixed even once a newer Opus becomes the `opus` default' },
+  { value: 'claude-opus-5[1m]', label: 'Opus 5 1M', description: 'Pinned to Opus 5 with the 1M context window opt-in' },
   { value: 'claude-opus-4-8', label: 'Opus 4.8', description: 'Pinned to the previous Opus 4.8 release (1M context by default)' },
   // Fable 5 is Anthropic's Mythos-class flagship (introduced with Claude Code 2.1.170).
   // It ships with a 1M context window by default, so there is no separate `[1m]` variant —
@@ -61,6 +64,7 @@ export const DEFAULT_EFFORT_LEVEL: Record<string, EffortLevel> = {
   'opus': 'high',
   'opus[1m]': 'high',
   'claude-opus-5': 'high',
+  'claude-opus-5[1m]': 'high',
   'claude-opus-4-8': 'high',
   'fable': 'high',
   'fable[1m]': 'high',
@@ -99,25 +103,49 @@ function isFableFamilyModel(model: string): boolean {
 
 /**
  * Whether `model` ships with a 1M context window **by default** — no `[1m]` opt-in
- * needed, and no long-context price premium.
+ * needed.
  *
- * Covers Fable (Mythos-class) plus every pinned Opus 4.6+ dated id. Per Anthropic's
- * model catalog, Opus 4.6 / 4.7 / 4.8 / 5 all list a 1M context window as the
- * default (Opus 5: "1M context window (default and maximum)"), which is why the
- * `[1m]` suffix is accepted but a no-op on them (verified live: `claude --model
- * "claude-opus-5[1m]"` and `"claude-opus-4-8[1m]"` both answer normally).
+ * Every entry here was measured, not inferred: a one-token turn was run per model
+ * id and the CLI's own `modelUsage[<id>].contextWindow` from the result message
+ * was read back (Claude Code 2.1.226 / SDK 0.3.209). That number is the same one
+ * the runtime later uses to overwrite our estimate, so matching it keeps the usage
+ * badge stable from the first render instead of jumping after the first turn.
  *
- * Deliberately does NOT match the bare `opus` / `opus[1m]` aliases: those stay
- * governed by the `enableOpus1M` toggle, because the alias floats to whatever
- * Anthropic ships next and we shouldn't assume a future Opus keeps 1M as its
- * default. Pinned ids are a known quantity; the floating alias is not.
+ *   sonnet            -> claude-sonnet-5    1_000_000
+ *   opus              -> claude-opus-4-8    1_000_000
+ *   haiku             -> claude-haiku-4-5     200_000
+ *   fable             -> claude-fable-5    1_000_000
+ *   claude-opus-4-8                        1_000_000
+ *   claude-opus-4-7                        1_000_000
+ *   claude-opus-4-6                          200_000
+ *   claude-opus-5                            200_000
+ *   claude-opus-5[1m]                      1_000_000
+ *
+ * Two corrections against what this file previously assumed:
+ *
+ * 1. The bare `sonnet` / `opus` aliases are 1M today. They used to fall through
+ *    to the 200K default, which under-reported the window 5x on the two models
+ *    users actually pick — the badge read "50% full" at 100K of a 1M window.
+ * 2. `claude-opus-5` and `claude-opus-4-6` are 200K, not 1M. A published summary
+ *    claimed Opus 5 was "1M context window (default and maximum)"; the CLI says
+ *    otherwise, and `claude-opus-5[1m]` really does report 1M, so 1M is an opt-in
+ *    there rather than the default. 1M-as-default starts at Opus 4.7.
+ *
+ * The aliases are included deliberately even though they float. Being wrong on a
+ * floating alias is self-correcting (the runtime overwrites the value with the
+ * authoritative one after the first turn) and one-directional in cost: guessing
+ * 200K when it is 1M shows a badge 5x too full and invites premature compaction,
+ * while guessing 1M when it is 200K only under-warns for a single turn.
  */
 function isOneMContextDefaultModel(model: string): boolean {
   const normalized = normalizeModelId(model);
   if (isFableFamilyModel(normalized)) return true;
-  // Same version-parsing shape as supportsXHighEffort, one minor version wider
-  // (1M context landed in Opus 4.6; xhigh effort only in 4.7).
-  return /claude-opus-(4-[6-9]|[5-9])/.test(normalized);
+  // Floating aliases, as resolved by Claude Code 2.1.226. `haiku` stays 200K.
+  if (isBuiltInFamilyVariant(normalized, 'sonnet')) return true;
+  if (isBuiltInFamilyVariant(normalized, 'opus')) return true;
+  // Pinned ids: Opus 4.7+ (NOT 4.6, and NOT the 5 line) and Sonnet 5+.
+  return /claude-opus-4-[7-9]/.test(normalized)
+    || /claude-sonnet-[5-9]/.test(normalized);
 }
 
 function isValidContextLimit(limit: unknown): limit is number {
@@ -248,21 +276,75 @@ export function resolveEffortLevel(
 export const CONTEXT_WINDOW_STANDARD = 200_000;
 export const CONTEXT_WINDOW_1M = 1_000_000;
 
+/** The model id with any `[1m]` suffix stripped, lowercased. */
+function baseModelId(model: string): string {
+  const normalized = normalizeModelId(model);
+  return has1MContextSuffix(normalized)
+    ? normalized.slice(0, -ONE_M_SUFFIX.length)
+    : normalized;
+}
+
+/**
+ * Which 1M toggle governs `base`, or null when neither does.
+ *
+ * Substring matching (rather than an exact alias check) is what lets pinned ids
+ * such as `claude-opus-5` ride the same `enableOpus1M` setting as the floating
+ * `opus` alias, instead of needing a hand-maintained list per release.
+ */
+function oneMToggleForBase(
+  base: string,
+  enableOpus1M: boolean,
+  enableSonnet1M: boolean,
+): boolean | null {
+  if (base.includes('opus')) return enableOpus1M;
+  if (base.includes('sonnet')) return enableSonnet1M;
+  return null;
+}
+
+/**
+ * Bases that appear in `models` under BOTH a plain and a `[1m]` spelling.
+ *
+ * Only those are toggle pairs. A model listed once — `fable`, `haiku`,
+ * `claude-opus-4-8` — has no alternative spelling to switch to and must stay
+ * visible under either setting.
+ */
+function collectOneMTogglePairs<T extends { value: string }>(models: T[]): Set<string> {
+  const plain = new Set<string>();
+  const oneM = new Set<string>();
+  for (const model of models) {
+    const normalized = normalizeModelId(model.value);
+    (has1MContextSuffix(normalized) ? oneM : plain).add(baseModelId(normalized));
+  }
+
+  const pairs = new Set<string>();
+  for (const base of plain) {
+    if (oneM.has(base)) pairs.add(base);
+  }
+  return pairs;
+}
+
+/** Toggle pairs of the built-in catalog, computed once — the picker re-renders often. */
+const DEFAULT_ONE_M_TOGGLE_PAIRS = collectOneMTogglePairs(DEFAULT_CLAUDE_MODELS);
+
 export function filterVisibleModelOptions<T extends { value: string }>(
   models: T[],
   enableOpus1M: boolean,
   enableSonnet1M: boolean
 ): T[] {
+  const togglePairs = collectOneMTogglePairs(models);
+
   return models.filter((model) => {
-    if (isBuiltInFamilyVariant(model.value, 'opus')) {
-      return enableOpus1M ? has1MContextSuffix(model.value) : normalizeModelId(model.value) === 'opus';
+    const base = baseModelId(model.value);
+    if (!togglePairs.has(base)) {
+      return true;
     }
 
-    if (isBuiltInFamilyVariant(model.value, 'sonnet')) {
-      return enableSonnet1M ? has1MContextSuffix(model.value) : normalizeModelId(model.value) === 'sonnet';
+    const prefer1M = oneMToggleForBase(base, enableOpus1M, enableSonnet1M);
+    if (prefer1M === null) {
+      return true;
     }
 
-    return true;
+    return prefer1M === has1MContextSuffix(model.value);
   });
 }
 
@@ -271,15 +353,17 @@ export function normalizeVisibleModelVariant(
   enableOpus1M: boolean,
   enableSonnet1M: boolean
 ): string {
-  if (isBuiltInFamilyVariant(model, 'opus')) {
-    return enableOpus1M ? 'opus[1m]' : 'opus';
+  const base = baseModelId(model);
+  if (!DEFAULT_ONE_M_TOGGLE_PAIRS.has(base)) {
+    return model;
   }
 
-  if (isBuiltInFamilyVariant(model, 'sonnet')) {
-    return enableSonnet1M ? 'sonnet[1m]' : 'sonnet';
+  const prefer1M = oneMToggleForBase(base, enableOpus1M, enableSonnet1M);
+  if (prefer1M === null) {
+    return model;
   }
 
-  return model;
+  return prefer1M ? `${base}${ONE_M_SUFFIX}` : base;
 }
 
 export function getContextWindowSize(

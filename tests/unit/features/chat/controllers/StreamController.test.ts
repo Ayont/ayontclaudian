@@ -14,6 +14,7 @@ import {
 import type { ChatMessage } from '@/core/types';
 import {
   getAdaptiveStreamRenderDelay,
+  getRenderBudgetDelay,
   StreamController,
   type StreamControllerDeps,
 } from '@/features/chat/controllers/StreamController';
@@ -2434,6 +2435,37 @@ describe('getAdaptiveStreamRenderDelay', () => {
 
   it('coalesces rendering more aggressively when the document is hidden', () => {
     expect(getAdaptiveStreamRenderDelay(200, false)).toBe(250);
+  });
+});
+
+describe('getRenderBudgetDelay', () => {
+  it('keeps the length-based floor until a render has actually been measured', () => {
+    expect(getRenderBudgetDelay(16, null)).toBe(16);
+    expect(getRenderBudgetDelay(96, null)).toBe(96);
+  });
+
+  it('ignores non-positive and non-finite samples', () => {
+    expect(getRenderBudgetDelay(48, 0)).toBe(48);
+    expect(getRenderBudgetDelay(48, -5)).toBe(48);
+    expect(getRenderBudgetDelay(48, NaN)).toBe(48);
+    expect(getRenderBudgetDelay(48, Infinity)).toBe(48);
+  });
+
+  it('leaves the main thread at least as much idle time as the render consumed', () => {
+    // The length table alone cannot know how expensive a render really was: a
+    // code-heavy answer with syntax highlighting costs far more per character
+    // than plain prose. Budgeting off the measured cost caps total render work
+    // at ~50% of wall clock however long the answer grows.
+    expect(getRenderBudgetDelay(16, 120)).toBe(120);
+    expect(getRenderBudgetDelay(96, 250)).toBe(250);
+  });
+
+  it('never drops below the floor for cheap renders', () => {
+    expect(getRenderBudgetDelay(96, 10)).toBe(96);
+  });
+
+  it('caps the backoff so streaming never looks frozen', () => {
+    expect(getRenderBudgetDelay(16, 5_000)).toBe(400);
   });
 });
 

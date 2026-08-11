@@ -68,11 +68,11 @@ const KIMI_FEATURE_GROUPS: KimiFeatureGroup[] = [
   {
     title: 'Modelle',
     desc: 'Auswählbar über den Modell-Picker.',
+    // Mirrors `kimi provider list` — the managed models the OAuth session serves.
     items: [
-      { label: 'K3' },
-      { label: 'K2.7 Code' },
-      { label: 'K2.7 Code High-Speed' },
-      { label: 'K2.6' },
+      { label: 'K3 · 1M Kontext' },
+      { label: 'K2.7 Coding' },
+      { label: 'K2.7 Coding Highspeed' },
     ],
   },
 ];

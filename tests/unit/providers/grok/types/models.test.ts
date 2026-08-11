@@ -3,26 +3,36 @@ import {
   DEFAULT_GROK_MODELS,
   DEFAULT_GROK_PRIMARY_MODEL,
   formatGrokModelLabel,
+  KNOWN_GROK_MODEL_CONTEXT_WINDOWS,
 } from '@/providers/grok/types/models';
 
 describe('Grok model catalog', () => {
-  it('uses the CLI\'s real default model (grok-composer-2.5-fast), not the deprecated grok-build-0.1', () => {
-    // `grok models` reports `grok-composer-2.5-fast` as the current default.
-    // The old `grok-build-0.1` is no longer served by the CLI and must not be the fallback.
-    expect(DEFAULT_GROK_PRIMARY_MODEL).toBe('grok-composer-2.5-fast');
-    expect(DEFAULT_GROK_PRIMARY_MODEL).not.toBe('grok-build-0.1');
+  // Ids the Grok CLI has served at some point and now rejects with
+  // `Invalid params: "unknown model id"`. Verified against Grok CLI 1.0.0.
+  const RETIRED_MODEL_IDS = [
+    'grok-build-0.1',
+    'grok-composer-2.5-fast',
+    'grok-build',
+    'grok-code-fast-1',
+  ];
+
+  it('uses the model id `grok models` actually reports as the default', () => {
+    expect(DEFAULT_GROK_PRIMARY_MODEL).toBe('grok-4.5');
   });
 
-  it('lists the default model first and only currently-served model ids', () => {
+  it('lists the default first and no retired ids', () => {
     const values = DEFAULT_GROK_MODELS.map(m => m.value);
-    expect(values[0]).toBe('grok-composer-2.5-fast');
-    // The deprecated id must not appear as a built-in option.
-    expect(values).not.toContain('grok-build-0.1');
-    // The build tier (currently served) should be selectable.
-    expect(values).toContain('grok-build');
+    expect(values[0]).toBe(DEFAULT_GROK_PRIMARY_MODEL);
+    for (const retired of RETIRED_MODEL_IDS) {
+      expect(values).not.toContain(retired);
+    }
   });
 
-  it('keeps a 256K context window', () => {
+  it('publishes the served model\'s real context window', () => {
+    expect(KNOWN_GROK_MODEL_CONTEXT_WINDOWS['grok-4.5']).toBe(500_000);
+  });
+
+  it('keeps a 256K fallback window for unknown custom ids', () => {
     expect(DEFAULT_GROK_CONTEXT_WINDOW).toBe(256_000);
   });
 

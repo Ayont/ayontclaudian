@@ -1015,15 +1015,15 @@ describe('transformSDKMessage', () => {
       });
 
       const startResults = [...transformSDKMessage(startMessage, {
-        intendedModel: 'sonnet',
+        intendedModel: 'haiku',
         usageState,
       })];
       const deltaResults = [...transformSDKMessage(deltaMessage, {
-        intendedModel: 'sonnet',
+        intendedModel: 'haiku',
         usageState,
       })];
       const assistantResults = [...transformSDKMessage(assistantMessage, {
-        intendedModel: 'sonnet',
+        intendedModel: 'haiku',
         usageState,
       })];
 
@@ -1034,7 +1034,7 @@ describe('transformSDKMessage', () => {
         {
           type: 'usage',
           usage: {
-            model: 'sonnet',
+            model: 'haiku',
             inputTokens: 10,
             cacheCreationInputTokens: 0,
             cacheReadInputTokens: 0,
@@ -1079,22 +1079,22 @@ describe('transformSDKMessage', () => {
       });
 
       expect([...transformSDKMessage(startMessage, {
-        intendedModel: 'sonnet',
+        intendedModel: 'haiku',
         usageState,
       })]).toEqual([]);
       expect([...transformSDKMessage(deltaMessage, {
-        intendedModel: 'sonnet',
+        intendedModel: 'haiku',
         usageState,
       })]).toEqual([]);
 
       expect([...transformSDKMessage(resultMessage, {
-        intendedModel: 'sonnet',
+        intendedModel: 'haiku',
         usageState,
       })]).toEqual([
         {
           type: 'usage',
           usage: {
-            model: 'sonnet',
+            model: 'haiku',
             inputTokens: 10,
             cacheCreationInputTokens: 0,
             cacheReadInputTokens: 0,
@@ -1589,7 +1589,7 @@ describe('transformSDKMessage', () => {
         },
       });
 
-      const results = [...transformSDKMessage(message, { intendedModel: 'sonnet' })];
+      const results = [...transformSDKMessage(message, { intendedModel: 'haiku' })];
 
       const usageResults = results.filter(r => r.type === 'usage');
       expect(usageResults).toHaveLength(1);
@@ -1620,14 +1620,14 @@ describe('transformSDKMessage', () => {
       });
 
       const results = [...transformSDKMessage(message, {
-        intendedModel: 'sonnet',
+        intendedModel: 'haiku',
         usageState,
       })];
 
       const usageResults = results.filter(r => r.type === 'usage');
       expect(usageResults).toHaveLength(1);
       expect((usageResults[0] as any).usage).toEqual({
-        model: 'sonnet',
+        model: 'haiku',
         inputTokens: 1000,
         cacheCreationInputTokens: 300,
         cacheReadInputTokens: 200,
@@ -1766,7 +1766,7 @@ describe('transformSDKMessage', () => {
       });
 
       const results = [...transformSDKMessage(message, {
-        intendedModel: 'sonnet',
+        intendedModel: 'haiku',
         usageState,
       })];
 
@@ -1775,7 +1775,7 @@ describe('transformSDKMessage', () => {
         {
           type: 'usage',
           usage: {
-            model: 'sonnet',
+            model: 'haiku',
             inputTokens: 0,
             cacheCreationInputTokens: 0,
             cacheReadInputTokens: 0,

@@ -566,10 +566,19 @@ describe('types.ts', () => {
   });
 
   describe('getContextWindowSize', () => {
-    it('should return standard context window by default', () => {
-      expect(getContextWindowSize('sonnet')).toBe(CONTEXT_WINDOW_STANDARD);
-      expect(getContextWindowSize('opus')).toBe(CONTEXT_WINDOW_STANDARD);
+    it('should return the standard window only for models that actually ship 200K', () => {
+      // Verified against the CLI's own `modelUsage.contextWindow` (Claude Code
+      // 2.1.226): `haiku` -> claude-haiku-4-5 -> 200000.
       expect(getContextWindowSize('haiku')).toBe(CONTEXT_WINDOW_STANDARD);
+    });
+
+    it('should report 1M for the bare `sonnet` and `opus` aliases', () => {
+      // Regression: both aliases were reported at 200K, which made the usage
+      // badge read 5x too full on the two models users select most.
+      // `claude --model sonnet` -> claude-sonnet-5 -> contextWindow=1000000
+      // `claude --model opus`   -> claude-opus-4-8 -> contextWindow=1000000
+      expect(getContextWindowSize('sonnet')).toBe(CONTEXT_WINDOW_1M);
+      expect(getContextWindowSize('opus')).toBe(CONTEXT_WINDOW_1M);
     });
 
     it('should use custom limits when provided', () => {
@@ -579,15 +588,15 @@ describe('types.ts', () => {
 
     it('should fall back to default when model not in custom limits', () => {
       const customLimits = { 'other-model': 256000 };
-      expect(getContextWindowSize('sonnet', customLimits)).toBe(CONTEXT_WINDOW_STANDARD);
+      expect(getContextWindowSize('sonnet', customLimits)).toBe(CONTEXT_WINDOW_1M);
     });
 
     it('should handle empty custom limits object', () => {
-      expect(getContextWindowSize('sonnet', {})).toBe(CONTEXT_WINDOW_STANDARD);
+      expect(getContextWindowSize('sonnet', {})).toBe(CONTEXT_WINDOW_1M);
     });
 
     it('should handle undefined custom limits', () => {
-      expect(getContextWindowSize('sonnet', undefined)).toBe(CONTEXT_WINDOW_STANDARD);
+      expect(getContextWindowSize('sonnet', undefined)).toBe(CONTEXT_WINDOW_1M);
     });
 
     describe('defensive validation for invalid custom limit values', () => {
@@ -649,11 +658,6 @@ describe('types.ts', () => {
         expect(getContextWindowSize('claude-opus-4-6[1M]', customLimits)).toBe(500000);
       });
 
-      it('should return standard for models without [1m] suffix', () => {
-        expect(getContextWindowSize('opus')).toBe(CONTEXT_WINDOW_STANDARD);
-        expect(getContextWindowSize('sonnet')).toBe(CONTEXT_WINDOW_STANDARD);
-      });
-
       it('should return 1M for Fable (1M context is the default)', () => {
         // Fable 5 ships with 1M context by default — no [1m] suffix needed or gated.
         expect(getContextWindowSize('fable')).toBe(CONTEXT_WINDOW_1M);
@@ -662,36 +666,39 @@ describe('types.ts', () => {
         expect(getContextWindowSize('claude-fable-5')).toBe(CONTEXT_WINDOW_1M);
       });
 
-      // Regression: pinned Opus 4.6+ dated ids ship a 1M context window as their
-      // documented default (Opus 5: "1M context window (default and maximum)"), so
-      // reporting them at 200K under-counted the window 5x in the usage badge.
-      it('should return 1M for pinned Opus 4.6+ ids (1M context is their default)', () => {
-        expect(getContextWindowSize('claude-opus-5')).toBe(CONTEXT_WINDOW_1M);
+      it('should return 1M for the pinned ids that really default to 1M', () => {
+        // Measured from `modelUsage.contextWindow` on a live turn, per model id.
         expect(getContextWindowSize('claude-opus-4-8')).toBe(CONTEXT_WINDOW_1M);
         expect(getContextWindowSize('claude-opus-4-7')).toBe(CONTEXT_WINDOW_1M);
-        expect(getContextWindowSize('claude-opus-4-6')).toBe(CONTEXT_WINDOW_1M);
+        expect(getContextWindowSize('claude-sonnet-5')).toBe(CONTEXT_WINDOW_1M);
       });
 
-      it('should return 1M for pinned Opus 4.6+ ids regardless of casing or a redundant [1m]', () => {
-        // The CLI accepts a stray `[1m]` on these (verified live) — it is a no-op,
-        // and either spelling must resolve to the same 1M window.
-        expect(getContextWindowSize('CLAUDE-OPUS-5')).toBe(CONTEXT_WINDOW_1M);
+      it('should report 200K for pinned ids that default to 200K', () => {
+        // Regression, and it reverses an earlier assumption: a third-party
+        // summary claimed Opus 5 was "1M default and maximum". The CLI disagrees
+        // — `claude-opus-5` reports contextWindow=200000 (maxOutput=32000) while
+        // `claude-opus-5[1m]` reports 1000000. Opus 4.6 is 200K as well; 1M as a
+        // *default* only starts at Opus 4.7.
+        expect(getContextWindowSize('claude-opus-5')).toBe(CONTEXT_WINDOW_STANDARD);
+        expect(getContextWindowSize('claude-opus-4-6')).toBe(CONTEXT_WINDOW_STANDARD);
+      });
+
+      it('should honour an explicit [1m] opt-in on a 200K-default pinned id', () => {
         expect(getContextWindowSize('claude-opus-5[1m]')).toBe(CONTEXT_WINDOW_1M);
+        expect(getContextWindowSize('CLAUDE-OPUS-5[1M]')).toBe(CONTEXT_WINDOW_1M);
         expect(getContextWindowSize('claude-opus-4-8[1M]')).toBe(CONTEXT_WINDOW_1M);
       });
 
       it('should still report 200K for pre-4.6 Opus ids and non-Opus families', () => {
-        // 1M context landed with Opus 4.6; older pinned ids keep the standard window.
         expect(getContextWindowSize('claude-opus-4-5')).toBe(CONTEXT_WINDOW_STANDARD);
         expect(getContextWindowSize('claude-opus-4-1')).toBe(CONTEXT_WINDOW_STANDARD);
         expect(getContextWindowSize('claude-sonnet-4-5')).toBe(CONTEXT_WINDOW_STANDARD);
         expect(getContextWindowSize('claude-haiku-4-5')).toBe(CONTEXT_WINDOW_STANDARD);
       });
 
-      it('leaves the floating `opus` alias governed by the enableOpus1M toggle', () => {
-        // Deliberate: the bare alias floats to whatever Anthropic ships next, so we
-        // don't hardcode a 1M default for it — `opus[1m]` is how the plugin asks.
-        expect(getContextWindowSize('opus')).toBe(CONTEXT_WINDOW_STANDARD);
+      it('reports 1M for both spellings of the floating `opus` alias', () => {
+        // The alias resolves to claude-opus-4-8 today, which is 1M either way.
+        expect(getContextWindowSize('opus')).toBe(CONTEXT_WINDOW_1M);
         expect(getContextWindowSize('opus[1m]')).toBe(CONTEXT_WINDOW_1M);
       });
     });
@@ -704,12 +711,12 @@ describe('types.ts', () => {
 
       it('should swap in 1M variants when toggles are enabled', () => {
         const models = filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, true, true).map((model) => model.value);
-        expect(models).toEqual(['haiku', 'sonnet[1m]', 'opus[1m]', 'claude-opus-5', 'claude-opus-4-8', 'fable']);
+        expect(models).toEqual(['haiku', 'sonnet[1m]', 'opus[1m]', 'claude-opus-5[1m]', 'claude-opus-4-8', 'fable']);
       });
 
       it('should swap only opus when enableOpus1M is true and enableSonnet1M is false', () => {
         const models = filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, true, false).map((model) => model.value);
-        expect(models).toEqual(['haiku', 'sonnet', 'opus[1m]', 'claude-opus-5', 'claude-opus-4-8', 'fable']);
+        expect(models).toEqual(['haiku', 'sonnet', 'opus[1m]', 'claude-opus-5[1m]', 'claude-opus-4-8', 'fable']);
       });
 
       it('should swap only sonnet when enableSonnet1M is true and enableOpus1M is false', () => {
@@ -717,13 +724,27 @@ describe('types.ts', () => {
         expect(models).toEqual(['haiku', 'sonnet[1m]', 'opus', 'claude-opus-5', 'claude-opus-4-8', 'fable']);
       });
 
-      it('should always show the pinned Opus 5 / Opus 4.8 entries regardless of the 1M toggles', () => {
-        // Pinned dated IDs aren't the bare `opus` alias, so filterVisibleModelOptions'
-        // opus-family branch never touches them — they always pass through.
-        expect(filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, false, false).map(m => m.value))
-          .toEqual(expect.arrayContaining(['claude-opus-5', 'claude-opus-4-8']));
-        expect(filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, true, true).map(m => m.value))
-          .toEqual(expect.arrayContaining(['claude-opus-5', 'claude-opus-4-8']));
+      it('should leave a pinned id without a [1m] sibling visible under either toggle', () => {
+        // Opus 4.8 is 1M by default and has no 200K spelling to switch back to,
+        // so it must survive both settings rather than being filtered as a pair.
+        for (const enableOpus1M of [false, true]) {
+          const models = filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, enableOpus1M, false)
+            .map((model) => model.value);
+          expect(models).toContain('claude-opus-4-8');
+          expect(models).toContain('fable');
+          expect(models).toContain('haiku');
+        }
+      });
+
+      it('should keep exactly one Opus 5 spelling visible under either toggle', () => {
+        // Opus 5 defaults to 200K and offers 1M as an opt-in, so it behaves like the
+        // `opus`/`opus[1m]` pair: never both, never neither.
+        for (const enableOpus1M of [false, true]) {
+          const opus5 = filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, enableOpus1M, false)
+            .map(m => m.value)
+            .filter(value => value.startsWith('claude-opus-5'));
+          expect(opus5).toEqual([enableOpus1M ? 'claude-opus-5[1m]' : 'claude-opus-5']);
+        }
       });
 
       it('should always show fable (1M context is its default, no toggle)', () => {
@@ -744,6 +765,17 @@ describe('types.ts', () => {
       it('should normalize built-in variants regardless of 1M suffix casing', () => {
         expect(normalizeVisibleModelVariant('sonnet[1M]', false, false)).toBe('sonnet');
         expect(normalizeVisibleModelVariant('opus[1M]', true, false)).toBe('opus[1m]');
+      });
+
+      it('should normalize pinned ids that ship both a plain and a [1m] spelling', () => {
+        expect(normalizeVisibleModelVariant('claude-opus-5', true, false)).toBe('claude-opus-5[1m]');
+        expect(normalizeVisibleModelVariant('claude-opus-5[1m]', false, false)).toBe('claude-opus-5');
+        expect(normalizeVisibleModelVariant('CLAUDE-OPUS-5[1M]', false, false)).toBe('claude-opus-5');
+      });
+
+      it('should leave pinned ids without a [1m] sibling untouched', () => {
+        expect(normalizeVisibleModelVariant('claude-opus-4-8', true, true)).toBe('claude-opus-4-8');
+        expect(normalizeVisibleModelVariant('fable', true, true)).toBe('fable');
       });
 
       it('should leave unrelated model ids unchanged', () => {

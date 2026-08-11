@@ -3,27 +3,51 @@ import type { ProviderUIOption } from '../../../core/providers/types';
 /**
  * Kimi model catalog.
  *
- * Kimi (Moonshot) exposes a real `-m`/`--model` flag; the value is a `[models.*]`
- * table id from `~/.kimi/config.toml`. The live default config ships a single
- * managed coding model. We seed the dropdown with that default and merge any
- * additional ids the user discovers from their config via `modelOptions.ts`.
+ * Kimi (Moonshot) exposes a real `-m`/`--model` flag. The value must be a model
+ * id the CLI knows: either a `[models.*]` table in `~/.kimi/config.toml`, or one
+ * of the managed ids the Kimi Code OAuth session provides. `kimi provider list
+ * --json` prints the resolved set, which is authoritative:
+ *
+ *     kimi-code/k3                          K3                     1048576  efforts: low/high/max
+ *     kimi-code/kimi-for-coding             K2.7 Coding             262144
+ *     kimi-code/kimi-for-coding-highspeed   K2.7 Coding Highspeed   262144
+ *     Default model: kimi-code/k3
+ *
+ * All three are served through the managed provider and work with no config
+ * entry at all (verified: `kimi -m kimi-code/k3 -p ...` answers on a config that
+ * declares only `kimi-code/kimi-for-coding`).
+ *
+ * The previous catalog invented bare ids — `kimi-k3`, `kimi-k2.7-code`,
+ * `kimi-k2.7-code-highspeed` — which the CLI rejects outright:
+ *
+ *     error: config.invalid: Model "kimi-k3" is not configured in config.toml.
+ *
+ * They only became usable after the plugin appended a `[models."kimi-k3"]`
+ * section to the user's config, and that generated section carries no
+ * `provider`/`model` mapping, so it could not route to the coding endpoint the
+ * way the managed entry does. Using the CLI's own namespaced ids removes both
+ * the failure and the need to write to the user's config for a built-in model.
  */
 export type KimiModel = string;
 
-/** Default `-m` value (the managed coding model shipped in `~/.kimi/config.toml`). */
-export const DEFAULT_KIMI_PRIMARY_MODEL: KimiModel = 'kimi-code/kimi-for-coding';
+/** `kimi provider list`'s reported default — the K3 flagship, 1M context. */
+export const DEFAULT_KIMI_PRIMARY_MODEL: KimiModel = 'kimi-code/k3';
 
-/** Display label for the default model (config `display_name = "K2.7 Code"`). */
-const DEFAULT_KIMI_PRIMARY_MODEL_LABEL = 'Kimi · K2.7 Code';
+/** Display label for the default model (managed `displayName = "K3"`). */
+const DEFAULT_KIMI_PRIMARY_MODEL_LABEL = 'Kimi · K3';
 
-/** Default context window for the managed coding model (config `max_context_size`). */
+/** Context window of the K2.7 coding models, and the fallback for unknown ids. */
 export const DEFAULT_KIMI_CONTEXT_WINDOW = 262_144;
 
-/** `kimi-k3` flagship model id (Moonshot platform docs, July 2026). */
-export const KIMI_K3_MODEL: KimiModel = 'kimi-k3';
+/** Managed K3 model id. */
+export const KIMI_K3_MODEL: KimiModel = 'kimi-code/k3';
 
-/** `kimi-k3` ships a 1M-token context window (1,048,576 tokens). */
+/** K3 ships a 1M-token context window (managed `maxContextSize`). */
 export const KIMI_K3_CONTEXT_WINDOW = 1_048_576;
+
+/** Managed K2.7 coding model ids. */
+export const KIMI_K27_CODE_MODEL: KimiModel = 'kimi-code/kimi-for-coding';
+export const KIMI_K27_CODE_HIGHSPEED_MODEL: KimiModel = 'kimi-code/kimi-for-coding-highspeed';
 
 /**
  * Best-effort human label for a Kimi model id.
@@ -50,42 +74,45 @@ function createKimiModelOption(model: KimiModel, label: string, description: str
   return { value: model, label, description };
 }
 
-/** Built-in default model options shown before any user/config additions. */
+/**
+ * Built-in model options, in the order `kimi provider list` reports them.
+ *
+ * All three are managed ids served over the Kimi Code OAuth session, so unlike
+ * the old invented ids they need no `[models.*]` entry and are always safe to
+ * offer.
+ */
 export const DEFAULT_KIMI_MODELS: ProviderUIOption[] = [
-  createKimiModelOption(DEFAULT_KIMI_PRIMARY_MODEL, DEFAULT_KIMI_PRIMARY_MODEL_LABEL, 'Default'),
+  createKimiModelOption(KIMI_K3_MODEL, DEFAULT_KIMI_PRIMARY_MODEL_LABEL, 'Flagship · 1M · multimodal · reasoning'),
+  createKimiModelOption(KIMI_K27_CODE_MODEL, 'Kimi · K2.7 Coding', 'Coding · 256K · multimodal'),
+  createKimiModelOption(KIMI_K27_CODE_HIGHSPEED_MODEL, 'Kimi · K2.7 Coding Highspeed', 'Coding · 256K · schneller'),
 ];
 
 /** Fast lookup for whether a model id is one of the built-in defaults. */
 export const DEFAULT_KIMI_MODEL_SET = new Set<string>(DEFAULT_KIMI_MODELS.map((model) => model.value));
 
 /**
- * Curated catalog of model identifiers the Kimi / Moonshot coding endpoint
- * exposes. The dropdown is intentionally limited to the flagship and coding
- * models so users do not pick platform / legacy ids that do not work with the
- * current coding OAuth setup. Ids the user's config already defines take
- * precedence; these fill in the rest. Sourced from platform.moonshot.ai docs.
+ * Curated catalog used for labels, descriptions and context windows.
+ *
+ * Identical to the built-in set today: every managed id the CLI serves is
+ * already offered unconditionally. It stays a separate export because
+ * `modelOptions.ts` uses it to give a *configured* id its curated label instead
+ * of a derived one, and because a future managed id may again need the
+ * "only when configured" treatment.
  */
-export const KNOWN_KIMI_MODELS: ProviderUIOption[] = [
-  // Flagship (1M context, multimodal, always-on reasoning).
-  createKimiModelOption(KIMI_K3_MODEL, 'Kimi · K3', 'Flagship · 1M · multimodal · reasoning'),
-  // Coding endpoint (direct API; the subscription alias is the built-in default).
-  createKimiModelOption('kimi-k2.7-code', 'Kimi · K2.7 Code', 'Coding · 256K · multimodal'),
-  createKimiModelOption('kimi-k2.7-code-highspeed', 'Kimi · K2.7 Code High-Speed', 'Coding · 256K · faster (2×)'),
-];
+export const KNOWN_KIMI_MODELS: ProviderUIOption[] = [...DEFAULT_KIMI_MODELS];
 
 /** Fast lookup for whether a model id is in the curated catalog. */
 export const KNOWN_KIMI_MODEL_SET = new Set<string>(KNOWN_KIMI_MODELS.map((model) => model.value));
 
 /**
- * Context windows for the curated catalog ids. Used when the user's
- * config.toml does not declare the model (or omits `max_context_size`), and
- * when seeding a new `[models.*]` section via `ensureKimiModelConfigured`, so
- * `kimi-k3` gets its real 1M window instead of the 256K coding default.
+ * Context windows for the catalog ids, straight from `kimi provider list
+ * --json` (`maxContextSize`). Used when the user's config.toml does not declare
+ * the model, and when seeding a new section via `ensureKimiModelConfigured`.
  */
 export const KNOWN_KIMI_MODEL_CONTEXT_WINDOWS: Readonly<Record<string, number>> = Object.freeze({
   [KIMI_K3_MODEL]: KIMI_K3_CONTEXT_WINDOW,
-  'kimi-k2.7-code': DEFAULT_KIMI_CONTEXT_WINDOW,
-  'kimi-k2.7-code-highspeed': DEFAULT_KIMI_CONTEXT_WINDOW,
+  [KIMI_K27_CODE_MODEL]: DEFAULT_KIMI_CONTEXT_WINDOW,
+  [KIMI_K27_CODE_HIGHSPEED_MODEL]: DEFAULT_KIMI_CONTEXT_WINDOW,
 });
 
 /** Catalog context window for a model id, or null when not in the catalog. */

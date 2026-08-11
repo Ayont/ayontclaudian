@@ -1480,40 +1480,48 @@ export class MessageRenderer {
         this.component
       );
 
-      // Network/FortiGate troubleshooting gets a live visual topology for
-      // explicit `network-map` fences (prose inference was removed — it kept
-      // rendering half-guessed maps under unrelated answers).
-      renderNetworkMaps(el, renderMarkdown, {
-        app: this.app,
-        mediaFolder: this.plugin.settings.mediaFolder,
-      });
+      // Every fence-driven pass below scans the full Markdown AND runs its own
+      // `querySelectorAll` over the freshly built subtree. This function re-runs
+      // on every streaming frame with the whole accumulated answer, so for text
+      // that contains no fence at all those are eight wasted passes per frame.
+      // One substring test skips the lot; the passes are no-ops in that case by
+      // construction, since each keys off a ``` fence with a language tag.
+      if (renderMarkdown.includes('```')) {
+        // Network/FortiGate troubleshooting gets a live visual topology for
+        // explicit `network-map` fences (prose inference was removed — it kept
+        // rendering half-guessed maps under unrelated answers).
+        renderNetworkMaps(el, renderMarkdown, {
+          app: this.app,
+          mediaFolder: this.plugin.settings.mediaFolder,
+        });
 
-      // Claude-style live document canvas. The document fence is replaced with
-      // a designed page that updates on every streaming render and offers theme,
-      // copy, save-to-vault, and full-screen controls.
-      await renderLiveDocuments(el, renderMarkdown, {
-        app: this.app,
-        component: this.component,
-      });
+        // Claude-style live document canvas. The document fence is replaced with
+        // a designed page that updates on every streaming render and offers theme,
+        // copy, save-to-vault, and full-screen controls.
+        await renderLiveDocuments(el, renderMarkdown, {
+          app: this.app,
+          component: this.component,
+        });
 
-      // Short email requests get a dedicated mail preview with subject,
-      // recipient, highlighted placeholders, copy, and save controls.
-      await renderEmailTemplates(el, renderMarkdown, {
-        app: this.app,
-        component: this.component,
-      });
+        // Short email requests get a dedicated mail preview with subject,
+        // recipient, highlighted placeholders, copy, and save controls.
+        await renderEmailTemplates(el, renderMarkdown, {
+          app: this.app,
+          component: this.component,
+        });
 
-      // Skill Creator fences render as a designed SKILL.md card with copy and
-      // save-to-.claude/skills controls.
-      await renderSkillCards(el, renderMarkdown, {
-        app: this.app,
-        component: this.component,
-      });
+        // Skill Creator fences render as a designed SKILL.md card with copy and
+        // save-to-.claude/skills controls.
+        await renderSkillCards(el, renderMarkdown, {
+          app: this.app,
+          component: this.component,
+        });
+
+        // Auto-Memory fences render as a compact chip instead of raw code.
+        renderAutoMemoryChips(el);
+      }
 
       renderInlineImages(el, this.app, { mediaFolder: this.plugin.settings.mediaFolder });
-
-      // Auto-Memory fences render as a compact chip instead of raw code.
-      renderAutoMemoryChips(el);
 
       // Wrap pre elements and move buttons outside scroll area
       el.querySelectorAll('pre').forEach((pre) => {

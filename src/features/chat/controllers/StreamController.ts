@@ -82,6 +82,8 @@ export interface StreamControllerDeps {
  * Adaptive frame budget for all streaming providers. Markdown rendering is
  * cumulative, so a long response must render less often than short token
  * bursts to avoid O(n²)-like DOM churn while still feeling immediate.
+ *
+ * This is only the floor — see {@link getRenderBudgetDelay}.
  */
 export function getAdaptiveStreamRenderDelay(contentLength: number, isDocumentVisible = true): number {
   if (!isDocumentVisible) return 250;
@@ -89,6 +91,47 @@ export function getAdaptiveStreamRenderDelay(contentLength: number, isDocumentVi
   if (contentLength < 32_000) return 48;
   if (contentLength < 100_000) return 96;
   return 160;
+}
+
+/**
+ * Share of wall-clock time streaming renders are allowed to occupy. At 0.5 a
+ * render that cost 90ms buys a 90ms gap before the next one starts.
+ */
+const STREAM_RENDER_DUTY_CYCLE = 0.5;
+
+/**
+ * Upper bound on the backoff. Without it a single pathological render (a huge
+ * table, a cold syntax-highlighter load) would stall the next update for
+ * seconds and the answer would look frozen.
+ */
+const MAX_STREAM_RENDER_DELAY_MS = 400;
+
+/**
+ * Frame delay that keeps streaming renders inside their time budget.
+ *
+ * `renderContent` tears the block down and re-renders the *entire* accumulated
+ * Markdown on every frame, so the cost of one frame grows with the answer while
+ * the number of frames grows too. The length table above approximates that, but
+ * it cannot see what the content actually costs: a 30K answer of prose and a
+ * 30K answer of syntax-highlighted code differ by an order of magnitude, and so
+ * do a fast desktop and a loaded laptop.
+ *
+ * Feeding the measured duration of the previous render back in fixes both. The
+ * next frame is scheduled so rendering occupies at most
+ * {@link STREAM_RENDER_DUTY_CYCLE} of wall clock — the work is self-limiting
+ * however long the answer grows, and short cheap renders still run at the
+ * length-based floor so short answers stay frame-fast.
+ *
+ * @param floorMs        Length-based minimum from {@link getAdaptiveStreamRenderDelay}.
+ * @param lastRenderMs   Duration of the previous render, or null before one ran.
+ */
+export function getRenderBudgetDelay(floorMs: number, lastRenderMs: number | null): number {
+  if (lastRenderMs === null || !Number.isFinite(lastRenderMs) || lastRenderMs <= 0) {
+    return floorMs;
+  }
+
+  const budgeted = Math.round(lastRenderMs * (1 / STREAM_RENDER_DUTY_CYCLE - 1));
+  return Math.min(MAX_STREAM_RENDER_DELAY_MS, Math.max(floorMs, budgeted));
 }
 
 export class StreamController {
@@ -105,6 +148,12 @@ export class StreamController {
   private isThinkingRenderRunning = false;
   private pendingToolOutputFrames = new Map<string, ScheduledAnimationFrame>();
   private pendingScrollFrame: ScheduledAnimationFrame | null = null;
+
+  // Smoothed cost of the last text/thinking render, feeding getRenderBudgetDelay.
+  // Tracked separately because a thinking block and an answer block rarely cost
+  // the same, and one expensive block should not throttle the other.
+  private textRenderCostMs: number | null = null;
+  private thinkingRenderCostMs: number | null = null;
 
   // Provider lifecycle agent tracking (spawn → wait/close lifecycle)
   private lifecycleSubagentStates = new Map<string, SubagentState>(); // spawn callId → SubagentState
@@ -827,7 +876,7 @@ export class StreamController {
       this.pendingTextRenderFrame = scheduleAnimationFrame(() => {
         this.pendingTextRenderFrame = null;
         void this.renderPendingText();
-      }, this.getStreamingRenderWindow(), this.getAdaptiveRenderDelay(state.currentTextContent));
+      }, this.getStreamingRenderWindow(), this.getAdaptiveRenderDelay(state.currentTextContent, this.textRenderCostMs));
     }
 
     return this.pendingTextRenderPromise;
@@ -854,6 +903,7 @@ export class StreamController {
     const textEl = state.currentTextEl;
     const content = state.currentTextContent;
 
+    const startedAt = Date.now();
     try {
       if (textEl) {
         const options = this.getStreamingRenderOptions(content);
@@ -863,6 +913,10 @@ export class StreamController {
           await renderer.renderContent(textEl, content);
         }
         this.scrollToBottom();
+        this.textRenderCostMs = StreamController.blendRenderCost(
+          this.textRenderCostMs,
+          Date.now() - startedAt,
+        );
       }
     } catch {
       // MessageRenderer owns user-visible render fallback; keep stream state moving.
@@ -874,7 +928,7 @@ export class StreamController {
       this.pendingTextRenderFrame = scheduleAnimationFrame(() => {
         this.pendingTextRenderFrame = null;
         void this.renderPendingText();
-      }, this.getStreamingRenderWindow(), this.getAdaptiveRenderDelay(state.currentTextContent));
+      }, this.getStreamingRenderWindow(), this.getAdaptiveRenderDelay(state.currentTextContent, this.textRenderCostMs));
       return;
     }
 
@@ -978,7 +1032,7 @@ export class StreamController {
       this.pendingThinkingRenderFrame = scheduleAnimationFrame(() => {
         this.pendingThinkingRenderFrame = null;
         void this.renderPendingThinking();
-      }, this.getThinkingRenderWindow(), this.getAdaptiveRenderDelay(state.currentThinkingState?.content ?? ''));
+      }, this.getThinkingRenderWindow(), this.getAdaptiveRenderDelay(state.currentThinkingState?.content ?? '', this.thinkingRenderCostMs));
     }
 
     return this.pendingThinkingRenderPromise;
@@ -1005,6 +1059,7 @@ export class StreamController {
     const thinkingState = state.currentThinkingState;
     const content = thinkingState?.content ?? '';
 
+    const startedAt = Date.now();
     try {
       if (thinkingState) {
         const options = this.getStreamingRenderOptions(content);
@@ -1014,6 +1069,10 @@ export class StreamController {
           await renderer.renderContent(thinkingState.contentEl, content);
         }
         this.scrollToBottom();
+        this.thinkingRenderCostMs = StreamController.blendRenderCost(
+          this.thinkingRenderCostMs,
+          Date.now() - startedAt,
+        );
       }
     } catch {
       // MessageRenderer owns user-visible render fallback; keep stream state moving.
@@ -1025,7 +1084,7 @@ export class StreamController {
       this.pendingThinkingRenderFrame = scheduleAnimationFrame(() => {
         this.pendingThinkingRenderFrame = null;
         void this.renderPendingThinking();
-      }, this.getThinkingRenderWindow(), this.getAdaptiveRenderDelay(thinkingState.content));
+      }, this.getThinkingRenderWindow(), this.getAdaptiveRenderDelay(thinkingState.content, this.thinkingRenderCostMs));
       return;
     }
 
@@ -1660,13 +1719,35 @@ export class StreamController {
       ?? this.getMessagesWindow();
   }
 
-  private getAdaptiveRenderDelay(content: string): number {
+  /**
+   * Weight of a fresh sample in the render-cost average. Low enough that one
+   * slow frame (a GC pause, a cold highlighter) does not stall the stream, high
+   * enough to follow the real upward trend as the answer grows.
+   */
+  private static readonly RENDER_COST_SMOOTHING = 0.3;
+
+  private static blendRenderCost(previous: number | null, sampleMs: number): number {
+    if (!Number.isFinite(sampleMs) || sampleMs < 0) return previous ?? 0;
+    if (previous === null) return sampleMs;
+    return previous + (sampleMs - previous) * StreamController.RENDER_COST_SMOOTHING;
+  }
+
+  private getAdaptiveRenderDelay(content: string, lastRenderMs: number | null = null): number {
     const document = this.deps.getMessagesEl().ownerDocument;
-    return getAdaptiveStreamRenderDelay(content.length, document.visibilityState !== 'hidden');
+    const floorMs = getAdaptiveStreamRenderDelay(
+      content.length,
+      document.visibilityState !== 'hidden',
+    );
+    return getRenderBudgetDelay(floorMs, lastRenderMs);
   }
 
   resetStreamingState(): void {
     const { state } = this.deps;
+    // Re-learn the render cost per turn. Carrying a long answer's 400ms budget
+    // into the next turn would make a three-word reply render a third of a
+    // second late; one over-eager first frame is the cheaper trade.
+    this.textRenderCostMs = null;
+    this.thinkingRenderCostMs = null;
     this.cancelPendingTextRender();
     this.cancelPendingThinkingRender();
     this.cancelPendingToolOutputRenders();

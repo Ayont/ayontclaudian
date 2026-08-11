@@ -112,6 +112,13 @@ export function replaceImageEmbedsWithHtml(
     return markdown;
   }
 
+  // Called on every streaming frame with the whole accumulated answer. The
+  // pattern needs an `![[` to match anything at all, so one substring test
+  // avoids scanning (and re-allocating) text that has no embed in it.
+  if (!markdown.includes('![[')) {
+    return markdown;
+  }
+
   const normalizedOptions = normalizeOptions(options);
 
   // Reset lastIndex to avoid issues with global regex

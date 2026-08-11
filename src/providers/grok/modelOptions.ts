@@ -12,6 +12,7 @@ import {
   DEFAULT_GROK_MODELS,
   DEFAULT_GROK_PRIMARY_MODEL,
   formatGrokModelLabel,
+  KNOWN_GROK_MODEL_CONTEXT_WINDOWS,
 } from './types/models';
 
 /** A model discovered from `~/.grok/config.toml` `[models.*]`. */
@@ -118,11 +119,18 @@ export function readGrokConfiguredModels(): {
   return { models, defaultModel };
 }
 
-/** Context window for a model id, from config when known, else the default. */
+/**
+ * Context window for a model id.
+ *
+ * The user's own `[models.*]` table wins (they may have narrowed it on purpose),
+ * then the published window for a served model id, then the generic fallback.
+ */
 export function getGrokModelContextWindow(model: string): number {
   const { models } = readGrokConfiguredModels();
   const match = models.find((entry) => entry.id === model);
-  return match?.contextWindow ?? DEFAULT_GROK_CONTEXT_WINDOW;
+  return match?.contextWindow
+    ?? KNOWN_GROK_MODEL_CONTEXT_WINDOWS[model]
+    ?? DEFAULT_GROK_CONTEXT_WINDOW;
 }
 
 function getConfiguredEnvModel(settings: Record<string, unknown>): string | null {

@@ -95,6 +95,9 @@ dev
 .claude/
 .codex/
 
+# Throwaway scripts and handoff notes (see CLAUDE.md)
+.context/
+
 # Playwright
 test-results/
 playwright-report/

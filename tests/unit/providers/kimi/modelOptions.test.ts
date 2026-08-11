@@ -93,16 +93,32 @@ describe('getKimiModelOptions', () => {
     expect(values.filter((value) => value === DEFAULT_KIMI_PRIMARY_MODEL)).toHaveLength(1);
   });
 
-  it('only surfaces catalog models when they are configured in config.toml', () => {
-    // Without config entries, only the built-in default is offered.
+  it('offers every managed model without needing a config entry', () => {
+    // `kimi provider list --json` serves these three over the OAuth session, so
+    // they work with an empty config.toml — no seeding, no gating.
     const values = getKimiModelOptions(settingsWith({})).map((option) => option.value);
-    expect(values).toContain('kimi-code/kimi-for-coding');
-    expect(values).not.toContain(KIMI_K3_MODEL);
-    expect(values).not.toContain('kimi-k2.7-code');
-    expect(values).not.toContain('kimi-k2.7-code-highspeed');
-    // Non-coding platform / legacy models are intentionally hidden.
+    expect(values).toEqual([
+      'kimi-code/k3',
+      'kimi-code/kimi-for-coding',
+      'kimi-code/kimi-for-coding-highspeed',
+    ]);
+  });
+
+  it('no longer offers bare ids the CLI rejects', () => {
+    // `kimi -m kimi-k3` fails with `config.invalid: Model "kimi-k3" is not
+    // configured in config.toml`. The namespaced managed id is the real one.
+    const values = getKimiModelOptions(settingsWith({})).map((option) => option.value);
+    for (const invented of ['kimi-k3', 'kimi-k2.7-code', 'kimi-k2.7-code-highspeed']) {
+      expect(values).not.toContain(invented);
+    }
+    // Non-coding platform / legacy models stay hidden as well.
     expect(values).not.toContain('kimi-k2.6');
     expect(values).not.toContain('moonshot-v1-128k');
+  });
+
+  it('migrates a persisted bare id to the served default', () => {
+    expect(resolveKimiModelSelection(settingsWith({}), 'kimi-k3')).toBe(KIMI_K3_MODEL);
+    expect(resolveKimiModelSelection(settingsWith({}), 'kimi-k2.7-code')).toBe(KIMI_K3_MODEL);
   });
 
   it('surfaces a configured catalog model with its curated label and description', () => {
@@ -205,15 +221,26 @@ describe('getKimiModelContextWindow', () => {
 });
 
 describe('ensureKimiModelConfigured', () => {
-  it('seeds kimi-k3 with its 1M context window', () => {
+  it('never touches the config for a managed model id', () => {
+    // The managed ids resolve through the OAuth session. Appending a
+    // `[models."kimi-code/k3"]` stub would shadow that mapping with a section
+    // that has no provider/model keys.
     writeKimiConfig('');
 
-    expect(ensureKimiModelConfigured(KIMI_K3_MODEL)).toBe(true);
-    const raw = fs.readFileSync(getKimiConfigPath(), 'utf-8');
-    expect(raw).toContain(`[models."${KIMI_K3_MODEL}"]`);
-    expect(raw).toContain(`max_context_size = ${KIMI_K3_CONTEXT_WINDOW}`);
-    // A second call detects the existing section and leaves the file alone.
     expect(ensureKimiModelConfigured(KIMI_K3_MODEL)).toBe(false);
+    expect(fs.readFileSync(getKimiConfigPath(), 'utf-8')).toBe('');
+
+    removeKimiConfig();
+  });
+
+  it('seeds a genuinely custom model and is idempotent', () => {
+    writeKimiConfig('');
+
+    expect(ensureKimiModelConfigured('my-own-model')).toBe(true);
+    const raw = fs.readFileSync(getKimiConfigPath(), 'utf-8');
+    expect(raw).toContain('[models."my-own-model"]');
+    // A second call detects the existing section and leaves the file alone.
+    expect(ensureKimiModelConfigured('my-own-model')).toBe(false);
 
     removeKimiConfig();
   });
