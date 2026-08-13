@@ -53,6 +53,38 @@ describe('parseClineJsonLine', () => {
     const event = parseClineJsonLine('{"type":"agent_event","event":{"text":"OK"}}');
     expect(event).toEqual(expect.objectContaining({ kind: 'text', text: 'OK' }));
   });
+
+  it('maps CLI run_start and run_result envelopes from 3.0.54', () => {
+    const start = parseClineJsonLine(JSON.stringify({
+      type: 'run_start',
+      providerId: 'cline-pass',
+      modelId: 'cline-pass/kimi-k3',
+      sessionId: '1786522352621_1rqet',
+    }));
+    expect(start).toEqual(expect.objectContaining({
+      kind: 'session',
+      sessionId: '1786522352621_1rqet',
+    }));
+
+    const result = parseClineJsonLine(JSON.stringify({
+      type: 'run_result',
+      finishReason: 'completed',
+      text: 'Hallo',
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      kind: 'text',
+      text: 'Hallo',
+      isFinal: true,
+    }));
+  });
+
+  it('maps assistant-text-delta events from the live AgentEvent dump', () => {
+    const event = parseClineJsonLine(JSON.stringify({
+      type: 'agent_event',
+      event: { type: 'assistant-text-delta', text: 'Hey' },
+    }));
+    expect(event).toEqual(expect.objectContaining({ kind: 'text', text: 'Hey' }));
+  });
 });
 
 describe('extractClineJsonText', () => {
@@ -63,5 +95,9 @@ describe('extractClineJsonText', () => {
       'not-json',
     ].join('\n');
     expect(extractClineJsonText(buffer)).toBe('Hello world');
+  });
+
+  it('uses run_result text when no deltas arrived', () => {
+    expect(extractClineJsonText('{"type":"run_result","text":"Fertig"}')).toBe('Fertig');
   });
 });

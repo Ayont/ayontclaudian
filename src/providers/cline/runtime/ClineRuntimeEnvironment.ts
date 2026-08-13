@@ -11,6 +11,7 @@ export function buildClineRuntimeEnv(
   return {
     ...process.env,
     ...envVars,
+    CLINE_NO_AUTO_UPDATE: envVars.CLINE_NO_AUTO_UPDATE ?? '1',
     PATH: getEnhancedPath(envVars.PATH, cliPath || undefined),
   };
 }

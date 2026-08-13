@@ -1,5 +1,16 @@
-import { buildClineLaunchSpec } from '@/providers/cline/runtime/ClineLaunchSpec';
+import { buildClineLaunchSpec, formatClinePromptArg } from '@/providers/cline/runtime/ClineLaunchSpec';
 import { isClineNativeSessionId } from '@/providers/cline/types';
+
+describe('formatClinePromptArg', () => {
+  it('adds a trailing space so Cline 3.0.31+ accepts one-word prompts', () => {
+    expect(formatClinePromptArg('hi')).toBe('hi ');
+    expect(formatClinePromptArg('test#')).toBe('test# ');
+  });
+
+  it('leaves already-quoted multi-word prompts unchanged', () => {
+    expect(formatClinePromptArg('Name this chat')).toBe('Name this chat');
+  });
+});
 
 describe('isClineNativeSessionId', () => {
   it('accepts Cline CLI session ids and rejects foreign ones', () => {
@@ -31,7 +42,7 @@ describe('buildClineLaunchSpec', () => {
       '-c', '/vault',
       '--plan',
       '--id', '1786522352621_1rqet',
-      'hi',
+      'hi ',
     ]);
   });
 
@@ -48,7 +59,7 @@ describe('buildClineLaunchSpec', () => {
       thinking: 'medium',
     });
     expect(spec.args).not.toContain('--id');
-    expect(spec.args).toContain('hi');
+    expect(spec.args).toContain('hi ');
   });
 
   it('builds a one-shot --json aux turn without resume', () => {

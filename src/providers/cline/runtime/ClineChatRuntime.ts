@@ -309,6 +309,30 @@ export class ClineChatRuntime implements ChatRuntime {
       signal();
     }, CLINE_KEEPALIVE_INTERVAL_MS);
 
+    const firstEventTimer = window.setTimeout(() => {
+      if (finished || this.cancelled || sawTextDelta || this.sessionId) {
+        return;
+      }
+      const tail = stderr.trim();
+      if (/unquoted prompt|not authenticated|invalid model/i.test(tail)) {
+        pendingChunks.push({
+          type: 'error',
+          content: this.formatError('Cline hat den Turn abgelehnt.', tail),
+        });
+        terminateSpawnedProcess(proc, 'SIGTERM', spawn, resolvedSpawnSpec);
+        signal();
+        return;
+      }
+      pendingChunks.push({
+        type: 'notice',
+        content: tail
+          ? this.formatError('Cline startet noch. Warte auf das erste Event.', tail)
+          : 'Cline startet noch — der erste Token kann bei Thinking High etwas dauern.',
+        level: 'info',
+      });
+      signal();
+    }, 12_000);
+
     let responseText = '';
     try {
       while (true) {
@@ -397,6 +421,7 @@ export class ClineChatRuntime implements ChatRuntime {
       yield { type: 'done' };
     } finally {
       window.clearInterval(keepaliveTimer);
+      window.clearTimeout(firstEventTimer);
       if (this.activeProcess === proc) {
         this.activeProcess = null;
         this.activeSpawnSpec = null;

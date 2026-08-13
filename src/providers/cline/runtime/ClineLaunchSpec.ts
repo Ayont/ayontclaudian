@@ -35,6 +35,16 @@ export function normalizeClineThinking(value: string): ClineThinkingLevel {
   return isClineThinkingLevel(value) ? value : 'high';
 }
 
+/**
+ * Cline 3.0.31+ rejects one-shot prompts unless the first positional looks
+ * quoted. Shells strip quotes, so the CLI only treats an argv token as quoted
+ * when it still contains whitespace. `hi` therefore dies with
+ * "Unknown command or unquoted prompt" and can leave the process alive.
+ */
+export function formatClinePromptArg(prompt: string): string {
+  return /\s/.test(prompt) ? prompt : `${prompt} `;
+}
+
 export function buildClineLaunchSpec(params: BuildClineLaunchSpecParams): ClineLaunchSpec {
   const model = params.model.trim();
   const apiProvider = resolveClineApiProvider(model, params.apiProvider ?? 'cline-pass');
@@ -65,7 +75,7 @@ export function buildClineLaunchSpec(params: BuildClineLaunchSpecParams): ClineL
     args.push('--id', params.sessionId.trim());
   }
   if (params.mode === 'print' && params.prompt !== undefined) {
-    args.push(params.prompt);
+    args.push(formatClinePromptArg(params.prompt));
   }
 
   return {

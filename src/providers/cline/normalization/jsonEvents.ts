@@ -70,10 +70,31 @@ export function parseClineJsonLine(line: string): ClineJsonEvent | null {
     return null;
   }
 
+  const envelopeType = asString(parsed.type);
   const inner = readInnerEvent(parsed);
   const sessionId = readSessionId(parsed, inner);
   const contentType = asString(inner.contentType);
   const eventType = asString(inner.type);
+
+  if (envelopeType === 'run_start') {
+    return { kind: 'session', sessionId };
+  }
+  if (envelopeType === 'run_result') {
+    const text = asString(parsed.text) ?? asString(inner.text);
+    return {
+      kind: 'text',
+      sessionId,
+      text,
+      isFinal: true,
+    };
+  }
+  if (envelopeType === 'run_aborted' || envelopeType === 'run_abort_requested') {
+    return {
+      kind: 'other',
+      sessionId,
+      text: asString(parsed.message) ?? asString(parsed.reason),
+    };
+  }
 
   if (contentType === 'reasoning' || eventType === 'reasoning.delta') {
     return {
@@ -104,7 +125,7 @@ export function parseClineJsonLine(line: string): ClineJsonEvent | null {
     };
   }
 
-  const text = asString(inner.text) ?? asString(inner.content);
+  const text = asString(inner.text) ?? asString(inner.content) ?? asString(inner.delta);
   if (text) {
     return {
       kind: 'text',
