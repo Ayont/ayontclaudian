@@ -16,7 +16,7 @@
   min-height: 118px;
   border: 1px solid var(--claudian-input-wrapper-border-color);
   border-radius: var(--cl-radius-xl);
-  background: var(--cl-surface-raised);
+  background: color-mix(in srgb, var(--cl-composer-tint, transparent) 42%, var(--cl-surface-raised));
   box-shadow: var(--claudian-input-wrapper-box-shadow);
   transition: border-color var(--cl-dur) var(--cl-ease),
     box-shadow var(--cl-dur) var(--cl-ease);

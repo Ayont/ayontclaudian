@@ -1,4 +1,5 @@
 import { getDefaultHiddenProviderCommands } from '../../core/providers/commands/hiddenCommands';
+import { DEFAULT_CHAT_APPEARANCE } from '../../core/theme/chatAppearance';
 import { type ClaudianSettings } from '../../core/types/settings';
 import { getBuiltInProviderDefaultConfigs } from '../../providers/defaultProviderConfigs';
 
@@ -68,6 +69,7 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
   requireCommandOrControlEnterToSend: false,
 
   locale: 'en',
+  chatAppearance: DEFAULT_CHAT_APPEARANCE,
 
   providerConfigs: getBuiltInProviderDefaultConfigs(),
 

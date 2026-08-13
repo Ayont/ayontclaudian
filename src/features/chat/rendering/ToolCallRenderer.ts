@@ -318,6 +318,14 @@ function getWebSearchLabel(input: Record<string, unknown>, maxLength: number): s
   return `WebSearch: ${summary || 'search'}`;
 }
 
+function getUrlHost(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+}
+
 function appendToolLink(parent: HTMLElement, title: string, url: string): void {
   const linkEl = parent.createEl('a', { cls: 'claudian-tool-link' });
   linkEl.setAttribute('href', url);
@@ -327,7 +335,9 @@ function appendToolLink(parent: HTMLElement, title: string, url: string): void {
   const iconEl = linkEl.createSpan({ cls: 'claudian-tool-link-icon' });
   setIcon(iconEl, 'external-link');
 
-  linkEl.createSpan({ cls: 'claudian-tool-link-title', text: title });
+  const copy = linkEl.createDiv({ cls: 'claudian-web-result-copy' });
+  copy.createSpan({ cls: 'claudian-web-result-domain', text: getUrlHost(url) });
+  copy.createSpan({ cls: 'claudian-tool-link-title', text: title });
 }
 
 function isPlaceholderWebSearchResult(result: string | undefined): boolean {
@@ -388,12 +398,12 @@ function renderWebSearchActionExpanded(container: HTMLElement, input: Record<str
       const primaryQuery = data.query || data.queries[0];
       linesEl.createDiv({
         cls: 'claudian-tool-line',
-        text: primaryQuery ? `Query: ${primaryQuery}` : 'Search web',
+        text: primaryQuery ? `Suche: ${primaryQuery}` : 'Websuche',
       });
 
       const alternateQueries = data.queries.filter(query => query !== primaryQuery);
       for (const query of alternateQueries.slice(0, 4)) {
-        linesEl.createDiv({ cls: 'claudian-tool-line', text: `Alt query: ${query}` });
+        linesEl.createDiv({ cls: 'claudian-tool-line', text: `Alternative: ${query}` });
       }
       if (alternateQueries.length > 4) {
         linesEl.createDiv({
@@ -412,13 +422,20 @@ function renderWebSearchExpanded(
   result: string | undefined,
 ): void {
   // Web search badge with spinning globe icon
-  const badgeEl = container.createDiv({ cls: 'claudian-tool-web-badge' });
+  const badgeEl = container.createDiv({
+    cls: `claudian-tool-web-badge${result ? ' is-done' : ''}`,
+  });
   setIcon(badgeEl.createSpan(), 'globe');
-  badgeEl.createSpan({ text: result ? 'Web search complete' : 'Searching the web…' });
+  badgeEl.createSpan({ text: result ? 'Websuche fertig' : 'Suche im Web…' });
+
+  const queryHint = normalizeWebSearchDisplayData(input).query;
+  if (queryHint) {
+    container.createDiv({ cls: 'claudian-web-query', text: queryHint });
+  }
 
   const parsed = result ? parseWebSearchResult(result) : null;
   if (parsed && parsed.links.length > 0) {
-    const linksEl = container.createDiv({ cls: 'claudian-tool-lines' });
+    const linksEl = container.createDiv({ cls: 'claudian-tool-lines claudian-web-results' });
     for (const link of parsed.links) {
       appendToolLink(linksEl, link.title, link.url);
     }

@@ -5,6 +5,11 @@ import { getHiddenProviderCommandSet } from '../../core/providers/commands/hidde
 import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '../../core/providers/ProviderSettingsCoordinator';
 import { DEFAULT_CHAT_PROVIDER_ID, type ProviderId } from '../../core/providers/types';
+import {
+  applyChatAppearanceToContainer,
+  type ChatAppearanceSettings,
+  normalizeChatAppearance,
+} from '../../core/theme/chatAppearance';
 import { VIEW_TYPE_CLAUDIAN } from '../../core/types';
 import { getWorkspaceModeMeta, normalizeWorkspaceMode, type WorkspaceMode } from '../../core/workspace/workspaceMode';
 import type ClaudianPlugin from '../../main';
@@ -235,6 +240,7 @@ export class ClaudianView extends ItemView {
     this.wireEventHandlers();
     await this.restoreOrCreateTabs();
     this.syncProviderBrandColor();
+    this.applyChatAppearance();
     this.updateLayoutForPosition();
     this.applyWorkspaceMode();
     this.tabManager?.primeProviderRuntime();
@@ -697,6 +703,18 @@ export class ClaudianView extends ItemView {
     const providerId = activeTab ? getTabProviderId(activeTab, this.plugin) : DEFAULT_CHAT_PROVIDER_ID;
     this.viewContainerEl.dataset.provider = providerId;
     this.syncHeaderLogo(providerId);
+    this.applyChatAppearance();
+  }
+
+  /** Applies the user's chat theme (or clears it to follow the host/provider). */
+  applyChatAppearance(appearance?: ChatAppearanceSettings, isLight?: boolean): void {
+    if (!this.viewContainerEl) return;
+    const body = this.viewContainerEl.ownerDocument.body;
+    applyChatAppearanceToContainer(
+      this.viewContainerEl,
+      appearance ?? normalizeChatAppearance(this.plugin.settings.chatAppearance),
+      isLight ?? body.classList.contains('theme-light'),
+    );
   }
 
   /** Rebuilds the header logo SVG to match the given provider. */

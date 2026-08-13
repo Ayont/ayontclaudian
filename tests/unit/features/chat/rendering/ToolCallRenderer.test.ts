@@ -541,8 +541,8 @@ describe('ToolCallRenderer', () => {
       const toolEl = renderStoredToolCall(parentEl, toolCall);
       const lines = Array.from(toolEl.querySelectorAll('.claudian-tool-line')).map(line => line.textContent);
 
-      expect(lines).toContain('Query: obsidian plugin API');
-      expect(lines).toContain('Alt query: obsidian docs');
+      expect(lines).toContain('Suche: obsidian plugin API');
+      expect(lines).toContain('Alternative: obsidian docs');
       expect(lines).not.toContain('Search complete');
     });
 
@@ -566,6 +566,7 @@ describe('ToolCallRenderer', () => {
       expect(links).toHaveLength(1);
       expect(links[0].getAttribute('href')).toBe('https://example.com/docs');
       expect(links[0].querySelector('.claudian-tool-link-title')?.textContent).toBe('https://example.com/docs');
+      expect(links[0].querySelector('.claudian-web-result-domain')?.textContent).toBe('example.com');
     });
   });
 

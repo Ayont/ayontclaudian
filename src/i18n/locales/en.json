@@ -79,6 +79,25 @@
       "kimi": "Kimi"
     },
     "display": "Display",
+    "chatAppearance": {
+      "heading": "Chat design",
+      "preset": {
+        "name": "Color theme",
+        "desc": "Use your own chat theme, or follow the Obsidian theme and provider color."
+      },
+      "accent": {
+        "name": "Accent color",
+        "desc": "Buttons, focus, live status, and the send button."
+      },
+      "userBubble": {
+        "name": "Message color",
+        "desc": "Color of your chat bubbles."
+      },
+      "composer": {
+        "name": "Composer color",
+        "desc": "Background tint of the input field."
+      }
+    },
     "conversations": "Conversations",
     "content": "Content",
     "input": "Input",

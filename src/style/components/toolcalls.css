@@ -444,10 +444,10 @@
   color: var(--text-muted);
   text-decoration: none;
   cursor: pointer;
-  font-family: var(--cl-font-mono);
+  font-family: var(--cl-font-ui);
   font-size: var(--cl-text-sm);
   line-height: var(--cl-leading);
-  transition: color var(--cl-dur-fast) var(--cl-ease);
+  transition: color var(--cl-dur-fast) var(--cl-ease), background var(--cl-dur-fast) var(--cl-ease), border-color var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-tool-link:hover {
@@ -473,12 +473,64 @@
   white-space: nowrap;
 }
 
+.claudian-web-query {
+  display: inline-flex;
+  max-width: 100%;
+  margin: 6px 0 8px;
+  padding: 5px 10px;
+  overflow: hidden;
+  border: 1px solid var(--cl-accent-line);
+  border-radius: var(--cl-radius-pill);
+  background: var(--cl-accent-soft);
+  color: var(--text-normal);
+  font-size: var(--cl-text-xs);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claudian-web-results {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 8px;
+}
+
+.claudian-web-results .claudian-tool-link {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding: 8px 10px;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: 12px;
+  background: var(--cl-surface-raised);
+}
+
+.claudian-web-results .claudian-tool-link:hover {
+  border-color: var(--cl-accent-line);
+  background: var(--cl-accent-softer);
+}
+
+.claudian-web-result-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.claudian-web-result-domain {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Web search summary section */
 .claudian-tool-web-summary {
-  font-family: var(--cl-font-mono);
+  font-family: var(--cl-font-ui);
   font-size: var(--cl-text-sm);
   color: var(--text-muted);
-  padding-top: var(--cl-space-1);
+  padding-top: var(--cl-space-2);
   border-top: 1px solid var(--cl-border-subtle);
   margin-top: var(--cl-space-1);
   white-space: pre-wrap;
@@ -491,13 +543,14 @@
 .claudian-tool-web-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--cl-accent-line);
   border-radius: 999px;
-  background: rgba(59, 130, 246, 0.12);
-  color: rgb(96, 165, 250);
+  background: var(--cl-accent-soft);
+  color: var(--cl-accent);
   font-size: var(--cl-text-xs);
-  font-weight: 600;
+  font-weight: 650;
   margin-bottom: var(--cl-space-1);
 }
 
@@ -505,6 +558,10 @@
   width: 12px;
   height: 12px;
   animation: claudian-globe-spin 2s linear infinite;
+}
+
+.claudian-tool-web-badge.is-done svg {
+  animation: none;
 }
 
 @keyframes claudian-globe-spin {

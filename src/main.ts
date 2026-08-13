@@ -110,6 +110,7 @@ import {
   type Snippet,
 } from './core/snippets/snippetService';
 import { MetadataStore } from './core/storage/metadata/MetadataStore';
+import { normalizeChatAppearance } from './core/theme/chatAppearance';
 import { clearRunTimelines, formatRunTimelineMarkdown, getLastRunTimeline } from './core/timeline/runTimeline';
 import { RunTimelineStore } from './core/timeline/RunTimelineStore';
 import type {
@@ -2197,6 +2198,7 @@ export default class ClaudianPlugin extends Plugin {
     this.settings = {
       ...DEFAULT_CLAUDIAN_SETTINGS,
       ...claudian,
+      chatAppearance: normalizeChatAppearance(claudian.chatAppearance ?? DEFAULT_CLAUDIAN_SETTINGS.chatAppearance),
     };
 
     // Plan mode is ephemeral — normalize back to normal on load so the app

@@ -348,6 +348,14 @@ const chatSurface = (mode) => `
             <p>Der Preflight läuft parallel: Graph-Kontext überlappt Memory und RAG, die Undo-Baseline liest in Stapeln, und die PATH-Auflösung ist memoisiert.</p>
       <div class="claudian-diff-block claudian-diff-del">The quick <mark class="claudian-diff-word claudian-diff-word-del">brown</mark> fox.</div>
       <div class="claudian-diff-block claudian-diff-ins">The quick <mark class="claudian-diff-word claudian-diff-word-ins">red</mark> fox.</div>
+      <div class="claudian-tool-call">
+        <div class="claudian-tool-web-badge is-done"><span><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg></span><span>Websuche fertig</span></div>
+        <div class="claudian-web-query">T3 Code chat UI</div>
+        <div class="claudian-tool-lines claudian-web-results">
+          <a class="claudian-tool-link" href="https://t3.codes"><span class="claudian-tool-link-icon"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></span><span class="claudian-web-result-copy"><span class="claudian-web-result-domain">t3.codes</span><span class="claudian-tool-link-title">T3 Code — control plane for coding agents</span></span></a>
+          <a class="claudian-tool-link" href="https://t3.chat"><span class="claudian-tool-link-icon"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></span><span class="claudian-web-result-copy"><span class="claudian-web-result-domain">t3.chat</span><span class="claudian-tool-link-title">T3 Chat</span></span></a>
+        </div>
+      </div>
     </div>
   </div>
   <div class="claudian-input-container">

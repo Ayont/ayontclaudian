@@ -268,4 +268,15 @@ export type TranslationKey =
 
   // Settings - Language
   | 'settings.language.name'
-  | 'settings.language.desc';
+  | 'settings.language.desc'
+
+  // Settings - Chat appearance
+  | 'settings.chatAppearance.heading'
+  | 'settings.chatAppearance.preset.name'
+  | 'settings.chatAppearance.preset.desc'
+  | 'settings.chatAppearance.accent.name'
+  | 'settings.chatAppearance.accent.desc'
+  | 'settings.chatAppearance.userBubble.name'
+  | 'settings.chatAppearance.userBubble.desc'
+  | 'settings.chatAppearance.composer.name'
+  | 'settings.chatAppearance.composer.desc';

@@ -15,6 +15,7 @@ import type { Locale, TranslationKey } from '../../i18n/types';
 import type ClaudianPlugin from '../../main';
 import { formatContextLimit, parseContextLimit, parseEnvironmentVariables } from '../../utils/env';
 import { buildNavMappingText, parseNavMappings } from './keyboardNavigation';
+import { renderChatAppearanceSection } from './ui/ChatAppearanceSection';
 import { renderCliInstallSection } from './ui/CliInstallSection';
 import { renderEnvironmentSettingsSection } from './ui/EnvironmentSettingsSection';
 import { renderVoiceSettingsSection } from './ui/VoiceSettingsSection';
@@ -235,6 +236,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
     // --- Display ---
 
     new Setting(container).setName(t('settings.display')).setHeading();
+
+    renderChatAppearanceSection(container, this.plugin, () => this.display());
 
     new Setting(container)
       .setName(t('settings.tabBarPosition.name'))

@@ -184,7 +184,7 @@
    asymmetric trailing radius anchors it to the user's side. */
 .claudian-message-user {
   position: relative;
-  background: color-mix(in srgb, var(--cl-accent) 16%, var(--cl-surface-raised));
+  background: color-mix(in srgb, var(--cl-user-bubble, var(--cl-accent)) 18%, var(--cl-surface-raised));
   border: 1px solid transparent;
   box-shadow: none;
   align-self: flex-end;

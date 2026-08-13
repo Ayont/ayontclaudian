@@ -1,3 +1,5 @@
+import type { ChatAppearanceSettings } from '../theme/chatAppearance';
+
 export type HiddenProviderCommands = Record<string, string[]>;
 
 export interface ApprovalSelectionDecision {
@@ -208,6 +210,9 @@ export interface ClaudianSettings {
 
   // Internationalization
   locale: string;
+
+  /** User-picked chat theme (accent, bubble, composer). */
+  chatAppearance?: ChatAppearanceSettings;
 
   // Provider-owned settings
   providerConfigs: ProviderConfigMap;

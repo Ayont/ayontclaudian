@@ -79,6 +79,25 @@
       "kimi": "Kimi"
     },
     "display": "Anzeige",
+    "chatAppearance": {
+      "heading": "Chat-Design",
+      "preset": {
+        "name": "Farbschema",
+        "desc": "Eigenes Chat-Theme oder dem Obsidian-Theme und der Provider-Farbe folgen."
+      },
+      "accent": {
+        "name": "Akzentfarbe",
+        "desc": "Buttons, Fokus, Live-Status und der Senden-Button."
+      },
+      "userBubble": {
+        "name": "Nachrichtenfarbe",
+        "desc": "Farbe deiner Chat-Bubbles."
+      },
+      "composer": {
+        "name": "Composer-Farbe",
+        "desc": "Hintergrundton des Eingabefelds."
+      }
+    },
     "conversations": "Unterhaltungen",
     "content": "Inhalte",
     "input": "Eingabe",

@@ -1,0 +1,40 @@
+.claudian-theme-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 14px;
+}
+
+.claudian-theme-swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: auto;
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: 999px;
+  background: var(--cl-surface-raised);
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.claudian-theme-swatch.is-active {
+  border-color: var(--cl-accent-line);
+  background: var(--cl-accent-soft);
+  color: var(--text-normal);
+}
+
+.claudian-theme-swatch-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+.claudian-theme-swatch-label {
+  line-height: 1;
+}
