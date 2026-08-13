@@ -1,5 +1,4 @@
 import {
-  DEFAULT_CLINE_PROVIDER_SETTINGS,
   getClineProviderSettings,
   updateClineProviderSettings,
 } from '@/providers/cline/settings';
@@ -9,8 +8,10 @@ describe('Cline settings', () => {
     const settings = getClineProviderSettings({});
     expect(settings.enabled).toBe(false);
     expect(settings.apiProvider).toBe('cline-pass');
-    expect(settings.thinking).toBe(DEFAULT_CLINE_PROVIDER_SETTINGS.thinking);
+    expect(settings.thinking).toBe('medium');
     expect(settings.permissionMode).toBe('yolo');
+    expect(settings.compaction).toBe('agentic');
+    expect(settings.retries).toBe(3);
   });
 
   it('persists api provider, thinking, and custom models', () => {

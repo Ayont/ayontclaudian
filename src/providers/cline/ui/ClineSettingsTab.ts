@@ -24,11 +24,14 @@ import {
 } from '../settings';
 import {
   CLINE_API_PROVIDERS,
+  CLINE_COMPACTION_MODES,
   CLINE_THINKING_LEVELS,
   DEFAULT_CLINE_PRIMARY_MODEL,
   isClineApiProvider,
+  isClineCompactionMode,
   isClineThinkingLevel,
 } from '../types/models';
+import { renderClineFeatureShowcase } from './ClineFeatureShowcase';
 
 function validateFilePath(value: string): string | null {
   const trimmed = value.trim();
@@ -53,6 +56,8 @@ export const clineSettingsTabRenderer: ProviderSettingsTabRenderer = {
     const workspace = maybeGetClineWorkspaceServices();
     const resolvedCliPath = context.plugin.getResolvedProviderCliPath(CLINE_PROVIDER_ID);
 
+    renderClineFeatureShowcase(container, settings);
+
     new Setting(container).setName(t('settings.setup')).setHeading();
 
     new Setting(container)
@@ -67,7 +72,7 @@ export const clineSettingsTabRenderer: ProviderSettingsTabRenderer = {
       );
 
     const authStatusEl = container.createDiv({
-      cls: 'claudian-setting-validation claudian-cline-auth-status',
+      cls: 'claudian-cline-status-card claudian-cline-auth-status',
       text: formatClineAuthStatus(readClineAuthStatus(), settings.apiProvider),
     });
 
@@ -250,6 +255,36 @@ export const clineSettingsTabRenderer: ProviderSettingsTabRenderer = {
           updateClineProviderSettings(settingsBag, { thinking: value });
           await context.plugin.saveSettings();
         });
+      });
+
+    new Setting(container)
+      .setName('Kompaktierung')
+      .setDesc('`--compaction agentic|basic|off`. Agentic ist der CLI-Default; basic ist schneller bei langen Chats.')
+      .addDropdown((dropdown) => {
+        for (const mode of CLINE_COMPACTION_MODES) {
+          dropdown.addOption(mode, mode);
+        }
+        dropdown.setValue(settings.compaction).onChange(async (value) => {
+          if (!isClineCompactionMode(value)) {
+            return;
+          }
+          updateClineProviderSettings(settingsBag, { compaction: value });
+          await context.plugin.saveSettings();
+        });
+      });
+
+    new Setting(container)
+      .setName('Retries')
+      .setDesc('`--retries` bei internen CLI-Fehlern (1–10).')
+      .addSlider((slider) => {
+        slider
+          .setLimits(1, 10, 1)
+          .setValue(settings.retries)
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            updateClineProviderSettings(settingsBag, { retries: value });
+            await context.plugin.saveSettings();
+          });
       });
 
     new Setting(container)

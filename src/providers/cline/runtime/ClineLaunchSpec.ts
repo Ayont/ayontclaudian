@@ -2,16 +2,20 @@ import type { ClinePermissionMode } from '../settings';
 import { isClineNativeSessionId } from '../types';
 import {
   type ClineApiProviderId,
+  type ClineCompactionMode,
   type ClineThinkingLevel,
+  isClineCompactionMode,
   isClineThinkingLevel,
+  normalizeClineModelId,
   resolveClineApiProvider,
 } from '../types/models';
 
-export type ClineLaunchMode = 'acp' | 'print';
+export type ClineLaunchMode = 'print';
 
 export interface BuildClineLaunchSpecParams {
   apiProvider?: ClineApiProviderId;
   command: string;
+  compaction?: ClineCompactionMode | string;
   cwd: string;
   env: NodeJS.ProcessEnv;
   envText?: string;
@@ -19,6 +23,7 @@ export interface BuildClineLaunchSpecParams {
   model: string;
   permissionMode: ClinePermissionMode;
   prompt?: string;
+  retries?: number;
   sessionId?: string | null;
   thinking: ClineThinkingLevel | string;
 }
@@ -32,7 +37,14 @@ export interface ClineLaunchSpec {
 }
 
 export function normalizeClineThinking(value: string): ClineThinkingLevel {
-  return isClineThinkingLevel(value) ? value : 'high';
+  return isClineThinkingLevel(value) ? value : 'medium';
+}
+
+export function normalizeClineRetries(value: number | undefined): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return 3;
+  }
+  return Math.min(10, Math.max(1, Math.round(value)));
 }
 
 /**
@@ -46,16 +58,12 @@ export function formatClinePromptArg(prompt: string): string {
 }
 
 export function buildClineLaunchSpec(params: BuildClineLaunchSpecParams): ClineLaunchSpec {
-  const model = params.model.trim();
+  const model = normalizeClineModelId(params.model, params.apiProvider ?? 'cline-pass');
   const apiProvider = resolveClineApiProvider(model, params.apiProvider ?? 'cline-pass');
   const thinking = normalizeClineThinking(params.thinking);
-  const args: string[] = [];
-
-  if (params.mode === 'acp') {
-    args.push('--acp');
-  } else {
-    args.push('--yolo', '--json');
-  }
+  const compaction = isClineCompactionMode(params.compaction) ? params.compaction : undefined;
+  const retries = normalizeClineRetries(params.retries);
+  const args: string[] = ['--yolo', '--json'];
 
   if (apiProvider) {
     args.push('-P', apiProvider);
@@ -63,18 +71,24 @@ export function buildClineLaunchSpec(params: BuildClineLaunchSpecParams): ClineL
   if (model) {
     args.push('-m', model);
   }
-  args.push('--thinking', thinking, '-c', params.cwd);
-
-  if (params.mode === 'acp') {
-    args.push('--auto-approve', params.permissionMode === 'normal' ? 'false' : 'true');
+  if (thinking !== 'none') {
+    args.push('--thinking', thinking);
   }
+  if (compaction && compaction !== 'agentic') {
+    args.push('--compaction', compaction);
+  }
+  if (retries !== 3) {
+    args.push('--retries', String(retries));
+  }
+  args.push('-c', params.cwd);
+
   if (params.permissionMode === 'plan') {
     args.push('--plan');
   }
   if (isClineNativeSessionId(params.sessionId)) {
     args.push('--id', params.sessionId.trim());
   }
-  if (params.mode === 'print' && params.prompt !== undefined) {
+  if (params.prompt !== undefined) {
     args.push(formatClinePromptArg(params.prompt));
   }
 
@@ -85,12 +99,14 @@ export function buildClineLaunchSpec(params: BuildClineLaunchSpecParams): ClineL
     env: params.env,
     launchKey: JSON.stringify({
       apiProvider,
+      compaction: compaction ?? 'agentic',
       command: params.command,
       cwd: params.cwd,
       envText: params.envText ?? '',
       mode: params.mode,
       model,
       permissionMode: params.permissionMode,
+      retries,
       sessionId: params.sessionId?.trim() ?? null,
       thinking,
     }),

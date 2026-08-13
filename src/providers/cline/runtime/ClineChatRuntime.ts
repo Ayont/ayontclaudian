@@ -170,6 +170,7 @@ export class ClineChatRuntime implements ChatRuntime {
     const launchSpec = buildClineLaunchSpec({
       apiProvider: settings.apiProvider,
       command,
+      compaction: settings.compaction,
       cwd,
       env,
       envText,
@@ -177,6 +178,7 @@ export class ClineChatRuntime implements ChatRuntime {
       model,
       permissionMode: settings.permissionMode,
       prompt: promptText,
+      retries: settings.retries,
       sessionId: this.sessionId,
       thinking: settings.thinking,
     });
@@ -217,6 +219,7 @@ export class ClineChatRuntime implements ChatRuntime {
     let wake: (() => void) | null = null;
     let lastActivity = Date.now();
     let sawTextDelta = false;
+    let reportedUsage: StreamChunk | null = null;
     const signal = (): void => {
       if (wake) {
         const resume = wake;
@@ -233,6 +236,37 @@ export class ClineChatRuntime implements ChatRuntime {
       lastActivity = Date.now();
       if (isClineNativeSessionId(event.sessionId)) {
         this.sessionId = event.sessionId;
+      }
+      if (event.kind === 'error' && event.text) {
+        pendingChunks.push({ type: 'error', content: event.text });
+        return;
+      }
+      if (event.kind === 'usage') {
+        if (event.text && !sawTextDelta) {
+          pendingChunks.push({ type: 'text', content: event.text });
+        }
+        const inputTokens = event.usage?.inputTokens ?? 0;
+        const cacheRead = event.usage?.cacheReadTokens ?? 0;
+        const cacheWrite = event.usage?.cacheWriteTokens ?? 0;
+        const contextTokens = inputTokens + cacheRead + cacheWrite;
+        const contextWindow = getClineModelContextWindow(model);
+        reportedUsage = {
+          type: 'usage',
+          sessionId: this.sessionId,
+          usage: {
+            inputTokens,
+            cacheReadInputTokens: cacheRead,
+            cacheCreationInputTokens: cacheWrite,
+            contextTokens,
+            contextWindow,
+            contextWindowIsAuthoritative: true,
+            percentage: contextWindow > 0
+              ? Math.min(100, Math.max(0, Math.round((contextTokens / contextWindow) * 100)))
+              : 0,
+            model: model || undefined,
+          },
+        };
+        return;
       }
       if (event.kind === 'text' && event.text) {
         if (event.isFinal && sawTextDelta) {
@@ -327,7 +361,7 @@ export class ClineChatRuntime implements ChatRuntime {
         type: 'notice',
         content: tail
           ? this.formatError('Cline startet noch. Warte auf das erste Event.', tail)
-          : 'Cline startet noch — der erste Token kann bei Thinking High etwas dauern.',
+          : 'Cline startet noch — der erste Token kann bei höherem Thinking etwas dauern.',
         level: 'info',
       });
       signal();
@@ -404,20 +438,24 @@ export class ClineChatRuntime implements ChatRuntime {
       }
 
       this.currentTurnMetadata.wasSent = true;
-      const contextTokens = estimateTokensForTexts([
-        ...(conversationHistory ?? []).map((message) => message.content ?? ''),
-        promptText,
-        responseText,
-      ]);
-      yield {
-        type: 'usage',
-        usage: buildEstimatedUsageInfo({
-          contextTokens,
-          contextWindow: getClineModelContextWindow(model),
-          model: model || undefined,
-        }),
-        sessionId: this.sessionId,
-      };
+      if (reportedUsage) {
+        yield reportedUsage;
+      } else {
+        const contextTokens = estimateTokensForTexts([
+          ...(conversationHistory ?? []).map((message) => message.content ?? ''),
+          promptText,
+          responseText,
+        ]);
+        yield {
+          type: 'usage',
+          usage: buildEstimatedUsageInfo({
+            contextTokens,
+            contextWindow: getClineModelContextWindow(model),
+            model: model || undefined,
+          }),
+          sessionId: this.sessionId,
+        };
+      }
       yield { type: 'done' };
     } finally {
       window.clearInterval(keepaliveTimer);

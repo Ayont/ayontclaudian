@@ -3,8 +3,10 @@ import type { HostnameCliPaths } from '../../core/types/settings';
 import { getHostnameKey } from '../../utils/env';
 import {
   type ClineApiProviderId,
+  type ClineCompactionMode,
   type ClineThinkingLevel,
   isClineApiProvider,
+  isClineCompactionMode,
   isClineThinkingLevel,
 } from './types/models';
 
@@ -16,10 +18,12 @@ export interface PersistedClineProviderSettings {
   apiProvider: ClineApiProviderId;
   cliPath: string;
   cliPathsByHost: HostnameCliPaths;
+  compaction: ClineCompactionMode;
   customModels: string;
   enabled: boolean;
   environmentVariables: string;
   permissionMode: ClinePermissionMode;
+  retries: number;
   thinking: ClineThinkingLevel;
 }
 
@@ -27,11 +31,13 @@ export const DEFAULT_CLINE_PROVIDER_SETTINGS: Readonly<PersistedClineProviderSet
   apiProvider: 'cline-pass',
   cliPath: '',
   cliPathsByHost: {},
+  compaction: 'agentic',
   customModels: '',
   enabled: false,
   environmentVariables: '',
   permissionMode: 'yolo',
-  thinking: 'high',
+  retries: 3,
+  thinking: 'medium',
 });
 
 function normalizeHostnameCliPaths(value: unknown): HostnameCliPaths {
@@ -49,6 +55,13 @@ function normalizeHostnameCliPaths(value: unknown): HostnameCliPaths {
 
 function asString(value: unknown, fallback: string): string {
   return typeof value === 'string' ? value : fallback;
+}
+
+function normalizeRetries(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return DEFAULT_CLINE_PROVIDER_SETTINGS.retries;
+  }
+  return Math.min(10, Math.max(1, Math.round(value)));
 }
 
 function normalizePermissionMode(value: unknown): ClinePermissionMode {
@@ -75,9 +88,13 @@ export function getClineProviderSettings(
       DEFAULT_CLINE_PROVIDER_SETTINGS.environmentVariables,
     ),
     permissionMode: normalizePermissionMode(config.permissionMode),
+    retries: normalizeRetries(config.retries),
     thinking: isClineThinkingLevel(config.thinking)
       ? config.thinking
       : DEFAULT_CLINE_PROVIDER_SETTINGS.thinking,
+    compaction: isClineCompactionMode(config.compaction)
+      ? config.compaction
+      : DEFAULT_CLINE_PROVIDER_SETTINGS.compaction,
   };
 }
 

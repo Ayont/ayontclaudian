@@ -5,6 +5,7 @@ import {
   getClineModelContextWindow,
   getClineModelMeta,
   isClinePassModel,
+  normalizeClineModelId,
   resolveClineApiProvider,
 } from '@/providers/cline/types/models';
 
@@ -42,5 +43,12 @@ describe('ClinePass catalog', () => {
     expect(resolveClineApiProvider('anthropic/claude-sonnet-4.6', 'anthropic')).toBe('anthropic');
     expect(isClinePassModel('cline-pass/minimax-m3')).toBe(true);
     expect(getClineModelMeta('cline-pass/kimi-k3')?.supportsImages).toBe(true);
+  });
+
+  it('prefixes bare ClinePass slugs so the API gets modelType/model', () => {
+    expect(normalizeClineModelId('deepseek-v4-flash')).toBe('cline-pass/deepseek-v4-flash');
+    expect(normalizeClineModelId('kimi-k3')).toBe('cline-pass/kimi-k3');
+    expect(normalizeClineModelId('cline-pass/kimi-k3')).toBe('cline-pass/kimi-k3');
+    expect(normalizeClineModelId('anthropic/claude-sonnet-4.6')).toBe('anthropic/claude-sonnet-4.6');
   });
 });

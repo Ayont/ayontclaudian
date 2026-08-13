@@ -54,6 +54,30 @@ describe('parseClineJsonLine', () => {
     expect(event).toEqual(expect.objectContaining({ kind: 'text', text: 'OK' }));
   });
 
+  it('maps CLI run_result usage and finish errors', () => {
+    const result = parseClineJsonLine(JSON.stringify({
+      type: 'run_result',
+      finishReason: 'completed',
+      text: 'Hallo',
+      usage: { inputTokens: 120, outputTokens: 40, cacheReadTokens: 10 },
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      kind: 'usage',
+      text: 'Hallo',
+      isFinal: true,
+      usage: expect.objectContaining({ inputTokens: 120, outputTokens: 40 }),
+    }));
+
+    const failed = parseClineJsonLine(JSON.stringify({
+      type: 'agent_event',
+      event: { type: 'error', message: 'invalid model format' },
+    }));
+    expect(failed).toEqual(expect.objectContaining({
+      kind: 'error',
+      text: 'invalid model format',
+    }));
+  });
+
   it('maps CLI run_start and run_result envelopes from 3.0.54', () => {
     const start = parseClineJsonLine(JSON.stringify({
       type: 'run_start',

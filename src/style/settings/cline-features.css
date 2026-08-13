@@ -1,0 +1,70 @@
+/* Cline settings surface. Accent matches the provider brand (#00C9A7). */
+
+.claudian-cline-feature-hint {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  margin: 0 0 12px;
+}
+
+.claudian-cline-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 0 0 18px;
+}
+
+.claudian-cline-feature-group {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: var(--background-secondary);
+}
+
+.claudian-cline-feature-group-title {
+  font-weight: var(--font-semibold);
+  font-size: var(--font-ui-small);
+  margin-bottom: 2px;
+}
+
+.claudian-cline-feature-group-desc {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  margin-bottom: 10px;
+}
+
+.claudian-cline-feature-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.claudian-cline-feature-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: var(--font-ui-smaller);
+  line-height: 1.6;
+  color: var(--text-muted);
+  background: var(--background-modifier-hover);
+  border: 1px solid transparent;
+}
+
+.claudian-cline-feature-chip.is-active {
+  color: var(--text-on-accent, #04261f);
+  background: rgba(0, 201, 167, 0.22);
+  border-color: #00c9a7;
+  font-weight: var(--font-semibold);
+}
+
+.claudian-cline-status-card {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}

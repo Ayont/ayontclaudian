@@ -25,6 +25,8 @@ export type ClineApiProviderId =
 
 export type ClineThinkingLevel = 'none' | 'low' | 'medium' | 'high' | 'xhigh';
 
+export type ClineCompactionMode = 'agentic' | 'basic' | 'off';
+
 export interface ClineModelMeta {
   id: ClineModelId;
   label: string;
@@ -47,6 +49,12 @@ export const CLINE_THINKING_LEVELS: readonly ClineThinkingLevel[] = [
   'medium',
   'high',
   'xhigh',
+];
+
+export const CLINE_COMPACTION_MODES: readonly ClineCompactionMode[] = [
+  'agentic',
+  'basic',
+  'off',
 ];
 
 export const CLINE_API_PROVIDERS: readonly { id: ClineApiProviderId; label: string }[] = [
@@ -172,9 +180,32 @@ export const CLINE_PASS_MODELS: readonly ClineModelMeta[] = [
 ];
 
 const CLINE_PASS_BY_ID = new Map(CLINE_PASS_MODELS.map((model) => [model.id, model]));
+const CLINE_PASS_BY_SLUG = new Map(
+  CLINE_PASS_MODELS.map((model) => [model.id.slice('cline-pass/'.length), model]),
+);
 
 export function isClineThinkingLevel(value: unknown): value is ClineThinkingLevel {
   return typeof value === 'string' && (CLINE_THINKING_LEVELS as readonly string[]).includes(value);
+}
+
+export function isClineCompactionMode(value: unknown): value is ClineCompactionMode {
+  return typeof value === 'string' && (CLINE_COMPACTION_MODES as readonly string[]).includes(value);
+}
+
+/** Bare slugs like `deepseek-v4-flash` become `cline-pass/deepseek-v4-flash`. */
+export function normalizeClineModelId(
+  model: string,
+  apiProvider: ClineApiProviderId = 'cline-pass',
+): string {
+  const trimmed = model.trim();
+  if (!trimmed || trimmed.includes('/')) {
+    return trimmed;
+  }
+  const pass = CLINE_PASS_BY_SLUG.get(trimmed);
+  if (pass) {
+    return pass.id;
+  }
+  return apiProvider === 'cline-pass' ? `cline-pass/${trimmed}` : trimmed;
 }
 
 export function isClineApiProvider(value: unknown): value is ClineApiProviderId {

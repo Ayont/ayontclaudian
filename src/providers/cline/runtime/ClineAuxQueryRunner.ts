@@ -50,6 +50,7 @@ export class ClineAuxQueryRunner implements AuxQueryRunner {
     const launchSpec = buildClineLaunchSpec({
       apiProvider: settings.apiProvider,
       command,
+      compaction: 'off',
       cwd,
       env,
       envText,
@@ -57,6 +58,7 @@ export class ClineAuxQueryRunner implements AuxQueryRunner {
       model,
       permissionMode: 'yolo',
       prompt: fullPrompt,
+      retries: 1,
       thinking: 'none',
     });
 

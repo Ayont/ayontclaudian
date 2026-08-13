@@ -32,6 +32,8 @@ describe('buildClineLaunchSpec', () => {
       prompt: 'hi',
       sessionId: '1786522352621_1rqet',
       thinking: 'high',
+      compaction: 'basic',
+      retries: 5,
     });
     expect(spec.args).toEqual([
       '--yolo',
@@ -39,6 +41,8 @@ describe('buildClineLaunchSpec', () => {
       '-P', 'cline-pass',
       '-m', 'cline-pass/kimi-k3',
       '--thinking', 'high',
+      '--compaction', 'basic',
+      '--retries', '5',
       '-c', '/vault',
       '--plan',
       '--id', '1786522352621_1rqet',
@@ -68,7 +72,7 @@ describe('buildClineLaunchSpec', () => {
       cwd: '/vault',
       env: {},
       mode: 'print',
-      model: 'cline-pass/deepseek-v4-flash',
+      model: 'deepseek-v4-flash',
       permissionMode: 'yolo',
       prompt: 'Name this chat',
       thinking: 'none',
@@ -78,9 +82,9 @@ describe('buildClineLaunchSpec', () => {
       '--json',
       '-P', 'cline-pass',
       '-m', 'cline-pass/deepseek-v4-flash',
-      '--thinking', 'none',
       '-c', '/vault',
       'Name this chat',
     ]);
+    expect(spec.args).not.toContain('--thinking');
   });
 });
