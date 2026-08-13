@@ -26,6 +26,7 @@ import { TabBar } from './tabs/TabBar';
 import { TabManager } from './tabs/TabManager';
 import type { TabData, TabId } from './tabs/types';
 import { ModelSelectModal } from './ui/ModelSelectModal';
+import { ShortcutOverlay } from './ui/ShortcutOverlay';
 import { applyWorkspaceModeToContainer, WorkspaceModeToggle } from './ui/WorkspaceModeToggle';
 import { recalculateUsageForModel } from './utils/usageInfo';
 
@@ -59,6 +60,7 @@ export class ClaudianView extends ItemView {
 
   // Header elements
   private historyDropdown: HTMLElement | null = null;
+  private shortcutOverlay: ShortcutOverlay | null = null;
 
   // Event refs for cleanup
   private eventRefs: EventRef[] = [];
@@ -180,6 +182,7 @@ export class ClaudianView extends ItemView {
     this.viewContainerEl = container;
     this.viewContainerEl.empty();
     this.viewContainerEl.addClass('claudian-container');
+    this.shortcutOverlay = new ShortcutOverlay(this.viewContainerEl);
 
     const header = this.viewContainerEl.createDiv({ cls: 'claudian-header' });
     this.buildHeader(header);
@@ -379,6 +382,19 @@ export class ClaudianView extends ItemView {
     this.scope = null;
   }
 
+  private shouldToggleShortcutOverlay(event: KeyboardEvent): boolean {
+    if (event.isComposing) {
+      return false;
+    }
+    const target = event.target as HTMLElement | null;
+    const typingInField = target instanceof HTMLElement
+      && (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT' || target.isContentEditable);
+    if ((event.key === '/' || event.code === 'Slash') && (event.metaKey || event.ctrlKey)) {
+      return true;
+    }
+    return event.key === '?' && !typingInField;
+  }
+
   // ============================================
   // UI Building
   // ============================================
@@ -475,6 +491,14 @@ export class ClaudianView extends ItemView {
     historyBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       this.toggleHistoryDropdown();
+    });
+
+    const shortcutBtn = this.headerActionsContent.createDiv({ cls: 'claudian-header-btn' });
+    setIcon(shortcutBtn, 'keyboard');
+    shortcutBtn.setAttribute('aria-label', 'Tastenkürzel');
+    shortcutBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.shortcutOverlay?.toggle();
     });
 
     fragment.appendChild(this.headerActionsContent);
@@ -778,6 +802,17 @@ export class ClaudianView extends ItemView {
 
     // View-level Shift+Tab to toggle plan mode (works from any focused element)
     this.registerDomEvent(this.containerEl, 'keydown', (e: KeyboardEvent) => {
+      if (this.shouldToggleShortcutOverlay(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.shortcutOverlay?.toggle();
+        return;
+      }
+      if (e.key === 'Escape' && this.shortcutOverlay?.isOpen()) {
+        e.preventDefault();
+        this.shortcutOverlay.close();
+        return;
+      }
       if (e.key === 'Tab' && e.shiftKey && !e.isComposing) {
         e.preventDefault();
         const activeTab = this.tabManager?.getActiveTab();

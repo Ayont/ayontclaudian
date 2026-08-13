@@ -1,10 +1,19 @@
+/* THESIS: The chat is a T3 Code control plane — inbox threads, open assistant
+   prose, and one floating composer as the only chrome.
+   OWN-WORLD: Obsidian surfaces, 12–22px radii, hairline borders, circular send.
+   STORY: Blank chat shows a greeting and starters; the composer is the action.
+   FIRST VIEWPORT: Slim header, centered column, large rounded composer.
+   FORM: T3 Code canon. FINISH: unreviewed and undocumented is unfinished; this
+   build ends with the finish review, the verdict, and DESIGN.md */
 .claudian-container {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
   padding: 0;
   overflow: hidden;
-  font-family: var(--font-text);
+  font-family: var(--cl-font-ui, var(--font-text));
+  color: var(--text-normal);
 }
 
 .claudian-provider-icon-variant--dark {

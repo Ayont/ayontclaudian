@@ -15,11 +15,13 @@
      long token can never push the column sideways (the "chat shifts right"
      bug). Wide blocks scroll inside themselves instead. */
   overflow-x: hidden;
-  padding: var(--cl-space-3) 0;
+  padding: var(--cl-space-5) max(16px, calc((100% - var(--cl-chat-max)) / 2)) var(--cl-space-6);
   display: flex;
   flex-direction: column;
-  gap: var(--cl-space-4);
+  gap: 22px;
   min-width: 0;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text-faint) 45%, transparent) transparent;
 }
 
 /* Focusable messages panel for vim-style navigation */
@@ -27,7 +29,7 @@
   outline: none;
 }
 
-/* Welcome message - claude.ai style */
+/* Welcome — T3 Code empty state: large sans greeting + starter cards */
 .claudian-welcome {
   flex: 1;
   display: flex;
@@ -35,19 +37,19 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  gap: var(--cl-space-2);
-  padding: var(--cl-space-5);
-  min-height: 200px;
+  gap: 10px;
+  padding: 28px 16px 12px;
+  min-height: 240px;
   animation: cl-rise var(--cl-dur-slow) var(--cl-ease) both;
 }
 
 .claudian-welcome-greeting {
-  font-family: 'Copernicus', 'Tiempos Headline', 'Tiempos', Georgia, 'Times New Roman', serif;
-  font-size: clamp(24px, 4vw, 32px);
-  font-weight: 300;
-  line-height: 1.2;
-  color: var(--text-muted);
-  letter-spacing: -0.02em;
+  font-family: var(--cl-font-ui);
+  font-size: clamp(26px, 4.4vw, 38px);
+  font-weight: 560;
+  line-height: 1.15;
+  color: var(--text-normal);
+  letter-spacing: -0.034em;
 }
 
 /* Accent hairline under the greeting — picks up the active mode/provider
@@ -66,11 +68,11 @@
 .claudian-welcome-greeting::after {
   content: '';
   display: block;
-  width: 56px;
+  width: 36px;
   height: 2px;
-  margin: 14px auto 0;
+  margin: 16px auto 0;
   border-radius: 999px;
-  background: linear-gradient(90deg, transparent, var(--cl-accent), transparent);
+  background: var(--cl-accent);
   opacity: 0.55;
   animation: cl-hairline-draw 480ms var(--cl-ease) 160ms both;
 }
@@ -92,10 +94,76 @@
   display: block;
 }
 
+.claudian-welcome-starters {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: 18px;
+}
+
+.claudian-welcome-starter-group {
+  display: none;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-width: 520px;
+}
+
+.claudian-container:not(.claudian-mode-work) .claudian-welcome-starter-group--code,
+.claudian-container.claudian-mode-work .claudian-welcome-starter-group--work {
+  display: flex;
+}
+
+.claudian-welcome-starter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: auto;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: 14px;
+  background: var(--cl-surface-raised);
+  box-shadow: none;
+  color: var(--text-normal);
+  font-family: var(--cl-font-ui);
+  font-size: var(--cl-text-sm);
+  font-weight: 550;
+  cursor: pointer;
+  transition:
+    border-color var(--cl-dur-fast) var(--cl-ease),
+    background var(--cl-dur-fast) var(--cl-ease),
+    transform var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-welcome-starter:hover {
+  border-color: var(--cl-accent-line);
+  background: var(--cl-accent-soft);
+}
+
+.claudian-welcome-starter:active {
+  transform: scale(0.98);
+}
+
+.claudian-welcome-starter:focus-visible {
+  outline: none;
+  box-shadow: var(--cl-focus-ring);
+}
+
+.claudian-welcome-starter-icon {
+  display: inline-flex;
+  color: var(--cl-accent);
+}
+
+.claudian-welcome-starter-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
 .claudian-message {
-  padding: var(--cl-space-3) var(--cl-space-4);
-  border-radius: var(--cl-radius-md);
-  max-width: 95%;
+  padding: 2px 2px;
+  border-radius: var(--cl-radius-lg);
+  max-width: 100%;
   /* min-width:0 lets the flex item shrink below its widest child (e.g. a long
      code line); without it the item grows past the pane and forces a sideways
      scroll. overflow-wrap breaks unbreakable tokens (URLs, hashes). */
@@ -116,12 +184,13 @@
    asymmetric trailing radius anchors it to the user's side. */
 .claudian-message-user {
   position: relative;
-  background: linear-gradient(135deg, rgba(var(--claudian-brand-rgb), 0.10), rgba(var(--claudian-brand-rgb), 0.03)), var(--cl-surface-raised);
-  border: 1px solid rgba(var(--claudian-brand-rgb), 0.28);
-  box-shadow: var(--cl-shadow-sm);
+  background: color-mix(in srgb, var(--cl-accent) 16%, var(--cl-surface-raised));
+  border: 1px solid transparent;
+  box-shadow: none;
   align-self: flex-end;
-  border-radius: var(--cl-radius-lg);
-  border-end-end-radius: var(--cl-radius-xs);
+  width: fit-content;
+  max-width: min(78%, var(--cl-chat-max));
+  border-radius: 18px 18px 6px 18px;
   padding: 10px 14px;
 }
 
@@ -219,9 +288,8 @@
 .claudian-assistant-turn-done svg { width: 12px; height: 12px; }
 
 .claudian-message-assistant:hover {
-  border-color: rgba(var(--claudian-brand-rgb), 0.28);
-  border-inline-start-color: var(--cl-accent);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05), var(--cl-shadow-md);
+  border-color: transparent;
+  box-shadow: none;
 }
 
 .claudian-message-content {

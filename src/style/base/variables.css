@@ -43,12 +43,16 @@
   --cl-shadow-lg: 0 10px 28px rgba(0, 0, 0, 0.32);
   --cl-shadow-pop: 0 16px 40px rgba(0, 0, 0, 0.40);
 
-  /* Radius scale. */
-  --cl-radius-xs: 5px;
-  --cl-radius-sm: 7px;
-  --cl-radius-md: 11px;
-  --cl-radius-lg: 14px;
+  /* Radius scale — T3 Code: soft plates, circular send. */
+  --cl-radius-xs: 6px;
+  --cl-radius-sm: 8px;
+  --cl-radius-md: 12px;
+  --cl-radius-lg: 16px;
+  --cl-radius-xl: 22px;
   --cl-radius-pill: 999px;
+
+  /* Centered transcript + composer column. */
+  --cl-chat-max: 760px;
 
   /* Spacing scale (4px base). */
   --cl-space-1: 4px;
@@ -63,9 +67,9 @@
   --cl-font-mono: var(--font-monospace);
   --cl-text-xs: 11px;
   --cl-text-sm: 12px;
-  --cl-text-md: 13px;
-  --cl-text-lg: 15px;
-  --cl-leading: 1.6;
+  --cl-text-md: 14px;
+  --cl-text-lg: 16px;
+  --cl-leading: 1.65;
 
   /* Motion — compositor-friendly easings/durations. */
   --cl-ease: cubic-bezier(0.16, 1, 0.3, 1);

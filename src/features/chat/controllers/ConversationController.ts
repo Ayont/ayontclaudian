@@ -15,6 +15,7 @@ import { findRewindContext } from '../rewind';
 import type { SubagentManager } from '../services/SubagentManager';
 import type { ChatState } from '../state/ChatState';
 import type { FileContextManager } from '../ui/FileContext';
+import { groupConversationsByRecency } from '../ui/historyGrouping';
 import type { ImageContextManager } from '../ui/ImageContext';
 import type { ExternalContextSelector, McpServerSelector } from '../ui/InputToolbar';
 import type { StatusPanel } from '../ui/StatusPanel';
@@ -697,7 +698,17 @@ export class ConversationController {
     options: HistoryRenderOptions,
   ): void {
     const { state } = this.deps;
-    for (const conv of conversations) {
+    const groups = groupConversationsByRecency(
+      conversations,
+      (conv) => conv.lastResponseAt ?? conv.createdAt,
+      (conv) => Boolean(conv.pinned),
+    );
+    const showHeaders = groups.length > 1;
+    for (const group of groups) {
+      if (showHeaders) {
+        list.createDiv({ cls: 'claudian-history-group', text: group.label });
+      }
+      for (const conv of group.items) {
       const isCurrent = conv.id === state.currentConversationId;
       const item = list.createDiv({
         cls: `claudian-history-item${isCurrent ? ' active' : ''}`,
@@ -835,6 +846,7 @@ export class ConversationController {
           'Failed to delete conversation',
         );
       });
+      }
     }
   }
 

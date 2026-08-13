@@ -3,7 +3,8 @@
   position: relative;
   display: flex;
   align-items: center;
-  padding: 0 var(--cl-space-3) var(--cl-space-3) var(--cl-space-3);
+  min-height: 44px;
+  padding: 6px 12px 8px;
 }
 
 /* Title slot: contains logo + title (or tabs in header mode) */
@@ -25,10 +26,10 @@
 
 .claudian-title-text {
   margin: 0;
-  font-size: var(--cl-text-lg);
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 650;
   letter-spacing: -0.02em;
-  color: var(--text-normal);
+  color: var(--text-muted);
   transition: color var(--cl-dur) var(--cl-ease);
   flex-shrink: 0;
 }

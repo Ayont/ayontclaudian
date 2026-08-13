@@ -1,24 +1,29 @@
 /* Input area */
 .claudian-input-container {
   position: relative;
-  padding: 12px 0 0 0;
+  width: 100%;
+  padding: 8px max(16px, calc((100% - var(--cl-chat-max)) / 2)) 14px;
 }
 
 /* Input wrapper (border container) - flex column so textarea expands when no chips */
 /* Height calculation: context row (36px) + textarea min (60px) + toolbar (38px) + border (2px) = 136px */
 .claudian-input-wrapper {
   --claudian-input-wrapper-border-color: var(--cl-border-subtle);
-  --claudian-input-wrapper-box-shadow: none;
+  --claudian-input-wrapper-box-shadow: 0 10px 32px rgba(0, 0, 0, 0.18);
   position: relative;
   display: flex;
   flex-direction: column;
-  min-height: 140px;
+  min-height: 118px;
   border: 1px solid var(--claudian-input-wrapper-border-color);
-  border-radius: var(--cl-radius-md);
-  background: var(--cl-surface-base);
+  border-radius: var(--cl-radius-xl);
+  background: var(--cl-surface-raised);
   box-shadow: var(--claudian-input-wrapper-box-shadow);
   transition: border-color var(--cl-dur) var(--cl-ease),
     box-shadow var(--cl-dur) var(--cl-ease);
+}
+
+body.theme-light .claudian-input-wrapper {
+  --claudian-input-wrapper-box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
 
 /* Focus elevation: lift the composer with an accent border + soft shadow while
@@ -93,17 +98,18 @@
 .claudian-input-wrapper textarea.claudian-input {
   width: 100%;
   flex: 1 1 0;
-  min-height: var(--claudian-textarea-min-height, 60px);
+  min-height: var(--claudian-textarea-min-height, 56px);
   max-height: var(--claudian-textarea-max-height, none);
   resize: none;
-  padding: 8px 10px 10px 10px;
+  padding: 14px 16px 8px;
   border: none;
-  border-radius: 6px;
+  border-radius: 0;
   background: transparent;
   color: var(--text-normal);
+  caret-color: var(--cl-accent);
   font-family: inherit;
-  font-size: 14px;
-  line-height: 1.4;
+  font-size: 15px;
+  line-height: 1.5;
   box-shadow: none;
   overflow-y: auto;
   unicode-bidi: plaintext; /* Proper BiDi text handling for mixed RTL/LTR */
@@ -127,8 +133,9 @@
   align-items: center;
   justify-content: flex-start;
   flex-shrink: 0;
-  gap: var(--cl-space-2);
-  padding: 6px 8px;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 10px 10px;
 }
 
 .claudian-command-center-trigger {
@@ -148,6 +155,73 @@
 .claudian-command-center-trigger:active { transform: scale(.94); }
 .claudian-command-center-trigger:focus-visible { outline: 2px solid var(--claudian-accent); outline-offset: 2px; }
 .claudian-command-center-trigger svg { width: 14px; height: 14px; }
+
+.claudian-composer-hint {
+  margin-inline-start: auto;
+  color: var(--text-faint);
+  font-family: var(--cl-font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.claudian-send-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: var(--cl-radius-pill);
+  background: var(--cl-surface-sunken);
+  color: var(--text-faint);
+  cursor: pointer;
+  transition:
+    background var(--cl-dur-fast) var(--cl-ease),
+    color var(--cl-dur-fast) var(--cl-ease),
+    border-color var(--cl-dur-fast) var(--cl-ease),
+    transform var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-send-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.claudian-send-btn.is-ready {
+  background: var(--cl-accent);
+  border-color: transparent;
+  color: var(--text-on-accent, #fff);
+}
+
+.claudian-send-btn.is-ready:hover {
+  transform: scale(1.04);
+}
+
+.claudian-send-btn.is-streaming {
+  background: var(--cl-danger);
+  border-color: transparent;
+  color: #fff;
+}
+
+.claudian-send-btn.is-idle {
+  cursor: default;
+}
+
+.claudian-send-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--cl-focus-ring);
+}
+
+.claudian-send-btn:active:not(.is-idle) {
+  transform: scale(0.94);
+}
+
+.claudian-tab-content:has(.claudian-welcome:not(.claudian-hidden)) .claudian-mode-quick-row {
+  display: none;
+}
 
 /* File indicator (attached files) */
 .claudian-file-indicator {

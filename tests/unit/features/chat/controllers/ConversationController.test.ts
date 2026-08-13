@@ -324,16 +324,16 @@ describe('ConversationController', () => {
       const welcomeEl = deps.getWelcomeEl()!;
       const createDivSpy = jest.spyOn(welcomeEl, 'createDiv');
 
-      // First call adds the greeting + both mode sublines (3 elements).
+      // First call adds greeting, both mode sublines, and the starters host.
       controller.initializeWelcome();
-      expect(createDivSpy).toHaveBeenCalledTimes(3);
+      expect(createDivSpy).toHaveBeenCalledTimes(4);
 
       // Mock querySelector to return an element (greeting already exists)
       welcomeEl.querySelector = jest.fn().mockReturnValue(createMockEl());
 
       // Second call should not add more content
       controller.initializeWelcome();
-      expect(createDivSpy).toHaveBeenCalledTimes(3); // Unchanged
+      expect(createDivSpy).toHaveBeenCalledTimes(4);
     });
   });
 
@@ -734,6 +734,20 @@ describe('ConversationController', () => {
         const list = dropdown.children[1];
         const firstTitle = list.children[0].querySelector('.claudian-history-item-title');
         expect(firstTitle?.textContent).toBe('New');
+      });
+
+      it('groups mixed recency conversations with German headers', () => {
+        const now = Date.now();
+        (deps.plugin.getConversationList as jest.Mock).mockReturnValue([
+          { id: 'today', title: 'Heute-Chat', createdAt: now, lastResponseAt: now, pinned: false },
+          { id: 'old', title: 'Alter Chat', createdAt: now - 20 * 24 * 60 * 60 * 1000, lastResponseAt: now - 20 * 24 * 60 * 60 * 1000, pinned: false },
+        ]);
+
+        controller.updateHistoryDropdown();
+
+        const list = dropdown.children[1];
+        const groups = list.querySelectorAll('.claudian-history-group').map((el: { textContent: string }) => el.textContent);
+        expect(groups).toEqual(['Heute', 'Älter']);
       });
 
       it('should mark current conversation as active', () => {

@@ -406,6 +406,8 @@ const chrome = `
           <button class="claudian-os-action-button" type="button"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></button>
           <button class="claudian-os-action-button" type="button"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
         </div>
+        <span class="claudian-composer-hint">⌘↵</span>
+        <button class="claudian-send-btn is-ready" type="button" aria-label="Senden"><span class="claudian-send-btn-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></span></button>
       </div>
       <textarea class="claudian-input" rows="2" placeholder="Was bauen wir?"></textarea>
     </div>
@@ -454,10 +456,18 @@ const chrome = `
   </div>
   <div>
     <div style="font-size:11px;color:var(--text-faint);margin-bottom:8px;">WELCOME</div>
-    <div class="claudian-welcome" style="min-height:120px;">
+    <div class="claudian-welcome" style="min-height:220px;">
       <div class="claudian-welcome-greeting">Guten Abend, Niccolo</div>
       <div class="claudian-welcome-sub claudian-welcome-sub--code">Code-Modus · Dein Vault ist das Arbeitsverzeichnis</div>
       <div class="claudian-welcome-sub claudian-welcome-sub--work">Work-Modus · Dokumente, Notizen, Recherche</div>
+      <div class="claudian-welcome-starters">
+        <div class="claudian-welcome-starter-group claudian-welcome-starter-group--code">
+          <button class="claudian-welcome-starter" type="button"><span class="claudian-welcome-starter-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg></span><span class="claudian-welcome-starter-label">Bugs finden</span></button>
+          <button class="claudian-welcome-starter" type="button"><span class="claudian-welcome-starter-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg></span><span class="claudian-welcome-starter-label">Änderungen reviewen</span></button>
+          <button class="claudian-welcome-starter" type="button"><span class="claudian-welcome-starter-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg></span><span class="claudian-welcome-starter-label">Build &amp; Tests</span></button>
+          <button class="claudian-welcome-starter" type="button"><span class="claudian-welcome-starter-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg></span><span class="claudian-welcome-starter-label">Refactoring</span></button>
+        </div>
+      </div>
     </div>
   </div>
   <div>
@@ -475,9 +485,13 @@ const chrome = `
         <div class="claudian-history-header-top"><span>Chats</span><span class="claudian-history-header-count">24</span></div>
         <div class="claudian-history-search"><span class="claudian-history-search-icon"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span><input class="claudian-history-search-input" placeholder="Suchen…"></div>
       </div>
-      <div class="claudian-history-item active"><span class="claudian-history-item-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span>Kimi K3 Timeout-Fix</span></div>
-      <div class="claudian-history-item"><span class="claudian-history-item-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span>Workspace-Modus Design</span></div>
-      <div class="claudian-history-item"><span class="claudian-history-item-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span>Bazaar Order-Book Review</span></div>
+      <div class="claudian-history-list">
+        <div class="claudian-history-group">Heute</div>
+        <div class="claudian-history-item active"><span class="claudian-history-item-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span class="claudian-history-item-title">Kimi K3 Timeout-Fix</span></div>
+        <div class="claudian-history-group">Gestern</div>
+        <div class="claudian-history-item"><span class="claudian-history-item-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span class="claudian-history-item-title">Workspace-Modus Design</span></div>
+        <div class="claudian-history-item"><span class="claudian-history-item-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span class="claudian-history-item-title">Bazaar Order-Book Review</span></div>
+      </div>
     </div>
   </div>
 </div>`;

@@ -51,6 +51,7 @@ import { ChatState } from '../state/ChatState';
 import { BangBashModeManager as BangBashModeManagerClass } from '../ui/BangBashModeManager';
 import { ChatSearchController } from '../ui/ChatSearch';
 import { CommitBar } from '../ui/CommitBar';
+import { mountComposerSendButton } from '../ui/ComposerSendButton';
 import { buildVaultAttachmentPath, parentFolder } from '../ui/file-drop/vaultAttachment';
 import { FileContextManager } from '../ui/FileContext';
 import { FilePreviewPanel } from '../ui/FilePreviewPanel';
@@ -633,6 +634,7 @@ export function createTab(options: TabCreateOptions): TabData {
   const state = new ChatState({
     onStreamingStateChanged: (isStreaming: boolean) => {
       streamStatusBar?.setStreaming(isStreaming);
+      tab.ui.composerSend?.sync();
       if (isStreaming && streamStatusBar && getRunContextLabel) {
         const label = getRunContextLabel();
         if (label) {
@@ -726,6 +728,7 @@ export function createTab(options: TabCreateOptions): TabData {
       swarmPanel,
       multiAgentButton: null,
       filePreviewPanel: null,
+      composerSend: null,
     },
     dom,
     renderer: null,
@@ -1403,6 +1406,21 @@ function initializeInputToolbar(
   });
   voiceInput.render(osActionsEl);
   dom.eventCleanups.push(() => voiceInput.destroy());
+
+  const composerHint = inputToolbar.createSpan({ cls: 'claudian-composer-hint' });
+  composerHint.setText(Platform.isMacOS ? '⌘↵' : 'Ctrl+↵');
+
+  tab.ui.composerSend = mountComposerSendButton(inputToolbar, {
+    getInputValue: () => dom.inputEl.value,
+    isStreaming: () => tab.state.isStreaming,
+    onSend: () => {
+      void tab.controllers.inputController?.sendMessage();
+    },
+    onStop: () => {
+      tab.controllers.inputController?.cancelStreaming();
+    },
+  });
+  dom.eventCleanups.push(() => tab.ui.composerSend?.destroy());
 }
 
 export interface InitializeTabUIOptions {
@@ -2137,6 +2155,7 @@ export function wireTabInputEvents(tab: TabData, plugin: ClaudianPlugin): void {
 
   const inputHandler = () => {
     promptHistory.notifyInput(dom.inputEl.value);
+    ui.composerSend?.sync();
     if (!ui.bangBashModeManager?.isActive()) {
       ui.fileContextManager?.handleInputChange();
     }

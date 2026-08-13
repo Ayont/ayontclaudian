@@ -1,0 +1,121 @@
+.claudian-shortcuts {
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 16px 16px;
+  background: color-mix(in srgb, var(--background-primary) 55%, transparent);
+}
+
+.claudian-shortcuts.is-open {
+  display: flex;
+}
+
+.claudian-shortcuts-panel {
+  width: min(420px, 100%);
+  padding: 14px;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: var(--cl-radius-xl);
+  background: var(--cl-surface-raised);
+  box-shadow: var(--cl-shadow-pop);
+  animation: cl-menu-pop var(--cl-dur-fast) var(--cl-ease-out);
+}
+
+.claudian-shortcuts-title {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.claudian-shortcuts-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: 12px;
+  background: var(--cl-surface-base);
+}
+
+.claudian-shortcuts-search-icon {
+  display: inline-flex;
+  color: var(--text-faint);
+}
+
+.claudian-shortcuts-search-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.claudian-shortcuts-search {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-normal);
+  font-size: 13px;
+}
+
+.claudian-shortcuts-search:focus,
+.claudian-shortcuts-search:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.claudian-shortcuts-list {
+  display: grid;
+  gap: 2px;
+  max-height: min(52vh, 420px);
+  overflow: auto;
+}
+
+.claudian-shortcuts-group {
+  padding: 10px 6px 4px;
+  color: var(--text-faint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.claudian-shortcuts-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 8px;
+  border-radius: 10px;
+}
+
+.claudian-shortcuts-label {
+  color: var(--text-normal);
+  font-size: 13px;
+}
+
+.claudian-shortcuts-keys {
+  padding: 2px 7px;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-family: var(--cl-font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.claudian-shortcuts-empty {
+  padding: 22px 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-shortcuts-panel {
+    animation: none;
+  }
+}

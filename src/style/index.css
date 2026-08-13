@@ -39,6 +39,7 @@
 /* Features */
 @import "./features/auto-memory.css";
 @import "./features/chat-search.css";
+@import "./features/shortcuts.css";
 @import "./features/file-context.css";
 @import "./features/file-link.css";
 @import "./features/image-context.css";
