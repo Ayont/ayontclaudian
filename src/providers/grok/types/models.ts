@@ -11,27 +11,31 @@ import type { ProviderUIOption } from '../../../core/providers/types';
  *     Couldn't set model 'grok-composer-2.5-fast': Invalid params: "unknown
  *     model id". Run 'grok models' to see available models.
  *
- * As of Grok CLI 1.0.0 that list is a single entry:
+ * The served list currently reads:
  *
  *     $ grok models
- *     Default model: grok-4.5
+ *     Default model: grok-4.6
  *     Available models:
- *       * grok-4.5 (default)
+ *       * grok-4.6 (default)
+ *       - grok-4.5
  *
- * The previous catalog (`grok-composer-2.5-fast`, `grok-build`,
- * `grok-code-fast-1`) is retired — all three were verified to be rejected, which
- * meant every built-in Grok selection failed to start a turn. Keep this list
- * matched to `grok models`; extra ids from the user's config are merged in by
+ * The older catalog (`grok-composer-2.5-fast`, `grok-build`, `grok-code-fast-1`)
+ * is retired — all three were verified to be rejected, which meant every
+ * built-in Grok selection failed to start a turn. Keep this list matched to
+ * `grok models`; extra ids from the user's config are merged in by
  * `modelOptions.ts`, and `resolveGrokModelSelection` migrates a persisted id
  * that is no longer offered back to the default.
  */
 export type GrokModel = string;
 
 /** Default `-m` value — mirrors `grok models`' reported default. */
-export const DEFAULT_GROK_PRIMARY_MODEL: GrokModel = 'grok-4.5';
+export const DEFAULT_GROK_PRIMARY_MODEL: GrokModel = 'grok-4.6';
 
 /** Display label for the default model. */
-const DEFAULT_GROK_PRIMARY_MODEL_LABEL = 'Grok 4.5';
+const DEFAULT_GROK_PRIMARY_MODEL_LABEL = 'Grok 4.6';
+
+/** Previous generation, still served and still selectable. */
+export const GROK_45_MODEL: GrokModel = 'grok-4.5';
 
 /**
  * Fallback context window for ids we know nothing about (hand-typed custom
@@ -42,6 +46,7 @@ export const DEFAULT_GROK_CONTEXT_WINDOW = 256_000;
 
 /** Published context windows per served model id (xAI model docs). */
 export const KNOWN_GROK_MODEL_CONTEXT_WINDOWS: Readonly<Record<string, number>> = Object.freeze({
+  'grok-4.6': 500_000,
   'grok-4.5': 500_000,
 });
 
@@ -65,6 +70,7 @@ function createGrokModelOption(model: GrokModel, label: string, description: str
 /** Built-in default model options shown before any user/config additions. */
 export const DEFAULT_GROK_MODELS: ProviderUIOption[] = [
   createGrokModelOption(DEFAULT_GROK_PRIMARY_MODEL, DEFAULT_GROK_PRIMARY_MODEL_LABEL, 'CLI-Standardmodell · 500K Kontext'),
+  createGrokModelOption(GROK_45_MODEL, 'Grok 4.5', 'Vorherige Generation · 500K Kontext'),
 ];
 
 /** Fast lookup for whether a model id is one of the built-in defaults. */

@@ -48,4 +48,43 @@ describe('VaultRAGService', () => {
     expect(results.length).toBeGreaterThan(0);
     expect(results[0].path).toBe('obsidian.md');
   });
+
+  // Regression: this runs from `onLayoutReady` in the Electron RENDERER, on the
+  // same thread that paints Obsidian. A tight loop over every markdown file
+  // (chunk + embed per file) never returns to the event loop, so the window
+  // freezes for the whole pass — on a 340-note vault that is the difference
+  // between a normal start and "Workspace wird geladen…" sitting there.
+  it('returns to the event loop between files so the UI can paint', async () => {
+    const files = Array.from({ length: 8 }, (_, i) => ({
+      path: `note-${i}.md`,
+      content: `Obsidian note number ${i}.`,
+    }));
+    const rag = new VaultRAGService(createVault(files), new FakeEmbeddingService(), new VectorStore());
+
+    // A macrotask scheduled before indexing starts must get to run WHILE the
+    // pass is still going. Without a yield it can only run after everything.
+    let ranDuringIndexing = false;
+    let indexingFinished = false;
+    setTimeout(() => { ranDuringIndexing = !indexingFinished; }, 0);
+
+    await rag.indexVault();
+    indexingFinished = true;
+
+    expect(ranDuringIndexing).toBe(true);
+  });
+
+  it('reports how far it got when embedding fails midway', async () => {
+    const failing: EmbeddingService = {
+      getDimension: () => 3,
+      isAvailable: async () => true,
+      embed: async () => { throw new Error('Ollama unreachable'); },
+    };
+    const rag = new VaultRAGService(
+      createVault([{ path: 'a.md', content: 'Obsidian note.' }]),
+      failing,
+      new VectorStore(),
+    );
+
+    await expect(rag.indexVault()).resolves.toBe(0);
+  });
 });

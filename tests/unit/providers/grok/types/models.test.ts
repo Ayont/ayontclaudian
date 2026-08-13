@@ -17,7 +17,13 @@ describe('Grok model catalog', () => {
   ];
 
   it('uses the model id `grok models` actually reports as the default', () => {
-    expect(DEFAULT_GROK_PRIMARY_MODEL).toBe('grok-4.5');
+    expect(DEFAULT_GROK_PRIMARY_MODEL).toBe('grok-4.6');
+  });
+
+  it('keeps the still-served previous generation selectable', () => {
+    // `grok models` lists grok-4.5 alongside the 4.6 default, and `grok -m
+    // grok-4.5` answers, so dropping it would remove a working choice.
+    expect(DEFAULT_GROK_MODELS.map(m => m.value)).toContain('grok-4.5');
   });
 
   it('lists the default first and no retired ids', () => {
@@ -28,7 +34,8 @@ describe('Grok model catalog', () => {
     }
   });
 
-  it('publishes the served model\'s real context window', () => {
+  it('publishes the served models\' real context windows', () => {
+    expect(KNOWN_GROK_MODEL_CONTEXT_WINDOWS['grok-4.6']).toBe(500_000);
     expect(KNOWN_GROK_MODEL_CONTEXT_WINDOWS['grok-4.5']).toBe(500_000);
   });
 

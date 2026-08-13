@@ -16,7 +16,10 @@ describe('OllamaEmbeddingProvider', () => {
 
     const provider = new OllamaEmbeddingProvider({ baseUrl: 'http://localhost:11434', model: 'nomic-embed-text' });
     expect(await provider.isAvailable()).toBe(true);
-    expect(mockFetch).toHaveBeenCalledWith('http://localhost:11434/api/tags', { method: 'GET' });
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://localhost:11434/api/tags',
+      expect.objectContaining({ method: 'GET', signal: expect.anything() }),
+    );
   });
 
   it('reports unavailable when model is missing', async () => {
@@ -64,5 +67,39 @@ describe('OllamaEmbeddingProvider', () => {
 
     const provider = new OllamaEmbeddingProvider({ baseUrl: 'http://localhost:11434', model: 'nomic-embed-text' });
     await expect(provider.embed(['hello'])).rejects.toThrow('Ollama embedding failed (404 Not Found)');
+  });
+
+  // Regression: this probe runs from `onLayoutReady`, and Obsidian's workspace
+  // load waits on it. Without a deadline, a port that accepts the connection but
+  // never answers (Ollama mid-start, a stale listener, a proxy) hangs the probe
+  // forever — and the vault sits on "Workspace wird geladen…".
+  it('gives up on a probe that never answers instead of hanging startup', async () => {
+    mockFetch.mockImplementationOnce((_url: string, init: { signal?: AbortSignal }) =>
+      new Promise((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+      }));
+
+    const provider = new OllamaEmbeddingProvider({
+      baseUrl: 'http://localhost:11434',
+      model: 'nomic-embed-text',
+      timeoutMs: 20,
+    });
+
+    await expect(provider.isAvailable()).resolves.toBe(false);
+  });
+
+  it('gives up on an embedding request that never answers', async () => {
+    mockFetch.mockImplementationOnce((_url: string, init: { signal?: AbortSignal }) =>
+      new Promise((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+      }));
+
+    const provider = new OllamaEmbeddingProvider({
+      baseUrl: 'http://localhost:11434',
+      model: 'nomic-embed-text',
+      timeoutMs: 20,
+    });
+
+    await expect(provider.embed(['hello'])).rejects.toThrow();
   });
 });

@@ -16,6 +16,18 @@ export interface VaultRAGOptions {
   maxChunksPerFile?: number;
 }
 
+/**
+ * Hands control back to the event loop.
+ *
+ * A resolved promise is NOT enough: awaiting one only drains the microtask
+ * queue, and the renderer cannot paint from there. A zero-delay timer is a
+ * macrotask, which lets Obsidian render a frame, run its own indexer, and stay
+ * responsive to input between files.
+ */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 export class VaultRAGService {
   private isIndexing = false;
   /** Per-path serialization so concurrent re-indexes of one file can't interleave. */
@@ -28,6 +40,17 @@ export class VaultRAGService {
     private readonly options: VaultRAGOptions = {},
   ) {}
 
+  /**
+   * Embeds every markdown file into the vector store.
+   *
+   * This runs in the Electron RENDERER — the same thread that paints Obsidian —
+   * and it is kicked off from `onLayoutReady`, while Obsidian is still building
+   * its own index. Chunking and embedding a file is synchronous CPU work, so
+   * without an explicit yield the whole pass runs as one uninterruptible block
+   * and the window freezes until it finishes. On a few hundred notes that reads
+   * as "Obsidian won't load". Hence the yield after every file: the pass takes
+   * marginally longer in wall-clock terms and costs nothing in responsiveness.
+   */
   async indexVault(options: { limit?: number; onProgress?: (count: number) => void } = {}): Promise<number> {
     if (this.isIndexing) return 0;
     this.isIndexing = true;
@@ -37,6 +60,7 @@ export class VaultRAGService {
       let indexed = 0;
 
       for (const file of files) {
+        await yieldToEventLoop();
         const content = await this.vault.cachedRead(file).catch(() => '');
         if (!content.trim()) continue;
 

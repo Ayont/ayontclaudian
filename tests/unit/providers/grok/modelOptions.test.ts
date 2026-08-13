@@ -215,8 +215,8 @@ describe('built-in catalog', () => {
   // start a turn. `grok models` reports exactly one served model: grok-4.5.
   const RETIRED_MODEL_IDS = ['grok-composer-2.5-fast', 'grok-build', 'grok-code-fast-1'];
 
-  it('offers grok-4.5 as the primary model', () => {
-    expect(DEFAULT_GROK_PRIMARY_MODEL).toBe('grok-4.5');
+  it('offers grok-4.6 as the primary model', () => {
+    expect(DEFAULT_GROK_PRIMARY_MODEL).toBe('grok-4.6');
   });
 
   it('no longer ships model ids the CLI rejects', () => {
