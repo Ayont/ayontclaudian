@@ -263,6 +263,17 @@ export interface EnsureProviderHealthyResult {
   providerId: ProviderId;
 }
 
+export function shouldBypassClineVersionProbe(options: {
+  command: string | null;
+  enabled: boolean;
+  providerId: string;
+}): boolean {
+  return options.providerId === 'cline'
+    && options.enabled
+    && typeof options.command === 'string'
+    && options.command.trim().length > 0;
+}
+
 /**
  * Pre-flight check used before starting a chat turn. Returns a structured
  * error result instead of throwing so callers can surface it inline.
@@ -276,6 +287,22 @@ export async function ensureProviderHealthy(
     // Defensive: unregistered provider ids only occur in tests/mocks. Treat as
     // healthy so mock runtimes continue to work.
     return { ok: true, providerId };
+  }
+
+  if (providerId === 'cline') {
+    const enabled = ProviderRegistry.isEnabled(providerId, settings);
+    const command = resolveProviderCliPath(providerId, settings);
+    if (shouldBypassClineVersionProbe({ providerId, enabled, command })) {
+      return { ok: true, providerId };
+    }
+    const displayName = ProviderRegistry.getProviderDisplayName(providerId);
+    return {
+      ok: false,
+      providerId,
+      error: enabled
+        ? `${displayName} CLI not found. Install or configure the CLI path.`
+        : `${displayName} is disabled.`,
+    };
   }
 
   const health = await checkProviderHealth(providerId, settings, options);

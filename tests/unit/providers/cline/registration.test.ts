@@ -3,7 +3,7 @@ import { DEFAULT_CLINE_PROVIDER_SETTINGS } from '@/providers/cline/settings';
 import { opencodeProviderRegistration } from '@/providers/opencode/registration';
 
 describe('clineProviderRegistration', () => {
-  it('registers a disabled-by-default ACP provider after OpenCode', () => {
+  it('registers a disabled-by-default print provider after OpenCode', () => {
     expect(clineProviderRegistration.displayName).toBe('Cline');
     expect(clineProviderRegistration.blankTabOrder).toBeGreaterThan(
       opencodeProviderRegistration.blankTabOrder,

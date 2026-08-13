@@ -1,5 +1,4 @@
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
-import * as path from 'node:path';
 
 import { expandProviderCommandInput } from '../../../core/providers/commands/expandProviderCommandInput';
 import { appendImagePathReferences } from '../../../core/providers/imagePathFallback';
@@ -33,10 +32,8 @@ import type {
   ToolCallInfo,
 } from '../../../core/types';
 import type ClaudianPlugin from '../../../main';
-import { getEnhancedPath } from '../../../utils/env';
 import { getVaultPath } from '../../../utils/path';
 import {
-  resolveWindowsCmdShimSpawnSpec,
   terminateSpawnedProcess,
   type WindowsCmdShimSpawnSpec,
 } from '../../../utils/windowsCmdShim';
@@ -47,6 +44,7 @@ import { parseClineJsonLine } from '../normalization/jsonEvents';
 import { CLINE_PROVIDER_ID, getClineProviderSettings } from '../settings';
 import { buildPersistedClineState, type ClineProviderState,getClineState, isClineNativeSessionId } from '../types';
 import { buildClineLaunchSpec } from './ClineLaunchSpec';
+import { spawnClineProcess } from './ClineProcess';
 import { buildClineRuntimeEnv } from './ClineRuntimeEnvironment';
 import { CLINE_KEEPALIVE_INTERVAL_MS, CLINE_KEEPALIVE_MAX_SILENCE_MS } from './keepalive';
 
@@ -61,6 +59,7 @@ export class ClineChatRuntime implements ChatRuntime {
   readonly providerId = CLINE_PROVIDER_ID;
 
   private activeProcess: ChildProcessWithoutNullStreams | null = null;
+  private activeSpawnSpec: WindowsCmdShimSpawnSpec | null = null;
   private cancelled = false;
   private currentTurnMetadata: ChatTurnMetadata = {};
   private isResumeRetry = false;
@@ -189,17 +188,14 @@ export class ClineChatRuntime implements ChatRuntime {
     let proc: ChildProcessWithoutNullStreams;
     let resolvedSpawnSpec: WindowsCmdShimSpawnSpec;
     try {
-      resolvedSpawnSpec = resolveWindowsCmdShimSpawnSpec(launchSpec);
-      proc = spawn(resolvedSpawnSpec.command, resolvedSpawnSpec.args, {
+      const spawned = spawnClineProcess({
+        args: launchSpec.args,
+        command: launchSpec.command,
         cwd,
-        env: {
-          ...env,
-          PATH: getEnhancedPath(env.PATH, path.isAbsolute(command) ? command : undefined),
-        },
-        stdio: 'pipe',
-        windowsHide: true,
-        ...(resolvedSpawnSpec.windowsVerbatimArguments ? { windowsVerbatimArguments: true } : {}),
+        env,
       });
+      proc = spawned.proc;
+      resolvedSpawnSpec = spawned.spawnSpec;
     } catch (error) {
       yield {
         type: 'error',
@@ -210,6 +206,7 @@ export class ClineChatRuntime implements ChatRuntime {
     }
 
     this.activeProcess = proc;
+    this.activeSpawnSpec = resolvedSpawnSpec;
     proc.stdin.end();
 
     let stdoutBuffer = '';
@@ -344,6 +341,7 @@ export class ClineChatRuntime implements ChatRuntime {
         yield { type: 'notice', content: staleSessionRetryNotice('Cline'), level: 'info' };
         if (this.activeProcess === proc) {
           this.activeProcess = null;
+          this.activeSpawnSpec = null;
         }
         yield* this.query(turn, conversationHistory, queryOptions);
         return;
@@ -369,6 +367,18 @@ export class ClineChatRuntime implements ChatRuntime {
         return;
       }
 
+      if (exitInfo.code === null && !responseText.trim()) {
+        yield {
+          type: 'error',
+          content: this.formatError(
+            'Cline wurde beendet, bevor eine Antwort kam. In den Cline-Einstellungen „Im Terminal anmelden“ ausführen und den CLI-Pfad prüfen.',
+            stderr,
+          ),
+        };
+        yield { type: 'done' };
+        return;
+      }
+
       this.currentTurnMetadata.wasSent = true;
       const contextTokens = estimateTokensForTexts([
         ...(conversationHistory ?? []).map((message) => message.content ?? ''),
@@ -389,6 +399,7 @@ export class ClineChatRuntime implements ChatRuntime {
       window.clearInterval(keepaliveTimer);
       if (this.activeProcess === proc) {
         this.activeProcess = null;
+        this.activeSpawnSpec = null;
       }
     }
   }
@@ -400,8 +411,9 @@ export class ClineChatRuntime implements ChatRuntime {
   cancel(): void {
     this.cancelled = true;
     if (this.activeProcess) {
-      terminateSpawnedProcess(this.activeProcess, 'SIGTERM', spawn, null);
+      terminateSpawnedProcess(this.activeProcess, 'SIGTERM', spawn, this.activeSpawnSpec);
       this.activeProcess = null;
+      this.activeSpawnSpec = null;
     }
   }
 

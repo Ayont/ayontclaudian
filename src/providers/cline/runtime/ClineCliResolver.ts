@@ -1,6 +1,3 @@
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-
 import { findCliBinaryPath, resolveConfiguredCliPath } from '../../../utils/cliBinaryLocator';
 import {
   getClineProviderSettings,
@@ -10,21 +7,12 @@ import {
 
 export const CLINE_BINARY = 'cline';
 
-/** Prefer the compiled Bun binary next to the Node wrapper (`bin/.cline`). */
+/**
+ * Keep the Node wrapper (`bin/cline`). Spawning the sibling Bun binary
+ * (`.cline`) from Electron dies with a null exit code.
+ */
 export function resolveClineNativeBinary(command: string): string {
-  const trimmed = command.trim();
-  if (!trimmed) {
-    return trimmed;
-  }
-  const sibling = path.join(path.dirname(trimmed), '.cline');
-  try {
-    if (fs.existsSync(sibling) && fs.statSync(sibling).isFile()) {
-      return sibling;
-    }
-  } catch {
-    return trimmed;
-  }
-  return trimmed;
+  return command.trim();
 }
 
 export class ClineCliResolver {

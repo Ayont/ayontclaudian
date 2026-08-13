@@ -1,14 +1,21 @@
 import * as fs from 'node:fs';
 
-import { Setting } from 'obsidian';
+import { Notice, Setting } from 'obsidian';
 
+import { firstOutputLine } from '../../../core/diagnostics/providerHealthCheck';
 import type { ProviderSettingsTabRenderer } from '../../../core/providers/types';
 import { renderEnvironmentSettingsSection } from '../../../features/settings/ui/EnvironmentSettingsSection';
 import { t } from '../../../i18n/i18n';
 import { getHostnameKey } from '../../../utils/env';
 import { expandHomePath } from '../../../utils/path';
 import { maybeGetClineWorkspaceServices } from '../app/ClineWorkspaceServices';
+import {
+  formatClineAuthStatus,
+  launchClineAuthInTerminal,
+  readClineAuthStatus,
+} from '../auth/ClineAuth';
 import { getClineModelOptions } from '../modelOptions';
+import { probeClineVersion } from '../runtime/ClineProcess';
 import {
   CLINE_PROVIDER_ID,
   getClineProviderSettings,
@@ -43,12 +50,13 @@ export const clineSettingsTabRenderer: ProviderSettingsTabRenderer = {
     const settings = getClineProviderSettings(settingsBag);
     const hostnameKey = getHostnameKey();
     const workspace = maybeGetClineWorkspaceServices();
+    const resolvedCliPath = context.plugin.getResolvedProviderCliPath(CLINE_PROVIDER_ID);
 
     new Setting(container).setName(t('settings.setup')).setHeading();
 
     new Setting(container)
       .setName('Cline aktivieren')
-      .setDesc('Cline CLI (`cline --acp`) mit ClinePass-Modellen und Plan/Act als Provider starten.')
+      .setDesc('Cline CLI (`cline --json`) mit ClinePass-Modellen und Plan/Act als Provider starten.')
       .addToggle((toggle) =>
         toggle.setValue(settings.enabled).onChange(async (value) => {
           updateClineProviderSettings(settingsBag, { enabled: value });
@@ -57,12 +65,31 @@ export const clineSettingsTabRenderer: ProviderSettingsTabRenderer = {
         }),
       );
 
+    const authStatusEl = container.createDiv({
+      cls: 'claudian-setting-validation claudian-cline-auth-status',
+      text: formatClineAuthStatus(readClineAuthStatus(), settings.apiProvider),
+    });
+
+    const refreshAuthStatus = (): void => {
+      authStatusEl.setText(formatClineAuthStatus(readClineAuthStatus(), settings.apiProvider));
+    };
+
     new Setting(container)
       .setName('Anmelden')
-      .setDesc('Öffnet `cline auth` im Browser. ClinePass und Cline (Usage) teilen sich denselben Login.')
+      .setDesc('Startet `cline auth cline` im Terminal. ClinePass und Cline (Usage) teilen sich denselben Login — nicht die Abo-Seite.')
       .addButton((button) => {
-        button.setButtonText('cline auth').onClick(() => {
-          window.open('https://app.cline.bot/dashboard/subscription?personal=true', '_blank');
+        button.setButtonText('Im Terminal anmelden').onClick(() => {
+          const command = context.plugin.getResolvedProviderCliPath(CLINE_PROVIDER_ID) || 'cline';
+          const current = getClineProviderSettings(settingsBag);
+          launchClineAuthInTerminal(command, current.apiProvider);
+          new Notice('Terminal geöffnet. Melde dich dort an, danach ist Cline hier bereit.');
+          window.setTimeout(refreshAuthStatus, 4000);
+        });
+      })
+      .addButton((button) => {
+        button.setButtonText('Status prüfen').onClick(() => {
+          refreshAuthStatus();
+          new Notice(authStatusEl.getText());
         });
       });
 
@@ -79,6 +106,7 @@ export const clineSettingsTabRenderer: ProviderSettingsTabRenderer = {
           }
           updateClineProviderSettings(settingsBag, { apiProvider: value });
           await context.plugin.saveSettings();
+          refreshAuthStatus();
         });
       });
 
@@ -119,7 +147,11 @@ export const clineSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     new Setting(container)
       .setName('CLI-Pfad')
-      .setDesc('Optionaler absoluter Pfad zur `cline`-Binary. Leer lassen, um `cline` aus dem PATH zu nehmen.')
+      .setDesc(
+        resolvedCliPath
+          ? `Optionaler absoluter Pfad zur \`cline\`-Binary. Erkannt: ${resolvedCliPath}`
+          : 'Optionaler absoluter Pfad zur `cline`-Binary. Leer lassen, um `cline` aus dem PATH zu nehmen.',
+      )
       .addText((text) => {
         const currentValue = settings.cliPathsByHost[hostnameKey] || '';
         text
@@ -133,6 +165,33 @@ export const clineSettingsTabRenderer: ProviderSettingsTabRenderer = {
         cliPathInputEl = text.inputEl;
         updateValidation(currentValue, text.inputEl);
       });
+
+    const runtimeStatusEl = container.createDiv({
+      cls: 'claudian-setting-validation claudian-cline-runtime-status',
+      text: resolvedCliPath ? `Erkannt: ${resolvedCliPath}` : 'Noch nicht geprüft.',
+    });
+    new Setting(container)
+      .setName('Cline-CLI prüfen')
+      .setDesc('Startet `cline --version` mit bereinigter Umgebung. Ein fehlgeschlagener Versions-Check blockiert den Chat nicht.')
+      .addButton((button) => button
+        .setButtonText('Jetzt prüfen')
+        .onClick(async () => {
+          button.setDisabled(true);
+          runtimeStatusEl.setText('Cline wird geprüft …');
+          workspace?.cliResolver?.reset();
+          const command = context.plugin.getResolvedProviderCliPath(CLINE_PROVIDER_ID);
+          if (!command) {
+            runtimeStatusEl.setText('Cline wurde nicht gefunden. Empfohlen: `npm i -g cline`.');
+            button.setDisabled(false);
+            return;
+          }
+
+          const result = await probeClineVersion(command);
+          runtimeStatusEl.setText(result.ok
+            ? `Bereit: ${firstOutputLine(result.output) || 'Version erkannt'} · ${command}`
+            : `Version-Check: ${result.detail ?? 'keine Antwort'} · ${command}. Chat-Turns starten die CLI trotzdem.`);
+          button.setDisabled(false);
+        }));
 
     new Setting(container).setName(t('settings.models')).setHeading();
 
@@ -152,6 +211,22 @@ export const clineSettingsTabRenderer: ProviderSettingsTabRenderer = {
           settingsBag.model = value;
           await context.plugin.saveSettings();
           context.refreshModelSelectors();
+        });
+      });
+
+    new Setting(container)
+      .setName('Modus')
+      .setDesc('`--yolo` für Act ohne Freigaben, `--plan` für Plan-Modus. Headless-Turns brauchen YOLO, weil Freigaben hier nicht angezeigt werden.')
+      .addDropdown((dropdown) => {
+        dropdown.addOption('yolo', 'YOLO (Act)');
+        dropdown.addOption('plan', 'Plan');
+        dropdown.addOption('normal', 'Safe');
+        dropdown.setValue(settings.permissionMode).onChange(async (value) => {
+          if (value !== 'yolo' && value !== 'plan' && value !== 'normal') {
+            return;
+          }
+          updateClineProviderSettings(settingsBag, { permissionMode: value });
+          await context.plugin.saveSettings();
         });
       });
 

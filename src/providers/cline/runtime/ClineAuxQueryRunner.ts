@@ -1,23 +1,23 @@
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
-import * as path from 'node:path';
 
 import type { AuxQueryConfig, AuxQueryRunner } from '../../../core/auxiliary/AuxQueryRunner';
 import { getRuntimeEnvironmentText } from '../../../core/providers/providerEnvironment';
 import type ClaudianPlugin from '../../../main';
-import { getEnhancedPath } from '../../../utils/env';
 import { getVaultPath } from '../../../utils/path';
 import {
-  resolveWindowsCmdShimSpawnSpec,
   terminateSpawnedProcess,
+  type WindowsCmdShimSpawnSpec,
 } from '../../../utils/windowsCmdShim';
 import { resolveClineModelSelection } from '../modelOptions';
 import { extractClineJsonText } from '../normalization/jsonEvents';
 import { CLINE_PROVIDER_ID,getClineProviderSettings } from '../settings';
 import { buildClineLaunchSpec } from './ClineLaunchSpec';
+import { spawnClineProcess } from './ClineProcess';
 import { buildClineRuntimeEnv } from './ClineRuntimeEnvironment';
 
 export class ClineAuxQueryRunner implements AuxQueryRunner {
   private activeProcess: ChildProcessWithoutNullStreams | null = null;
+  private activeSpawnSpec: WindowsCmdShimSpawnSpec | null = null;
 
   constructor(private readonly plugin: ClaudianPlugin) {}
 
@@ -60,21 +60,20 @@ export class ClineAuxQueryRunner implements AuxQueryRunner {
       thinking: 'none',
     });
 
-    const resolvedSpawnSpec = resolveWindowsCmdShimSpawnSpec(launchSpec);
-    const proc = spawn(resolvedSpawnSpec.command, resolvedSpawnSpec.args, {
+    const spawned = spawnClineProcess({
+      args: launchSpec.args,
+      command: launchSpec.command,
       cwd,
-      env: {
-        ...env,
-        PATH: getEnhancedPath(env.PATH, path.isAbsolute(command) ? command : undefined),
-      },
-      stdio: 'pipe',
+      env,
     });
+    const proc = spawned.proc;
     this.activeProcess = proc;
+    this.activeSpawnSpec = spawned.spawnSpec;
 
     return new Promise<string>((resolve, reject) => {
       let output = '';
       const onAbort = (): void => {
-        terminateSpawnedProcess(proc, 'SIGTERM', spawn, null);
+        terminateSpawnedProcess(proc, 'SIGTERM', spawn, spawned.spawnSpec);
         reject(new Error('Cancelled'));
       };
       config.abortController?.signal.addEventListener('abort', onAbort);
@@ -88,11 +87,13 @@ export class ClineAuxQueryRunner implements AuxQueryRunner {
       proc.on('error', (error) => {
         config.abortController?.signal.removeEventListener('abort', onAbort);
         this.activeProcess = null;
+        this.activeSpawnSpec = null;
         reject(error);
       });
       proc.on('close', () => {
         config.abortController?.signal.removeEventListener('abort', onAbort);
         this.activeProcess = null;
+        this.activeSpawnSpec = null;
         const text = extractClineJsonText(output).trim();
         if (text) {
           resolve(text);
@@ -105,8 +106,9 @@ export class ClineAuxQueryRunner implements AuxQueryRunner {
 
   reset(): void {
     if (this.activeProcess) {
-      terminateSpawnedProcess(this.activeProcess, 'SIGTERM', spawn, null);
+      terminateSpawnedProcess(this.activeProcess, 'SIGTERM', spawn, this.activeSpawnSpec);
       this.activeProcess = null;
+      this.activeSpawnSpec = null;
     }
   }
 }
