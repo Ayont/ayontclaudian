@@ -6,6 +6,7 @@ describe('getBuiltInProviderDefaultConfigs', () => {
     const second = getBuiltInProviderDefaultConfigs();
 
     expect(first).toHaveProperty('claude');
+    expect(first).toHaveProperty('cline');
     expect(first).toHaveProperty('codex');
     expect(first).toHaveProperty('opencode');
     expect(first).toHaveProperty('pi');

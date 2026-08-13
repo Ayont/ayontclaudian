@@ -165,6 +165,36 @@ export const VIBE_PROVIDER_ICON: ProviderIconSvg = {
   ],
 };
 
+// Cline mark: a teal ring with a cut “C” opening — geometric stand-in for
+// Cline’s circular brand, tinted with the ClinePass teal.
+export const CLINE_PROVIDER_ICON: ProviderIconSvg = {
+  kind: 'composite',
+  viewBox: '0 0 24 24',
+  children: [
+    {
+      tag: 'defs',
+      attributes: {},
+      children: [
+        {
+          tag: 'linearGradient',
+          attributes: { id: 'claudian-cline-grad', gradientUnits: 'userSpaceOnUse', x1: '4', y1: '4', x2: '20', y2: '20' },
+          children: [
+            { tag: 'stop', attributes: { offset: '0%', 'stop-color': '#5EEAD4' } },
+            { tag: 'stop', attributes: { offset: '100%', 'stop-color': '#0D9488' } },
+          ],
+        },
+      ],
+    },
+    {
+      tag: 'path',
+      attributes: {
+        d: 'M12 3.2a8.8 8.8 0 1 0 6.8 3.2 2.1 2.1 0 0 0-3.24 2.66A4.7 4.7 0 1 1 12 7.3a2.1 2.1 0 1 0 0-4.1Z',
+        fill: 'url(#claudian-cline-grad)',
+      },
+    },
+  ],
+};
+
 // Grok / xAI mark: the angular "X" glyph filled with xAI's white→black gradient
 // (diagonal, top-left white fading to near-black bottom-right).
 export const GROK_PROVIDER_ICON: ProviderIconSvg = {

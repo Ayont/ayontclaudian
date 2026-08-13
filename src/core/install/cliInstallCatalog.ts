@@ -83,6 +83,14 @@ export const CLI_INSTALL_CATALOG: Record<string, CliInstallSpec> = {
     methods: { default: [NPM('@anthropic-ai/claude-code')] },
   },
 
+  cline: {
+    id: 'cline',
+    displayName: 'Cline',
+    binary: 'cline',
+    docsUrl: 'https://docs.cline.bot',
+    methods: { default: [NPM('cline')] },
+  },
+
   codex: {
     id: 'codex',
     displayName: 'Codex',

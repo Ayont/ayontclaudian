@@ -1119,6 +1119,11 @@ body {
   --claudian-accent-rgb: var(--claudian-brand-grok-rgb);
 }
 
+.claudian-multi-agent-modal[data-provider="cline"] {
+  --claudian-accent: var(--claudian-brand-cline);
+  --claudian-accent-rgb: var(--claudian-brand-cline-rgb);
+}
+
 /* Provider-aware accent for the Dashboard view + its browser modals + the
    header provider chip — same brand map as the multi-agent modal so every
    dashboard surface is tinted by the active provider. */
@@ -1178,6 +1183,13 @@ body {
   --claudian-accent-rgb: var(--claudian-brand-grok-rgb);
 }
 
+.claudian-dashboard[data-provider="cline"],
+.claudian-dashboard-browser-modal[data-provider="cline"],
+.claudian-dashboard-provider-chip[data-provider="cline"] {
+  --claudian-accent: var(--claudian-brand-cline);
+  --claudian-accent-rgb: var(--claudian-brand-cline-rgb);
+}
+
 /* Header provider chip */
 .claudian-dashboard-provider-chip {
   display: inline-flex;
@@ -1222,6 +1234,11 @@ body.theme-light .claudian-multi-agent-modal[data-provider="grok"] {
   --claudian-accent-rgb: var(--claudian-brand-grok-rgb);
 }
 
+body.theme-light .claudian-multi-agent-modal[data-provider="cline"] {
+  --claudian-accent: var(--claudian-brand-cline);
+  --claudian-accent-rgb: var(--claudian-brand-cline-rgb);
+}
+
 /* Light-theme overrides for the dashboard view + browser modals + chip. */
 body.theme-light .claudian-dashboard[data-provider="codex"],
 body.theme-light .claudian-dashboard-browser-modal[data-provider="codex"],
@@ -1249,6 +1266,13 @@ body.theme-light .claudian-dashboard-browser-modal[data-provider="grok"],
 body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
   --claudian-accent: var(--claudian-brand-grok);
   --claudian-accent-rgb: var(--claudian-brand-grok-rgb);
+}
+
+body.theme-light .claudian-dashboard[data-provider="cline"],
+body.theme-light .claudian-dashboard-browser-modal[data-provider="cline"],
+body.theme-light .claudian-dashboard-provider-chip[data-provider="cline"] {
+  --claudian-accent: var(--claudian-brand-cline);
+  --claudian-accent-rgb: var(--claudian-brand-cline-rgb);
 }
 
 /* ============================================================
@@ -1458,6 +1482,7 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
 .claudian-dashboard-provider-item[data-provider="antigravity"] { --provider-color: var(--claudian-brand-antigravity); }
 .claudian-dashboard-provider-item[data-provider="vibe"] { --provider-color: var(--claudian-brand-vibe); }
 .claudian-dashboard-provider-item[data-provider="grok"] { --provider-color: var(--claudian-brand-grok); }
+.claudian-dashboard-provider-item[data-provider="cline"] { --provider-color: var(--claudian-brand-cline); }
 .claudian-dashboard-provider-item.is-active { color: var(--claudian-text); border-color: color-mix(in srgb, var(--provider-color) 44%, transparent); background: color-mix(in srgb, var(--provider-color) 9%, transparent); }
 .claudian-dashboard-provider-item-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--provider-color); opacity: 0.58; }
 .claudian-dashboard-provider-item.is-active .claudian-dashboard-provider-item-dot { opacity: 1; }

@@ -21,6 +21,9 @@
   /* Grok (xAI): white/black. Near-white accent on dark themes; black in light. */
   --claudian-brand-grok: oklch(0.93 0.006 255);
   --claudian-brand-grok-rgb: 245, 245, 245;
+  /* Cline / ClinePass: teal brand used on cline.bot. */
+  --claudian-brand-cline: oklch(0.76 0.12 175);
+  --claudian-brand-cline-rgb: 0, 201, 167;
   --claudian-error: #dc3545;
   --claudian-error-rgb: 220, 53, 69;
   --claudian-compact: #5bc0de;
@@ -159,6 +162,11 @@ body.theme-light .claudian-container {
 .claudian-container[data-provider="grok"] {
   --claudian-brand: var(--claudian-brand-grok);
   --claudian-brand-rgb: var(--claudian-brand-grok-rgb);
+}
+
+.claudian-container[data-provider="cline"] {
+  --claudian-brand: var(--claudian-brand-cline);
+  --claudian-brand-rgb: var(--claudian-brand-cline-rgb);
 }
 
 /* ── Workspace mode accents ──────────────────────────────────────────────

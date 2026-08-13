@@ -145,3 +145,18 @@
   width: 16.8px;
   height: 16.8px;
 }
+
+.claudian-update-btn {
+  color: var(--cl-accent);
+  background: var(--cl-accent-soft);
+}
+
+.claudian-update-btn:not(.claudian-hidden) {
+  animation: cl-tab-pulse 1.8s var(--cl-ease) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-update-btn:not(.claudian-hidden) {
+    animation: none;
+  }
+}

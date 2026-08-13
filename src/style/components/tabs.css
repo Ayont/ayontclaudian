@@ -88,6 +88,10 @@
   box-shadow: inset 0 -2px 0 var(--claudian-brand-grok);
 }
 
+.claudian-tab-badge[data-provider="cline"] {
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-cline);
+}
+
 .claudian-tab-badge-streaming {
   border-color: var(--claudian-brand, #da7756);
   animation: cl-tab-pulse 1.6s var(--cl-ease) infinite;
@@ -123,6 +127,10 @@
 
 .claudian-tab-badge-streaming[data-provider="grok"] {
   border-color: var(--claudian-brand-grok, #E8E8E8);
+}
+
+.claudian-tab-badge-streaming[data-provider="cline"] {
+  border-color: var(--claudian-brand-cline, #00C9A7);
 }
 
 .claudian-tab-badge-attention {

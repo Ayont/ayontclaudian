@@ -5,6 +5,8 @@ import { antigravityWorkspaceRegistration } from './antigravity/app/AntigravityW
 import { antigravityProviderRegistration } from './antigravity/registration';
 import { claudeWorkspaceRegistration } from './claude/app/ClaudeWorkspaceServices';
 import { claudeProviderRegistration } from './claude/registration';
+import { clineWorkspaceRegistration } from './cline/app/ClineWorkspaceServices';
+import { clineProviderRegistration } from './cline/registration';
 import { codexWorkspaceRegistration } from './codex/app/CodexWorkspaceServices';
 import { codexProviderRegistration } from './codex/registration';
 import { grokWorkspaceRegistration } from './grok/app/GrokWorkspaceServices';
@@ -26,6 +28,7 @@ export function registerBuiltInProviders(): void {
   }
 
   ProviderRegistry.register('claude', claudeProviderRegistration);
+  ProviderRegistry.register('cline', clineProviderRegistration);
   ProviderRegistry.register('codex', codexProviderRegistration);
   ProviderRegistry.register('opencode', opencodeProviderRegistration);
   ProviderRegistry.register('pi', piProviderRegistration);
@@ -34,6 +37,7 @@ export function registerBuiltInProviders(): void {
   ProviderRegistry.register('vibe', vibeProviderRegistration);
   ProviderRegistry.register('grok', grokProviderRegistration);
   ProviderWorkspaceRegistry.register('claude', claudeWorkspaceRegistration);
+  ProviderWorkspaceRegistry.register('cline', clineWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('codex', codexWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('opencode', opencodeWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('pi', piWorkspaceRegistration);

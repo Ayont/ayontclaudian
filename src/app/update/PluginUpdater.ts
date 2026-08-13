@@ -3,6 +3,8 @@ import type { Plugin} from 'obsidian';
 import { Notice, Platform, requestUrl } from 'obsidian';
 import * as path from 'path';
 
+import { compareSemver } from '../../core/install/semver';
+
 export interface UpdateInfo {
   currentVersion: string;
   latestVersion: string;
@@ -21,7 +23,8 @@ export class PluginUpdater {
   private readonly plugin: Plugin;
   private readonly owner = 'Ayont';
   private readonly repo = 'ayontclaudian';
-  private checkInFlight = false;
+  private inflight: Promise<UpdateInfo | null> | null = null;
+  private lastUpdate: UpdateInfo | null = null;
 
   constructor(plugin: Plugin) {
     this.plugin = plugin;
@@ -33,55 +36,39 @@ export class PluginUpdater {
    * check fails.
    */
   async checkForUpdate(): Promise<UpdateInfo | null> {
-    if (this.checkInFlight) {
-      return null;
+    if (this.inflight) {
+      return this.inflight;
     }
-    this.checkInFlight = true;
+    this.inflight = this.performCheck().finally(() => {
+      this.inflight = null;
+    });
+    return this.inflight;
+  }
+
+  private async performCheck(): Promise<UpdateInfo | null> {
     try {
       const latestManifest = await this.fetchLatestManifest();
       if (!latestManifest?.version) {
-        return null;
+        return this.lastUpdate;
       }
       const currentVersion = this.plugin.manifest.version;
       if (compareSemver(currentVersion, latestManifest.version) >= 0) {
+        this.lastUpdate = null;
         return null;
       }
-      return {
+      this.lastUpdate = {
         currentVersion,
         latestVersion: latestManifest.version,
         releaseUrl: `https://github.com/${this.owner}/${this.repo}/releases/tag/${latestManifest.version}`,
       };
-    } catch (error) {
-      console.warn('[ayontclaudian] Update check failed:', error);
-      return null;
-    } finally {
-      this.checkInFlight = false;
+      return this.lastUpdate;
+    } catch {
+      return this.lastUpdate;
     }
   }
 
-  /**
-   * Checks for an update and shows a Notice when one is found. Clicking the
-   * notice installs the update.
-   */
-  async notifyIfUpdateAvailable(): Promise<void> {
-    const update = await this.checkForUpdate();
-    if (!update) {
-      return;
-    }
-
-    const notice = new Notice(
-      `Ayontclaudian ${update.latestVersion} ist verfügbar (aktuell: ${update.currentVersion}). Klicke hier zum Aktualisieren.`,
-      0,
-    );
-
-    const noticeEl = (notice as unknown as { noticeEl?: HTMLElement }).noticeEl;
-    if (noticeEl) {
-      noticeEl.addClass('claudian-update-notice');
-      noticeEl.addEventListener('click', () => {
-        notice.hide();
-        void this.installUpdate(update.latestVersion);
-      });
-    }
+  getLastUpdate(): UpdateInfo | null {
+    return this.lastUpdate;
   }
 
   /**
@@ -123,9 +110,8 @@ export class PluginUpdater {
 
       new Notice(`Ayontclaudian ${version} installiert. Lade neu...`);
       await this.reloadPlugin();
-    } catch (error) {
-      console.error('[ayontclaudian] Update installation failed:', error);
-      new Notice('Ayontclaudian-update konnte nicht installiert werden. Siehe konsole für details.');
+    } catch {
+      new Notice('Ayontclaudian-Update konnte nicht installiert werden.');
     }
   }
 
@@ -178,34 +164,9 @@ export class PluginUpdater {
         await plugins.enablePlugin(id);
         return;
       }
-    } catch (error) {
-      console.warn('[ayontclaudian] Plugin reload failed:', error);
+    } catch {
+      // Reload is best-effort; the files are already written.
     }
-    new Notice('Bitte Obsidian neu laden, um die neue ayontclaudian-version zu aktivieren.');
+    new Notice('Bitte Obsidian neu laden, um die neue ayontclaudian-Version zu aktivieren.');
   }
-}
-
-/**
- * Simple semver comparator.
- * Returns >0 if a > b, <0 if a < b, 0 if equal.
- */
-function compareSemver(a: string, b: string): number {
-  const parse = (v: string): number[] =>
-    v.replace(/^v/, '')
-      .split('.')
-      .map((part) => {
-        const num = parseInt(part, 10);
-        return Number.isNaN(num) ? 0 : num;
-      });
-  const av = parse(a);
-  const bv = parse(b);
-  const len = Math.max(av.length, bv.length);
-  for (let i = 0; i < len; i++) {
-    const ai = av[i] ?? 0;
-    const bi = bv[i] ?? 0;
-    if (ai !== bi) {
-      return ai - bi;
-    }
-  }
-  return 0;
 }

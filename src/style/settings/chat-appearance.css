@@ -12,9 +12,9 @@
   height: auto;
   min-height: 32px;
   padding: 5px 10px;
-  border: 1px solid var(--cl-border-subtle);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 999px;
-  background: var(--cl-surface-raised);
+  background: var(--background-secondary);
   box-shadow: none;
   color: var(--text-muted);
   font-size: 12px;
@@ -23,8 +23,8 @@
 }
 
 .claudian-theme-swatch.is-active {
-  border-color: var(--cl-accent-line);
-  background: var(--cl-accent-soft);
+  border-color: var(--interactive-accent);
+  background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
 
@@ -37,4 +37,14 @@
 
 .claudian-theme-swatch-label {
   line-height: 1;
+}
+
+.claudian-theme-color {
+  width: 42px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
 }

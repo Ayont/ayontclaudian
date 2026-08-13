@@ -14,6 +14,7 @@ import { VIEW_TYPE_CLAUDIAN } from '../../core/types';
 import { getWorkspaceModeMeta, normalizeWorkspaceMode, type WorkspaceMode } from '../../core/workspace/workspaceMode';
 import type ClaudianPlugin from '../../main';
 import { createProviderIconSvg } from '../../shared/icons';
+import { confirm } from '../../shared/modals/ConfirmModal';
 import {
   cancelScheduledAnimationFrame,
   scheduleAnimationFrame,
@@ -62,6 +63,7 @@ export class ClaudianView extends ItemView {
   private headerActionsEl: HTMLElement | null = null;
   private headerActionsContent: HTMLElement | null = null;
   private newTabButtonEl: HTMLElement | null = null;
+  private pluginUpdateButtonEl: HTMLElement | null = null;
 
   // Header elements
   private historyDropdown: HTMLElement | null = null;
@@ -475,6 +477,16 @@ export class ClaudianView extends ItemView {
       void this.createNewTab().catch(() => new Notice('Tab konnte nicht erstellt werden.'));
     });
 
+    this.pluginUpdateButtonEl = this.headerActionsContent.createDiv({
+      cls: 'claudian-header-btn claudian-update-btn claudian-hidden',
+    });
+    setIcon(this.pluginUpdateButtonEl, 'download');
+    this.pluginUpdateButtonEl.setAttribute('aria-label', 'Plugin-Update installieren');
+    this.pluginUpdateButtonEl.addEventListener('click', () => {
+      void this.installPluginUpdateFromHeader();
+    });
+    this.setPluginUpdateAvailable(this.plugin.getPendingPluginUpdate());
+
     // New conversation button (square-pen icon - new conversation in current tab)
     const newBtn = this.headerActionsContent.createDiv({ cls: 'claudian-header-btn' });
     setIcon(newBtn, 'square-pen');
@@ -704,6 +716,39 @@ export class ClaudianView extends ItemView {
     this.viewContainerEl.dataset.provider = providerId;
     this.syncHeaderLogo(providerId);
     this.applyChatAppearance();
+  }
+
+  setPluginUpdateAvailable(update: { latestVersion: string; currentVersion: string } | null): void {
+    if (!this.pluginUpdateButtonEl) {
+      return;
+    }
+    this.pluginUpdateButtonEl.toggleClass('claudian-hidden', !update);
+    if (update) {
+      this.pluginUpdateButtonEl.setAttribute(
+        'aria-label',
+        `ayontclaudian ${update.latestVersion} installieren`,
+      );
+      this.pluginUpdateButtonEl.setAttribute(
+        'title',
+        `Update ${update.latestVersion} (aktuell ${update.currentVersion})`,
+      );
+    }
+  }
+
+  private async installPluginUpdateFromHeader(): Promise<void> {
+    const update = this.plugin.getPendingPluginUpdate();
+    if (!update) {
+      return;
+    }
+    const accepted = await confirm(
+      this.app,
+      `ayontclaudian ${update.latestVersion} ist verfügbar (aktuell ${update.currentVersion}). Jetzt installieren?`,
+      'Installieren',
+    );
+    if (!accepted) {
+      return;
+    }
+    await this.plugin.installPendingPluginUpdate();
   }
 
   /** Applies the user's chat theme (or clears it to follow the host/provider). */

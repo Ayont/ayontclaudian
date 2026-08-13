@@ -206,6 +206,34 @@ export class ClaudianSettingTab extends PluginSettingTab {
     });
   }
 
+  private renderPluginUpdateSetting(container: HTMLElement): void {
+    const current = this.plugin.manifest.version;
+    const pending = this.plugin.getPendingPluginUpdate();
+    const row = new Setting(container)
+      .setName('Plugin-Update')
+      .setDesc(pending
+        ? `${pending.latestVersion} ist verfügbar (aktuell ${current}).`
+        : `Installierte Version: ${current}`);
+
+    row.addButton((button) => {
+      button.setButtonText(pending ? 'Installieren' : 'Prüfen').onClick(async () => {
+        button.setDisabled(true);
+        if (pending) {
+          await this.plugin.installPendingPluginUpdate();
+          return;
+        }
+        const update = await this.plugin.checkAndOfferPluginUpdate({ notifyIfCurrent: true });
+        button.setDisabled(false);
+        if (update) {
+          this.display();
+        }
+      });
+      if (pending) {
+        button.setCta();
+      }
+    });
+  }
+
   private renderGeneralTab(container: HTMLElement): void {
     new Setting(container)
       .setName(t('settings.language.name'))
@@ -228,6 +256,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
             this.display();
           });
       });
+
+    this.renderPluginUpdateSetting(container);
 
     // --- Providers ---
 

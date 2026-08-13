@@ -226,6 +226,7 @@
 .claudian-model-select-option[data-provider="antigravity"] { --model-accent: var(--claudian-brand-antigravity, #4286F4); }
 .claudian-model-select-option[data-provider="vibe"] { --model-accent: var(--claudian-brand-vibe, #FF7A00); }
 .claudian-model-select-option[data-provider="grok"] { --model-accent: var(--claudian-brand-grok, #E8E8E8); }
+.claudian-model-select-option[data-provider="cline"] { --model-accent: var(--claudian-brand-cline, #00C9A7); }
 
 /* Auto model option: distinct brand color */
 .claudian-model-select-option.is-auto {

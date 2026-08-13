@@ -20,8 +20,31 @@ const PRESET_LABELS: Record<ChatAppearancePreset, string> = {
   custom: 'Eigene',
 };
 
+const COLOR_SAVE_DEBOUNCE_MS = 280;
+let colorSaveTimer: number | null = null;
+
+export interface ThemeSwatchTarget {
+  preset: ChatAppearancePreset;
+  el: {
+    toggleClass: (cls: string, value: boolean) => void;
+    setAttribute: (name: string, value: string) => void;
+  };
+}
+
+export function syncThemeSwatchSelection(
+  buttons: Iterable<ThemeSwatchTarget>,
+  preset: ChatAppearancePreset,
+): void {
+  for (const button of buttons) {
+    const active = button.preset === preset;
+    button.el.toggleClass('is-active', active);
+    button.el.setAttribute('aria-pressed', String(active));
+  }
+}
+
 function isLightTheme(plugin: ClaudianPlugin): boolean {
-  return plugin.app.workspace.containerEl.win.document.body.classList.contains('theme-light');
+  const doc = plugin.app.workspace.containerEl?.ownerDocument;
+  return Boolean(doc?.body?.classList.contains('theme-light'));
 }
 
 export function applyChatAppearanceToOpenViews(plugin: ClaudianPlugin): void {
@@ -46,6 +69,7 @@ export function renderChatAppearanceSection(
     .setDesc(t('settings.chatAppearance.preset.desc'));
 
   const swatches = container.createDiv({ cls: 'claudian-theme-swatches' });
+  const swatchButtons: ThemeSwatchTarget[] = [];
   for (const preset of CHAT_APPEARANCE_PRESETS) {
     const meta = getChatAppearancePresetMeta(preset);
     const button = swatches.createEl('button', {
@@ -60,8 +84,17 @@ export function renderChatAppearanceSection(
     const dot = button.createSpan({ cls: 'claudian-theme-swatch-dot' });
     dot.style.setProperty('background', meta.swatch);
     button.createSpan({ cls: 'claudian-theme-swatch-label', text: PRESET_LABELS[preset] });
+    swatchButtons.push({ preset, el: button });
     button.addEventListener('click', () => {
-      void saveAppearance(plugin, { ...appearance, preset }, onRerender);
+      const current = normalizeChatAppearance(plugin.settings.chatAppearance);
+      const shouldRerender = current.preset === 'custom' || preset === 'custom';
+      syncThemeSwatchSelection(swatchButtons, preset);
+      void saveAppearance(
+        plugin,
+        { ...current, preset },
+        shouldRerender ? onRerender : () => {},
+        true,
+      );
     });
   }
 
@@ -69,9 +102,9 @@ export function renderChatAppearanceSection(
     return;
   }
 
-  addColorSetting(container, plugin, appearance, 'accent', t('settings.chatAppearance.accent.name'), t('settings.chatAppearance.accent.desc'), onRerender);
-  addColorSetting(container, plugin, appearance, 'userBubble', t('settings.chatAppearance.userBubble.name'), t('settings.chatAppearance.userBubble.desc'), onRerender);
-  addColorSetting(container, plugin, appearance, 'composer', t('settings.chatAppearance.composer.name'), t('settings.chatAppearance.composer.desc'), onRerender);
+  addColorSetting(container, plugin, appearance, 'accent', t('settings.chatAppearance.accent.name'), t('settings.chatAppearance.accent.desc'));
+  addColorSetting(container, plugin, appearance, 'userBubble', t('settings.chatAppearance.userBubble.name'), t('settings.chatAppearance.userBubble.desc'));
+  addColorSetting(container, plugin, appearance, 'composer', t('settings.chatAppearance.composer.name'), t('settings.chatAppearance.composer.desc'));
 }
 
 function addColorSetting(
@@ -81,18 +114,21 @@ function addColorSetting(
   key: 'accent' | 'userBubble' | 'composer',
   name: string,
   desc: string,
-  onRerender: () => void,
 ): void {
   const setting = new Setting(container).setName(name).setDesc(desc);
-  const input = setting.controlEl?.createEl?.('input', {
+  const host = setting.controlEl ?? container;
+  const input = host.createEl('input', {
+    cls: 'claudian-theme-color',
     attr: { type: 'color', 'aria-label': name },
-  }) ?? container.createEl('input', { attr: { type: 'color', 'aria-label': name } });
+  });
   input.value = appearance[key] || '#d97757';
   input.addEventListener('input', () => {
-    void saveAppearance(plugin, { ...appearance, [key]: input.value }, () => {});
+    const current = normalizeChatAppearance(plugin.settings.chatAppearance);
+    void saveAppearance(plugin, { ...current, [key]: input.value }, () => {}, false);
   });
   input.addEventListener('change', () => {
-    void saveAppearance(plugin, { ...appearance, [key]: input.value }, onRerender);
+    const current = normalizeChatAppearance(plugin.settings.chatAppearance);
+    void saveAppearance(plugin, { ...current, [key]: input.value }, () => {}, true);
   });
 }
 
@@ -100,9 +136,24 @@ async function saveAppearance(
   plugin: ClaudianPlugin,
   next: ChatAppearanceSettings,
   onRerender: () => void,
+  persistImmediately: boolean,
 ): Promise<void> {
   plugin.settings.chatAppearance = normalizeChatAppearance(next);
-  await plugin.saveSettings();
   applyChatAppearanceToOpenViews(plugin);
   onRerender();
+  if (persistImmediately) {
+    if (colorSaveTimer !== null) {
+      window.clearTimeout(colorSaveTimer);
+      colorSaveTimer = null;
+    }
+    await plugin.saveSettings();
+    return;
+  }
+  if (colorSaveTimer !== null) {
+    window.clearTimeout(colorSaveTimer);
+  }
+  colorSaveTimer = window.setTimeout(() => {
+    colorSaveTimer = null;
+    void plugin.saveSettings();
+  }, COLOR_SAVE_DEBOUNCE_MS);
 }

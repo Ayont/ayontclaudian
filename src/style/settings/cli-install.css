@@ -15,6 +15,10 @@
   color: var(--text-success);
 }
 
+.claudian-cli-row.is-update .setting-item-description {
+  color: var(--text-accent);
+}
+
 .claudian-cli-progress {
   position: relative;
   height: 18px;

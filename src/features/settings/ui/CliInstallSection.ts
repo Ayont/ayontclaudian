@@ -7,6 +7,12 @@ import {
   getPreferredInstallCommand,
 } from '../../../core/install/cliInstallCatalog';
 import { CliInstaller, type InstallProgress } from '../../../core/install/CliInstaller';
+import { getCliUpdateSpec, getPreferredUpdateCommand } from '../../../core/install/cliUpdateCatalog';
+import {
+  checkProviderUpdate,
+  clearCliUpdateCache,
+  type ProviderUpdateInfo,
+} from '../../../core/install/CliUpdateService';
 import type { ProviderId } from '../../../core/types/provider';
 import type ClaudianPlugin from '../../../main';
 
@@ -78,6 +84,54 @@ function renderRow(
   });
 
   if (installed) {
+    const updateCommand = getPreferredUpdateCommand(spec.id, platform);
+    const canDetectLatest = Boolean(getCliUpdateSpec(spec.id)?.npmPackage);
+    if (updateCommand) {
+      row.addButton((button) => {
+        if (canDetectLatest) {
+          button.setButtonText('Prüfe…').setDisabled(true);
+        } else {
+          button.setButtonText('Update');
+        }
+        button.onClick(async () => {
+          button.setDisabled(true);
+          button.setButtonText('Aktualisiert…');
+          const installer = new CliInstaller();
+          const result = await installer.run(updateCommand, () => {});
+          if (result.ok) {
+            clearCliUpdateCache(spec.id);
+            new Notice(`${spec.displayName} aktualisiert.`);
+            window.setTimeout(rerender, 400);
+            return;
+          }
+          button.setDisabled(false);
+          button.setButtonText('Update');
+          new Notice(`${spec.displayName} konnte nicht aktualisiert werden.`);
+        });
+        void checkProviderUpdate(spec.id, plugin.settings as unknown as Record<string, unknown>).then((info) => {
+          applyInstalledVersion(row, info);
+          if (!canDetectLatest) {
+            return;
+          }
+          if (info?.updateAvailable) {
+            button.setDisabled(false);
+            button.setButtonText('Update');
+            button.setCta();
+            return;
+          }
+          if (info) {
+            button.buttonEl.addClass('claudian-hidden');
+            return;
+          }
+          button.setDisabled(false);
+          button.setButtonText('Update');
+        });
+      });
+      return;
+    }
+    void checkProviderUpdate(spec.id, plugin.settings as unknown as Record<string, unknown>).then((info) => {
+      applyInstalledVersion(row, info);
+    });
     return;
   }
 
@@ -137,6 +191,34 @@ function renderRow(
 
   // Keep the progress block visually attached under its row.
   row.settingEl.insertAdjacentElement('afterend', progressWrap);
+}
 
-  void plugin; // reserved for future per-host install paths
+export function describeProviderInstallStatus(
+  info: ProviderUpdateInfo | null,
+): { desc: string; highlightUpdate: boolean } | null {
+  if (!info) {
+    return null;
+  }
+  if (info.updateAvailable && info.latestVersion) {
+    return {
+      desc: `Update ${info.latestVersion} (aktuell ${info.currentVersion ?? '?'})`,
+      highlightUpdate: true,
+    };
+  }
+  if (info.currentVersion) {
+    return { desc: `✓ installiert · ${info.currentVersion}`, highlightUpdate: false };
+  }
+  return { desc: '✓ installiert', highlightUpdate: false };
+}
+
+function applyInstalledVersion(
+  row: Setting,
+  info: ProviderUpdateInfo | null,
+): void {
+  const status = describeProviderInstallStatus(info);
+  if (!status) {
+    return;
+  }
+  row.setDesc(status.desc);
+  row.settingEl.toggleClass('is-update', status.highlightUpdate);
 }
