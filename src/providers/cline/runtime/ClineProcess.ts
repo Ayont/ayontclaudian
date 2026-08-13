@@ -7,6 +7,7 @@ import {
   resolveWindowsCmdShimSpawnSpec,
   type WindowsCmdShimSpawnSpec,
 } from '../../../utils/windowsCmdShim';
+import { repairClineCompiledBinary } from './ClineBinaryRepair';
 
 export function isElectronHostBinary(filePath: string): boolean {
   const lower = filePath.toLowerCase();
@@ -73,6 +74,7 @@ export function spawnClineProcess(options: {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
 }): { proc: ChildProcessWithoutNullStreams; spawnSpec: WindowsCmdShimSpawnSpec } {
+  repairClineCompiledBinary(options.command);
   const spawnSpec = resolveClineSpawnSpec({
     args: options.args,
     command: options.command,

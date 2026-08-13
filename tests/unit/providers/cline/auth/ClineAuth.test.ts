@@ -75,8 +75,7 @@ describe('buildClineAuthArgs', () => {
 describe('buildClineAuthShellCommand', () => {
   it('builds a login-shell command that runs cline auth', () => {
     const command = buildClineAuthShellCommand('/usr/local/bin/cline', 'cline-pass');
-    expect(command).toContain('auth');
-    expect(command).toContain('cline');
+    expect(command).toBe("'/usr/local/bin/cline' auth cline");
     expect(command).not.toContain('app.cline.bot');
     expect(command).not.toContain('subscription');
   });

@@ -395,7 +395,7 @@ export class ClineChatRuntime implements ChatRuntime {
         yield {
           type: 'error',
           content: this.formatError(
-            'Cline wurde beendet, bevor eine Antwort kam. In den Cline-Einstellungen „Im Terminal anmelden“ ausführen und den CLI-Pfad prüfen.',
+            'Cline wurde beendet, bevor eine Antwort kam. macOS killt die CLI bei ungültiger Signatur. In den Cline-Einstellungen „Cline-CLI prüfen“ drücken und den Turn erneut senden.',
             stderr,
           ),
         };

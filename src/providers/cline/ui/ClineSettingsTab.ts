@@ -15,6 +15,7 @@ import {
   readClineAuthStatus,
 } from '../auth/ClineAuth';
 import { getClineModelOptions } from '../modelOptions';
+import { repairClineCompiledBinary } from '../runtime/ClineBinaryRepair';
 import { probeClineVersion } from '../runtime/ClineProcess';
 import {
   CLINE_PROVIDER_ID,
@@ -81,8 +82,11 @@ export const clineSettingsTabRenderer: ProviderSettingsTabRenderer = {
         button.setButtonText('Im Terminal anmelden').onClick(() => {
           const command = context.plugin.getResolvedProviderCliPath(CLINE_PROVIDER_ID) || 'cline';
           const current = getClineProviderSettings(settingsBag);
+          const repair = repairClineCompiledBinary(command);
           launchClineAuthInTerminal(command, current.apiProvider);
-          new Notice('Terminal geöffnet. Melde dich dort an, danach ist Cline hier bereit.');
+          new Notice(repair.repaired
+            ? 'Cline-Binary neu signiert. Terminal geöffnet — dort anmelden.'
+            : 'Terminal geöffnet. Melde dich dort an, danach ist Cline hier bereit.');
           window.setTimeout(refreshAuthStatus, 4000);
         });
       })
@@ -186,10 +190,12 @@ export const clineSettingsTabRenderer: ProviderSettingsTabRenderer = {
             return;
           }
 
+          const repair = repairClineCompiledBinary(command);
           const result = await probeClineVersion(command);
+          const repaired = repair.repaired ? ' · Binary neu signiert' : '';
           runtimeStatusEl.setText(result.ok
-            ? `Bereit: ${firstOutputLine(result.output) || 'Version erkannt'} · ${command}`
-            : `Version-Check: ${result.detail ?? 'keine Antwort'} · ${command}. Chat-Turns starten die CLI trotzdem.`);
+            ? `Bereit: ${firstOutputLine(result.output) || 'Version erkannt'} · ${command}${repaired}`
+            : `Version-Check: ${result.detail ?? 'keine Antwort'} · ${command}. macOS killt oft eine kaputte Cline-Signatur — „Jetzt prüfen“ signiert neu.`);
           button.setDisabled(false);
         }));
 

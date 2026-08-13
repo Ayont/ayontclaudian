@@ -89,7 +89,7 @@ export function buildClineAuthArgs(apiProvider: string): string[] {
 }
 
 export function buildClineAuthShellCommand(cliPath: string, apiProvider: string): string {
-  return [cliPath, ...buildClineAuthArgs(apiProvider)].map(posixShellQuote).join(' ');
+  return [posixShellQuote(cliPath), ...buildClineAuthArgs(apiProvider)].join(' ');
 }
 
 export function launchClineAuthInTerminal(cliPath: string, apiProvider: string): void {
