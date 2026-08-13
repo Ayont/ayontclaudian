@@ -66,9 +66,34 @@ usage estimation, keepalive, command expansion).
 
 `src/core/` has ~31 subdirectories. The larger ones a newcomer will not guess from
 the name: `intelligence/` (multi-agent orchestration + RAG), `control/` (workflow
-engine, scheduled jobs), `budget/` (token budget + rate-limit windows),
-`bootstrap/` (session storage), `undo/` (vault snapshots for turn undo),
+engine, scheduled jobs), `budget/` (token budget, rate-limit windows, capacity and
+cost), `bootstrap/` (session storage), `undo/` (vault snapshots for turn undo),
 `timeline/` (run timelines), `memory/`, `audio/`, `diagnostics/`.
+
+## Three subsystems you will not find by reading one file
+
+**Goal loop (Cline).** A `/goal` is a standing objective every provider re-injects
+per turn (`core/conversation/goalPrompt.ts`). Cline goes further: `ClineChatRuntime.query()`
+detects the framed goal in the prompt and hands the turn to `runClineGoalLoop`
+(`providers/cline/runtime/ClineGoalLoop.ts`), which re-runs turns until an
+adversarial verifier agrees the goal is reached, or the loop hits its iteration
+cap / stalls / errors. Decision logic is pure in `core/conversation/goalLoop.ts`;
+the runtime only supplies "run one turn" and "verify". Loop turns suppress the
+duplicate `user_message_start` and the loop owns the single terminal `done`.
+
+**Master prompter (multi-agent).** Missions no longer fan the same question out to
+every specialist. `MasterPrompterService` runs one planning pass that writes a
+tailored prompt per specialist (`masterPlan.ts`), then routes each subtask to a
+provider that still has usage headroom (`core/budget/providerCapacity.ts` +
+`ProviderCapacityService`). A specialist's preferred provider is a hint that only
+wins when that provider has capacity. Both the `/team` inline flow and the mission
+modal go through `plugin.runMasterMission`.
+
+**Usage & cost center.** `renderUsageCostSection` is one surface with two entry
+points (settings General tab and the dashboard's `TokenUsageModal`). Costs come
+from `core/budget/providerPricing.ts`, which models subscription vs metered billing
+and never invents a rate: an unpriced metered model reports "rate missing" rather
+than a plausible-looking number.
 
 ## Traps
 

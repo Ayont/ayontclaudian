@@ -30,6 +30,7 @@ import type { ChatMessage, ClaudianSettings, Conversation, StreamChunk } from '.
 import { getWorkspaceModeMeta, normalizeWorkspaceMode } from '../../../core/workspace/workspaceMode';
 import { getLocale, t } from '../../../i18n/i18n';
 import type ClaudianPlugin from '../../../main';
+import { CLINE_PROVIDER_ID, getClineProviderSettings } from '../../../providers/cline/settings';
 import { SlashCommandDropdown } from '../../../shared/components/SlashCommandDropdown';
 import { getEnhancedPath } from '../../../utils/env';
 import { getVaultPath } from '../../../utils/path';
@@ -421,6 +422,17 @@ function goalProviderLabel(tab: TabData, plugin: ClaudianPlugin): string {
 }
 
 /**
+ * Loop badge for providers that work a goal to completion instead of merely
+ * restating it every turn. Currently that is Cline's goal loop; the badge names
+ * the iteration cap so the user knows what they signed up for.
+ */
+function goalLoopLabel(tab: TabData, plugin: ClaudianPlugin): string | undefined {
+  if (getTabProviderId(tab, plugin) !== CLINE_PROVIDER_ID) return undefined;
+  const settings = getClineProviderSettings(plugin.settings as unknown as Record<string, unknown>);
+  return settings.goalLoopEnabled ? `Loop ×${settings.goalLoopMaxIterations}` : undefined;
+}
+
+/**
  * Sets (or clears, on empty) the tab's standing goal: updates the in-memory
  * mirror, the banner, and persists it on the bound conversation.
  */
@@ -430,7 +442,7 @@ export function applyTabGoal(tab: TabData, plugin: ClaudianPlugin, goal: string 
 
   if (tab.ui.goalBanner) {
     if (trimmed) {
-      tab.ui.goalBanner.setGoal(trimmed, goalProviderLabel(tab, plugin));
+      tab.ui.goalBanner.setGoal(trimmed, goalProviderLabel(tab, plugin), goalLoopLabel(tab, plugin));
     } else {
       tab.ui.goalBanner.clear();
     }
@@ -455,7 +467,7 @@ function syncTabGoalBanner(tab: TabData, plugin: ClaudianPlugin): void {
   tab.goal = goal;
 
   if (goal) {
-    banner.setGoal(goal, goalProviderLabel(tab, plugin));
+    banner.setGoal(goal, goalProviderLabel(tab, plugin), goalLoopLabel(tab, plugin));
   } else {
     banner.clear();
   }

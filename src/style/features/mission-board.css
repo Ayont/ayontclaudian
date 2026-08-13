@@ -44,6 +44,35 @@
   white-space: nowrap;
 }
 
+/* Pre-flight phase line: the master is planning, no agent is running yet. */
+.claudian-mission-board-phase {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  color: var(--cl-accent);
+  font-size: var(--cl-text-xs);
+  font-weight: 600;
+}
+
+.claudian-mission-board-phase::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  animation: cl-mission-phase-pulse 1.4s var(--cl-ease) infinite;
+}
+
+@keyframes cl-mission-phase-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-mission-board-phase::before { animation: none; opacity: 1; }
+}
+
 .claudian-mission-board-overall,
 .claudian-mission-board-track {
   overflow: hidden;

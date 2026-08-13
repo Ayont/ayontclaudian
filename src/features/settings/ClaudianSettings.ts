@@ -18,6 +18,7 @@ import { buildNavMappingText, parseNavMappings } from './keyboardNavigation';
 import { renderChatAppearanceSection } from './ui/ChatAppearanceSection';
 import { renderCliInstallSection } from './ui/CliInstallSection';
 import { renderEnvironmentSettingsSection } from './ui/EnvironmentSettingsSection';
+import { renderUsageCostSection } from './ui/UsageCostSection';
 import { renderVoiceSettingsSection } from './ui/VoiceSettingsSection';
 
 type SettingsTabId = string;
@@ -530,6 +531,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
     // --- Memory & Budget ---
 
     new Setting(container).setName(t('settings.memoryAndBudget')).setHeading();
+
+    renderUsageCostSection(container, this.plugin);
 
     new Setting(container)
       .setName(t('settings.memoryEnabled.name'))

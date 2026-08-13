@@ -27,6 +27,13 @@ export interface MultiAgentTask {
   id: string;
   prompt: string;
   agents: string[];
+  /**
+   * Per-agent instructions produced by the master prompter. When an agent has an
+   * entry here it receives THAT prompt instead of the shared mission text, which
+   * is what turns a "everyone answers the same question" fan-out into a real
+   * division of labour. Agents without an entry fall back to {@link prompt}.
+   */
+  promptByAgent?: Record<string, string>;
 }
 
 export interface AgentResult {
@@ -154,6 +161,14 @@ export interface MissionRunOptions {
   resolveAgentProviderId?: (agent: SpecialistAgent) => ProviderId | undefined;
   /** Maximum failover hops per agent before giving up. Defaults to 3. */
   maxFailovers?: number;
+  /**
+   * Providers ordered by remaining capacity, best first. When supplied, failover
+   * picks the replacement whose provider has the most room instead of taking the
+   * first different-provider agent it happens to find.
+   */
+  rankProviders?: () => ProviderId[];
+  /** Called when a provider refuses work, so capacity tracking can cool it down. */
+  onProviderRateLimited?: (providerId: ProviderId) => void;
 }
 
 /** Default failover attempts per agent when `maxFailovers` is not supplied. */
@@ -162,6 +177,12 @@ export const DEFAULT_MAX_FAILOVERS = 3;
 /** Rough token estimate (~4 chars/token) for live metrics. Pure. */
 export function estimateTokens(text: string): number {
   return Math.ceil((text ?? '').length / 4);
+}
+
+/** The instruction an agent actually receives: its own, or the shared mission text. */
+export function resolveAgentPrompt(task: MultiAgentTask, agentId: string): string {
+  const own = task.promptByAgent?.[agentId]?.trim();
+  return own ? own : task.prompt;
 }
 
 /**
@@ -404,7 +425,7 @@ export class MultiAgentService {
       const result = await this.runAgentWithFailover({
         agentId,
         initialAgent,
-        taskPrompt: task.prompt,
+        taskPrompt: resolveAgentPrompt(task, agentId),
         executor,
         ap,
         allSlots: progress.agents,
@@ -415,6 +436,8 @@ export class MultiAgentService {
         emitEvent,
         now,
         failoverLog: progress.failoverLog!,
+        rankProviders: options.rankProviders,
+        onProviderRateLimited: options.onProviderRateLimited,
       });
 
       if (result.status === 'done') {
@@ -493,6 +516,7 @@ export class MultiAgentService {
       id: state.taskId,
       prompt: state.prompt,
       agents: state.agentIds,
+      promptByAgent: state.promptByAgent,
     };
 
     const progress: MissionProgress = {
@@ -577,7 +601,7 @@ export class MultiAgentService {
       const result = await this.runAgentWithFailover({
         agentId,
         initialAgent,
-        taskPrompt: task.prompt,
+        taskPrompt: resolveAgentPrompt(task, agentId),
         executor,
         ap,
         allSlots: progress.agents,
@@ -588,6 +612,8 @@ export class MultiAgentService {
         emitEvent,
         now,
         failoverLog: progress.failoverLog!,
+        rankProviders: options.rankProviders,
+        onProviderRateLimited: options.onProviderRateLimited,
       });
 
       if (result.status === 'done') {
@@ -663,6 +689,8 @@ export class MultiAgentService {
     emitEvent: (event: MissionEvent) => void;
     now: () => number;
     failoverLog: FailoverEntry[];
+    rankProviders?: () => ProviderId[];
+    onProviderRateLimited?: (providerId: ProviderId) => void;
   }): Promise<{ status: AgentStatus; output: string }> {
     const {
       agentId,
@@ -678,6 +706,8 @@ export class MultiAgentService {
       emitEvent,
       now,
       failoverLog,
+      rankProviders,
+      onProviderRateLimited,
     } = params;
 
     const start = now();
@@ -724,6 +754,7 @@ export class MultiAgentService {
 
         if (failedProviderId && executor.isRateLimitError?.(error)) {
           rateLimitedProviders.add(failedProviderId);
+          onProviderRateLimited?.(failedProviderId);
         }
 
         if (attempt >= maxFailovers) {
@@ -741,6 +772,7 @@ export class MultiAgentService {
           ap,
           allSlots,
           resolveProvider,
+          rankProviders?.(),
         );
 
         if (!replacement) {
@@ -794,6 +826,10 @@ export class MultiAgentService {
    * Finds a failover replacement: a registered agent on a different, non-rate-
    * limited provider that is not currently running in the mission. Bench agents
    * (not in the task) are preferred; already-done task agents are also eligible.
+   *
+   * When `providerRanking` is supplied (capacity, best first), candidates are
+   * ordered by their provider's remaining headroom — so failover lands on the
+   * provider with the most room instead of an arbitrary different one.
    */
   private findFailoverReplacement(
     failedAgentId: string,
@@ -802,20 +838,27 @@ export class MultiAgentService {
     currentSlot: AgentProgress,
     allSlots: AgentProgress[],
     resolveProvider: (agent: SpecialistAgent) => ProviderId | undefined,
+    providerRanking?: ProviderId[],
   ): SpecialistAgent | undefined {
     const runningIds = new Set(
       allSlots.filter((s) => s.status === 'running' && s.agentId !== currentSlot.agentId).map((s) => s.agentId),
     );
 
+    const candidates: { agent: SpecialistAgent; rank: number }[] = [];
     for (const candidate of this.listAgents()) {
       if (candidate.id === failedAgentId) continue;
       if (runningIds.has(candidate.id)) continue;
       const cp = resolveProvider(candidate);
       if (!cp || cp === failedProviderId) continue;
       if (rateLimitedProviders.has(cp)) continue;
-      return candidate;
+
+      const rankIndex = providerRanking?.indexOf(cp) ?? -1;
+      candidates.push({ agent: candidate, rank: rankIndex === -1 ? Number.MAX_SAFE_INTEGER : rankIndex });
     }
-    return undefined;
+
+    if (candidates.length === 0) return undefined;
+    candidates.sort((a, b) => a.rank - b.rank);
+    return candidates[0].agent;
   }
 
   private buildMissionState(
@@ -845,6 +888,7 @@ export class MultiAgentService {
       taskId: task.id,
       prompt: task.prompt,
       agentIds: task.agents,
+      promptByAgent: task.promptByAgent,
       status: progress.status as MissionStatus,
       overall: progress.overall,
       agents,

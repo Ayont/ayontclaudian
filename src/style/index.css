@@ -58,6 +58,7 @@
 @import "./features/plan-mode.css";
 @import "./features/status-card.css";
 @import "./features/productivity.css";
+@import "./features/master-prompter.css";
 
 /* Modals */
 @import "./modals/instruction.css";
@@ -78,6 +79,7 @@
 @import "./settings/provider-model-picker.css";
 @import "./settings/cli-install.css";
 @import "./settings/voice-settings.css";
+@import "./settings/usage-cost.css";
 @import "./settings/kimi-features.css";
 @import "./settings/cline-features.css";
 @import "./settings/antigravity-ui.css";

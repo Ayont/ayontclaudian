@@ -1,0 +1,646 @@
+/* ============================================================
+ * Usage & cost center
+ *
+ * A dark-glass control panel: layered plates over a soft accent mesh, tabular
+ * figures, and motion that only ever clarifies (counters land, cards stagger in,
+ * bars grow toward their value). All theme-dependent custom properties live on
+ * `body` scopes, never on `:root` — Obsidian sets theme-light/theme-dark there.
+ * ============================================================ */
+
+.claudian-usage-center {
+  --usage-plate: rgba(255, 255, 255, 0.045);
+  --usage-plate-strong: rgba(255, 255, 255, 0.07);
+  --usage-line: rgba(255, 255, 255, 0.08);
+  --usage-glow: rgba(var(--claudian-brand-rgb), 0.16);
+
+  position: relative;
+  margin: var(--cl-space-4, 16px) 0 var(--cl-space-5, 24px);
+  padding: 20px;
+  border-radius: 20px;
+  border: 1px solid var(--usage-line);
+  background:
+    radial-gradient(120% 90% at 12% -10%, var(--usage-glow), transparent 58%),
+    radial-gradient(90% 80% at 92% 4%, rgba(var(--claudian-brand-rgb), 0.09), transparent 62%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.012));
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+
+body.theme-light .claudian-usage-center {
+  --usage-plate: rgba(255, 255, 255, 0.72);
+  --usage-plate-strong: rgba(255, 255, 255, 0.9);
+  --usage-line: rgba(0, 0, 0, 0.08);
+  --usage-glow: rgba(var(--claudian-brand-rgb), 0.13);
+
+  background:
+    radial-gradient(120% 90% at 12% -10%, var(--usage-glow), transparent 58%),
+    radial-gradient(90% 80% at 92% 4%, rgba(var(--claudian-brand-rgb), 0.08), transparent 62%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.5));
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* A very slow sheen keeps the surface alive without ever pulling focus. */
+.claudian-usage-center::before {
+  content: '';
+  position: absolute;
+  inset: -60% -30%;
+  background: conic-gradient(
+    from 210deg,
+    transparent 0deg,
+    rgba(var(--claudian-brand-rgb), 0.10) 60deg,
+    transparent 150deg,
+    rgba(var(--claudian-brand-rgb), 0.06) 250deg,
+    transparent 340deg
+  );
+  opacity: 0.55;
+  pointer-events: none;
+  animation: cl-usage-sheen 34s linear infinite;
+}
+
+@keyframes cl-usage-sheen {
+  to { transform: rotate(360deg); }
+}
+
+.claudian-usage-center > * {
+  position: relative;
+}
+
+/* ── Header + period switcher ────────────────────────────── */
+
+.claudian-usage-center-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.claudian-usage-center-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--claudian-accent, var(--interactive-accent));
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.claudian-usage-center-eyebrow svg {
+  width: 13px;
+  height: 13px;
+}
+
+.claudian-usage-center-title {
+  margin: 4px 0 0;
+  color: var(--text-normal);
+  font-size: 17px;
+  font-weight: 640;
+  letter-spacing: -0.015em;
+}
+
+.claudian-usage-period {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid var(--usage-line);
+  background: var(--usage-plate);
+}
+
+.claudian-usage-period-btn {
+  padding: 5px 13px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color var(--cl-dur-fast, 120ms) ease,
+    background-color var(--cl-dur, 200ms) var(--cl-ease, ease);
+}
+
+.claudian-usage-period-btn:hover {
+  color: var(--text-normal);
+}
+
+.claudian-usage-period-btn.is-active {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--claudian-accent) 34%, transparent),
+    color-mix(in srgb, var(--claudian-accent) 20%, transparent)
+  );
+  color: var(--text-normal);
+  box-shadow: 0 2px 10px rgba(var(--claudian-brand-rgb), 0.24);
+}
+
+/* ── Totals ──────────────────────────────────────────────── */
+
+.claudian-usage-center-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.claudian-usage-total {
+  position: relative;
+  padding: 14px 16px;
+  border-radius: 15px;
+  border: 1px solid var(--usage-line);
+  background: var(--usage-plate);
+  overflow: hidden;
+  animation: cl-usage-rise 420ms var(--cl-ease-out, cubic-bezier(0.22, 1, 0.36, 1)) both;
+}
+
+.claudian-usage-total::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--claudian-accent), transparent);
+  opacity: 0.7;
+}
+
+.claudian-usage-total.is-tokens { animation-delay: 60ms; }
+.claudian-usage-total.is-providers { animation-delay: 120ms; }
+
+@keyframes cl-usage-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.claudian-usage-total-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.claudian-usage-total-icon {
+  display: inline-flex;
+  color: var(--claudian-accent);
+}
+
+.claudian-usage-total-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.claudian-usage-total-label {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.claudian-usage-total-value {
+  color: var(--text-normal);
+  font-size: 26px;
+  font-weight: 660;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.claudian-usage-total-hint {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 10.5px;
+}
+
+/* ── Provider grid ───────────────────────────────────────── */
+
+.claudian-usage-center-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+  gap: 10px;
+}
+
+.claudian-usage-provider {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 14px;
+  border-radius: 15px;
+  border: 1px solid var(--usage-line);
+  background: var(--usage-plate);
+  animation: cl-usage-rise 420ms var(--cl-ease-out, cubic-bezier(0.22, 1, 0.36, 1)) both;
+  animation-delay: calc(var(--stagger, 0) * 45ms);
+  transition:
+    transform var(--cl-dur, 200ms) var(--cl-ease, cubic-bezier(0.16, 1, 0.3, 1)),
+    border-color var(--cl-dur, 200ms) ease,
+    box-shadow var(--cl-dur, 200ms) ease;
+}
+
+.claudian-usage-provider:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--claudian-accent) 32%, transparent);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
+}
+
+.claudian-usage-provider.is-idle {
+  opacity: 0.62;
+}
+
+.claudian-usage-provider.is-idle:hover {
+  opacity: 1;
+}
+
+.claudian-usage-provider-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.claudian-usage-provider-identity {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.claudian-usage-provider-title {
+  color: var(--text-normal);
+  font-size: 13px;
+  font-weight: 640;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.claudian-usage-billing-badge {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.claudian-usage-billing-badge.is-subscription {
+  background: color-mix(in srgb, var(--claudian-accent) 18%, transparent);
+  color: var(--claudian-accent);
+}
+
+.claudian-usage-billing-badge.is-metered {
+  background: rgba(120, 200, 150, 0.18);
+  color: var(--cl-success, #54a86b);
+}
+
+.claudian-usage-provider-toggle {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--cl-dur-fast, 120ms) ease;
+}
+
+.claudian-usage-provider-toggle:hover {
+  border-color: var(--usage-line);
+  background: var(--usage-plate-strong);
+  color: var(--text-normal);
+}
+
+.claudian-usage-provider-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.claudian-usage-provider-cost {
+  color: var(--text-normal);
+  font-size: 21px;
+  font-weight: 640;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+}
+
+.claudian-usage-provider-tokens {
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Sparkline ───────────────────────────────────────────── */
+
+.claudian-usage-provider-spark {
+  height: 34px;
+}
+
+.claudian-usage-spark-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.claudian-usage-spark-area {
+  fill: color-mix(in srgb, var(--claudian-accent) 16%, transparent);
+  stroke: none;
+}
+
+.claudian-usage-spark-line {
+  fill: none;
+  stroke: var(--claudian-accent);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 400;
+  stroke-dashoffset: 400;
+  animation: cl-usage-draw 900ms var(--cl-ease-out, cubic-bezier(0.22, 1, 0.36, 1)) forwards;
+}
+
+@keyframes cl-usage-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+.claudian-usage-spark-dot {
+  fill: var(--claudian-accent);
+  opacity: 0;
+  animation: cl-usage-dot-in 300ms ease-out 780ms forwards;
+}
+
+@keyframes cl-usage-dot-in {
+  to { opacity: 1; }
+}
+
+/* ── Window bar ──────────────────────────────────────────── */
+
+.claudian-usage-window {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.claudian-usage-window-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 9.5px;
+}
+
+.claudian-usage-window-value {
+  color: var(--text-normal);
+  font-variant-numeric: tabular-nums;
+}
+
+.claudian-usage-window-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(128, 128, 128, 0.2);
+  overflow: hidden;
+}
+
+.claudian-usage-window-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--claudian-accent) 50%, transparent),
+    var(--claudian-accent)
+  );
+  transition: width var(--cl-dur-slow, 320ms) var(--cl-ease, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+.claudian-usage-window-fill.is-hot {
+  background: linear-gradient(90deg, rgba(212, 154, 69, 0.6), var(--cl-danger, #d35f5f));
+}
+
+.claudian-usage-window-reset {
+  color: var(--text-muted);
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Chips ───────────────────────────────────────────────── */
+
+.claudian-usage-provider-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.claudian-usage-chip {
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--usage-line);
+  background: var(--usage-plate-strong);
+  color: var(--text-muted);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.claudian-usage-chip.is-warn {
+  border-color: color-mix(in srgb, var(--cl-warning, #d49a45) 40%, transparent);
+  color: var(--cl-warning, #d49a45);
+}
+
+/* ── Inline editor ───────────────────────────────────────── */
+
+.claudian-usage-editor-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+  padding-top: 10px;
+  border-top: 1px solid var(--usage-line);
+  animation: cl-usage-editor-in 240ms var(--cl-ease-out, ease-out) both;
+}
+
+@keyframes cl-usage-editor-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.claudian-usage-editor-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.claudian-usage-editor-caption {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.claudian-usage-editor-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.claudian-usage-editor-input {
+  width: 74px;
+  padding: 3px 7px;
+  border: 1px solid var(--usage-line);
+  border-radius: 7px;
+  background: var(--usage-plate-strong);
+  color: var(--text-normal);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.claudian-usage-editor-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--claudian-accent) 50%, transparent);
+  box-shadow: var(--cl-focus-ring, 0 0 0 3px rgba(var(--claudian-brand-rgb), 0.18));
+}
+
+.claudian-usage-editor-suffix {
+  color: var(--text-muted);
+  font-size: 9.5px;
+}
+
+.claudian-usage-mode-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  border: 1px solid var(--usage-line);
+  background: var(--usage-plate-strong);
+}
+
+.claudian-usage-mode-btn {
+  padding: 3px 9px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--cl-dur-fast, 120ms) ease;
+}
+
+.claudian-usage-mode-btn.is-active {
+  background: color-mix(in srgb, var(--claudian-accent) 26%, transparent);
+  color: var(--text-normal);
+}
+
+/* ── Footer ──────────────────────────────────────────────── */
+
+.claudian-usage-center-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--usage-line);
+  flex-wrap: wrap;
+}
+
+.claudian-usage-currency {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 10.5px;
+}
+
+.claudian-usage-currency-select {
+  padding: 3px 8px;
+  border: 1px solid var(--usage-line);
+  border-radius: 7px;
+  background: var(--usage-plate-strong);
+  color: var(--text-normal);
+  font-size: 11px;
+}
+
+.claudian-usage-center-note {
+  flex: 1;
+  min-width: 180px;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.claudian-usage-center-reset {
+  padding: 5px 12px;
+  border: 1px solid var(--usage-line);
+  border-radius: 999px;
+  background: var(--usage-plate-strong);
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  cursor: pointer;
+  transition: all var(--cl-dur-fast, 120ms) ease;
+}
+
+.claudian-usage-center-reset:hover {
+  border-color: color-mix(in srgb, var(--cl-danger, #d35f5f) 45%, transparent);
+  color: var(--cl-danger, #d35f5f);
+}
+
+@media (max-width: 560px) {
+  .claudian-usage-center {
+    padding: 16px;
+  }
+
+  .claudian-usage-center-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .claudian-usage-center-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-usage-center::before,
+  .claudian-usage-total,
+  .claudian-usage-provider,
+  .claudian-usage-editor-panel,
+  .claudian-usage-spark-line,
+  .claudian-usage-spark-dot {
+    animation: none;
+  }
+
+  .claudian-usage-spark-line {
+    stroke-dashoffset: 0;
+  }
+
+  .claudian-usage-spark-dot {
+    opacity: 1;
+  }
+
+  .claudian-usage-provider,
+  .claudian-usage-window-fill,
+  .claudian-usage-period-btn {
+    transition: none;
+  }
+
+  .claudian-usage-provider:hover {
+    transform: none;
+  }
+}

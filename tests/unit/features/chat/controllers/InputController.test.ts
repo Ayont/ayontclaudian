@@ -15,6 +15,9 @@ jest.mock('@/features/chat/ui/MissionBoard', () => ({
     update: jest.fn(),
     remove: jest.fn(),
     scrollIntoView: jest.fn(),
+    setAgents: jest.fn(),
+    setPhase: jest.fn(),
+    setProviderLabels: jest.fn(),
   })),
 }));
 
@@ -3563,7 +3566,10 @@ describe('InputController - Message Queue', () => {
 
     it('persists the synthesis as a real assistant message (no stream required)', async () => {
       const deps = setupMissionDeps();
-      (deps.plugin as any).runInlineTeamTask = jest.fn().mockResolvedValue({
+      (deps.plugin as any).runMasterMission = jest.fn().mockResolvedValue({
+        assignments: { 'agent-codex': 'codex' },
+        plan: { objective: '', rationale: '', subtasks: [] },
+        plannerProviderId: 'codex',
         results: [{ agentId: 'agent-codex', output: 'Beitrag von Codex' }],
         synthesis: 'Die Synthese',
       });
@@ -3589,7 +3595,7 @@ describe('InputController - Message Queue', () => {
 
     it('persists an error message when the mission fails', async () => {
       const deps = setupMissionDeps();
-      (deps.plugin as any).runInlineTeamTask = jest
+      (deps.plugin as any).runMasterMission = jest
         .fn()
         .mockRejectedValue(new Error('Kein Agent erreichbar'));
       const controller = new InputController(deps);
@@ -3603,6 +3609,29 @@ describe('InputController - Message Queue', () => {
       expect(stored[0].content).toContain('Team-Fehler');
       expect(stored[0].content).toContain('Kein Agent erreichbar');
       expect(deps.renderer.renderStoredMessage).toHaveBeenCalled();
+    });
+
+    it('routes the inline mission through the master prompter with the inline roster', async () => {
+      const deps = setupMissionDeps();
+      const runMasterMission = jest.fn().mockResolvedValue({
+        assignments: {},
+        plan: { objective: '', rationale: '', subtasks: [] },
+        plannerProviderId: 'codex',
+        results: [],
+        synthesis: 'Synthese',
+      });
+      (deps.plugin as any).runMasterMission = runMasterMission;
+      const controller = new InputController(deps);
+      deps.getInputEl().value = 'Analysiere das Plugin';
+
+      await controller.sendMessage();
+
+      expect(runMasterMission).toHaveBeenCalledTimes(1);
+      const request = runMasterMission.mock.calls[0][0];
+      expect(request.mission).toBe('Analysiere das Plugin');
+      expect(request.roster).toHaveLength(1);
+      expect(typeof request.onProgress).toBe('function');
+      expect(typeof request.onMissionProgress).toBe('function');
     });
   });
 });

@@ -1,3 +1,7 @@
+import {
+  DEFAULT_GOAL_LOOP_MAX_ITERATIONS,
+  normalizeGoalLoopIterations,
+} from '../../core/conversation/goalLoop';
 import { getProviderConfig, setProviderConfig } from '../../core/providers/providerConfig';
 import type { HostnameCliPaths } from '../../core/types/settings';
 import { getHostnameKey } from '../../utils/env';
@@ -14,6 +18,14 @@ export const CLINE_PROVIDER_ID = 'cline';
 
 export type ClinePermissionMode = 'normal' | 'yolo' | 'plan';
 
+/**
+ * How the goal loop decides a turn is finished.
+ * - `marker`: trust only the agent's own `GOAL_ACHIEVED` line (free, one CLI call per turn)
+ * - `verifier`: run a separate skeptical verification pass when the marker is missing
+ *   or says "done" (costs one extra cheap call, catches premature completion)
+ */
+export type ClineGoalLoopVerification = 'marker' | 'verifier';
+
 export interface PersistedClineProviderSettings {
   apiProvider: ClineApiProviderId;
   cliPath: string;
@@ -22,6 +34,10 @@ export interface PersistedClineProviderSettings {
   customModels: string;
   enabled: boolean;
   environmentVariables: string;
+  /** Auto-loop turns until the standing `/goal` is actually reached. */
+  goalLoopEnabled: boolean;
+  goalLoopMaxIterations: number;
+  goalLoopVerification: ClineGoalLoopVerification;
   permissionMode: ClinePermissionMode;
   retries: number;
   thinking: ClineThinkingLevel;
@@ -35,6 +51,9 @@ export const DEFAULT_CLINE_PROVIDER_SETTINGS: Readonly<PersistedClineProviderSet
   customModels: '',
   enabled: false,
   environmentVariables: '',
+  goalLoopEnabled: true,
+  goalLoopMaxIterations: DEFAULT_GOAL_LOOP_MAX_ITERATIONS,
+  goalLoopVerification: 'verifier',
   permissionMode: 'yolo',
   retries: 3,
   thinking: 'medium',
@@ -71,6 +90,12 @@ function normalizePermissionMode(value: unknown): ClinePermissionMode {
   return DEFAULT_CLINE_PROVIDER_SETTINGS.permissionMode;
 }
 
+function normalizeGoalLoopVerification(value: unknown): ClineGoalLoopVerification {
+  return value === 'marker' || value === 'verifier'
+    ? value
+    : DEFAULT_CLINE_PROVIDER_SETTINGS.goalLoopVerification;
+}
+
 export function getClineProviderSettings(
   settings: Record<string, unknown>,
 ): PersistedClineProviderSettings {
@@ -87,6 +112,9 @@ export function getClineProviderSettings(
       config.environmentVariables,
       DEFAULT_CLINE_PROVIDER_SETTINGS.environmentVariables,
     ),
+    goalLoopEnabled: config.goalLoopEnabled !== false,
+    goalLoopMaxIterations: normalizeGoalLoopIterations(config.goalLoopMaxIterations),
+    goalLoopVerification: normalizeGoalLoopVerification(config.goalLoopVerification),
     permissionMode: normalizePermissionMode(config.permissionMode),
     retries: normalizeRetries(config.retries),
     thinking: isClineThinkingLevel(config.thinking)
@@ -112,6 +140,12 @@ export function updateClineProviderSettings(
     cliPathsByHost: updates.cliPathsByHost
       ? normalizeHostnameCliPaths(updates.cliPathsByHost)
       : current.cliPathsByHost,
+    goalLoopMaxIterations: updates.goalLoopMaxIterations !== undefined
+      ? normalizeGoalLoopIterations(updates.goalLoopMaxIterations)
+      : current.goalLoopMaxIterations,
+    goalLoopVerification: updates.goalLoopVerification
+      ? normalizeGoalLoopVerification(updates.goalLoopVerification)
+      : current.goalLoopVerification,
     permissionMode: updates.permissionMode
       ? normalizePermissionMode(updates.permissionMode)
       : current.permissionMode,

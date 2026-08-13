@@ -1,15 +1,17 @@
 import { Modal, Notice, setIcon } from 'obsidian';
 
+import { formatCapacityReset, type ProviderCapacity } from '../../core/budget/providerCapacity';
 import { globalEventBus } from '../../core/events/EventBus';
 import { buildCustomTeamAgents } from '../../core/intelligence/multiAgent/customTeam';
+import type { MasterMissionProgress } from '../../core/intelligence/multiAgent/MasterPrompterService';
 import type { MissionState } from '../../core/intelligence/multiAgent/MissionStateStorage';
 import type {
   AgentProgress,
   MissionProgress,
   SpecialistAgent,
-  SynthesisContribution,
 } from '../../core/intelligence/multiAgent/MultiAgentService';
 import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
+import type { ProviderId } from '../../core/types/provider';
 import type ClaudianPlugin from '../../main';
 import { TeamConfigModal } from './TeamConfigModal';
 
@@ -18,9 +20,19 @@ interface AgentCardRefs {
   statusEl: HTMLElement;
   progressBar: HTMLElement;
   metaEl: HTMLElement;
+  providerEl: HTMLElement;
   outputEl: HTMLElement;
   startedAt: number | null;
 }
+
+const PHASE_LABELS: Record<MasterMissionProgress['phase'], string> = {
+  planning: 'Master-Prompter plant die Mission…',
+  dispatching: 'Teilaufgaben werden auf Provider verteilt…',
+  working: 'Agenten arbeiten…',
+  synthesizing: 'Synthese läuft…',
+  completed: 'Mission abgeschlossen',
+  error: 'Mission mit Fehlern beendet',
+};
 
 /**
  * Multi-Agent Mission control: the user types a task, a team of specialists runs
@@ -39,6 +51,11 @@ export class MultiAgentModal extends Modal {
   private synthEl: HTMLElement | null = null;
   private synthBodyEl: HTMLElement | null = null;
   private readonly cards = new Map<string, AgentCardRefs>();
+  private capacityEl: HTMLElement | null = null;
+  private planEl: HTMLElement | null = null;
+  private planBodyEl: HTMLElement | null = null;
+  private planMetaEl: HTMLElement | null = null;
+  private assignments: Record<string, ProviderId> = {};
   private tickTimer: number | null = null;
   private running = false;
   /** Set when the modal closes; guards async progress callbacks from writing to detached DOM. */
@@ -76,7 +93,7 @@ export class MultiAgentModal extends Modal {
     const icon = titleGroup.createSpan({ cls: 'claudian-multi-agent-logo' });
     setIcon(icon, 'users');
     const titleCopy = titleGroup.createDiv({ cls: 'claudian-multi-agent-title-copy' });
-    titleCopy.createSpan({ cls: 'claudian-multi-agent-eyebrow', text: `${providerLabel} · Mission Control` });
+    titleCopy.createSpan({ cls: 'claudian-multi-agent-eyebrow', text: `${providerLabel} · Master-Prompter` });
     titleCopy.createEl('h2', { text: 'Multi-Agent Mission' });
 
     // Gear: configure a custom provider team (e.g. Codex + Fable + Opus).
@@ -99,6 +116,9 @@ export class MultiAgentModal extends Modal {
     this.teamTelemetryEl = this.createTelemetryItem(telemetry, 'users', 'Team', this.describeTeam(agents));
     this.createTelemetryItem(telemetry, 'cpu', 'Runtime', providerLabel);
     this.createTelemetryItem(telemetry, 'keyboard', 'Start', '⌘/Ctrl + Enter');
+
+    this.renderCapacityStrip(contentEl);
+    this.renderPlanPanel(contentEl);
 
     this.gridEl = contentEl.createDiv({ cls: 'claudian-multi-agent-grid' });
     this.renderAgentCards();
@@ -143,6 +163,123 @@ export class MultiAgentModal extends Modal {
       return ProviderRegistry.getProviderDisplayName(providerId) ?? providerId;
     } catch {
       return providerId;
+    }
+  }
+
+  /**
+   * Live provider capacity: what the router sees when it decides where a subtask
+   * goes. Showing it here turns "why did my mission land on Codex?" into an
+   * answerable question instead of hidden routing magic.
+   */
+  private renderCapacityStrip(parent: HTMLElement): void {
+    const section = parent.createDiv({ cls: 'claudian-master-capacity' });
+    const head = section.createDiv({ cls: 'claudian-master-section-head' });
+    setIcon(head.createSpan({ cls: 'claudian-master-section-icon' }), 'gauge');
+    head.createSpan({ cls: 'claudian-master-section-title', text: 'Provider-Kontingent' });
+    this.capacityEl = section.createDiv({ cls: 'claudian-master-capacity-grid' });
+    this.updateCapacityStrip(this.plugin.providerCapacityService.rank());
+  }
+
+  private updateCapacityStrip(capacities: ProviderCapacity[]): void {
+    if (!this.capacityEl) return;
+    this.capacityEl.empty();
+
+    if (capacities.length === 0) {
+      this.capacityEl.createSpan({
+        cls: 'claudian-master-capacity-empty',
+        text: 'Kein multi-agent-fähiger Provider aktiviert.',
+      });
+      return;
+    }
+
+    const now = Date.now();
+    for (const capacity of capacities) {
+      const chip = this.capacityEl.createDiv({
+        cls: `claudian-master-capacity-chip claudian-master-capacity-chip--${capacity.available ? 'free' : 'blocked'}`,
+      });
+      chip.dataset.provider = capacity.providerId;
+
+      const top = chip.createDiv({ cls: 'claudian-master-capacity-top' });
+      top.createSpan({
+        cls: 'claudian-master-capacity-name',
+        text: this.getProviderLabel(capacity.providerId),
+      });
+      const assigned = Object.values(this.assignments).filter((id) => id === capacity.providerId).length;
+      if (assigned > 0) {
+        top.createSpan({ cls: 'claudian-master-capacity-count', text: `${assigned}×` });
+      }
+
+      const track = chip.createDiv({ cls: 'claudian-master-capacity-track' });
+      const fill = track.createDiv({ cls: 'claudian-master-capacity-fill' });
+      fill.style.width = `${Math.round(capacity.headroom * 100)}%`;
+
+      const foot = chip.createDiv({ cls: 'claudian-master-capacity-foot' });
+      foot.createSpan({ cls: 'claudian-master-capacity-reason', text: capacity.reason });
+      const reset = capacity.cooldownUntil ?? capacity.resetAt;
+      if (reset && reset > now) {
+        foot.createSpan({
+          cls: 'claudian-master-capacity-reset',
+          text: `↻ ${formatCapacityReset(reset, now)}`,
+        });
+      }
+    }
+  }
+
+  /** The master's decomposition: one row per subtask with its routed provider. */
+  private renderPlanPanel(parent: HTMLElement): void {
+    this.planEl = parent.createDiv({ cls: 'claudian-master-plan claudian-hidden' });
+    const head = this.planEl.createDiv({ cls: 'claudian-master-section-head' });
+    setIcon(head.createSpan({ cls: 'claudian-master-section-icon' }), 'git-branch');
+    head.createSpan({ cls: 'claudian-master-section-title', text: 'Master-Plan' });
+    this.planMetaEl = head.createSpan({ cls: 'claudian-master-plan-meta' });
+    this.planBodyEl = this.planEl.createDiv({ cls: 'claudian-master-plan-body' });
+  }
+
+  private updatePlanPanel(progress: MasterMissionProgress): void {
+    if (!this.planEl || !this.planBodyEl || !this.planMetaEl) return;
+
+    if (!progress.plan) {
+      if (progress.phase === 'planning') {
+        this.planEl.removeClass('claudian-hidden');
+        this.planMetaEl.setText(
+          progress.plannerProviderId ? this.getProviderLabel(progress.plannerProviderId) : 'plant…',
+        );
+        this.planBodyEl.empty();
+        this.planBodyEl.createDiv({
+          cls: 'claudian-master-plan-thinking',
+          text: progress.planningText.slice(-400) || 'Zerlegt die Mission in Teilaufgaben…',
+        });
+      }
+      return;
+    }
+
+    this.planEl.removeClass('claudian-hidden');
+    this.planMetaEl.setText(
+      `${progress.plan.subtasks.length} Teilaufgaben · ${
+        progress.plannerProviderId ? this.getProviderLabel(progress.plannerProviderId) : 'Fallback'
+      }`,
+    );
+
+    this.planBodyEl.empty();
+    if (progress.plan.rationale) {
+      this.planBodyEl.createDiv({ cls: 'claudian-master-plan-rationale', text: progress.plan.rationale });
+    }
+
+    for (const subtask of progress.plan.subtasks) {
+      const row = this.planBodyEl.createDiv({ cls: 'claudian-master-plan-row' });
+      const agent = this.plugin.multiAgentService.getAgent(subtask.agentId);
+      const dot = row.createSpan({ cls: 'claudian-master-plan-dot' });
+      dot.style.setProperty('--agent-color', agent?.color ?? 'var(--interactive-accent)');
+
+      const copy = row.createDiv({ cls: 'claudian-master-plan-copy' });
+      copy.createSpan({ cls: 'claudian-master-plan-title', text: subtask.title });
+      copy.createSpan({ cls: 'claudian-master-plan-agent', text: agent?.name ?? subtask.agentId });
+
+      const providerId = progress.assignments[subtask.agentId];
+      if (providerId) {
+        const chip = row.createSpan({ cls: 'claudian-master-plan-provider', text: this.getProviderLabel(providerId) });
+        chip.dataset.provider = providerId;
+      }
     }
   }
 
@@ -301,6 +438,7 @@ export class MultiAgentModal extends Modal {
       info.createEl('span', { cls: 'claudian-multi-agent-role', text: agent.role });
 
       const statusEl = card.createDiv({ cls: 'claudian-multi-agent-card-status', text: 'Bereit' });
+      const providerEl = card.createDiv({ cls: 'claudian-multi-agent-card-provider claudian-hidden' });
       const metaEl = card.createDiv({ cls: 'claudian-multi-agent-card-meta' });
       // Custom team members carry a pinned model — show its provenance up front.
       if (agent.model && agent.providerId) {
@@ -317,7 +455,7 @@ export class MultiAgentModal extends Modal {
 
       const outputEl = card.createDiv({ cls: 'claudian-multi-agent-card-output claudian-hidden' });
 
-      this.cards.set(agent.id, { card, statusEl, progressBar, metaEl, outputEl, startedAt: null });
+      this.cards.set(agent.id, { card, statusEl, progressBar, metaEl, providerEl, outputEl, startedAt: null });
     }
   }
 
@@ -341,36 +479,19 @@ export class MultiAgentModal extends Modal {
     for (const agent of agents) {
       this.plugin.multiAgentService.registerAgent(agent);
     }
-    const task = { id: this.missionId, prompt, agents: agents.map((a) => a.id) };
 
     globalEventBus.emit('mission:started', { id: this.missionId, prompt, agents: agents.length });
 
     try {
-      // Use the plugin's full executor so missions launched from the modal get
-      // the SAME provider targeting + rate-limit failover as inline missions
-      // (executeWithProvider + isRateLimitError). The previous inline executor
-      // only had `execute`, silently disabling failover on this entry point.
-      const outcome = await this.plugin.multiAgentService.runMission(
-        task,
-        this.plugin.buildMultiAgentExecutor(),
-        {
-          synthesize: (taskPrompt, contributions: SynthesisContribution[], onChunk) =>
-            this.plugin.runSynthesisPrompt(
-              taskPrompt,
-              contributions.map((c) => ({ agent: { name: c.agent.name, role: c.agent.role }, output: c.output })),
-              onChunk,
-            ),
-        },
-        (progress) => this.updateMissionProgress(progress),
-        undefined,
-        {
-          storage: this.plugin.missionStateStorage,
-          onEvent: (event) => globalEventBus.emit('mission:event', { id: this.missionId, ...event }),
-          defaultProviderId: this.plugin.getActiveMultiAgentProviderId(),
-          resolveAgentProviderId: (agent) => this.plugin.resolveMultiAgentProviderId(agent),
-          maxFailovers: 3,
-        },
-      );
+      // Master-prompted run: one planner splits the mission into tailored
+      // subtasks, then each subtask is routed to a provider that still has
+      // usage headroom (with rate-limit failover on top).
+      const outcome = await this.plugin.runMasterMission({
+        mission: prompt,
+        onProgress: (progress) => this.updateMasterProgress(progress),
+        roster: agents,
+        taskId: this.missionId,
+      });
 
       const content = this.buildResultMarkdown(prompt, outcome.results, outcome.synthesis);
       const filePath = `.claudian/multi-agent-${Date.now()}.md`;
@@ -393,6 +514,32 @@ export class MultiAgentModal extends Modal {
       this.running = false;
       this.stopTicker();
       this.setControlsDisabled(false);
+    }
+  }
+
+  /** Master-level progress: planning + routing on top of specialist progress. */
+  private updateMasterProgress(progress: MasterMissionProgress): void {
+    if (this.closed) return;
+
+    this.assignments = progress.assignments;
+    this.updateCapacityStrip(progress.capacities);
+    this.updatePlanPanel(progress);
+
+    if (this.statusText && !progress.mission) {
+      this.statusText.textContent = PHASE_LABELS[progress.phase];
+      this.statusText.className = `claudian-multi-agent-status claudian-multi-agent-status--${progress.phase}`;
+    }
+
+    for (const [agentId, providerId] of Object.entries(progress.assignments)) {
+      const refs = this.cards.get(agentId);
+      if (!refs) continue;
+      refs.providerEl.removeClass('claudian-hidden');
+      refs.providerEl.setText(this.getProviderLabel(providerId));
+      refs.providerEl.dataset.provider = providerId;
+    }
+
+    if (progress.mission) {
+      this.updateMissionProgress(progress.mission);
     }
   }
 

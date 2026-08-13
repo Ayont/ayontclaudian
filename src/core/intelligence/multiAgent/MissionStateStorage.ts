@@ -29,6 +29,12 @@ export interface MissionState {
   createdAt: number;
   updatedAt: number;
   completedAt?: number;
+  /**
+   * Per-agent instructions from the master prompter. Persisting these is what
+   * lets a resumed mission keep its division of labour instead of degrading to
+   * "everyone re-answers the same question". Absent for legacy missions.
+   */
+  promptByAgent?: Record<string, string>;
 }
 
 export interface MissionEvent {

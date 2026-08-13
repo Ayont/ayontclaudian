@@ -1,11 +1,22 @@
 import type { UsageInfo } from '../types';
 
-/** One measured turn: tokens consumed at `ts` by provider+model. */
+/**
+ * One measured turn: tokens consumed at `ts` by provider+model.
+ *
+ * `tokens` is the window/budget figure (see {@link TokenBudgetTracker.trackUsage});
+ * the itemized fields below are what cost estimation needs and are only present
+ * when the provider actually reported them — an absent field means "not reported",
+ * never "zero".
+ */
 export interface UsageEvent {
   ts: number;
   providerId: string;
   model: string;
   tokens: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
 }
 
 export interface TokenBudgetState {
@@ -116,7 +127,16 @@ export class TokenBudgetTracker {
     this.state.breakdown[key] = { tokens: current.tokens + delta, runs: current.runs + 1 };
 
     const events = this.state.events ?? (this.state.events = []);
-    events.push({ ts: Date.now(), providerId, model: usage.model || 'default', tokens: delta });
+    events.push({
+      ts: Date.now(),
+      providerId,
+      model: usage.model || 'default',
+      tokens: delta,
+      ...(usage.inputTokens > 0 ? { inputTokens: usage.inputTokens } : {}),
+      ...(usage.outputTokens ? { outputTokens: usage.outputTokens } : {}),
+      ...(usage.cacheReadInputTokens ? { cacheReadTokens: usage.cacheReadInputTokens } : {}),
+      ...(usage.cacheCreationInputTokens ? { cacheWriteTokens: usage.cacheCreationInputTokens } : {}),
+    });
     this.pruneEvents();
   }
 
@@ -180,6 +200,55 @@ export class TokenBudgetTracker {
     return [...providerIds]
       .map((id) => this.getProviderWindow(id, windowHoursByProvider[id] ?? DEFAULT_USAGE_WINDOW_HOURS, now))
       .sort((a, b) => b.tokens - a.tokens);
+  }
+
+  /** Raw events, optionally narrowed to one provider and/or a time range. */
+  getEvents(filter: { providerId?: string; since?: number } = {}): UsageEvent[] {
+    return (this.state.events ?? []).filter((event) => {
+      if (filter.providerId && event.providerId !== filter.providerId) return false;
+      if (filter.since !== undefined && event.ts < filter.since) return false;
+      return true;
+    });
+  }
+
+  /** Every provider that has recorded at least one event. */
+  getSeenProviderIds(): string[] {
+    return [...new Set((this.state.events ?? []).map((event) => event.providerId))];
+  }
+
+  /**
+   * Tokens per local day, oldest first — the series behind the usage sparklines.
+   * Days with no activity are present as zeros so the chart keeps a stable width.
+   */
+  getDailySeries(providerId: string | null, days: number, now = Date.now()): number[] {
+    const span = Math.max(1, Math.round(days));
+    const series = new Array<number>(span).fill(0);
+    const reference = new Date(now);
+    const startOfToday = new Date(
+      reference.getFullYear(),
+      reference.getMonth(),
+      reference.getDate(),
+    ).getTime();
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    for (const event of this.state.events ?? []) {
+      if (providerId && event.providerId !== providerId) continue;
+      // Bucket by LOCAL calendar day, not by elapsed milliseconds: an event from
+      // this morning is 0 days ago even though `now - ts` is a fraction of a day,
+      // and rounding absorbs DST shifts.
+      const eventDate = new Date(event.ts);
+      const eventDayStart = new Date(
+        eventDate.getFullYear(),
+        eventDate.getMonth(),
+        eventDate.getDate(),
+      ).getTime();
+      const dayOffset = Math.round((startOfToday - eventDayStart) / dayMs);
+      const index = span - 1 - dayOffset;
+      if (index >= 0 && index < span) {
+        series[index] += event.tokens;
+      }
+    }
+    return series;
   }
 
   checkBudget(settings: TokenBudgetSettings): TokenBudgetCheck {

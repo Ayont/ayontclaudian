@@ -146,6 +146,31 @@
   white-space: nowrap;
 }
 
+/* Loop badge: this provider works the goal to completion, it does not just
+   restate it. The soft pulse marks it as an ongoing process. */
+.claudian-goal-banner-loop {
+  font-family: var(--cl-font-ui);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--cl-accent);
+  padding: 1px 7px;
+  border-radius: var(--cl-radius-pill);
+  background: rgba(var(--cl-accent-rgb), 0.18);
+  border: 1px solid var(--cl-accent-line);
+  white-space: nowrap;
+  animation: cl-goal-loop-pulse 3.2s var(--cl-ease) infinite;
+}
+
+@keyframes cl-goal-loop-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--cl-accent-rgb), 0); }
+  50% { box-shadow: 0 0 0 3px rgba(var(--cl-accent-rgb), 0.14); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-goal-banner-loop { animation: none; }
+}
+
 .claudian-goal-banner-text {
   font-family: var(--cl-font-ui);
   font-size: var(--cl-text-md);

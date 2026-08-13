@@ -1,3 +1,4 @@
+import type { ProviderCostConfig } from '../budget/providerPricing';
 import type { ChatAppearanceSettings } from '../theme/chatAppearance';
 
 export type HiddenProviderCommands = Record<string, string[]>;
@@ -148,6 +149,10 @@ export interface ClaudianSettings {
   usageWindowHours?: Record<string, number>;
   /** Optional token cap per provider for the fill bar (0/unset = show consumption only). */
   usageTokenCaps?: Record<string, number>;
+  /** Per-provider billing model + prices, used by the usage & cost center. */
+  providerCosts?: Record<string, ProviderCostConfig>;
+  /** ISO currency code for every cost figure. Defaults to EUR. */
+  costCurrency?: string;
 
   /** Ollama local embedding configuration. */
   ollamaEmbedding?: {

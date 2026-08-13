@@ -1,5 +1,11 @@
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 
+import {
+  buildGoalVerificationPrompt,
+  type GoalVerdict,
+  parseGoalVerdict,
+} from '../../../core/conversation/goalLoop';
+import { extractGoalFromPrompt } from '../../../core/conversation/goalPrompt';
 import { expandProviderCommandInput } from '../../../core/providers/commands/expandProviderCommandInput';
 import { appendImagePathReferences } from '../../../core/providers/imagePathFallback';
 import { getRuntimeEnvironmentText } from '../../../core/providers/providerEnvironment';
@@ -44,6 +50,8 @@ import { normalizeClineAcpToolName } from '../normalization/clineAcpToolNormaliz
 import { parseClineJsonLine } from '../normalization/jsonEvents';
 import { CLINE_PROVIDER_ID, getClineProviderSettings } from '../settings';
 import { buildPersistedClineState, type ClineProviderState,getClineState, isClineNativeSessionId } from '../types';
+import { ClineAuxQueryRunner } from './ClineAuxQueryRunner';
+import { runClineGoalLoop } from './ClineGoalLoop';
 import { buildClineLaunchSpec } from './ClineLaunchSpec';
 import { spawnClineProcess } from './ClineProcess';
 import { buildClineRuntimeEnv } from './ClineRuntimeEnvironment';
@@ -119,10 +127,59 @@ export class ClineChatRuntime implements ChatRuntime {
     return ready;
   }
 
+  /**
+   * Entry point for a turn. When the conversation carries a standing `/goal` and
+   * the goal loop is enabled, the turn becomes an autonomous loop that keeps
+   * running until the objective is verifiably reached (see {@link runClineGoalLoop});
+   * otherwise it is one plain CLI turn.
+   */
   async *query(
     turn: PreparedChatTurn,
     conversationHistory?: ChatMessage[],
     queryOptions?: ChatRuntimeQueryOptions,
+  ): AsyncGenerator<StreamChunk> {
+    const settings = getClineProviderSettings(
+      this.plugin.settings as unknown as Record<string, unknown>,
+    );
+    const goal = settings.goalLoopEnabled
+      ? extractGoalFromPrompt(turn.request.text)
+      : null;
+
+    if (!goal) {
+      yield* this.runTurn(turn, conversationHistory, queryOptions);
+      return;
+    }
+
+    this.cancelled = false;
+    yield {
+      type: 'notice',
+      content: `🎯 Goal-Loop aktiv — bis zu ${settings.goalLoopMaxIterations} Durchläufe bis das Ziel erreicht ist.`,
+      level: 'info',
+    };
+    yield* runClineGoalLoop({
+      goal,
+      initialPrompt: turn.request.text,
+      deps: {
+        runTurn: (prompt, options) =>
+          this.runTurn(turn, conversationHistory, queryOptions, {
+            echoUserMessage: options.echoUserMessage,
+            promptOverride: prompt,
+          }),
+        verify: settings.goalLoopVerification === 'verifier'
+          ? (goalText, work) => this.verifyGoalProgress(goalText, work, queryOptions?.model)
+          : null,
+        isCancelled: () => this.cancelled,
+        maxIterations: settings.goalLoopMaxIterations,
+      },
+    });
+  }
+
+  /** Runs one Cline CLI turn end to end. */
+  private async *runTurn(
+    turn: PreparedChatTurn,
+    conversationHistory?: ChatMessage[],
+    queryOptions?: ChatRuntimeQueryOptions,
+    overrides?: { echoUserMessage?: boolean; promptOverride?: string },
   ): AsyncGenerator<StreamChunk> {
     this.currentTurnMetadata = {};
     this.cancelled = false;
@@ -158,15 +215,16 @@ export class ClineChatRuntime implements ChatRuntime {
       )
       || '';
 
-    let promptText = turn.request.text;
+    const requestedText = overrides?.promptOverride ?? turn.request.text;
+    let promptText = requestedText;
     try {
       const catalog = ProviderWorkspaceRegistry.getCommandCatalog(CLINE_PROVIDER_ID);
       if (catalog) {
         const entries = await catalog.listDropdownEntries({ includeBuiltIns: false });
-        promptText = expandProviderCommandInput(turn.request.text, entries);
+        promptText = expandProviderCommandInput(requestedText, entries);
       }
     } catch {
-      promptText = turn.request.text;
+      promptText = requestedText;
     }
     promptText = appendImagePathReferences(promptText, turn.request.images);
 
@@ -198,7 +256,7 @@ export class ClineChatRuntime implements ChatRuntime {
       thinking: settings.thinking,
     });
 
-    if (!isRetry) {
+    if (!isRetry && overrides?.echoUserMessage !== false) {
       yield { type: 'user_message_start', content: turn.request.text };
     }
 
@@ -270,6 +328,7 @@ export class ClineChatRuntime implements ChatRuntime {
           sessionId: this.sessionId,
           usage: {
             inputTokens,
+            outputTokens: event.usage?.outputTokens ?? 0,
             cacheReadInputTokens: cacheRead,
             cacheCreationInputTokens: cacheWrite,
             contextTokens,
@@ -416,7 +475,7 @@ export class ClineChatRuntime implements ChatRuntime {
           this.activeProcess = null;
           this.activeSpawnSpec = null;
         }
-        yield* this.query(turn, conversationHistory, queryOptions);
+        yield* this.runTurn(turn, conversationHistory, queryOptions, overrides);
         return;
       }
 
@@ -583,6 +642,34 @@ export class ClineChatRuntime implements ChatRuntime {
 
   async loadSubagentFinalResult(_agentId: string): Promise<string | null> {
     return null;
+  }
+
+  /**
+   * Second opinion for the goal loop: a short, thinking-free Cline call that
+   * judges the accumulated work against the goal and answers with a JSON verdict.
+   * Returns null when the verifier is unavailable or its answer is unusable — the
+   * loop then falls back to the agent's own completion marker.
+   */
+  private async verifyGoalProgress(
+    goal: string,
+    work: string,
+    model?: string,
+  ): Promise<GoalVerdict | null> {
+    const runner = new ClineAuxQueryRunner(this.plugin);
+    try {
+      const raw = await runner.query(
+        {
+          model,
+          systemPrompt: 'Du bist ein strenger Prüfer und antwortest ausschließlich mit JSON.',
+        },
+        buildGoalVerificationPrompt(goal, work),
+      );
+      return parseGoalVerdict(raw);
+    } catch {
+      return null;
+    } finally {
+      runner.reset();
+    }
   }
 
   private formatError(message: string, stderr: string): string {

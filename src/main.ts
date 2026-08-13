@@ -53,6 +53,11 @@ import {
 } from './core/intelligence/multiAgent/agentRegistry';
 import { buildCustomTeamAgents } from './core/intelligence/multiAgent/customTeam';
 import {
+  type MasterMissionOutcome,
+  type MasterMissionProgress,
+  MasterPrompterService,
+} from './core/intelligence/multiAgent/MasterPrompterService';
+import {
   multiAgentAvailabilityService,
 } from './core/intelligence/multiAgent/MultiAgentAvailabilityService';
 import {
@@ -64,6 +69,10 @@ type MissionProgressCallback,
   MissionStateStorage,
   MultiAgentService,
   type SpecialistAgent, } from './core/intelligence/multiAgent/MultiAgentService';
+import {
+  ProviderCapacityService,
+  type ProviderCapacitySettings,
+} from './core/intelligence/multiAgent/ProviderCapacityService';
 import { ProjectService } from './core/intelligence/projects/ProjectService';
 import {
   buildRelatedQueryText,
@@ -260,6 +269,10 @@ export default class ClaudianPlugin extends Plugin {
   embeddingService!: EmbeddingService;
   vaultRAGService!: VaultRAGService;
   multiAgentService!: MultiAgentService;
+  /** Live "which provider still has room" view, shared by routing and the usage UI. */
+  providerCapacityService!: ProviderCapacityService;
+  /** Plans missions and routes each subtask to a provider with capacity. */
+  masterPrompterService!: MasterPrompterService;
   missionStateStorage!: IMissionStateStorage;
   visionService!: VisionService;
   imageStagingService!: ImageStagingService;
@@ -1153,13 +1166,25 @@ export default class ClaudianPlugin extends Plugin {
    * when that provider is enabled and multi-agent-capable, otherwise the
    * active chat provider. Passed to `runMission` as `resolveAgentProviderId`.
    */
+  /**
+   * Resolves the effective provider for a specialist.
+   *
+   * A preferred provider only wins when it is enabled AND still has usage
+   * headroom — otherwise the agent is routed to the provider with the most
+   * remaining capacity. That is what keeps a mission running when one provider
+   * is rate-limited instead of piling every agent onto the same exhausted CLI.
+   */
   resolveMultiAgentProviderId(agent: SpecialistAgent): ProviderId {
     const activeProviderId = this.getActiveMultiAgentProviderId();
     const preferred = agent.providerId;
-    if (preferred && this.isProviderMultiAgentAvailable(preferred)) {
+    if (
+      preferred
+      && this.isProviderMultiAgentAvailable(preferred)
+      && !this.providerCapacityService.isRateLimited(preferred)
+    ) {
       return preferred;
     }
-    return activeProviderId;
+    return this.providerCapacityService.pickBest() ?? activeProviderId;
   }
 
   /** True when the provider is registered, enabled, and supports multi-agent. */
@@ -1932,25 +1957,54 @@ export default class ClaudianPlugin extends Plugin {
     agentIds?: string[],
     onProgress?: MissionProgressCallback,
   ): Promise<{ synthesis: string; results: { agentId: string; output: string }[] }> {
-    const missionAgentIds = agentIds ?? this.getInlineTeamAgents().map((agent) => agent.id);
-    const executor = this.buildMultiAgentExecutor();
-    const synthesizer = this.buildInlineTeamSynthesizer();
-    const taskId = `inline-team-${Date.now()}`;
+    const roster = agentIds
+      ? agentIds
+        .map((id) => this.multiAgentService.getAgent(id))
+        .filter((agent): agent is SpecialistAgent => Boolean(agent))
+      : this.getInlineTeamAgents();
 
-    const activeProviderId = this.getActiveMultiAgentProviderId();
-    const result = await this.multiAgentService.runMission(
-      { id: taskId, prompt: taskPrompt, agents: missionAgentIds },
-      executor,
-      synthesizer,
-      onProgress,
-      () => Date.now(),
+    const outcome = await this.runMasterMission({
+      mission: taskPrompt,
+      roster,
+      taskId: `inline-team-${Date.now()}`,
+      onMissionProgress: onProgress,
+    });
+    return { results: outcome.results, synthesis: outcome.synthesis };
+  }
+
+  /**
+   * Runs a master-prompted mission: one planning agent splits the work and writes
+   * a tailored prompt per specialist, then each subtask is dispatched to whichever
+   * provider still has usage headroom.
+   */
+  async runMasterMission(params: {
+    mission: string;
+    roster?: SpecialistAgent[];
+    taskId?: string;
+    onProgress?: (progress: MasterMissionProgress) => void;
+    onMissionProgress?: MissionProgressCallback;
+  }): Promise<MasterMissionOutcome> {
+    const roster = params.roster ?? this.getInlineTeamAgents();
+    for (const agent of roster) {
+      this.multiAgentService.registerAgent(agent);
+    }
+
+    return this.masterPrompterService.run(
       {
-        defaultProviderId: activeProviderId,
-        resolveAgentProviderId: (agent) => this.resolveMultiAgentProviderId(agent),
+        executor: this.buildMultiAgentExecutor(),
         maxFailovers: 3,
+        mission: params.mission,
+        roster,
+        synthesizer: this.buildInlineTeamSynthesizer(),
+        taskId: params.taskId ?? `master-${Date.now()}`,
+      },
+      (progress) => {
+        params.onProgress?.(progress);
+        if (progress.mission) {
+          params.onMissionProgress?.(progress.mission);
+        }
       },
     );
-    return result;
   }
 
   /** Synthesizer that runs on the active provider and streams into the chat. */
@@ -2139,6 +2193,17 @@ export default class ClaudianPlugin extends Plugin {
     this.cachedMemoryStore = new CachedMemoryStore(this.app.vault);
     this.multiAgentService = new MultiAgentService();
     this.missionStateStorage = new MissionStateStorage(this.storage.getAdapter());
+    this.providerCapacityService = new ProviderCapacityService(
+      this.tokenBudgetTracker,
+      () => this.settings as unknown as ProviderCapacitySettings & Record<string, unknown>,
+    );
+    this.masterPrompterService = new MasterPrompterService({
+      capacity: this.providerCapacityService,
+      onEvent: (event) => globalEventBus.emit('mission:event', event),
+      runPrompt: (prompt, providerId, onChunk) => this.runRawPrompt(prompt, onChunk, undefined, providerId),
+      service: this.multiAgentService,
+      storage: this.missionStateStorage as MissionStateStorage,
+    });
     this.visionService = new VisionService(this.app.vault);
     // Wire a real, provider-backed image analyzer (no mock): route the image to
     // a vision-capable provider runtime and return the model's description.

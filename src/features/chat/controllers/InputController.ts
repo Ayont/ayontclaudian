@@ -12,7 +12,7 @@ import { providerErrorRecoveryService } from '../../../core/diagnostics/errorRec
 import { getLastPerf, perfMark, perfSince } from '../../../core/diagnostics/perfLog';
 import { ensureProviderHealthy } from '../../../core/diagnostics/providerHealthCheck';
 import { buildDiffPreview } from '../../../core/diff/diffPreview';
-import type { MissionProgress } from '../../../core/intelligence/multiAgent/MultiAgentService';
+import type { MissionProgress, SpecialistAgent } from '../../../core/intelligence/multiAgent/MultiAgentService';
 import type { VaultRAGService } from '../../../core/intelligence/rag/VaultRAGService';
 import { persistAutoMemories } from '../../../core/memory/autoMemory';
 import {
@@ -1784,8 +1784,10 @@ export class InputController {
     const agents = plugin.getInlineTeamAgents();
     const messagesEl = this.deps.getMessagesEl();
     const board = new MissionBoard(messagesEl, task, agents);
+    board.setPhase('Master-Prompter plant die Mission…');
     board.scrollIntoView();
     let lastScroll = 0;
+    let rosterApplied = false;
     const onProgress = (progress: MissionProgress): void => {
       board.update(progress);
       // Keep the board in view while it grows, throttled to ~4/s.
@@ -1797,7 +1799,27 @@ export class InputController {
     };
 
     try {
-      const result = await plugin.runInlineTeamTask(task, undefined, onProgress);
+      const outcome = await plugin.runMasterMission({
+        mission: task,
+        onMissionProgress: onProgress,
+        onProgress: (masterProgress) => {
+          // The plan decides who actually runs — swap the board's roster once,
+          // so agents the plan skipped don't linger as permanently "pending".
+          if (masterProgress.plan && !rosterApplied) {
+            rosterApplied = true;
+            const planned = masterProgress.plan.subtasks
+              .map((subtask) => plugin.multiAgentService.getAgent(subtask.agentId))
+              .filter((agent): agent is SpecialistAgent => Boolean(agent));
+            if (planned.length > 0) {
+              board.setAgents(planned);
+            }
+            board.setProviderLabels(masterProgress.assignments);
+            board.setPhase(null);
+          }
+        },
+        roster: agents,
+      });
+      const result = { results: outcome.results, synthesis: outcome.synthesis };
       board.remove();
 
       const contributions = result.results

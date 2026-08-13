@@ -302,6 +302,55 @@ export const clineSettingsTabRenderer: ProviderSettingsTabRenderer = {
         area.inputEl.rows = 4;
       });
 
+    new Setting(container).setName('Goal-Loop').setHeading();
+
+    new Setting(container)
+      .setName('Ziel automatisch zu Ende arbeiten')
+      .setDesc(
+        'Mit einem gesetzten `/goal` arbeitet Cline in mehreren Durchläufen weiter, '
+        + 'bis das Ziel tatsächlich erreicht ist — statt nach einer Antwort zu stoppen.',
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(settings.goalLoopEnabled).onChange(async (value) => {
+          updateClineProviderSettings(settingsBag, { goalLoopEnabled: value });
+          await context.plugin.saveSettings();
+        }),
+      );
+
+    new Setting(container)
+      .setName('Maximale Durchläufe')
+      .setDesc('Obergrenze pro Ziel. Der Loop stoppt zusätzlich bei Abschluss, Stillstand oder Fehler.')
+      .addSlider((slider) => {
+        slider
+          .setLimits(1, 25, 1)
+          .setValue(settings.goalLoopMaxIterations)
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            updateClineProviderSettings(settingsBag, { goalLoopMaxIterations: value });
+            await context.plugin.saveSettings();
+          });
+      });
+
+    new Setting(container)
+      .setName('Abschluss-Prüfung')
+      .setDesc(
+        'Prüfer: ein zweiter, skeptischer Durchgang bewertet die Arbeit gegen das Ziel '
+        + '(zuverlässiger, ein günstiger Zusatz-Call). Marker: nur das Selbsturteil des Agenten.',
+      )
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption('verifier', 'Prüfer (empfohlen)')
+          .addOption('marker', 'Nur Marker')
+          .setValue(settings.goalLoopVerification)
+          .onChange(async (value) => {
+            if (value !== 'verifier' && value !== 'marker') {
+              return;
+            }
+            updateClineProviderSettings(settingsBag, { goalLoopVerification: value });
+            await context.plugin.saveSettings();
+          });
+      });
+
     renderEnvironmentSettingsSection({
       container,
       desc: 'Zusätzliche Variablen für Cline, z. B. CLINE_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY.',

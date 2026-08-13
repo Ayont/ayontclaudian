@@ -249,6 +249,12 @@ export interface UsageInfo {
   cacheCreationInputTokens?: number;
   /** Prompt caching: tokens read from cache. Claude-specific; 0 if omitted. */
   cacheReadInputTokens?: number;
+  /**
+   * Tokens the model generated this turn. Only populated by providers that report
+   * it; absent means "not reported", which cost estimation surfaces rather than
+   * silently treating as zero.
+   */
+  outputTokens?: number;
   contextWindow: number;
   /** True when `contextWindow` came from provider runtime data instead of a local heuristic. */
   contextWindowIsAuthoritative?: boolean;

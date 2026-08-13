@@ -14,6 +14,9 @@ const GOAL_CLOSE_TAG = '</standing_goal>';
 /** Matches a framed standing-goal block (and any trailing blank line) for stripping. */
 const GOAL_BLOCK_RE = /<standing_goal>[\s\S]*?<\/standing_goal>\n*/g;
 
+/** Captures the goal text inside a framed block. */
+const GOAL_CAPTURE_RE = /<standing_goal>([\s\S]*?)<\/standing_goal>/;
+
 /** Single-word arguments that explicitly clear/complete the goal. */
 const GOAL_CLEAR_KEYWORDS = new Set([
   'done', 'clear', 'reset', 'complete', 'fertig', 'erledigt', 'löschen',
@@ -53,4 +56,17 @@ export function applyGoalPrefix(prompt: string, goal: string | null | undefined)
 export function stripGoalBlocks(text: string): string {
   if (!text || !text.includes(GOAL_OPEN_TAG)) return text;
   return text.replace(GOAL_BLOCK_RE, '').trimStart();
+}
+
+/**
+ * Reads the standing goal back out of a prompt that {@link applyGoalPrefix} framed.
+ *
+ * Runtimes need the goal itself — not just the prefixed prompt — to drive the goal
+ * loop. Recovering it from the framed block keeps that provider-side, with no extra
+ * plumbing through `ChatTurnRequest`, and works for every provider identically.
+ */
+export function extractGoalFromPrompt(prompt: string): string | null {
+  if (!prompt || !prompt.includes(GOAL_OPEN_TAG)) return null;
+  const goal = prompt.match(GOAL_CAPTURE_RE)?.[1]?.trim();
+  return goal ? goal : null;
 }

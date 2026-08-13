@@ -21,6 +21,7 @@ export interface GoalBannerOptions {
 export class GoalBanner {
   private readonly rootEl: HTMLElement;
   private readonly providerEl: HTMLElement;
+  private readonly loopEl: HTMLElement;
   private readonly textEl: HTMLElement;
   private currentGoal = '';
   private active = false;
@@ -35,6 +36,7 @@ export class GoalBanner {
     const headEl = bodyEl.createDiv({ cls: 'claudian-goal-banner-head' });
     headEl.createSpan({ cls: 'claudian-goal-banner-label', text: 'Goal aktiv' });
     this.providerEl = headEl.createSpan({ cls: 'claudian-goal-banner-provider' });
+    this.loopEl = headEl.createSpan({ cls: 'claudian-goal-banner-loop claudian-hidden' });
     this.textEl = bodyEl.createDiv({ cls: 'claudian-goal-banner-text' });
 
     // Click the body to edit the goal (prefills the input with /goal <current>).
@@ -56,12 +58,20 @@ export class GoalBanner {
     });
   }
 
-  /** Shows the banner with the given goal text and provider label. */
-  setGoal(goalText: string, providerLabel: string): void {
+  /**
+   * Shows the banner with the given goal text and provider label.
+   *
+   * `loopLabel` marks providers that do not just carry the goal along but
+   * actually work it to completion across turns (Cline's goal loop) — without it
+   * the two very different behaviors look identical in the UI.
+   */
+  setGoal(goalText: string, providerLabel: string, loopLabel?: string): void {
     this.currentGoal = goalText;
     this.textEl.setText(goalText);
     this.providerEl.setText(providerLabel);
     this.providerEl.toggleClass('claudian-hidden', providerLabel.length === 0);
+    this.loopEl.setText(loopLabel ?? '');
+    this.loopEl.toggleClass('claudian-hidden', !loopLabel);
     this.rootEl.removeClass('claudian-hidden');
     this.active = true;
   }
@@ -71,6 +81,8 @@ export class GoalBanner {
     this.rootEl.addClass('claudian-hidden');
     this.textEl.setText('');
     this.providerEl.setText('');
+    this.loopEl.setText('');
+    this.loopEl.addClass('claudian-hidden');
     this.currentGoal = '';
     this.active = false;
   }
