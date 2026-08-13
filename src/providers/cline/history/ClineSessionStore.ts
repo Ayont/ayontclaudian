@@ -46,6 +46,19 @@ export function readClineSessionMessages(sessionId: string): ChatMessage[] {
   return messages;
 }
 
+export function clineSessionExists(sessionId: string): boolean {
+  const trimmed = sessionId.trim();
+  if (!trimmed) {
+    return false;
+  }
+  const filePath = path.join(getClineSessionDir(trimmed), `${trimmed}.messages.json`);
+  try {
+    return fs.existsSync(filePath) && fs.statSync(filePath).isFile();
+  } catch {
+    return false;
+  }
+}
+
 export function deleteClineSessionDir(sessionId: string): void {
   const dir = getClineSessionDir(sessionId);
   try {

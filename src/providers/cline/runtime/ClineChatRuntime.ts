@@ -38,6 +38,7 @@ import {
   type WindowsCmdShimSpawnSpec,
 } from '../../../utils/windowsCmdShim';
 import { CLINE_PROVIDER_CAPABILITIES } from '../capabilities';
+import { clineSessionExists } from '../history/ClineSessionStore';
 import { getClineModelContextWindow, resolveClineModelSelection } from '../modelOptions';
 import { normalizeClineAcpToolName } from '../normalization/clineAcpToolNormalization';
 import { parseClineJsonLine } from '../normalization/jsonEvents';
@@ -46,6 +47,7 @@ import { buildPersistedClineState, type ClineProviderState,getClineState, isClin
 import { buildClineLaunchSpec } from './ClineLaunchSpec';
 import { spawnClineProcess } from './ClineProcess';
 import { buildClineRuntimeEnv } from './ClineRuntimeEnvironment';
+import { buildClineTurnPrompt } from './ClineTurnPrompt';
 import { CLINE_KEEPALIVE_INTERVAL_MS, CLINE_KEEPALIVE_MAX_SILENCE_MS } from './keepalive';
 
 /**
@@ -100,7 +102,8 @@ export class ClineChatRuntime implements ChatRuntime {
       return;
     }
     const state = getClineState(conversation.providerState);
-    this.sessionId = isClineNativeSessionId(state.sessionId) ? state.sessionId : null;
+    const nativeId = isClineNativeSessionId(state.sessionId) ? state.sessionId : null;
+    this.sessionId = nativeId && clineSessionExists(nativeId) ? nativeId : null;
     this.sessionInvalidated = false;
   }
 
@@ -167,10 +170,22 @@ export class ClineChatRuntime implements ChatRuntime {
     }
     promptText = appendImagePathReferences(promptText, turn.request.images);
 
+    const resumeId = this.sessionId && clineSessionExists(this.sessionId)
+      ? this.sessionId
+      : null;
+    if (this.sessionId && !resumeId) {
+      this.sessionId = null;
+    }
+    promptText = buildClineTurnPrompt({
+      history: conversationHistory,
+      prompt: promptText,
+      sessionId: resumeId,
+    });
+
     const launchSpec = buildClineLaunchSpec({
       apiProvider: settings.apiProvider,
       command,
-      compaction: settings.compaction,
+      compaction: resumeId ? settings.compaction : 'basic',
       cwd,
       env,
       envText,
@@ -179,7 +194,7 @@ export class ClineChatRuntime implements ChatRuntime {
       permissionMode: settings.permissionMode,
       prompt: promptText,
       retries: settings.retries,
-      sessionId: this.sessionId,
+      sessionId: resumeId,
       thinking: settings.thinking,
     });
 

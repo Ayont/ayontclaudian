@@ -3,6 +3,14 @@ import type { Conversation } from '../../../core/types';
 import { buildPersistedClineState, getClineState } from '../types';
 import { deleteClineSessionDir, readClineSessionMessages } from './ClineSessionStore';
 
+/** Keep the richer mid-chat transcript instead of clobbering it with an older Cline session. */
+export function shouldReplaceClineHydratedMessages(
+  existingCount: number,
+  incomingCount: number,
+): boolean {
+  return incomingCount > 0 && incomingCount >= existingCount;
+}
+
 export class ClineConversationHistoryService implements ProviderConversationHistoryService {
   private readonly hydratedKeys = new Map<string, string>();
 
@@ -23,11 +31,12 @@ export class ClineConversationHistoryService implements ProviderConversationHist
       return;
     }
 
+    if (!shouldReplaceClineHydratedMessages(conversation.messages.length, messages.length)) {
+      return;
+    }
+
     const hydrationKey = `${sessionId}::${messages.length}`;
-    if (
-      conversation.messages.length > 0
-      && this.hydratedKeys.get(conversation.id) === hydrationKey
-    ) {
+    if (this.hydratedKeys.get(conversation.id) === hydrationKey) {
       return;
     }
 
