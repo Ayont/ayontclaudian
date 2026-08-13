@@ -1,50 +1,54 @@
 import { buildClineLaunchSpec } from '@/providers/cline/runtime/ClineLaunchSpec';
+import { isClineNativeSessionId } from '@/providers/cline/types';
+
+describe('isClineNativeSessionId', () => {
+  it('accepts Cline CLI session ids and rejects foreign ones', () => {
+    expect(isClineNativeSessionId('1786522352621_1rqet')).toBe(true);
+    expect(isClineNativeSessionId('codex-rollout-abc')).toBe(false);
+    expect(isClineNativeSessionId('ses_01ABC')).toBe(false);
+  });
+});
 
 describe('buildClineLaunchSpec', () => {
-  it('starts ACP with ClinePass model, thinking, and yolo auto-approve', () => {
+  it('builds a streaming --json turn with ClinePass model and plan', () => {
     const spec = buildClineLaunchSpec({
       command: '/usr/local/bin/cline',
       cwd: '/vault',
       env: {},
-      mode: 'acp',
+      mode: 'print',
       model: 'cline-pass/kimi-k3',
-      permissionMode: 'yolo',
-      thinking: 'xhigh',
+      permissionMode: 'plan',
+      prompt: 'hi',
+      sessionId: '1786522352621_1rqet',
+      thinking: 'high',
     });
     expect(spec.args).toEqual([
-      '--acp',
+      '--yolo',
+      '--json',
       '-P', 'cline-pass',
       '-m', 'cline-pass/kimi-k3',
-      '--thinking', 'xhigh',
+      '--thinking', 'high',
       '-c', '/vault',
-      '--auto-approve', 'true',
+      '--plan',
+      '--id', '1786522352621_1rqet',
+      'hi',
     ]);
   });
 
-  it('adds --plan in plan mode and turns auto-approve off in safe mode', () => {
-    const plan = buildClineLaunchSpec({
+  it('omits --id for a foreign session so Cline starts clean', () => {
+    const spec = buildClineLaunchSpec({
       command: 'cline',
       cwd: '/vault',
       env: {},
-      mode: 'acp',
+      mode: 'print',
       model: 'cline-pass/glm-5.2',
-      permissionMode: 'plan',
-      thinking: 'high',
-    });
-    expect(plan.args).toContain('--plan');
-    expect(plan.args).toContain('--auto-approve');
-
-    const safe = buildClineLaunchSpec({
-      command: 'cline',
-      cwd: '/vault',
-      env: {},
-      mode: 'acp',
-      model: 'cline-pass/glm-5.2',
-      permissionMode: 'normal',
+      permissionMode: 'yolo',
+      prompt: 'hi',
+      sessionId: 'codex-foreign-session',
       thinking: 'medium',
     });
-    expect(safe.args).toEqual(expect.arrayContaining(['--auto-approve', 'false']));
-    expect(safe.args).not.toContain('--plan');
+    expect(spec.args).not.toContain('--id');
+    expect(spec.args).toContain('hi');
   });
 
   it('builds a one-shot --json aux turn without resume', () => {

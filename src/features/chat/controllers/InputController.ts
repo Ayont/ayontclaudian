@@ -268,12 +268,23 @@ export class InputController {
     } catch {
       providerName = providerId;
     }
-    const agentLabel = model
-      ? `${providerName} · ${model}`
+    let modelLabel = model;
+    if (model) {
+      try {
+        const options = ProviderRegistry.getChatUIConfig(providerId).getModelOptions(
+          this.deps.plugin.settings as unknown as Record<string, unknown>,
+        );
+        modelLabel = options.find((option) => option.value === model)?.label ?? model;
+      } catch {
+        modelLabel = model;
+      }
+    }
+    const agentLabel = modelLabel
+      ? `${providerName} · ${modelLabel}`
       : providerName;
     return {
       agentProvider: providerId,
-      agentModel: model,
+      agentModel: model === AUTO_MODEL_VALUE ? undefined : modelLabel,
       // Don't store Auto sentinel as a label — it would mislead the divider.
       agentLabel: model === AUTO_MODEL_VALUE ? providerName : agentLabel,
     };

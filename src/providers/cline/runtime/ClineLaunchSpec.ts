@@ -1,4 +1,5 @@
 import type { ClinePermissionMode } from '../settings';
+import { isClineNativeSessionId } from '../types';
 import {
   type ClineApiProviderId,
   type ClineThinkingLevel,
@@ -56,14 +57,14 @@ export function buildClineLaunchSpec(params: BuildClineLaunchSpecParams): ClineL
 
   if (params.mode === 'acp') {
     args.push('--auto-approve', params.permissionMode === 'normal' ? 'false' : 'true');
-    if (params.permissionMode === 'plan') {
-      args.push('--plan');
-    }
-    const sessionId = params.sessionId?.trim();
-    if (sessionId) {
-      args.push('--id', sessionId);
-    }
-  } else if (params.prompt !== undefined) {
+  }
+  if (params.permissionMode === 'plan') {
+    args.push('--plan');
+  }
+  if (isClineNativeSessionId(params.sessionId)) {
+    args.push('--id', params.sessionId.trim());
+  }
+  if (params.mode === 'print' && params.prompt !== undefined) {
     args.push(params.prompt);
   }
 

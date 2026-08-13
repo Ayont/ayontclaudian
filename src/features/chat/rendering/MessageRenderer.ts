@@ -751,7 +751,7 @@ export class MessageRenderer {
       cls: 'claudian-assistant-turn-provider',
       text: msg.agentLabel ?? this.getProviderShortLabel(this.resolveMessageProvider(msg)),
     });
-    if (msg.agentModel) {
+    if (msg.agentModel && !msg.agentLabel?.includes(msg.agentModel)) {
       identityEl.createSpan({ cls: 'claudian-assistant-turn-model', text: msg.agentModel });
     }
 

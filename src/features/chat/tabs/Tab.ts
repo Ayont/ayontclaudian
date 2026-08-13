@@ -2445,12 +2445,29 @@ async function renderAutoTriggeredTurn(tab: TabData, plugin: ClaudianPlugin, res
     toolCalls: [],
     contentBlocks: [],
     agentProvider: getTabProviderId(tab, plugin),
-    agentModel: getTabSettingsSnapshot(tab, plugin).model ?? undefined,
+    agentModel: (() => {
+      const m = getTabSettingsSnapshot(tab, plugin).model;
+      if (!m || m === AUTO_MODEL_VALUE) {
+        return undefined;
+      }
+      const pid = getTabProviderId(tab, plugin);
+      const options = ProviderRegistry.getChatUIConfig(pid).getModelOptions(
+        plugin.settings as unknown as Record<string, unknown>,
+      );
+      return options.find((option) => option.value === m)?.label ?? m;
+    })(),
     agentLabel: (() => {
       const pid = getTabProviderId(tab, plugin);
       const m = getTabSettingsSnapshot(tab, plugin).model;
       const name = ProviderRegistry.getProviderDisplayName(pid);
-      return m && m !== AUTO_MODEL_VALUE ? `${name} · ${m}` : name;
+      if (!m || m === AUTO_MODEL_VALUE) {
+        return name;
+      }
+      const options = ProviderRegistry.getChatUIConfig(pid).getModelOptions(
+        plugin.settings as unknown as Record<string, unknown>,
+      );
+      const pretty = options.find((option) => option.value === m)?.label ?? m;
+      return `${name} · ${pretty}`;
     })(),
     ...(metadata.assistantMessageId && { assistantMessageId: metadata.assistantMessageId }),
   };

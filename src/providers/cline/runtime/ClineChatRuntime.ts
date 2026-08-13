@@ -1,9 +1,14 @@
+import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 import * as path from 'node:path';
 
+import { expandProviderCommandInput } from '../../../core/providers/commands/expandProviderCommandInput';
 import { appendImagePathReferences } from '../../../core/providers/imagePathFallback';
 import { getRuntimeEnvironmentText } from '../../../core/providers/providerEnvironment';
+import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorkspaceRegistry';
 import type { ProviderCapabilities } from '../../../core/providers/types';
+import { buildEstimatedUsageInfo, estimateTokensForTexts } from '../../../core/providers/usage/estimateUsage';
 import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
+import { isStaleResumeFailure, staleSessionRetryNotice } from '../../../core/runtime/printSessionRecovery';
 import type {
   ApprovalCallback,
   AskUserQuestionCallback,
@@ -31,92 +36,38 @@ import type ClaudianPlugin from '../../../main';
 import { getEnhancedPath } from '../../../utils/env';
 import { getVaultPath } from '../../../utils/path';
 import {
-  AcpClientConnection,
-  type AcpClientConnectionDelegate,
-  type AcpContentBlock,
-  AcpJsonRpcTransport,
-  type AcpRequestPermissionRequest,
-  type AcpRequestPermissionResponse,
-  type AcpSessionModeId,
-  type AcpSessionNotification,
-  AcpSessionUpdateNormalizer,
-  AcpSubprocess,
-} from '../../acp';
+  resolveWindowsCmdShimSpawnSpec,
+  terminateSpawnedProcess,
+  type WindowsCmdShimSpawnSpec,
+} from '../../../utils/windowsCmdShim';
 import { CLINE_PROVIDER_CAPABILITIES } from '../capabilities';
-import { resolveClineModelSelection } from '../modelOptions';
-import { createClineAcpToolStreamAdapter } from '../normalization/clineAcpToolNormalization';
-import { CLINE_PROVIDER_ID,getClineProviderSettings } from '../settings';
-import { buildPersistedClineState, type ClineProviderState,getClineState } from '../types';
+import { getClineModelContextWindow, resolveClineModelSelection } from '../modelOptions';
+import { normalizeClineAcpToolName } from '../normalization/clineAcpToolNormalization';
+import { parseClineJsonLine } from '../normalization/jsonEvents';
+import { CLINE_PROVIDER_ID, getClineProviderSettings } from '../settings';
+import { buildPersistedClineState, type ClineProviderState,getClineState, isClineNativeSessionId } from '../types';
 import { buildClineLaunchSpec } from './ClineLaunchSpec';
 import { buildClineRuntimeEnv } from './ClineRuntimeEnvironment';
 import { CLINE_KEEPALIVE_INTERVAL_MS, CLINE_KEEPALIVE_MAX_SILENCE_MS } from './keepalive';
 
-interface ActiveTurn {
-  queue: StreamChunkQueue;
-  sessionId: string;
-}
-
-class StreamChunkQueue {
-  private closed = false;
-  private readonly items: StreamChunk[] = [];
-  private readonly waiters: Array<(chunk: StreamChunk | null) => void> = [];
-
-  push(chunk: StreamChunk): void {
-    const waiter = this.waiters.shift();
-    if (waiter) {
-      waiter(chunk);
-      return;
-    }
-    this.items.push(chunk);
-  }
-
-  close(): void {
-    if (this.closed) {
-      return;
-    }
-    this.closed = true;
-    while (this.waiters.length > 0) {
-      this.waiters.shift()?.(null);
-    }
-  }
-
-  async next(): Promise<StreamChunk | null> {
-    if (this.items.length > 0) {
-      return this.items.shift() ?? null;
-    }
-    if (this.closed) {
-      return null;
-    }
-    return new Promise<StreamChunk | null>((resolve) => {
-      this.waiters.push(resolve);
-    });
-  }
-}
-
+/**
+ * Cline print runtime.
+ *
+ * `cline --acp` is not a stable transport on the shipped CLI (the Bun child
+ * exits immediately with no JSON-RPC handshake). The documented headless path
+ * is `cline --json`, which streams NDJSON and resumes via `--id`.
+ */
 export class ClineChatRuntime implements ChatRuntime {
   readonly providerId = CLINE_PROVIDER_ID;
 
-  private activeTurn: ActiveTurn | null = null;
-  private approvalCallback: ApprovalCallback | null = null;
-  private askUserQuestionCallback: AskUserQuestionCallback | null = null;
-  private autoTurnCallback: AutoTurnCallback | null = null;
-  private connection: AcpClientConnection | null = null;
-  private currentLaunchKey: string | null = null;
+  private activeProcess: ChildProcessWithoutNullStreams | null = null;
+  private cancelled = false;
   private currentTurnMetadata: ChatTurnMetadata = {};
-  private cwd: string = process.cwd();
-  private exitPlanModeCallback: ExitPlanModeCallback | null = null;
-  private lastNotificationAt = 0;
-  private loadedSessionId: string | null = null;
-  private permissionModeSyncCallback: ((mode: string) => void) | null = null;
-  private process: AcpSubprocess | null = null;
+  private isResumeRetry = false;
   private ready = false;
   private readonly readyListeners = new Set<(ready: boolean) => void>();
   private sessionId: string | null = null;
   private sessionInvalidated = false;
-  private readonly sessionUpdateNormalizer = new AcpSessionUpdateNormalizer();
-  private readonly supportedCommands: SlashCommand[] = [];
-  private readonly toolStreamAdapter = createClineAcpToolStreamAdapter();
-  private transport: AcpJsonRpcTransport | null = null;
 
   constructor(private readonly plugin: ClaudianPlugin) {}
 
@@ -150,41 +101,72 @@ export class ClineChatRuntime implements ChatRuntime {
       return;
     }
     const state = getClineState(conversation.providerState);
-    this.sessionId = state.sessionId ?? null;
+    this.sessionId = isClineNativeSessionId(state.sessionId) ? state.sessionId : null;
     this.sessionInvalidated = false;
   }
 
   async reloadMcpServers(): Promise<void> {}
 
-  async ensureReady(options?: ChatRuntimeEnsureReadyOptions): Promise<boolean> {
+  async ensureReady(_options?: ChatRuntimeEnsureReadyOptions): Promise<boolean> {
     const settings = getClineProviderSettings(
       this.plugin.settings as unknown as Record<string, unknown>,
     );
+    const command = this.plugin.getResolvedProviderCliPath(CLINE_PROVIDER_ID);
+    const ready = settings.enabled && Boolean(command);
+    this.setReady(ready);
+    return ready;
+  }
+
+  async *query(
+    turn: PreparedChatTurn,
+    conversationHistory?: ChatMessage[],
+    queryOptions?: ChatRuntimeQueryOptions,
+  ): AsyncGenerator<StreamChunk> {
+    this.currentTurnMetadata = {};
+    this.cancelled = false;
+    const isRetry = this.isResumeRetry;
+    this.isResumeRetry = false;
+    const hadSession = this.sessionId !== null;
+
+    const settingsBag = this.plugin.settings as unknown as Record<string, unknown>;
+    const settings = getClineProviderSettings(settingsBag);
     if (!settings.enabled) {
-      this.setReady(false);
-      return false;
+      yield { type: 'error', content: 'Cline ist deaktiviert. Aktiviere es in den Einstellungen.' };
+      yield { type: 'done' };
+      return;
     }
 
     const command = this.plugin.getResolvedProviderCliPath(CLINE_PROVIDER_ID);
     if (!command) {
-      this.setReady(false);
-      return false;
+      yield {
+        type: 'error',
+        content: 'Die `cline`-Binary wurde nicht gefunden. CLI-Pfad in den Cline-Einstellungen setzen.',
+      };
+      yield { type: 'done' };
+      return;
     }
 
-    this.cwd = getVaultPath(this.plugin.app) ?? process.cwd();
-    const cwd = this.cwd;
-    const env = buildClineRuntimeEnv(
-      this.plugin.settings as unknown as Record<string, unknown>,
-      command,
-    );
-    const envText = getRuntimeEnvironmentText(
-      this.plugin.settings as unknown as Record<string, unknown>,
-      CLINE_PROVIDER_ID,
-    );
-    const model = resolveClineModelSelection(
-      this.plugin.settings as unknown as Record<string, unknown>,
-      typeof this.plugin.settings.model === 'string' ? this.plugin.settings.model : '',
-    ) ?? '';
+    const cwd = getVaultPath(this.plugin.app) ?? process.cwd();
+    const env = buildClineRuntimeEnv(settingsBag, command);
+    const envText = getRuntimeEnvironmentText(settingsBag, CLINE_PROVIDER_ID);
+    const model = queryOptions?.model?.trim()
+      || resolveClineModelSelection(
+        settingsBag,
+        typeof settingsBag.model === 'string' ? settingsBag.model : '',
+      )
+      || '';
+
+    let promptText = turn.request.text;
+    try {
+      const catalog = ProviderWorkspaceRegistry.getCommandCatalog(CLINE_PROVIDER_ID);
+      if (catalog) {
+        const entries = await catalog.listDropdownEntries({ includeBuiltIns: false });
+        promptText = expandProviderCommandInput(turn.request.text, entries);
+      }
+    } catch {
+      promptText = turn.request.text;
+    }
+    promptText = appendImagePathReferences(promptText, turn.request.images);
 
     const launchSpec = buildClineLaunchSpec({
       apiProvider: settings.apiProvider,
@@ -192,150 +174,221 @@ export class ClineChatRuntime implements ChatRuntime {
       cwd,
       env,
       envText,
-      mode: 'acp',
+      mode: 'print',
       model,
       permissionMode: settings.permissionMode,
+      prompt: promptText,
+      sessionId: this.sessionId,
       thinking: settings.thinking,
     });
 
-    const shouldRestart =
-      !this.process
-      || !this.transport
-      || !this.connection
-      || !this.process.isAlive()
-      || this.transport.isClosed
-      || options?.force === true
-      || this.currentLaunchKey !== launchSpec.launchKey;
-
-    if (shouldRestart) {
-      await this.shutdownProcess();
-      await this.startProcess(launchSpec);
-      this.currentLaunchKey = launchSpec.launchKey;
-      this.loadedSessionId = null;
+    if (!isRetry) {
+      yield { type: 'user_message_start', content: turn.request.text };
     }
 
-    const targetSessionId = this.sessionId;
-    if (targetSessionId) {
-      if (this.loadedSessionId !== targetSessionId) {
-        const loaded = await this.loadSession(targetSessionId);
-        if (!loaded) {
-          this.sessionInvalidated = true;
-          this.clearActiveSession();
-        }
-      }
-      return true;
-    }
-
-    if (!this.sessionId && !this.sessionInvalidated) {
-      if (options?.allowSessionCreation === false) {
-        return true;
-      }
-      return Boolean(await this.createSession());
-    }
-
-    return true;
-  }
-
-  async *query(
-    turn: PreparedChatTurn,
-    _conversationHistory?: ChatMessage[],
-    queryOptions?: ChatRuntimeQueryOptions,
-  ): AsyncGenerator<StreamChunk> {
-    if (!(await this.ensureReady())) {
-      yield { type: 'error', content: 'Cline ACP konnte nicht gestartet werden. CLI-Pfad und Login prüfen (`cline auth`).' };
-      yield { type: 'done' };
-      return;
-    }
-
-    if (!this.connection || !this.sessionId) {
-      yield { type: 'error', content: 'Cline ACP ist nicht bereit.' };
-      yield { type: 'done' };
-      return;
-    }
-
-    const sessionId = this.sessionId;
-    this.activeTurn?.queue.close();
-    this.activeTurn = { queue: new StreamChunkQueue(), sessionId };
-    this.currentTurnMetadata = {};
-    this.sessionUpdateNormalizer.reset();
-    this.toolStreamAdapter.reset();
-
-    const activeTurn = this.activeTurn;
-
+    let proc: ChildProcessWithoutNullStreams;
+    let resolvedSpawnSpec: WindowsCmdShimSpawnSpec;
     try {
-      await this.applyPermissionMode(sessionId);
-      await this.applyModel(sessionId, queryOptions?.model);
-      await this.applyThinking(sessionId);
+      resolvedSpawnSpec = resolveWindowsCmdShimSpawnSpec(launchSpec);
+      proc = spawn(resolvedSpawnSpec.command, resolvedSpawnSpec.args, {
+        cwd,
+        env: {
+          ...env,
+          PATH: getEnhancedPath(env.PATH, path.isAbsolute(command) ? command : undefined),
+        },
+        stdio: 'pipe',
+        windowsHide: true,
+        ...(resolvedSpawnSpec.windowsVerbatimArguments ? { windowsVerbatimArguments: true } : {}),
+      });
     } catch (error) {
       yield {
         type: 'error',
-        content: error instanceof Error ? error.message : 'Cline-Sitzung konnte nicht konfiguriert werden.',
+        content: error instanceof Error ? error.message : 'Cline konnte nicht gestartet werden.',
       };
       yield { type: 'done' };
-      activeTurn.queue.close();
-      this.activeTurn = null;
       return;
     }
 
-    const promptBlocks: AcpContentBlock[] = [{
-      text: appendImagePathReferences(turn.request.text, turn.request.images),
-      type: 'text',
-    }];
-    for (const image of turn.request.images ?? []) {
-      if (!image.data) continue;
-      promptBlocks.push({ data: image.data, mimeType: image.mediaType, type: 'image' });
-    }
+    this.activeProcess = proc;
+    proc.stdin.end();
 
-    const promptPromise = this.connection
-      .prompt({
-        prompt: promptBlocks,
-        sessionId,
-      })
-      .then((response) => {
-        if (response.userMessageId) {
-          this.currentTurnMetadata.userMessageId = response.userMessageId;
+    let stdoutBuffer = '';
+    let stderr = '';
+    const pendingChunks: StreamChunk[] = [];
+    let finished = false;
+    let exitInfo: { code: number | null; error?: Error } = { code: null };
+    let wake: (() => void) | null = null;
+    let lastActivity = Date.now();
+    let sawTextDelta = false;
+    const signal = (): void => {
+      if (wake) {
+        const resume = wake;
+        wake = null;
+        resume();
+      }
+    };
+
+    const consumeLine = (line: string): void => {
+      const event = parseClineJsonLine(line);
+      if (!event) {
+        return;
+      }
+      lastActivity = Date.now();
+      if (isClineNativeSessionId(event.sessionId)) {
+        this.sessionId = event.sessionId;
+      }
+      if (event.kind === 'text' && event.text) {
+        if (event.isFinal && sawTextDelta) {
+          return;
         }
-        activeTurn.queue.push({ type: 'done' });
-        activeTurn.queue.close();
-      })
-      .catch((error) => {
-        activeTurn.queue.push({
-          type: 'error',
-          content: error instanceof Error ? error.message : 'Cline ACP Prompt fehlgeschlagen.',
+        if (!event.isFinal) {
+          sawTextDelta = true;
+        }
+        pendingChunks.push({ type: 'text', content: event.text });
+        return;
+      }
+      if (event.kind === 'thinking' && event.text) {
+        pendingChunks.push({ type: 'thinking', content: event.text });
+        return;
+      }
+      if (event.kind === 'tool_start') {
+        pendingChunks.push({
+          type: 'tool_use',
+          id: event.toolCallId ?? `cline-tool-${Date.now()}`,
+          name: normalizeClineAcpToolName(event.toolName),
+          input: event.toolInput ?? {},
         });
-        activeTurn.queue.push({ type: 'done' });
-        activeTurn.queue.close();
-      })
-      .finally(() => {
-        if (this.activeTurn === activeTurn) {
-          this.activeTurn = null;
-        }
-      });
+        return;
+      }
+      if (event.kind === 'tool_end') {
+        pendingChunks.push({
+          type: 'tool_result',
+          id: event.toolCallId ?? `cline-tool-${Date.now()}`,
+          content: event.toolError ?? event.toolOutput ?? '',
+          isError: Boolean(event.toolError),
+        });
+      }
+    };
 
-    this.lastNotificationAt = Date.now();
+    const drainCompleteLines = (): void => {
+      let newlineIndex = stdoutBuffer.indexOf('\n');
+      while (newlineIndex !== -1) {
+        const line = stdoutBuffer.slice(0, newlineIndex);
+        stdoutBuffer = stdoutBuffer.slice(newlineIndex + 1);
+        consumeLine(line);
+        newlineIndex = stdoutBuffer.indexOf('\n');
+      }
+      signal();
+    };
+
+    proc.stdout.on('data', (chunk: Buffer | string) => {
+      stdoutBuffer += typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
+      drainCompleteLines();
+    });
+    proc.stderr.on('data', (chunk: Buffer | string) => {
+      stderr += typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
+    });
+
+    const onExit = (info: { code: number | null; error?: Error }): void => {
+      if (stdoutBuffer.trim()) {
+        consumeLine(stdoutBuffer);
+        stdoutBuffer = '';
+      }
+      exitInfo = info;
+      finished = true;
+      signal();
+    };
+    proc.on('error', (error) => onExit({ code: null, error }));
+    proc.on('close', (code) => onExit({ code }));
+
     const keepaliveTimer = window.setInterval(() => {
-      if (this.activeTurn !== activeTurn) {
+      if (finished || this.cancelled) {
         return;
       }
-      if (Date.now() - this.lastNotificationAt > CLINE_KEEPALIVE_MAX_SILENCE_MS) {
+      if (Date.now() - lastActivity > CLINE_KEEPALIVE_MAX_SILENCE_MS) {
         return;
       }
-      activeTurn.queue.push({ type: 'keepalive' });
+      pendingChunks.push({ type: 'keepalive' });
+      signal();
     }, CLINE_KEEPALIVE_INTERVAL_MS);
 
+    let responseText = '';
     try {
       while (true) {
-        const chunk = await activeTurn.queue.next();
-        if (!chunk) {
+        while (pendingChunks.length > 0) {
+          const chunk = pendingChunks.shift() as StreamChunk;
+          if ((chunk.type === 'text' || chunk.type === 'thinking') && typeof chunk.content === 'string') {
+            responseText += chunk.content;
+          }
+          yield chunk;
+        }
+        if (finished) {
           break;
         }
-        yield chunk;
+        await new Promise<void>((resolve) => {
+          wake = resolve;
+        });
       }
-      await promptPromise;
+
+      if (
+        !isRetry
+        && isStaleResumeFailure({
+          hadSession,
+          exitCode: exitInfo.code,
+          stderr,
+          producedOutput: responseText.trim().length > 0,
+        })
+      ) {
+        this.resetSession();
+        this.isResumeRetry = true;
+        yield { type: 'notice', content: staleSessionRetryNotice('Cline'), level: 'info' };
+        if (this.activeProcess === proc) {
+          this.activeProcess = null;
+        }
+        yield* this.query(turn, conversationHistory, queryOptions);
+        return;
+      }
+
+      if (this.cancelled) {
+        yield { type: 'done' };
+        return;
+      }
+
+      if (exitInfo.error) {
+        yield { type: 'error', content: this.formatError(exitInfo.error.message, stderr) };
+        yield { type: 'done' };
+        return;
+      }
+
+      if (exitInfo.code !== 0 && exitInfo.code !== null) {
+        yield {
+          type: 'error',
+          content: this.formatError(`cline beendete mit Code ${exitInfo.code}`, stderr),
+        };
+        yield { type: 'done' };
+        return;
+      }
+
+      this.currentTurnMetadata.wasSent = true;
+      const contextTokens = estimateTokensForTexts([
+        ...(conversationHistory ?? []).map((message) => message.content ?? ''),
+        promptText,
+        responseText,
+      ]);
+      yield {
+        type: 'usage',
+        usage: buildEstimatedUsageInfo({
+          contextTokens,
+          contextWindow: getClineModelContextWindow(model),
+          model: model || undefined,
+        }),
+        sessionId: this.sessionId,
+      };
+      yield { type: 'done' };
     } finally {
       window.clearInterval(keepaliveTimer);
-      if (this.activeTurn === activeTurn) {
-        this.activeTurn = null;
+      if (this.activeProcess === proc) {
+        this.activeProcess = null;
       }
     }
   }
@@ -345,17 +398,16 @@ export class ClineChatRuntime implements ChatRuntime {
   }
 
   cancel(): void {
-    if (this.connection && this.sessionId) {
-      this.connection.cancel({ sessionId: this.sessionId });
-    }
-    if (this.activeTurn) {
-      this.activeTurn.queue.close();
-      this.activeTurn = null;
+    this.cancelled = true;
+    if (this.activeProcess) {
+      terminateSpawnedProcess(this.activeProcess, 'SIGTERM', spawn, null);
+      this.activeProcess = null;
     }
   }
 
   resetSession(): void {
-    this.clearActiveSession();
+    this.sessionId = null;
+    this.sessionInvalidated = false;
   }
 
   getSessionId(): string | null {
@@ -373,7 +425,7 @@ export class ClineChatRuntime implements ChatRuntime {
   }
 
   async getSupportedCommands(): Promise<SlashCommand[]> {
-    return this.supportedCommands;
+    return [];
   }
 
   getAuxiliaryModel?(): string | null {
@@ -381,7 +433,8 @@ export class ClineChatRuntime implements ChatRuntime {
   }
 
   cleanup(): void {
-    void this.shutdownProcess();
+    this.cancel();
+    this.setReady(false);
   }
 
   async rewind(
@@ -389,32 +442,22 @@ export class ClineChatRuntime implements ChatRuntime {
     _assistantMessageId: string,
     _mode?: ChatRewindMode,
   ): Promise<ChatRewindResult> {
-    return { canRewind: false, error: 'Rewind wird von Cline ACP nicht unterstützt.' };
+    return { canRewind: false, error: 'Rewind wird von Cline nicht unterstützt.' };
   }
 
-  setApprovalCallback(callback: ApprovalCallback | null): void {
-    this.approvalCallback = callback;
-  }
+  setApprovalCallback(_callback: ApprovalCallback | null): void {}
 
   setApprovalDismisser(_dismisser: (() => void) | null): void {}
 
-  setAskUserQuestionCallback(callback: AskUserQuestionCallback | null): void {
-    this.askUserQuestionCallback = callback;
-  }
+  setAskUserQuestionCallback(_callback: AskUserQuestionCallback | null): void {}
 
-  setExitPlanModeCallback(callback: ExitPlanModeCallback | null): void {
-    this.exitPlanModeCallback = callback;
-  }
+  setExitPlanModeCallback(_callback: ExitPlanModeCallback | null): void {}
 
-  setPermissionModeSyncCallback(callback: ((mode: string) => void) | null): void {
-    this.permissionModeSyncCallback = callback;
-  }
+  setPermissionModeSyncCallback(_callback: ((mode: string) => void) | null): void {}
 
   setSubagentHookProvider(_getState: () => SubagentRuntimeState): void {}
 
-  setAutoTurnCallback(callback: AutoTurnCallback | null): void {
-    this.autoTurnCallback = callback;
-  }
+  setAutoTurnCallback(_callback: AutoTurnCallback | null): void {}
 
   consumeTurnMetadata(): ChatTurnMetadata {
     const metadata = this.currentTurnMetadata;
@@ -435,7 +478,7 @@ export class ClineChatRuntime implements ChatRuntime {
     return {
       updates: {
         providerState: buildPersistedClineState(state),
-        sessionId: this.sessionId,
+        sessionId: isClineNativeSessionId(this.sessionId) ? this.sessionId : null,
       },
     };
   }
@@ -452,238 +495,9 @@ export class ClineChatRuntime implements ChatRuntime {
     return null;
   }
 
-  private async startProcess(launchSpec: ReturnType<typeof buildClineLaunchSpec>): Promise<void> {
-    this.process = new AcpSubprocess({
-      args: launchSpec.args,
-      command: launchSpec.command,
-      cwd: launchSpec.cwd,
-      env: {
-        ...launchSpec.env,
-        PATH: getEnhancedPath(
-          launchSpec.env.PATH,
-          path.isAbsolute(launchSpec.command) ? launchSpec.command : undefined,
-        ),
-      },
-    });
-    this.process.start();
-
-    this.transport = new AcpJsonRpcTransport({
-      input: this.process.stdout,
-      onClose: (listener) => this.process!.onClose(listener),
-      output: this.process.stdin,
-    });
-
-    this.connection = new AcpClientConnection({
-      clientInfo: {
-        name: 'ayontclaudian',
-        version: this.plugin.manifest?.version ?? '0.0.0',
-      },
-      delegate: this.buildDelegate(),
-      transport: this.transport,
-    });
-
-    this.transport.start();
-    await this.connection.initialize();
-    this.setReady(true);
-  }
-
-  private async shutdownProcess(): Promise<void> {
-    this.setReady(false);
-    this.connection?.dispose();
-    this.connection = null;
-    this.transport?.dispose();
-    this.transport = null;
-
-    if (this.process) {
-      await this.process.shutdown();
-      this.process = null;
-    }
-  }
-
-  private async createSession(): Promise<string | null> {
-    if (!this.connection) {
-      return null;
-    }
-    try {
-      const cwd = getVaultPath(this.plugin.app) ?? process.cwd();
-      const response = await this.connection.newSession({ cwd, mcpServers: [] });
-      const sessionId = response.sessionId ?? null;
-      if (sessionId) {
-        this.sessionId = sessionId;
-        this.loadedSessionId = sessionId;
-      }
-      return sessionId;
-    } catch {
-      return null;
-    }
-  }
-
-  private async loadSession(sessionId: string): Promise<boolean> {
-    if (!this.connection) {
-      return false;
-    }
-    try {
-      const cwd = getVaultPath(this.plugin.app) ?? process.cwd();
-      await this.connection.loadSession({ cwd, mcpServers: [], sessionId });
-      this.sessionId = sessionId;
-      this.loadedSessionId = sessionId;
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  private clearActiveSession(): void {
-    this.sessionId = null;
-    this.loadedSessionId = null;
-    this.sessionInvalidated = false;
-  }
-
-  private async applyPermissionMode(sessionId: string): Promise<void> {
-    const settings = getClineProviderSettings(
-      this.plugin.settings as unknown as Record<string, unknown>,
-    );
-    const mode: AcpSessionModeId = settings.permissionMode === 'plan' ? 'plan' : 'act';
-    try {
-      await this.connection?.setMode({ modeId: mode, sessionId });
-    } catch {
-      // Cline ACP may expose `code` instead of `act`.
-      if (mode === 'act') {
-        try {
-          await this.connection?.setMode({ modeId: 'code', sessionId });
-        } catch {
-          // Best-effort.
-        }
-      }
-    }
-  }
-
-  private async applyModel(sessionId: string, model?: string): Promise<void> {
-    const selected = model?.trim();
-    if (!selected || !this.connection) {
-      return;
-    }
-    try {
-      await this.connection.setConfigOption({
-        configId: 'model',
-        sessionId,
-        type: 'select',
-        value: selected,
-      });
-    } catch {
-      // Best-effort: not all ACP servers expose a model config option.
-    }
-  }
-
-  private async applyThinking(sessionId: string): Promise<void> {
-    const settings = getClineProviderSettings(
-      this.plugin.settings as unknown as Record<string, unknown>,
-    );
-    if (!this.connection) {
-      return;
-    }
-    try {
-      await this.connection.setConfigOption({
-        configId: 'thinking',
-        sessionId,
-        type: 'select',
-        value: settings.thinking,
-      });
-    } catch {
-      // Best-effort.
-    }
-  }
-
-  private buildDelegate(): AcpClientConnectionDelegate {
-    return {
-      onSessionNotification: (notification) => this.handleSessionNotification(notification),
-      requestPermission: (request) => this.handlePermissionRequest(request),
-    };
-  }
-
-  private async handleSessionNotification(notification: AcpSessionNotification): Promise<void> {
-    const activeTurn = this.activeTurn;
-    if (!activeTurn || activeTurn.sessionId !== notification.sessionId) {
-      return;
-    }
-
-    this.lastNotificationAt = Date.now();
-
-    const normalized = this.sessionUpdateNormalizer.normalize(notification.update);
-    if (!normalized) {
-      return;
-    }
-
-    switch (normalized.type) {
-      case 'current_mode': {
-        this.permissionModeSyncCallback?.(normalized.currentModeId);
-        if (normalized.currentModeId === 'plan') {
-          void this.exitPlanModeCallback?.({});
-        }
-        break;
-      }
-      case 'plan':
-        break;
-      case 'tool_call':
-      case 'tool_call_update': {
-        const streamChunks =
-          normalized.type === 'tool_call'
-            ? this.toolStreamAdapter.normalizeToolCall(normalized.toolCall, normalized.streamChunks)
-            : this.toolStreamAdapter.normalizeToolCallUpdate(
-              normalized.toolCallUpdate,
-              normalized.streamChunks,
-            );
-        for (const chunk of streamChunks) {
-          activeTurn.queue.push(chunk);
-        }
-        return;
-      }
-    }
-
-    if ('streamChunks' in normalized) {
-      for (const chunk of normalized.streamChunks) {
-        activeTurn.queue.push(chunk);
-      }
-    }
-  }
-
-  private async handlePermissionRequest(
-    request: AcpRequestPermissionRequest,
-  ): Promise<AcpRequestPermissionResponse> {
-    const allowOption = request.options.find((option) => option.kind === 'allow_once');
-
-    if (!this.approvalCallback || !allowOption) {
-      return {
-        outcome: allowOption
-          ? { optionId: allowOption.optionId, outcome: 'selected' }
-          : { outcome: 'cancelled' },
-      };
-    }
-
-    const decisionOptions = request.options.map((option) => ({
-      description: option.kind,
-      label: option.name,
-      value: option.optionId,
-    }));
-
-    const decision = await this.approvalCallback(
-      request.toolCall.kind ?? 'tool',
-      isPlainObject(request.toolCall.rawInput)
-        ? (request.toolCall.rawInput as Record<string, unknown>)
-        : {},
-      request.toolCall.title ?? 'Tool request',
-      { decisionOptions },
-    );
-
-    if (!decision || decision === 'deny' || decision === 'cancel') {
-      return { outcome: { outcome: 'cancelled' } };
-    }
-
-    if (decision === 'allow' || decision === 'allow-always') {
-      return { outcome: { optionId: allowOption.optionId, outcome: 'selected' } };
-    }
-
-    return { outcome: { optionId: decision.value, outcome: 'selected' } };
+  private formatError(message: string, stderr: string): string {
+    const tail = stderr.trim().split('\n').slice(-6).join('\n').trim();
+    return tail ? `${message}\n${tail}` : message;
   }
 
   private setReady(ready: boolean): void {
@@ -695,8 +509,4 @@ export class ClineChatRuntime implements ChatRuntime {
       listener(ready);
     }
   }
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
