@@ -126,6 +126,11 @@ export interface AppSessionStorage {
   saveMetadata(meta: SessionMetadata): Promise<void>;
   deleteMetadata(id: string): Promise<void>;
   toSessionMetadata(conv: Conversation): SessionMetadata;
+  /** Shrinks session files written before tool results were capped. Returns bytes reclaimed. */
+  compactOversizedMetadata?(options?: {
+    yieldBetweenFiles?: () => Promise<void>;
+    onProgress?: (reclaimed: number) => void;
+  }): Promise<number>;
 }
 
 // ---------------------------------------------------------------------------

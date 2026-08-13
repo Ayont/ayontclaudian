@@ -6,12 +6,20 @@ import type {
   ConversationMeta,
   SessionMetadata,
 } from '../types';
+import { toPersistedMessages } from './persistedMessages';
 import { LEGACY_SESSIONS_PATH, SESSIONS_PATH } from './StoragePaths';
 
 export {
   LEGACY_SESSIONS_PATH,
   SESSIONS_PATH,
 };
+
+/**
+ * Above this, a session file is assumed to predate tool-result capping and is
+ * worth rewriting. Comfortably larger than any capped conversation, so healthy
+ * files are never touched.
+ */
+const OVERSIZED_METADATA_BYTES = 512_000;
 
 export class SessionStorage {
   constructor(private adapter: VaultFileAdapter) {}
@@ -132,10 +140,7 @@ export class SessionStorage {
       workspaceMode: conversation.workspaceMode,
       pinned: conversation.pinned || undefined,
       messages: conversation.messages.length > 0
-        ? conversation.messages.map((message) => ({
-          ...message,
-          images: message.images?.map((image) => ({ ...image, data: '' })),
-        }))
+        ? toPersistedMessages(conversation.messages)
         : undefined,
       currentNote: conversation.currentNote,
       externalContextPaths: conversation.externalContextPaths,
@@ -143,6 +148,66 @@ export class SessionStorage {
       usage: conversation.usage,
       resumeAtMessageId: conversation.resumeAtMessageId,
     };
+  }
+
+  /**
+   * Rewrites session files that were written before tool results were capped.
+   *
+   * Capping on save only helps conversations that get saved again — an archive
+   * of 252 files totalling 264 MB would otherwise stay that size forever, and
+   * `listMetadata()` reads and parses every one of them on the first awaited
+   * step of `onload`.
+   *
+   * Runs off the startup path, one file at a time, yielding between files: this
+   * is the Electron renderer, and reading + parsing + rewriting a 17 MB file is
+   * exactly the kind of work that freezes the window if done in a tight loop.
+   * Files already within budget are left untouched, so this converges to a
+   * no-op after the first run.
+   *
+   * @param onProgress Invoked per rewritten file with the bytes reclaimed.
+   * @returns Total bytes reclaimed.
+   */
+  async compactOversizedMetadata(
+    options: { yieldBetweenFiles?: () => Promise<void>; onProgress?: (reclaimed: number) => void } = {},
+  ): Promise<number> {
+    const yieldBetweenFiles = options.yieldBetweenFiles
+      ?? (() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+
+    const files = await this.listMetadataFiles(SESSIONS_PATH);
+    let reclaimed = 0;
+
+    for (const filePath of files) {
+      await yieldBetweenFiles();
+      try {
+        const content = await this.adapter.read(filePath);
+        if (content.length <= OVERSIZED_METADATA_BYTES) {
+          continue;
+        }
+
+        const metadata = JSON.parse(content) as SessionMetadata;
+        if (!metadata.messages?.length) {
+          continue;
+        }
+
+        const compacted: SessionMetadata = {
+          ...metadata,
+          messages: toPersistedMessages(metadata.messages),
+        };
+        const next = JSON.stringify(compacted, null, 2);
+        if (next.length >= content.length) {
+          continue;
+        }
+
+        await this.adapter.write(filePath, next);
+        reclaimed += content.length - next.length;
+        options.onProgress?.(content.length - next.length);
+      } catch {
+        // A corrupt or unreadable file is skipped; compaction is best-effort and
+        // must never be the reason a conversation disappears.
+      }
+    }
+
+    return reclaimed;
   }
 
   private async getLoadPath(id: string): Promise<string | null> {

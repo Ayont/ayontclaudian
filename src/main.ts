@@ -780,6 +780,36 @@ export default class ClaudianPlugin extends Plugin {
     // RAG: load any persisted index, top it up in the background, and keep it
     // fresh on vault changes so the chat's vault_context works out of the box.
     this.setupVaultRAGAutoIndex();
+
+    // One-time repair for session files written before tool results were capped.
+    this.scheduleSessionCompaction();
+  }
+
+  /**
+   * Shrinks pre-cap session files once, well after startup.
+   *
+   * `listMetadata()` reads and parses EVERY session file on the first awaited
+   * step of `onload`, so an archive of uncapped conversations is paid for on
+   * every single launch. Compaction itself is I/O plus JSON on the renderer
+   * thread, so it deliberately waits until the window is interactive rather
+   * than competing with the very startup it is meant to speed up.
+   */
+  private scheduleSessionCompaction(): void {
+    if (typeof this.app.workspace?.onLayoutReady !== 'function') return;
+
+    this.app.workspace.onLayoutReady(() => {
+      window.setTimeout(() => {
+        void this.storage.sessions.compactOversizedMetadata?.()
+          .then((reclaimed: number) => {
+            if (reclaimed > 0) {
+              new Notice(`Claudian: ${(reclaimed / 1_048_576).toFixed(0)} MB Sitzungsdaten aufgeräumt.`);
+            }
+          })
+          .catch(() => {
+            // Best-effort housekeeping — never surface as an error.
+          });
+      }, 10_000);
+    });
   }
 
   // ── RAG auto-indexing ─────────────────────────────────────────────────────
