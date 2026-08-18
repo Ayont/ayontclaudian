@@ -74,7 +74,7 @@ export function spawnClineProcess(options: {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
 }): { proc: ChildProcessWithoutNullStreams; spawnSpec: WindowsCmdShimSpawnSpec } {
-  repairClineCompiledBinary(options.command);
+  repairClineCompiledBinary(options.command, { force: false });
   const spawnSpec = resolveClineSpawnSpec({
     args: options.args,
     command: options.command,

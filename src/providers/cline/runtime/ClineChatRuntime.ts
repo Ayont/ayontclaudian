@@ -51,6 +51,10 @@ import { parseClineJsonLine } from '../normalization/jsonEvents';
 import { CLINE_PROVIDER_ID, getClineProviderSettings } from '../settings';
 import { buildPersistedClineState, type ClineProviderState,getClineState, isClineNativeSessionId } from '../types';
 import { ClineAuxQueryRunner } from './ClineAuxQueryRunner';
+import {
+  repairClineCompiledBinary,
+  shouldRetryClineSignatureKill,
+} from './ClineBinaryRepair';
 import { runClineGoalLoop } from './ClineGoalLoop';
 import { buildClineLaunchSpec } from './ClineLaunchSpec';
 import { spawnClineProcess } from './ClineProcess';
@@ -73,6 +77,7 @@ export class ClineChatRuntime implements ChatRuntime {
   private cancelled = false;
   private currentTurnMetadata: ChatTurnMetadata = {};
   private isResumeRetry = false;
+  private isSignatureRetry = false;
   private ready = false;
   private readonly readyListeners = new Set<(ready: boolean) => void>();
   private sessionId: string | null = null;
@@ -183,8 +188,10 @@ export class ClineChatRuntime implements ChatRuntime {
   ): AsyncGenerator<StreamChunk> {
     this.currentTurnMetadata = {};
     this.cancelled = false;
-    const isRetry = this.isResumeRetry;
+    const isRetry = this.isResumeRetry || this.isSignatureRetry;
+    const isSignatureRetry = this.isSignatureRetry;
     this.isResumeRetry = false;
+    this.isSignatureRetry = false;
     const hadSession = this.sessionId !== null;
 
     const settingsBag = this.plugin.settings as unknown as Record<string, unknown>;
@@ -500,10 +507,32 @@ export class ClineChatRuntime implements ChatRuntime {
       }
 
       if (exitInfo.code === null && !responseText.trim()) {
+        if (shouldRetryClineSignatureKill({
+          alreadyRetried: isSignatureRetry,
+          cancelled: this.cancelled,
+          exitCode: exitInfo.code,
+          producedOutput: false,
+        })) {
+          const repair = repairClineCompiledBinary(command, { force: true });
+          this.isSignatureRetry = true;
+          yield {
+            type: 'notice',
+            level: 'info',
+            content: repair.repaired
+              ? 'Cline-Signatur war ungültig. Binary wurde neu signiert — starte den Turn erneut.'
+              : 'Cline wurde ohne Antwort beendet. Versuche den Turn nach einer Signatur-Reparatur erneut.',
+          };
+          if (this.activeProcess === proc) {
+            this.activeProcess = null;
+            this.activeSpawnSpec = null;
+          }
+          yield* this.runTurn(turn, conversationHistory, queryOptions, overrides);
+          return;
+        }
         yield {
           type: 'error',
           content: this.formatError(
-            'Cline wurde beendet, bevor eine Antwort kam. macOS killt die CLI bei ungültiger Signatur. In den Cline-Einstellungen „Cline-CLI prüfen“ drücken und den Turn erneut senden.',
+            'Cline wurde beendet, bevor eine Antwort kam. macOS hat die CLI erneut wegen einer ungültigen Signatur beendet. In den Cline-Einstellungen „Cline-CLI prüfen“ drücken und den Turn erneut senden.',
             stderr,
           ),
         };
@@ -557,6 +586,7 @@ export class ClineChatRuntime implements ChatRuntime {
   resetSession(): void {
     this.sessionId = null;
     this.sessionInvalidated = false;
+    this.isSignatureRetry = false;
   }
 
   getSessionId(): string | null {

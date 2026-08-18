@@ -87,7 +87,7 @@ export const clineSettingsTabRenderer: ProviderSettingsTabRenderer = {
         button.setButtonText('Im Terminal anmelden').onClick(() => {
           const command = context.plugin.getResolvedProviderCliPath(CLINE_PROVIDER_ID) || 'cline';
           const current = getClineProviderSettings(settingsBag);
-          const repair = repairClineCompiledBinary(command);
+          const repair = repairClineCompiledBinary(command, { force: true });
           launchClineAuthInTerminal(command, current.apiProvider);
           new Notice(repair.repaired
             ? 'Cline-Binary neu signiert. Terminal geöffnet — dort anmelden.'
@@ -195,7 +195,7 @@ export const clineSettingsTabRenderer: ProviderSettingsTabRenderer = {
             return;
           }
 
-          const repair = repairClineCompiledBinary(command);
+          const repair = repairClineCompiledBinary(command, { force: true });
           const result = await probeClineVersion(command);
           const repaired = repair.repaired ? ' · Binary neu signiert' : '';
           runtimeStatusEl.setText(result.ok
