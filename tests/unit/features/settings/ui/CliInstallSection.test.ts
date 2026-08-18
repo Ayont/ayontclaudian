@@ -32,4 +32,18 @@ describe('describeProviderInstallStatus', () => {
   it('returns null when the check produced nothing', () => {
     expect(describeProviderInstallStatus(null)).toBeNull();
   });
+
+  it('does not highlight an update when the latest version is unknown', () => {
+    expect(describeProviderInstallStatus({
+      providerId: 'vibe',
+      displayName: 'Vibe (Mistral)',
+      currentVersion: '2.20.0',
+      latestVersion: null,
+      updateAvailable: false,
+      updateCommand: 'uv tool upgrade mistral-vibe',
+    })).toEqual({
+      desc: '✓ installiert · 2.20.0',
+      highlightUpdate: false,
+    });
+  });
 });

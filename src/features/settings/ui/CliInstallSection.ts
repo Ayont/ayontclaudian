@@ -10,7 +10,6 @@ import { CliInstaller, type InstallProgress } from '../../../core/install/CliIns
 import { getCliUpdateSpec, getPreferredUpdateCommand } from '../../../core/install/cliUpdateCatalog';
 import {
   checkProviderUpdate,
-  clearCliUpdateCache,
   type ProviderUpdateInfo,
 } from '../../../core/install/CliUpdateService';
 import type { ProviderId } from '../../../core/types/provider';
@@ -85,34 +84,64 @@ function renderRow(
 
   if (installed) {
     const updateCommand = getPreferredUpdateCommand(spec.id, platform);
-    const canDetectLatest = Boolean(getCliUpdateSpec(spec.id)?.npmPackage);
+    const updateSpec = getCliUpdateSpec(spec.id);
+    const canDetectLatest = Boolean(updateSpec?.npmPackage || updateSpec?.pypiPackage);
     if (updateCommand) {
+      const progressWrap = section.createDiv({ cls: 'claudian-cli-progress claudian-hidden' });
+      const progressBar = progressWrap.createDiv({ cls: 'claudian-cli-progress-bar' });
+      const progressText = progressWrap.createSpan({ cls: 'claudian-cli-progress-text' });
+      row.settingEl.insertAdjacentElement('afterend', progressWrap);
+
       row.addButton((button) => {
         if (canDetectLatest) {
           button.setButtonText('Prüfe…').setDisabled(true);
         } else {
-          button.setButtonText('Update');
+          button.setButtonText('Aktualisieren');
         }
         button.onClick(async () => {
           button.setDisabled(true);
           button.setButtonText('Aktualisiert…');
+          progressWrap.removeClass('claudian-hidden');
+          progressWrap.removeClass('is-error');
           const info = await checkProviderUpdate(spec.id, plugin.settings as unknown as Record<string, unknown>);
-          if (info?.updateCommand) {
-            plugin.startCliUpdate(info);
-            window.setTimeout(rerender, 800);
-            return;
-          }
-          const installer = new CliInstaller();
-          const result = await installer.run(updateCommand, () => {});
-          if (result.ok) {
-            clearCliUpdateCache(spec.id);
-            new Notice(`${spec.displayName} aktualisiert.`);
+          const payload = {
+            providerId: spec.id,
+            displayName: spec.displayName,
+            currentVersion: info?.currentVersion ?? null,
+            latestVersion: info?.latestVersion ?? null,
+            updateAvailable: info?.updateAvailable ?? false,
+            updateCommand,
+          };
+          const unsub = plugin.onUpdateSessionChange((state) => {
+            const item = state.items.find((entry) => entry.id === `cli:${spec.id}`);
+            if (!item) {
+              return;
+            }
+            if (item.percent !== null) {
+              progressWrap.removeClass('is-indeterminate');
+              progressBar.style.width = `${item.percent}%`;
+              progressText.setText(item.logLines.at(-1) ?? `${item.percent}%`);
+            } else {
+              progressWrap.addClass('is-indeterminate');
+              progressBar.style.width = '100%';
+              progressText.setText(item.logLines.at(-1) ?? 'Läuft…');
+            }
+          });
+          try {
+            await plugin.startCliUpdate(payload);
+            const done = plugin.getUpdateSession().items.find((entry) => entry.id === `cli:${spec.id}`);
+            if (done?.status === 'error') {
+              progressWrap.addClass('is-error');
+              progressText.setText(done.error ?? 'Fehlgeschlagen');
+              button.setDisabled(false);
+              button.setButtonText(canDetectLatest ? 'Update' : 'Aktualisieren');
+              return;
+            }
+            progressText.setText('Fertig ✓');
             window.setTimeout(rerender, 400);
-            return;
+          } finally {
+            unsub();
           }
-          button.setDisabled(false);
-          button.setButtonText('Update');
-          new Notice(`${spec.displayName} konnte nicht aktualisiert werden.`);
         });
         void checkProviderUpdate(spec.id, plugin.settings as unknown as Record<string, unknown>).then((info) => {
           applyInstalledVersion(row, info);
@@ -130,7 +159,7 @@ function renderRow(
             return;
           }
           button.setDisabled(false);
-          button.setButtonText('Update');
+          button.setButtonText('Aktualisieren');
         });
       });
       return;

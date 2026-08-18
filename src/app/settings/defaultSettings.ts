@@ -1,6 +1,7 @@
 import { getDefaultHiddenProviderCommands } from '../../core/providers/commands/hiddenCommands';
 import { DEFAULT_CHAT_APPEARANCE } from '../../core/theme/chatAppearance';
 import { type ClaudianSettings } from '../../core/types/settings';
+import { DEFAULT_APP_SHOT_SETTINGS } from '../../features/chat/services/appShotCapture';
 import { getBuiltInProviderDefaultConfigs } from '../../providers/defaultProviderConfigs';
 
 export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
@@ -67,6 +68,7 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
     focusInputKey: 'i',
   },
   requireCommandOrControlEnterToSend: false,
+  appShot: DEFAULT_APP_SHOT_SETTINGS,
 
   locale: 'en',
   chatAppearance: DEFAULT_CHAT_APPEARANCE,

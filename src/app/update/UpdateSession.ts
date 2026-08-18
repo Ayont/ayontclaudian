@@ -38,12 +38,20 @@ export function offerUpdateItems(
   offers: readonly UpdateOffer[],
 ): UpdateSessionState {
   const items = [...state.items];
-  const known = new Set(items.map((item) => item.id));
   for (const offer of offers) {
-    if (known.has(offer.id)) {
+    const existing = items.find((item) => item.id === offer.id);
+    if (existing) {
+      if (existing.status === 'running' || existing.status === 'queued') {
+        continue;
+      }
+      existing.currentVersion = offer.currentVersion;
+      existing.latestVersion = offer.latestVersion;
+      existing.command = offer.command;
+      existing.status = 'available';
+      existing.percent = null;
+      existing.error = undefined;
       continue;
     }
-    known.add(offer.id);
     items.push({
       ...offer,
       status: 'available',

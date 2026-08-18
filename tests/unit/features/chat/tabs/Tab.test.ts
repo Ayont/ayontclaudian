@@ -3483,7 +3483,7 @@ describe('Tab - Blank Tab Model Selector', () => {
     jest.restoreAllMocks();
   });
 
-  const autoModelOption = { value: '__auto__', label: 'Auto', description: 'Automatically choose the best model based on your prompt', group: 'Auto-Router' };
+  const autoModelOption = { value: '__auto__', label: 'Auto', description: 'Wählt das beste freie Modell für die Frage — überspringt limitierte Provider', group: 'Auto-Router' };
 
   it('returns Auto option first, then Claude-only models when Codex is disabled', () => {
     const claudeModels = [

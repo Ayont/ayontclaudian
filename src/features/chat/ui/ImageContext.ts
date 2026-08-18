@@ -4,7 +4,7 @@ import * as path from 'path';
 import type { ImageAttachment, ImageMediaType } from '../../../core/types';
 import { updateContextRowHasContent } from '../controllers/contextRowVisibility';
 import type { ImageStagingService } from '../services/ImageStagingService';
-import { attachmentTypeMeta, formatFileSize } from './file-drop/attachmentMeta';
+import { attachmentTypeMeta, type FileDockTarget, formatFileSize } from './file-drop/attachmentMeta';
 import {
   formatDroppedFileBlock,
   isTextLikeFile,
@@ -40,6 +40,8 @@ export interface ImageContextCallbacks {
    * mention. Optional: when absent, such files are reported as unsupported.
    */
   stageVaultAttachment?: (file: File) => Promise<string | null>;
+  /** Called after a non-image file is staged so the document pane can dock it. */
+  onAttachmentStaged?: (target: FileDockTarget) => void;
   /** Stages and decodes Cisco Packet Tracer files into readable XML context. */
   stagePacketTracerAttachment?: (file: File) => Promise<string | null>;
   /**
@@ -110,6 +112,36 @@ export class ImageContextManager {
 
   getAttachedImages(): ImageAttachment[] {
     return Array.from(this.attachedImages.values());
+  }
+
+  /** Stages a captured app-shot PNG into the composer like a dropped image. */
+  addAppShot(pngBase64: string, name: string, size: number): boolean {
+    if (!this.enabled) {
+      new Notice('Dieser Provider unterstützt keine Bildanhänge.');
+      return false;
+    }
+    const attachment: ImageAttachment = {
+      id: this.generateId(),
+      name,
+      mediaType: 'image/png',
+      data: pngBase64,
+      size,
+      source: 'paste',
+    };
+    this.attachedImages.set(attachment.id, attachment);
+    const conversationId = this.callbacks.getConversationId?.() ?? null;
+    if (this.stagingService) {
+      this.uploadingImageIds.add(attachment.id);
+      void this.stagingService.saveImage(attachment, conversationId)
+        .catch(() => undefined)
+        .finally(() => {
+          this.uploadingImageIds.delete(attachment.id);
+          this.updateImagePreview();
+        });
+    }
+    this.updateImagePreview();
+    this.callbacks.onImagesChanged();
+    return true;
   }
 
   /**
@@ -331,6 +363,7 @@ export class ImageContextManager {
     this.stagedAttachments.set(pendingId, { id: pendingId, name: file.name, relPath, size: file.size });
     this.updateAttachmentPreview();
     this.callbacks.onImagesChanged();
+    this.callbacks.onAttachmentStaged?.({ kind: 'file', path: relPath, name: file.name });
     new Notice(`„${file.name}" angehängt.`);
     return true;
   }

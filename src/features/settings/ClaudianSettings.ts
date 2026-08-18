@@ -15,6 +15,7 @@ import type { Locale, TranslationKey } from '../../i18n/types';
 import type ClaudianPlugin from '../../main';
 import { formatContextLimit, parseContextLimit, parseEnvironmentVariables } from '../../utils/env';
 import { buildNavMappingText, parseNavMappings } from './keyboardNavigation';
+import { renderAppShotSettingsSection } from './ui/AppShotSettingsSection';
 import { renderChatAppearanceSection } from './ui/ChatAppearanceSection';
 import { renderCliInstallSection } from './ui/CliInstallSection';
 import { renderEnvironmentSettingsSection } from './ui/EnvironmentSettingsSection';
@@ -749,6 +750,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
     addHotkeySettingRow(hotkeyGrid, this.app, 'claudian:new-session', 'settings.newSessionHotkey');
     addHotkeySettingRow(hotkeyGrid, this.app, 'claudian:new-tab', 'settings.newTabHotkey');
     addHotkeySettingRow(hotkeyGrid, this.app, 'claudian:close-current-tab', 'settings.closeTabHotkey');
+
+    renderAppShotSettingsSection(container, this.plugin);
 
     // --- Voice Input ---
 

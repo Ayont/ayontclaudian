@@ -60,11 +60,9 @@ const SESSION_HINT_PATTERN_ALT = /resume this session:\s*vibe(?:-cli)?\s+-r\s+([
 /**
  * Single-turn subprocess runtime for the Vibe (`vibe`) CLI.
  *
- * Each turn spawns `vibe --print --output-format stream-json …` and parses
- * the stdout JSON lines LIVE (one complete chat message per line) into
- * `StreamChunk`s. Conversation continuity uses native resume: the session id is
- * recovered from the stderr resume hint after the first run and replayed via
- * `--session <id>`. Unlike antigravity there is no transcript-file tail.
+ * Each turn spawns `vibe -p --output streaming …` and parses the stdout JSON
+ * lines LIVE into `StreamChunk`s. Resume uses `--resume <id>` from the stderr
+ * hint after the first run. Unlike antigravity there is no transcript-file tail.
  */
 export class VibeChatRuntime implements ChatRuntime {
   readonly providerId = VIBE_PROVIDER_ID;
@@ -203,6 +201,8 @@ export class VibeChatRuntime implements ChatRuntime {
       env,
       envText,
       model,
+      agent: settings.agent,
+      agentFile: settings.agentFile,
       permissionMode: settings.permissionMode,
       prompt: promptText,
       // Resume only via an explicit session id once this conversation owns one;

@@ -3,14 +3,11 @@ import type { ProviderCapabilities } from '../../core/providers/types';
 /**
  * Capabilities for the Vibe (`vibe`) provider.
  *
- * Vibe CLI supports true line-delimited JSON streaming
- * (`--print --output-format stream-json`), native session resume
- * (`--session` / `--continue`), real model selection (`-m`), plan mode
- * (`--plan`), MCP bridging (`--mcp-config-file`), and vision-capable models
- * (config caps `image_in`). Thinking is a binary `--thinking` / `--no-thinking`
- * control; the shared `reasoningControl` enum only allows
- * `'effort' | 'token-budget' | 'none'`, so the on/off toggle is modeled as an
- * `'effort'` control exposing exactly two options (see `VibeChatUIConfig`).
+ * Verified against `vibe` 2.20.0: programmatic mode is `-p --output streaming`
+ * (not `--print --output-format stream-json`). Resume is `--resume <id>`.
+ * Model is `VIBE_ACTIVE_MODEL`. Plan/YOLO are `--agent plan` / `--agent
+ * auto-approve --yolo`. MCP lives in `~/.vibe/config.toml`, not a CLI flag.
+ * Thinking is per-model in that config (`thinking = "high"`), not `--thinking`.
  */
 export const VIBE_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({
   providerId: 'vibe',

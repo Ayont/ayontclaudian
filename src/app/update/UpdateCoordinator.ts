@@ -59,7 +59,7 @@ export class UpdateCoordinator {
   offerProviderUpdates(updates: readonly ProviderUpdateInfo[]): void {
     const offers: UpdateOffer[] = [];
     for (const info of updates) {
-      if (!info.updateCommand || !info.latestVersion) {
+      if (!info.updateCommand) {
         continue;
       }
       offers.push({
@@ -67,23 +67,23 @@ export class UpdateCoordinator {
         kind: 'cli',
         displayName: info.displayName,
         currentVersion: info.currentVersion ?? '?',
-        latestVersion: info.latestVersion,
+        latestVersion: info.latestVersion ?? 'neueste',
         command: info.updateCommand,
       });
     }
     this.offer(offers);
   }
 
-  startAll(): void {
+  startAll(): Promise<void> {
     this.state = queueAllAvailable(this.state);
     this.emit();
-    void this.pump();
+    return this.pump();
   }
 
-  startOne(id: string): void {
+  startOne(id: string): Promise<void> {
     this.state = queueOne(this.state, id);
     this.emit();
-    void this.pump();
+    return this.pump();
   }
 
   dismiss(id: string): void {

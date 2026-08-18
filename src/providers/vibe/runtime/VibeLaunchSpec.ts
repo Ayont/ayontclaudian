@@ -1,35 +1,34 @@
+import * as path from 'node:path';
+
 import type { VibeAgent, VibePermissionMode } from '../settings';
 
 /**
- * Builds the command/args/cwd for a single-turn programmatic `vibe -p` run with
- * newline-delimited JSON streaming.
+ * Builds the command/args/cwd for a single-turn programmatic `vibe -p` run.
  *
- * Verified `vibe` v2.16 invocation:
- *   vibe --output streaming --trust --agent <preset> \
- *     --workdir <cwd> --add-dir <cwd> [--resume <session>] -p <prompt>
+ * Verified `vibe` 2.20.0 (`vibe --help`):
+ *   vibe --output streaming --trust --agent <preset> [--yolo] \
+ *     --workdir <cwd> --add-dir <cwd> \
+ *     [--max-turns N] [--max-tokens N] [--resume <id>] -p <prompt>
  *
- * `-p/--prompt` is programmatic mode (run prompt, emit response, exit).
- * `--output streaming` emits one JSON `LLMMessage` per stdout line. `--trust`
- * skips the workspace-trust prompt (required for non-interactive automation).
- * `--agent` selects the tool-approval posture. The model is NOT a flag; it is
- * passed via the `VIBE_ACTIVE_MODEL` environment variable (see env builder).
+ * There is no `--print` / `--output-format stream-json` / `-m` / `--thinking`
+ * flag on 2.20. Model is `VIBE_ACTIVE_MODEL`. Custom agents are
+ * `--agent NAME` → `~/.vibe/agents/NAME.toml`.
  */
 
 export interface BuildVibeLaunchSpecParams {
   command: string;
   cwd: string;
   env: NodeJS.ProcessEnv;
-  /** Newline KEY=VALUE list, used only for launch-key hashing. */
   envText?: string;
   prompt: string;
-  /** Active model id (applied via VIBE_ACTIVE_MODEL env; here only for hashing). */
   model: string;
-  /** Reserved (kimi parity); vibe derives its agent from permissionMode. */
-  agent?: VibeAgent;
-  /** Tool-approval posture mapped to a vibe `--agent` preset. */
+  agent?: VibeAgent | string;
+  /** Optional path to `~/.vibe/agents/NAME.toml`; basename becomes `--agent`. */
+  agentFile?: string;
   permissionMode: VibePermissionMode;
-  /** Resume a specific session by id (`--resume <id>`). */
   sessionId?: string | null;
+  maxTurns?: number;
+  maxTokens?: number;
 }
 
 export interface VibeLaunchSpec {
@@ -40,32 +39,49 @@ export interface VibeLaunchSpec {
   launchKey: string;
 }
 
-/** Maps Claudian's permission posture to a vibe builtin `--agent` preset. */
-function vibeAgentForMode(mode: VibePermissionMode): string {
-  switch (mode) {
-    case 'plan':
-      return 'plan';
-    case 'yolo':
-      return 'auto-approve';
-    default:
-      return 'default';
+function vibeAgentForMode(mode: VibePermissionMode, preferred?: string, agentFile?: string): string {
+  if (mode === 'plan') {
+    return 'plan';
   }
+  if (mode === 'yolo') {
+    return 'auto-approve';
+  }
+  const fromFile = agentFile?.trim()
+    ? path.basename(agentFile.trim()).replace(/\.toml$/i, '')
+    : '';
+  const named = (preferred ?? '').trim();
+  if (fromFile) {
+    return fromFile;
+  }
+  if (named && named !== 'default') {
+    return named;
+  }
+  return 'default';
 }
 
 export function buildVibeLaunchSpec(params: BuildVibeLaunchSpecParams): VibeLaunchSpec {
-  const agentPreset = vibeAgentForMode(params.permissionMode);
+  const agentPreset = vibeAgentForMode(params.permissionMode, params.agent, params.agentFile);
   const args = ['--output', 'streaming', '--trust', '--agent', agentPreset];
 
-  // Confine + trust the vault directory for this run.
+  // YOLO is a separate flag on 2.20 and is what actually skips tool prompts.
+  if (params.permissionMode === 'yolo') {
+    args.push('--yolo');
+  }
+
   args.push('--workdir', params.cwd, '--add-dir', params.cwd);
+
+  if (params.maxTurns && params.maxTurns > 0) {
+    args.push('--max-turns', String(Math.round(params.maxTurns)));
+  }
+  if (params.maxTokens && params.maxTokens > 0) {
+    args.push('--max-tokens', String(Math.round(params.maxTokens)));
+  }
 
   const sessionId = params.sessionId?.trim();
   if (sessionId) {
     args.push('--resume', sessionId);
   }
 
-  // `-p <prompt>` is the programmatic prompt; pass it last so a leading dash in
-  // the prompt is never mistaken for a flag.
   args.push('-p', params.prompt);
 
   const model = params.model?.trim();
@@ -80,6 +96,8 @@ export function buildVibeLaunchSpec(params: BuildVibeLaunchSpecParams): VibeLaun
       command: params.command,
       cwd: params.cwd,
       envText: params.envText ?? '',
+      maxTokens: params.maxTokens ?? 0,
+      maxTurns: params.maxTurns ?? 0,
       model: model ?? '',
       permissionMode: params.permissionMode,
       sessionId: sessionId ?? null,

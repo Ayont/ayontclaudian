@@ -177,6 +177,7 @@
 .claudian-attachment-chip--pdf { --att-accent: #f87171; }
 .claudian-attachment-chip--doc { --att-accent: #60a5fa; }
 .claudian-attachment-chip--sheet { --att-accent: #4ade80; }
+.claudian-attachment-chip--slides { --att-accent: #fb923c; }
 .claudian-attachment-chip--code { --att-accent: #a78bfa; }
 .claudian-attachment-chip--image { --att-accent: #fb923c; }
 .claudian-attachment-chip--video { --att-accent: #f472b6; }
@@ -285,26 +286,150 @@
   to { transform: rotate(360deg); }
 }
 
-/* File attachments in messages (video/audio players + file cards) */
+/* File attachments in messages (document peeks, media, paper cards) */
 .claudian-message-attachments {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   align-items: flex-end;
-  margin: 2px 0 8px;
+  margin: 2px 0 10px;
   padding-right: 4px;
   max-width: min(100%, 620px);
   margin-inline-start: auto;
 }
 
 .claudian-message-attachment {
+  --att-accent: var(--cl-accent, var(--interactive-accent));
   width: 100%;
-  max-width: 420px;
-  border-radius: 14px;
+  max-width: 360px;
+  border-radius: 16px;
   overflow: hidden;
   background: var(--cl-surface-raised, var(--background-secondary));
-  border: 1px solid var(--background-modifier-border);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  border: 1px solid color-mix(in srgb, var(--att-accent) 28%, var(--background-modifier-border));
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transform-origin: bottom right;
+  animation: claudian-att-card-in 240ms var(--cl-ease-out) both;
+  animation-delay: var(--cl-att-stagger, 0ms);
+  transition:
+    transform 160ms var(--cl-ease-out),
+    box-shadow 160ms var(--cl-ease),
+    border-color 160ms var(--cl-ease);
+}
+
+.claudian-message-attachment--pdf { --att-accent: #f87171; }
+.claudian-message-attachment--doc { --att-accent: #60a5fa; }
+.claudian-message-attachment--sheet { --att-accent: #4ade80; }
+.claudian-message-attachment--slides { --att-accent: #fb923c; }
+.claudian-message-attachment--code { --att-accent: #a78bfa; }
+.claudian-message-attachment--image { --att-accent: #fb923c; }
+.claudian-message-attachment--video { --att-accent: #f472b6; }
+.claudian-message-attachment--audio { --att-accent: #22d3ee; }
+.claudian-message-attachment--archive { --att-accent: #eab308; }
+.claudian-message-attachment--md { --att-accent: #818cf8; }
+.claudian-message-attachment--generic { --att-accent: var(--text-muted); }
+
+.claudian-message-attachment:active {
+  transform: scale(0.98);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .claudian-message-attachment:hover {
+    border-color: var(--att-accent);
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.16);
+    transform: translateY(-2px);
+  }
+}
+
+.claudian-message-attachment:focus-visible {
+  outline: 2px solid var(--att-accent);
+  outline-offset: 3px;
+}
+
+.claudian-message-attachment-peek {
+  position: relative;
+  height: 188px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--att-accent) 12%, var(--background-primary)), var(--background-primary));
+}
+
+.claudian-message-attachment-pdf {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 200%;
+  height: 200%;
+  border: 0;
+  pointer-events: none;
+  transform: scale(0.5);
+  transform-origin: top left;
+  background: #fff;
+}
+
+.claudian-message-attachment-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.claudian-message-attachment-paper {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.claudian-message-attachment-paper-sheet,
+.claudian-message-attachment-paper-face {
+  position: absolute;
+  width: 58%;
+  height: 78%;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--att-accent) 8%, var(--background-secondary));
+  border: 1px solid color-mix(in srgb, var(--att-accent) 28%, var(--background-modifier-border));
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.claudian-message-attachment-paper-sheet {
+  transform: translate(10px, 8px) rotate(3deg);
+  opacity: 0.55;
+}
+
+.claudian-message-attachment-paper-face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px;
+  text-align: center;
+}
+
+.claudian-message-attachment-paper-icon {
+  color: var(--att-accent);
+  display: flex;
+}
+
+.claudian-message-attachment-paper-kind {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.claudian-message-attachment-paper-name {
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--text-normal);
+  max-width: 100%;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .claudian-message-attachment-media {
@@ -323,13 +448,14 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 9px 12px;
+  background: color-mix(in srgb, var(--background-primary) 55%, transparent);
 }
 
 .claudian-message-attachment-icon {
   display: flex;
   align-items: center;
-  color: var(--cl-accent, var(--interactive-accent));
+  color: var(--att-accent);
   flex-shrink: 0;
 }
 
@@ -354,10 +480,28 @@
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.05em;
-  color: var(--text-faint);
-  background: var(--background-modifier-hover);
+  color: var(--att-accent);
+  background: color-mix(in srgb, var(--att-accent) 14%, transparent);
   padding: 2px 7px;
   border-radius: 100px;
+}
+
+@keyframes claudian-att-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-message-attachment {
+    animation: none;
+    transition: none;
+  }
 }
 
 /* Images in Messages (displayed above user bubble) */
@@ -375,20 +519,31 @@
 
 /* Individual image in message - standardized size */
 .claudian-message-image {
-  width: clamp(104px, 19vw, 168px);
-  height: clamp(104px, 19vw, 168px);
-  border-radius: 12px;
+  width: clamp(112px, 20vw, 176px);
+  height: clamp(112px, 20vw, 176px);
+  border-radius: 14px;
   overflow: hidden;
   cursor: pointer;
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
   background: var(--background-secondary);
   border: 1px solid var(--background-modifier-border);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  animation: claudian-att-card-in 240ms var(--cl-ease-out) both;
+  transition:
+    transform 160ms var(--cl-ease-out),
+    box-shadow 160ms var(--cl-ease),
+    border-color 160ms var(--cl-ease);
 }
 
-.claudian-message-image:hover {
-  transform: translateY(-2px) scale(1.02);
-  border-color: var(--interactive-accent);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+.claudian-message-image:active {
+  transform: scale(0.98);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .claudian-message-image:hover {
+    transform: translateY(-2px);
+    border-color: var(--interactive-accent);
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+  }
 }
 
 .claudian-message-image:focus-visible {

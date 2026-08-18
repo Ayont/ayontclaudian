@@ -8,6 +8,7 @@ export interface CliUpdateSpec {
   displayName: string;
   versionArgs: string[];
   npmPackage?: string;
+  pypiPackage?: string;
   updateCommand?: string;
 }
 
@@ -18,9 +19,16 @@ const NPM_PACKAGES: Record<string, string> = {
   opencode: 'opencode-ai',
 };
 
+const PYPI_PACKAGES: Record<string, string> = {
+  vibe: 'mistral-vibe',
+  kimi: 'kimi-cli',
+};
+
 /** Native self-update commands that beat re-running the installer script. */
 const NATIVE_UPDATE_COMMANDS: Record<string, string> = {
   antigravity: 'agy update',
+  vibe: 'uv tool upgrade mistral-vibe',
+  kimi: 'uv tool upgrade kimi-cli',
 };
 
 export function getCliUpdateSpec(providerId: string): CliUpdateSpec | null {
@@ -33,6 +41,7 @@ export function getCliUpdateSpec(providerId: string): CliUpdateSpec | null {
     displayName: install.displayName,
     versionArgs: ['--version'],
     npmPackage: NPM_PACKAGES[providerId],
+    pypiPackage: PYPI_PACKAGES[providerId],
   };
 }
 

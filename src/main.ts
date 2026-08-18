@@ -107,13 +107,12 @@ import { ProviderWorkspaceRegistry } from './core/providers/ProviderWorkspaceReg
 import type { ProviderId } from './core/providers/types';
 import type { AppTabManagerState } from './core/providers/types';
 import { DEFAULT_CHAT_PROVIDER_ID } from './core/providers/types';
+import { chooseBestAutoModel } from './core/routing/autoModelRoute';
 import {
   AUTO_MODEL_VALUE,
   chooseModelRoute,
   type ModelRouteContext,
   type ModelRouteDecision,
-  type ModelRouterRule,
-  type ModelRouterTask,
   normalizeRouterRules,
 } from './core/routing/modelRouterRules';
 import {
@@ -152,6 +151,9 @@ import {
   exportConversationToHtml,
   exportConversationToPdf,
 } from './features/chat/export/ConversationHtmlExporter';
+import { resolveAppShotSettings } from './features/chat/services/appShotCapture';
+import { takeAppShot } from './features/chat/services/AppShotController';
+import { registerAppShotGlobalHotkey, unregisterAppShotGlobalHotkey } from './features/chat/services/AppShotHotkeys';
 import { ImageStagingService } from './features/chat/services/ImageStagingService';
 import { PacketTracerService } from './features/chat/services/PacketTracerService';
 import type { TabData } from './features/chat/tabs/types';
@@ -335,6 +337,15 @@ export default class ClaudianPlugin extends Plugin {
         void this.activateView();
       },
     });
+
+    this.addCommand({
+      id: 'app-shot',
+      name: 'App Shot aufnehmen',
+      callback: () => {
+        void takeAppShot(this);
+      },
+    });
+    this.syncAppShotHotkey();
 
     this.addCommand({
       id: 'related-notes',
@@ -951,6 +962,7 @@ export default class ClaudianPlugin extends Plugin {
     // Stop the warm whisper-server background process (if voice input ever
     // started one this session) — otherwise it would keep running after the
     // plugin unloads.
+    unregisterAppShotGlobalHotkey();
     whisperServerManager.stop();
     this.workflowEngine?.stop();
     this.providerStatusBar?.destroy();
@@ -1457,24 +1469,6 @@ export default class ClaudianPlugin extends Plugin {
     }
   }
 
-  private defaultRouterRulesFromModels(): ModelRouterRule[] {
-    const models = ProviderRegistry.getAggregatedModelOptions(this.settings as unknown as Record<string, unknown>);
-    const findModel = (task: ModelRouterTask, patterns: RegExp[]): ModelRouterRule | null => {
-      const found = models.find(model => patterns.some(pattern => pattern.test(`${model.value} ${model.label}`)));
-      return found ? { task, model: found.value } : null;
-    };
-    return [
-      findModel('code', [/kimi.*code/i, /kimi.*for.*coding/i, /codex/i, /code/i, /sonnet/i, /claude/i]),
-      findModel('writing', [/claude.*sonnet/i, /claude/i, /gpt/i, /sonnet/i]),
-      findModel('planning', [/claude.*opus/i, /claude/i, /kimi/i, /reason/i, /o1/i, /o3/i]),
-      findModel('vision', [/vision/i, /gpt-4o/i, /gpt-5/i, /gemini/i, /kimi/i, /claude/i]),
-      findModel('analysis', [/kimi/i, /gpt/i, /claude/i, /sonnet/i]),
-      findModel('document', [/claude/i, /gpt/i, /kimi/i]),
-      findModel('cheap', [/haiku/i, /mini/i, /flash/i, /highspeed/i, /nano/i, /air/i]),
-      findModel('longcontext', [/claude/i, /gemini/i, /kimi/i]),
-    ].filter((rule): rule is ModelRouterRule => rule !== null);
-  }
-
   /**
    * Silent model routing: returns the routing decision (or null if no switch
    * is needed) without UI side effects. Used by the auto-mode send hook.
@@ -1492,24 +1486,43 @@ export default class ClaudianPlugin extends Plugin {
       ?? String(snapshot.model ?? this.settings.model);
     const availableModels = ProviderRegistry.getAggregatedModelOptions(settingsBag);
     const explicitRules = normalizeRouterRules(this.settings.modelRouterRules);
-    const rules = explicitRules.length > 0 ? explicitRules : this.defaultRouterRulesFromModels();
 
-    // Context-aware routing: detect images, file extensions, and token estimate
-    const context: ModelRouteContext = {};
-    const imageContextManager = (this as any).imageStagingService;
-    if (imageContextManager) {
-      const images = imageContextManager.getAttachedImages?.() ?? [];
-      if (images.length > 0) context.hasImages = true;
+    const context: ModelRouteContext = {
+      estimatedTokens: Math.ceil(prompt.length / 4),
+    };
+    const images = tab.ui.imageContextManager?.getAttachedImages() ?? [];
+    if (images.length > 0) context.hasImages = true;
+    const attachments = tab.ui.imageContextManager?.getStagedAttachments() ?? [];
+    if (attachments.length > 0) {
+      context.fileExtensions = attachments
+        .map((attachment) => attachment.name.split('.').pop()?.toLowerCase() ?? '')
+        .filter(Boolean);
     }
-    // Estimate tokens from prompt length (~4 chars/token)
-    context.estimatedTokens = Math.ceil(prompt.length / 4);
 
-    const decision = chooseModelRoute({ prompt, rules, availableModels, fallbackModel, context });
+    const ranked = this.providerCapacityService?.rank() ?? [];
+    const unavailableProviderIds = ranked
+      .filter((capacity) => !capacity.available)
+      .map((capacity) => capacity.providerId);
+    const providerScores = Object.fromEntries(
+      ranked.map((capacity) => [capacity.providerId, capacity.available ? capacity.score : -1]),
+    );
 
-    if (decision.model === fallbackModel) {
-      return null;
+    if (explicitRules.length > 0) {
+      const routed = chooseModelRoute({ prompt, rules: explicitRules, availableModels, fallbackModel, context });
+      const routedProvider = availableModels.find((model) => model.value === routed.model)?.providerId;
+      if (!routedProvider || !unavailableProviderIds.includes(routedProvider)) {
+        return routed;
+      }
     }
-    return decision;
+
+    return chooseBestAutoModel({
+      prompt,
+      availableModels,
+      unavailableProviderIds,
+      providerScores,
+      fallbackModel,
+      context,
+    });
   }
 
   async applyModelRouterToCurrentInput(): Promise<void> {
@@ -2075,6 +2088,13 @@ export default class ClaudianPlugin extends Plugin {
         }
       }
     }
+  }
+
+  syncAppShotHotkey(): void {
+    const settings = resolveAppShotSettings(this.settings.appShot);
+    registerAppShotGlobalHotkey(settings.hotkey, settings.enabled, () => {
+      void takeAppShot(this);
+    });
   }
 
   async activateView() {
@@ -2844,21 +2864,21 @@ export default class ClaudianPlugin extends Plugin {
     return this.updateCoordinator.subscribe(listener);
   }
 
-  startOfferedUpdates(): void {
-    this.updateCoordinator.startAll();
+  startOfferedUpdates(): Promise<void> {
+    return this.updateCoordinator.startAll();
   }
 
-  startOfferedUpdate(id: string): void {
-    this.updateCoordinator.startOne(id);
+  startOfferedUpdate(id: string): Promise<void> {
+    return this.updateCoordinator.startOne(id);
   }
 
   dismissOfferedUpdate(id: string): void {
     this.updateCoordinator.dismiss(id);
   }
 
-  startCliUpdate(info: ProviderUpdateInfo): void {
+  startCliUpdate(info: ProviderUpdateInfo): Promise<void> {
     this.updateCoordinator.offerProviderUpdates([info]);
-    this.updateCoordinator.startOne(`cli:${info.providerId}`);
+    return this.updateCoordinator.startOne(`cli:${info.providerId}`);
   }
 
   private broadcastPluginUpdate(): void {

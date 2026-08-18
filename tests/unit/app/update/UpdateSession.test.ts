@@ -50,6 +50,15 @@ describe('UpdateSession', () => {
     expect(visibleItems(second)).toHaveLength(1);
   });
 
+  it('re-offers a finished item so Update can be clicked again', () => {
+    let session = offerUpdateItems(createUpdateSession(), [CLAUDE]);
+    session = queueOne(session, CLAUDE.id);
+    session = startNextQueued(session);
+    session = completeItem(session, CLAUDE.id, true);
+    session = offerUpdateItems(session, [CLAUDE]);
+    expect(session.items[0].status).toBe('available');
+  });
+
   it('queues CLI updates before the plugin so a reload cannot abort them', () => {
     const offered = offerUpdateItems(createUpdateSession(), [PLUGIN, CLAUDE]);
     const queued = queueAllAvailable(offered);

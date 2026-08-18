@@ -29,6 +29,14 @@ export function clearCliUpdateCache(providerId?: string): void {
   cache.clear();
 }
 
+async function readPypiVersion(pkg: string): Promise<string | null> {
+  const script = [
+    'import json,urllib.request',
+    `print(json.load(urllib.request.urlopen("https://pypi.org/pypi/${pkg}/json", timeout=7))["info"]["version"])`,
+  ].join(';');
+  return readVersion('python3', ['-c', script], 8000);
+}
+
 async function readVersion(command: string, args: string[], timeoutMs: number): Promise<string | null> {
   try {
     return parseCliVersion(await runCapture(command, args, timeoutMs));
@@ -95,7 +103,9 @@ export async function checkProviderUpdate(
   const currentVersion = await readVersion(cliPath, spec.versionArgs, 5000);
   const latestVersion = spec.npmPackage
     ? await readVersion('npm', ['view', spec.npmPackage, 'version'], 8000)
-    : null;
+    : spec.pypiPackage
+      ? await readPypiVersion(spec.pypiPackage)
+      : null;
 
   const updateAvailable = isCliUpdateAvailable(currentVersion, latestVersion);
 

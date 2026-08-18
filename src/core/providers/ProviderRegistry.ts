@@ -211,7 +211,7 @@ export class ProviderRegistry {
     const autoOption: ProviderUIOption = {
       value: AUTO_MODEL_VALUE,
       label: 'Auto',
-      description: 'Automatically choose the best model based on your prompt',
+      description: 'Wählt das beste freie Modell für die Frage — überspringt limitierte Provider',
       group: 'Auto-Router',
     };
 

@@ -44,7 +44,7 @@ export const vibeSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     new Setting(container)
       .setName('Vibe aktivieren')
-      .setDesc('Vibe (`vibe --print --output-format stream-json`) als Provider starten.')
+      .setDesc('Vibe (`vibe -p --output streaming`) als Provider starten.')
       .addToggle((toggle) =>
         toggle.setValue(settings.enabled).onChange(async (value) => {
           updateVibeProviderSettings(settingsBag, { enabled: value });
@@ -161,7 +161,7 @@ export const vibeSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     new Setting(container)
       .setName('Berechtigungen überspringen (YOLO)')
-      .setDesc('`--yolo` mitgeben, damit Vibe alle Aktionen selbst freigibt. Der Print-Modus gibt pro Aufruf ohnehin frei — dies ist die ausdrückliche YOLO-Variante.')
+      .setDesc('`--yolo` plus `--agent auto-approve`: Vibe gibt alle Tool-Aufrufe frei (nötig im nicht-interaktiven `-p`-Modus).')
       .addToggle((toggle) =>
         toggle.setValue(settings.permissionMode === 'yolo').onChange(async (value) => {
           updateVibeProviderSettings(settingsBag, { permissionMode: value ? 'yolo' : 'normal' });

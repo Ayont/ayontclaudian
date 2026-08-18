@@ -22,6 +22,7 @@ export interface LiveDocumentBlock {
 interface LiveDocumentRenderContext {
   app: App;
   component: Component;
+  onDockDocument?: (document: LiveDocument, theme: LiveDocumentTheme) => void;
 }
 
 const DOCUMENT_FOLDER = '.claudian/documents';
@@ -256,6 +257,7 @@ export async function renderLiveDocument(
   const themeButton = createIconButton(actions, 'palette', `Design: ${THEME_LABELS[activeTheme]}`);
   const copyButton = createIconButton(actions, 'copy', 'Dokument kopieren');
   const saveButton = createIconButton(actions, 'save', 'Als Markdown im Vault speichern');
+  const dockButton = createIconButton(actions, 'panel-right', 'Dokument andocken');
   const expandButton = createIconButton(actions, 'maximize-2', 'Dokument groß öffnen');
 
   const viewport = card.createDiv({ cls: 'claudian-live-document-viewport' });
@@ -305,6 +307,10 @@ export async function renderLiveDocument(
     }).catch((error) => {
       new Notice(`Dokument konnte nicht gespeichert werden: ${error instanceof Error ? error.message : String(error)}`);
     });
+  });
+
+  dockButton.addEventListener('click', () => {
+    context.onDockDocument?.(document, activeTheme);
   });
 
   expandButton.addEventListener('click', () => {

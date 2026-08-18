@@ -1,5 +1,6 @@
-import { type App,Modal } from 'obsidian';
+import { type App, Modal } from 'obsidian';
 
+import { type GroupedModelOption,groupModelOptions } from '../../../core/providers/modelOptionGroups';
 import type { ProviderUIOption } from '../../../core/providers/types';
 import { AUTO_MODEL_VALUE } from '../../../core/routing/modelRouterRules';
 import { createProviderIconSvg } from '../../../shared/icons';
@@ -68,59 +69,76 @@ export class ModelSelectModal extends Modal {
       return;
     }
 
+    const grouped = groupModelOptions(filtered);
     let lastGroup: string | undefined;
-    for (const model of filtered) {
-      if (model.group && model.group !== lastGroup) {
+    for (const family of grouped) {
+      if (family.group && family.group !== lastGroup) {
         const groupEl = this.listEl.createDiv({ cls: 'claudian-model-select-group' });
-        groupEl.setText(model.group);
-        lastGroup = model.group;
+        groupEl.setText(family.group);
+        lastGroup = family.group;
       }
-
-      const optionEl = this.listEl.createDiv({ cls: 'claudian-model-select-option' });
-      if (model.providerId) {
-        optionEl.dataset.provider = model.providerId;
-      }
-      if (model.value === this.currentModel) {
-        optionEl.addClass('is-selected');
-      }
-      if (model.value === AUTO_MODEL_VALUE) {
-        optionEl.addClass('is-auto');
-      }
-
-      if (model.providerIcon) {
-        const iconWrap = optionEl.createSpan({ cls: 'claudian-model-select-option-icon' });
-        iconWrap.appendChild(createProviderIconSvg(model.providerIcon, {
-          height: 14,
-          ownerDocument: iconWrap.ownerDocument,
-          width: 14,
-        }));
-      } else if (model.value === AUTO_MODEL_VALUE) {
-        // Sparkle indicator for Auto option
-        const iconWrap = optionEl.createSpan({ cls: 'claudian-model-select-option-icon' });
-        iconWrap.setText('✦');
-      }
-
-      const labelEl = optionEl.createSpan({ cls: 'claudian-model-select-option-label' });
-      labelEl.setText(model.label);
-
-      if (model.description) {
-        optionEl.createSpan({ cls: 'claudian-model-select-option-description', text: model.description });
-      }
-
-      if (model.value === this.currentModel) {
-        const checkEl = optionEl.createSpan({ cls: 'claudian-model-select-option-check' });
-        checkEl.setText('✓');
-      }
-
-      if (model.description) {
-        optionEl.setAttribute('title', model.description);
-      }
-
-      optionEl.addEventListener('click', () => {
-        this.onSelect(model.value);
-        this.close();
-      });
+      this.renderFamily(family);
     }
+  }
+
+  private renderFamily(family: GroupedModelOption): void {
+    if (!this.listEl) return;
+    const selectedValue = family.variants.some((variant) => variant.value === this.currentModel)
+      ? this.currentModel
+      : family.variants.length === 0 && family.primaryValue === this.currentModel
+        ? this.currentModel
+        : null;
+    const optionEl = this.listEl.createDiv({ cls: 'claudian-model-select-option' });
+    if (family.providerId) optionEl.dataset.provider = family.providerId;
+    if (selectedValue) optionEl.addClass('is-selected');
+    if (family.primaryValue === AUTO_MODEL_VALUE) optionEl.addClass('is-auto');
+
+    if (family.providerIcon) {
+      const iconWrap = optionEl.createSpan({ cls: 'claudian-model-select-option-icon' });
+      iconWrap.appendChild(createProviderIconSvg(family.providerIcon, {
+        height: 14,
+        ownerDocument: iconWrap.ownerDocument,
+        width: 14,
+      }));
+    } else if (family.primaryValue === AUTO_MODEL_VALUE) {
+      const iconWrap = optionEl.createSpan({ cls: 'claudian-model-select-option-icon' });
+      iconWrap.setText('✦');
+    }
+
+    const labelEl = optionEl.createSpan({ cls: 'claudian-model-select-option-label' });
+    labelEl.setText(family.familyLabel);
+
+    if (family.variants.length > 1) {
+      const chips = optionEl.createDiv({ cls: 'claudian-model-select-efforts' });
+      for (const variant of family.variants) {
+        const chip = chips.createEl('button', {
+          cls: 'claudian-model-select-effort',
+          text: variant.label,
+          attr: { type: 'button' },
+        });
+        if (variant.value === this.currentModel) chip.addClass('is-active');
+        chip.addEventListener('click', (event) => {
+          event.stopPropagation();
+          this.onSelect(variant.value);
+          this.close();
+        });
+      }
+    }
+
+    if (family.description) {
+      optionEl.createSpan({ cls: 'claudian-model-select-option-description', text: family.description });
+      optionEl.setAttribute('title', family.description);
+    }
+
+    if (selectedValue && family.variants.length === 0) {
+      const checkEl = optionEl.createSpan({ cls: 'claudian-model-select-option-check' });
+      checkEl.setText('✓');
+    }
+
+    optionEl.addEventListener('click', () => {
+      this.onSelect(selectedValue ?? family.primaryValue);
+      this.close();
+    });
   }
 
   onClose(): void {

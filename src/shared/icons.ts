@@ -135,91 +135,85 @@ export const KIMI_PROVIDER_ICON: ProviderIconSvg = {
   path: 'M12 2a10 10 0 1 0 9.95 11.04A8 8 0 0 1 12 2Z',
 };
 
-// Vibe / Mistral mark: Mistral's banded "flag" — stacked horizontal bars filled
-// with the brand's sunrise gradient (yellow at the top fading to orange at the
-// bottom). A continuous userSpaceOnUse gradient spans all bands so the sunrise
-// reads across the whole mark.
+// Vibe / Mistral mark: official 2025 pixel-cat emblem (sunrise bands forming
+// the M / cat silhouette). Hardcoded brand fills — not currentColor — because
+// the stacked gold→red bands are the mark.
 export const VIBE_PROVIDER_ICON: ProviderIconSvg = {
   kind: 'composite',
   viewBox: '0 0 24 24',
   children: [
     {
-      tag: 'defs',
-      attributes: {},
-      children: [
-        {
-          tag: 'linearGradient',
-          attributes: { id: 'claudian-mistral-grad', gradientUnits: 'userSpaceOnUse', x1: '12', y1: '3', x2: '12', y2: '22' },
-          children: [
-            { tag: 'stop', attributes: { offset: '0%', 'stop-color': '#FFD60A' } },
-            { tag: 'stop', attributes: { offset: '55%', 'stop-color': '#FF8A00' } },
-            { tag: 'stop', attributes: { offset: '100%', 'stop-color': '#FF5A00' } },
-          ],
-        },
-      ],
-    },
-    { tag: 'rect', attributes: { x: '3', y: '3', width: '18', height: '3.6', rx: '1', fill: 'url(#claudian-mistral-grad)' } },
-    { tag: 'rect', attributes: { x: '3', y: '8.2', width: '18', height: '3.6', rx: '1', fill: 'url(#claudian-mistral-grad)' } },
-    { tag: 'rect', attributes: { x: '3', y: '13.4', width: '18', height: '3.6', rx: '1', fill: 'url(#claudian-mistral-grad)' } },
-    { tag: 'rect', attributes: { x: '3', y: '18.6', width: '18', height: '3.6', rx: '1', fill: 'url(#claudian-mistral-grad)' } },
-  ],
-};
-
-// Cline mark: a teal ring with a cut “C” opening — geometric stand-in for
-// Cline’s circular brand, tinted with the ClinePass teal.
-export const CLINE_PROVIDER_ICON: ProviderIconSvg = {
-  kind: 'composite',
-  viewBox: '0 0 24 24',
-  children: [
-    {
-      tag: 'defs',
-      attributes: {},
-      children: [
-        {
-          tag: 'linearGradient',
-          attributes: { id: 'claudian-cline-grad', gradientUnits: 'userSpaceOnUse', x1: '4', y1: '4', x2: '20', y2: '20' },
-          children: [
-            { tag: 'stop', attributes: { offset: '0%', 'stop-color': '#5EEAD4' } },
-            { tag: 'stop', attributes: { offset: '100%', 'stop-color': '#0D9488' } },
-          ],
-        },
-      ],
+      tag: 'path',
+      attributes: {
+        d: 'M3.428 3.4h3.429v3.428H3.428V3.4zm13.714 0h3.43v3.428h-3.43V3.4z',
+        fill: 'gold',
+      },
     },
     {
       tag: 'path',
       attributes: {
-        d: 'M12 3.2a8.8 8.8 0 1 0 6.8 3.2 2.1 2.1 0 0 0-3.24 2.66A4.7 4.7 0 1 1 12 7.3a2.1 2.1 0 1 0 0-4.1Z',
-        fill: 'url(#claudian-cline-grad)',
+        d: 'M3.428 6.828h6.857v3.429H3.429V6.828zm10.286 0h6.857v3.429h-6.857V6.828z',
+        fill: '#FFAF00',
+      },
+    },
+    {
+      tag: 'path',
+      attributes: {
+        d: 'M3.428 10.258h17.144v3.428H3.428v-3.428z',
+        fill: '#FF8205',
+      },
+    },
+    {
+      tag: 'path',
+      attributes: {
+        d: 'M3.428 13.686h3.429v3.428H3.428v-3.428zm6.858 0h3.429v3.428h-3.429v-3.428zm6.856 0h3.43v3.428h-3.43v-3.428z',
+        fill: '#FA500F',
+      },
+    },
+    {
+      tag: 'path',
+      attributes: {
+        d: 'M0 17.114h10.286v3.429H0v-3.429zm13.714 0H24v3.429H13.714v-3.429z',
+        fill: '#E10500',
       },
     },
   ],
 };
 
-// Grok / xAI mark: the angular "X" glyph filled with xAI's white→black gradient
-// (diagonal, top-left white fading to near-black bottom-right).
+// Cline mark: official robot-head glyph (rounded body, two eye slots, antenna).
+export const CLINE_PROVIDER_ICON: ProviderIconSvg = {
+  kind: 'composite',
+  viewBox: '0 0 24 24',
+  children: [
+    {
+      tag: 'path',
+      attributes: {
+        d: 'M17.035 3.991c2.75 0 4.98 2.24 4.98 5.003v1.667l1.45 2.896a1.01 1.01 0 01-.002.909l-1.448 2.864v1.668c0 2.762-2.23 5.002-4.98 5.002H7.074c-2.751 0-4.98-2.24-4.98-5.002V17.33l-1.48-2.855a1.01 1.01 0 01-.003-.927l1.482-2.887V8.994c0-2.763 2.23-5.003 4.98-5.003h9.962zM8.265 9.6a2.274 2.274 0 00-2.274 2.274v4.042a2.274 2.274 0 004.547 0v-4.042A2.274 2.274 0 008.265 9.6zm7.326 0a2.274 2.274 0 00-2.274 2.274v4.042a2.274 2.274 0 104.548 0v-4.042A2.274 2.274 0 0015.59 9.6z',
+        fill: 'currentColor',
+        'fill-rule': 'evenodd',
+      },
+    },
+    {
+      tag: 'path',
+      attributes: {
+        d: 'M12.054 5.558a2.779 2.779 0 100-5.558 2.779 2.779 0 000 5.558z',
+        fill: 'currentColor',
+      },
+    },
+  ],
+};
+
+// Grok / xAI mark: official 2025 swirl-G (accretion-disk / singularity glyph).
 export const GROK_PROVIDER_ICON: ProviderIconSvg = {
   kind: 'composite',
   viewBox: '0 0 24 24',
   children: [
     {
-      tag: 'defs',
-      attributes: {},
-      children: [
-        {
-          tag: 'linearGradient',
-          attributes: { id: 'claudian-grok-grad', gradientUnits: 'userSpaceOnUse', x1: '4', y1: '4', x2: '20', y2: '20' },
-          children: [
-            { tag: 'stop', attributes: { offset: '0%', 'stop-color': '#FFFFFF' } },
-            { tag: 'stop', attributes: { offset: '100%', 'stop-color': '#222222' } },
-          ],
-        },
-      ],
-    },
-    {
       tag: 'path',
       attributes: {
-        d: 'M3.5 3.5h4.2l4.3 6 4.3-6h4.2l-6.4 8.5 6.4 8.5h-4.2l-4.3-6-4.3 6H3.5l6.4-8.5z',
-        fill: 'url(#claudian-grok-grad)',
+        d: 'M9.27 15.29l7.978-5.897c.391-.29.95-.177 1.137.272.98 2.369.542 5.215-1.41 7.169-1.951 1.954-4.667 2.382-7.149 1.406l-2.711 1.257c3.889 2.661 8.611 2.003 11.562-.953 2.341-2.344 3.066-5.539 2.388-8.42l.006.007c-.983-4.232.242-5.924 2.75-9.383.06-.082.12-.164.179-.248l-3.301 3.305v-.01L9.267 15.292M7.623 16.723c-2.792-2.67-2.31-6.801.071-9.184 1.761-1.763 4.647-2.483 7.166-1.425l2.705-1.25a7.808 7.808 0 00-1.829-1A8.975 8.975 0 005.984 5.83c-2.533 2.536-3.33 6.436-1.962 9.764 1.022 2.487-.653 4.246-2.34 6.022-.599.63-1.199 1.259-1.682 1.925l7.62-6.815',
+        fill: 'currentColor',
+        'fill-rule': 'evenodd',
       },
     },
   ],

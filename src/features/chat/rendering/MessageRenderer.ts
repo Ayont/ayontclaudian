@@ -24,7 +24,12 @@ import { escapeMathDelimitersForStreaming } from '../../../utils/markdownMath';
 import { findRewindContext } from '../rewind';
 import { exportAssistantResponse } from '../services/ResponseExportService';
 import { AppendToNoteModal } from '../ui/AppendToNoteModal';
-import { attachmentTypeMeta } from '../ui/file-drop/attachmentMeta';
+import {
+  attachmentKindLabel,
+  attachmentPeekMode,
+  attachmentTypeMeta,
+  type FileDockTarget,
+} from '../ui/file-drop/attachmentMeta';
 import { renderAutoMemoryChips } from './AutoMemoryChip';
 import {
   prepareDisplayOnlyCodeFences,
@@ -33,7 +38,11 @@ import {
 import { renderEmailTemplates } from './EmailTemplateRenderer';
 import { detectStatusCard } from './errorClassification';
 import { renderInlineImages } from './InlineImageRenderer';
-import { renderLiveDocuments } from './LiveDocumentRenderer';
+import {
+  type LiveDocument,
+  type LiveDocumentTheme,
+  renderLiveDocuments,
+} from './LiveDocumentRenderer';
 import { renderNetworkMaps } from './NetworkMapRenderer';
 import { renderSkillCards } from './SkillCardRenderer';
 import { renderStatusCard } from './StatusCardRenderer';
@@ -243,6 +252,8 @@ export class MessageRenderer {
    * never gets a leading divider.
    */
   private lastRenderedProviderId: ProviderId | null = null;
+  private dockHandler: ((target: FileDockTarget) => void) | null = null;
+  private liveDocumentDockHandler: ((document: LiveDocument, theme: LiveDocumentTheme) => void) | null = null;
 
   constructor(
     plugin: ClaudianPlugin,
@@ -285,6 +296,18 @@ export class MessageRenderer {
   /** Sets the messages container element. */
   setMessagesEl(el: HTMLElement): void {
     this.messagesEl = el;
+  }
+
+  /** Docks a dropped or sent file into the document pane. */
+  setDockHandler(handler: ((target: FileDockTarget) => void) | null): void {
+    this.dockHandler = handler;
+  }
+
+  /** Docks a created live document into the document pane. */
+  setLiveDocumentDockHandler(
+    handler: ((document: LiveDocument, theme: LiveDocumentTheme) => void) | null,
+  ): void {
+    this.liveDocumentDockHandler = handler;
   }
 
   private getSubagentLifecycleAdapter(toolName?: string) {
@@ -1277,33 +1300,26 @@ export class MessageRenderer {
   }
 
   /**
-   * Renders staged file attachments above a user message. Videos and audio get
-   * inline players (you can literally watch what the agent is analyzing);
-   * everything else renders as a compact file card.
+   * Renders staged file attachments above a user message. Each kind gets a
+   * visual peek (PDF iframe, media player, paper card) and docks into the
+   * document pane on click.
    */
   renderMessageAttachments(containerEl: HTMLElement, attachments: MessageAttachment[]): void {
     const wrap = containerEl.createDiv({ cls: 'claudian-message-attachments' });
 
-    for (const attachment of attachments) {
+    attachments.forEach((attachment, index) => {
       const meta = attachmentTypeMeta(attachment.name);
+      const peek = attachmentPeekMode(attachment.name);
       const card = wrap.createDiv({
-        cls: `claudian-message-attachment claudian-message-attachment--${meta.kind}`,
+        cls: `claudian-message-attachment claudian-message-attachment--${meta.kind} claudian-message-attachment--${peek}`,
       });
+      card.setCssProps({ '--cl-att-stagger': `${Math.min(index, 6) * 40}ms` });
+      card.setAttribute('role', 'button');
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('aria-label', `${attachment.name} andocken`);
 
-      if (meta.kind === 'video' || meta.kind === 'audio') {
-        let resourcePath: string | null;
-        try {
-          resourcePath = this.app.vault.adapter.getResourcePath(attachment.relPath);
-        } catch {
-          resourcePath = null;
-        }
-        if (resourcePath) {
-          const media = card.createEl(meta.kind, {
-            attr: { src: resourcePath, controls: 'true', preload: 'metadata' },
-          });
-          media.addClass('claudian-message-attachment-media');
-        }
-      }
+      const resourcePath = this.resolveAttachmentResource(attachment.relPath);
+      this.renderAttachmentPeek(card, attachment, peek, resourcePath);
 
       const info = card.createDiv({ cls: 'claudian-message-attachment-info' });
       const iconEl = info.createSpan({ cls: 'claudian-message-attachment-icon' });
@@ -1313,9 +1329,89 @@ export class MessageRenderer {
       nameEl.setAttribute('title', attachment.relPath);
       info.createSpan({
         cls: 'claudian-message-attachment-kind',
-        text: meta.typeClass.toUpperCase(),
+        text: attachmentKindLabel(meta.kind),
       });
+
+      const dock = () => this.dockHandler?.({
+        kind: 'file',
+        path: attachment.relPath,
+        name: attachment.name,
+      });
+      const onActivate = (event: Event) => {
+        const target = event.target as HTMLElement | null;
+        const tag = target?.tagName?.toLowerCase();
+        if (tag === 'video' || tag === 'audio' || tag === 'button') return;
+        dock();
+      };
+      card.addEventListener('click', onActivate);
+      card.addEventListener('keydown', (event: KeyboardEvent) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          dock();
+        }
+      });
+    });
+  }
+
+  private resolveAttachmentResource(relPath: string): string | null {
+    try {
+      return this.app.vault.adapter.getResourcePath(relPath);
+    } catch {
+      return null;
     }
+  }
+
+  private renderAttachmentPeek(
+    card: HTMLElement,
+    attachment: MessageAttachment,
+    peek: ReturnType<typeof attachmentPeekMode>,
+    resourcePath: string | null,
+  ): void {
+    if (peek === 'media') {
+      if (!resourcePath) return;
+      const media = card.createEl(attachmentTypeMeta(attachment.name).kind === 'audio' ? 'audio' : 'video', {
+        attr: { src: resourcePath, controls: 'true', preload: 'metadata' },
+      });
+      media.addClass('claudian-message-attachment-media');
+      return;
+    }
+
+    const peekEl = card.createDiv({ cls: 'claudian-message-attachment-peek' });
+    if (peek === 'iframe' && resourcePath) {
+      const iframe = peekEl.createEl('iframe', {
+        cls: 'claudian-message-attachment-pdf',
+        attr: {
+          src: resourcePath,
+          sandbox: 'allow-same-origin',
+          tabindex: '-1',
+          title: attachment.name,
+        },
+      });
+      iframe.addClass('claudian-message-attachment-pdf');
+      return;
+    }
+
+    if (peek === 'thumb' && resourcePath) {
+      const img = peekEl.createEl('img', {
+        cls: 'claudian-message-attachment-thumb',
+        attr: { src: resourcePath, alt: attachment.name },
+      });
+      img.addClass('claudian-message-attachment-thumb');
+      return;
+    }
+
+    const meta = attachmentTypeMeta(attachment.name);
+    const paper = peekEl.createDiv({
+      cls: `claudian-message-attachment-paper claudian-message-attachment-paper--${meta.kind}`,
+    });
+    paper.createDiv({ cls: 'claudian-message-attachment-paper-sheet' });
+    const face = paper.createDiv({ cls: 'claudian-message-attachment-paper-face' });
+    setIcon(face.createSpan({ cls: 'claudian-message-attachment-paper-icon' }), meta.icon);
+    face.createSpan({
+      cls: 'claudian-message-attachment-paper-kind',
+      text: attachmentKindLabel(meta.kind),
+    });
+    face.createSpan({ cls: 'claudian-message-attachment-paper-name', text: attachment.name });
   }
 
   /**
@@ -1507,6 +1603,9 @@ export class MessageRenderer {
         await renderLiveDocuments(el, renderMarkdown, {
           app: this.app,
           component: this.component,
+          onDockDocument: (document, theme) => {
+            this.liveDocumentDockHandler?.(document, theme);
+          },
         });
 
         // Short email requests get a dedicated mail preview with subject,

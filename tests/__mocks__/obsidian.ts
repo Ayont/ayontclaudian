@@ -158,6 +158,16 @@ export class MarkdownView {
   }
 }
 
+export class Component {
+  load(): void {}
+  unload(): void {}
+  addChild(): this { return this; }
+  removeChild(): this { return this; }
+  register(): void {}
+  registerEvent(): void {}
+  registerDomEvent(): void {}
+}
+
 export class Setting {
   constructor(containerEl: any) {}
   setName = jest.fn().mockReturnThis();

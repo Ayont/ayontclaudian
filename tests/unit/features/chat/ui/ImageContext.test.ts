@@ -78,6 +78,20 @@ describe('ImageContextManager', () => {
     });
   });
 
+  describe('addAppShot', () => {
+    it('stages a captured PNG into the composer', () => {
+      const ok = manager.addAppShot('aGVsbG8=', 'App Shot — Safari.png', 32);
+      expect(ok).toBe(true);
+      expect(manager.hasImages()).toBe(true);
+      expect(manager.getAttachedImages()[0]).toMatchObject({
+        name: 'App Shot — Safari.png',
+        mediaType: 'image/png',
+        data: 'aGVsbG8=',
+      });
+      expect(callbacks.onImagesChanged).toHaveBeenCalled();
+    });
+  });
+
   describe('getAttachedImages', () => {
     it('should return empty array when no images attached', () => {
       expect(manager.getAttachedImages()).toEqual([]);
@@ -601,6 +615,24 @@ describe('ImageContextManager - Private Helpers', () => {
       const id = Array.from(localManager['stagedAttachments'].keys())[0];
       localManager['removeStagedAttachment'](id);
       expect(contextRow.hasClass('has-content')).toBe(false);
+    });
+
+    it('docks a staged file as soon as it lands in the vault', async () => {
+      const stageVaultAttachment = jest.fn().mockResolvedValue('.claudian/attachments/brief-1.pdf');
+      const onAttachmentStaged = jest.fn();
+      const localCallbacks = { onImagesChanged: jest.fn(), stageVaultAttachment, onAttachmentStaged };
+      const localInput = createMockTextArea();
+      const { container: c } = createContainerWithInputWrapper();
+      const localManager = new ImageContextManager(c, localInput, localCallbacks);
+
+      const ok = await localManager['stageFileAttachment']({ name: 'brief.pdf', size: 2048 } as File);
+
+      expect(ok).toBe(true);
+      expect(onAttachmentStaged).toHaveBeenCalledWith({
+        kind: 'file',
+        path: '.claudian/attachments/brief-1.pdf',
+        name: 'brief.pdf',
+      });
     });
 
     it('handleDrop should handle no files gracefully', async () => {

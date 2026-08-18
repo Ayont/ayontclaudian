@@ -67,7 +67,8 @@ export class VibeAuxQueryRunner implements AuxQueryRunner {
       env,
       envText,
       model,
-      permissionMode: 'normal',
+      permissionMode: 'yolo',
+      maxTurns: 3,
       prompt: fullPrompt,
     });
 

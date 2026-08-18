@@ -205,6 +205,50 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.claudian-model-select-efforts {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.claudian-model-select-effort {
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--model-accent) 28%, var(--background-modifier-border));
+  background: color-mix(in srgb, var(--model-accent) 8%, transparent);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  padding: 4px 7px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    background 140ms var(--cl-select-ease),
+    color 140ms var(--cl-select-ease),
+    border-color 140ms var(--cl-select-ease),
+    transform 140ms var(--cl-select-ease);
+}
+
+.claudian-model-select-effort:active {
+  transform: scale(0.97);
+}
+
+.claudian-model-select-effort.is-active {
+  background: color-mix(in srgb, var(--model-accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--model-accent) 55%, transparent);
+  color: var(--model-accent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .claudian-model-select-effort:hover {
+    color: var(--text-normal);
+    border-color: color-mix(in srgb, var(--model-accent) 45%, transparent);
+  }
 }
 
 .claudian-model-select-option-description {

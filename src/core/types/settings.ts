@@ -49,6 +49,17 @@ export interface SlashCommand {
   hooks?: Record<string, unknown>;   // Pass-through to SDK
 }
 
+/** Capture of the frontmost desktop app into the active chat. */
+export interface AppShotSettings {
+  enabled: boolean;
+  playSound: boolean;
+  target: 'auto' | 'active-chat';
+  hotkey: {
+    modifiers: Array<'Mod' | 'Ctrl' | 'Alt' | 'Shift' | 'Meta'>;
+    key: string;
+  };
+}
+
 /** Keyboard navigation settings for vim-style scrolling. */
 export interface KeyboardNavigationSettings {
   scrollUpKey: string;         // Key to scroll up when focused on messages (default: 'w')
@@ -212,6 +223,7 @@ export interface ClaudianSettings {
   // UI settings
   keyboardNavigation: KeyboardNavigationSettings;
   requireCommandOrControlEnterToSend: boolean;
+  appShot?: AppShotSettings;
 
   // Internationalization
   locale: string;

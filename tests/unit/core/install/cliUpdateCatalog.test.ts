@@ -21,6 +21,16 @@ describe('cliUpdateCatalog', () => {
     expect(getPreferredUpdateCommand('antigravity', 'linux')).toBe('agy update');
   });
 
+  it('upgrades uv-installed CLIs with uv tool upgrade', () => {
+    expect(getPreferredUpdateCommand('vibe', 'darwin')).toBe('uv tool upgrade mistral-vibe');
+    expect(getPreferredUpdateCommand('kimi', 'linux')).toBe('uv tool upgrade kimi-cli');
+  });
+
+  it('exposes PyPI packages for latest-version probes', () => {
+    expect(getCliUpdateSpec('vibe')?.pypiPackage).toBe('mistral-vibe');
+    expect(getCliUpdateSpec('kimi')?.pypiPackage).toBe('kimi-cli');
+  });
+
   it('returns null for unknown providers', () => {
     expect(getCliUpdateSpec('nope')).toBeNull();
     expect(getPreferredUpdateCommand('nope', 'darwin')).toBeNull();

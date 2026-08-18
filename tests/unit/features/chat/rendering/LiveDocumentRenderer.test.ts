@@ -122,11 +122,27 @@ describe('LiveDocumentRenderer', () => {
 
     expect(root.querySelector('.claudian-live-document.theme-warm')).not.toBeNull();
     expect(root.querySelector('.claudian-live-document-masthead h1')?.textContent).toBe('Client Brief');
-    expect(root.querySelectorAll('.claudian-live-document-action')).toHaveLength(4);
+    expect(root.querySelectorAll('.claudian-live-document-action')).toHaveLength(5);
     expect(root.querySelector('.claudian-live-document-page')).not.toBeNull();
 
     (root.querySelector('.claudian-live-document-action') as HTMLButtonElement).click();
     expect(root.querySelector('.claudian-live-document.theme-technical')).not.toBeNull();
+  });
+
+  it('docks the live document when the dock action is clicked', async () => {
+    const root = document.createElement('div');
+    const liveDocument = parseLiveDocument('---\ntitle: Dock Brief\ntheme: warm\n---\n# Dock Brief\nContent')!;
+    const onDockDocument = jest.fn();
+
+    await renderLiveDocument(root, liveDocument, { ...createContext(), onDockDocument });
+
+    const dockButton = root.querySelector('[aria-label="Dokument andocken"]') as HTMLButtonElement;
+    expect(dockButton).not.toBeNull();
+    dockButton.click();
+    expect(onDockDocument).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Dock Brief' }),
+      'warm',
+    );
   });
 
   it('replaces a rendered document code fence with the live canvas', async () => {

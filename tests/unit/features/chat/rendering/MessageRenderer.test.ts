@@ -1358,9 +1358,11 @@ describe('MessageRenderer', () => {
     expect(media.getAttribute('src')).toBe('app://vault/.claudian/attachments/demo.mp4');
   });
 
-  it('renderMessageAttachments renders a plain card for non-media files', () => {
+  it('renderMessageAttachments renders a half-page PDF peek that docks on click', () => {
     const containerEl = createMockEl();
     const { renderer } = createRenderer();
+    const dock = jest.fn();
+    renderer.setDockHandler(dock);
     (renderer as any).app = {
       vault: { adapter: { getResourcePath: (p: string) => `app://vault/${p}` } },
     };
@@ -1371,8 +1373,34 @@ describe('MessageRenderer', () => {
 
     const card = containerEl.children[0].children[0];
     expect(card.hasClass('claudian-message-attachment--pdf')).toBe(true);
+    const peek = card.querySelector('.claudian-message-attachment-peek');
+    expect(peek).toBeTruthy();
+    const iframe = card.querySelector('.claudian-message-attachment-pdf');
+    expect(iframe).toBeTruthy();
+    expect(iframe?.getAttribute('src')).toBe('app://vault/.claudian/attachments/report.pdf');
     const hasVideo = card.children.some((c: any) => c.tagName?.toLowerCase() === 'video');
     expect(hasVideo).toBe(false);
+
+    card.click();
+    expect(dock).toHaveBeenCalledWith({
+      kind: 'file',
+      path: '.claudian/attachments/report.pdf',
+      name: 'report.pdf',
+    });
+  });
+
+  it('renderMessageAttachments renders a paper card for office documents', () => {
+    const containerEl = createMockEl();
+    const { renderer } = createRenderer();
+
+    renderer.renderMessageAttachments(containerEl, [
+      { name: 'vertrag.docx', relPath: '.claudian/attachments/vertrag.docx' },
+    ]);
+
+    const card = containerEl.children[0].children[0];
+    expect(card.hasClass('claudian-message-attachment--doc')).toBe(true);
+    expect(card.querySelector('.claudian-message-attachment-paper')).toBeTruthy();
+    expect(card.querySelector('iframe')).toBeNull();
   });
 
   it('setImageSrc sets data URI on image element', async () => {

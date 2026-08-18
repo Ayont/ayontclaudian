@@ -966,6 +966,9 @@ function initializeContextManagers(tab: TabData, plugin: ClaudianPlugin): void {
       // Scope staged images to the active conversation so sent images can be
       // archived with the correct chat (never restored into the compose field).
       getConversationId: () => tab.state.currentConversationId,
+      onAttachmentStaged: (target) => {
+        void tab.ui.filePreviewPanel?.dockFile(target.path);
+      },
       // Stage dropped PDFs / docs / binary files into the vault so any provider's
       // agent can read them via the @path mention inserted by the drop handler.
       stageVaultAttachment: async (file: File): Promise<string | null> => {
@@ -1789,6 +1792,12 @@ export function initializeTabControllers(
       void tab.controllers.inputController?.sendMessage();
     },
   );
+  tab.renderer.setDockHandler?.((target) => {
+    void tab.ui.filePreviewPanel?.dockFile(target.path);
+  });
+  tab.renderer.setLiveDocumentDockHandler?.((document, theme) => {
+    void tab.ui.filePreviewPanel?.dockLiveDocument(document, theme);
+  });
 
   // Selection controller
   tab.controllers.selectionController = new SelectionController(
