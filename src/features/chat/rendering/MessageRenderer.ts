@@ -26,6 +26,10 @@ import { exportAssistantResponse } from '../services/ResponseExportService';
 import { AppendToNoteModal } from '../ui/AppendToNoteModal';
 import { attachmentTypeMeta } from '../ui/file-drop/attachmentMeta';
 import { renderAutoMemoryChips } from './AutoMemoryChip';
+import {
+  prepareDisplayOnlyCodeFences,
+  restoreDisplayOnlyCodeFences,
+} from './DisplayOnlyCodeFences';
 import { renderEmailTemplates } from './EmailTemplateRenderer';
 import { detectStatusCard } from './errorClassification';
 import { renderInlineImages } from './InlineImageRenderer';
@@ -1472,13 +1476,15 @@ export class MessageRenderer {
         this.app,
         { mediaFolder: this.plugin.settings.mediaFolder }
       );
+      const displayOnly = prepareDisplayOnlyCodeFences(processedMarkdown);
       await MarkdownRenderer.render(
         this.app,
-        processedMarkdown,
+        displayOnly.markdown,
         el,
         '',
         this.component
       );
+      await restoreDisplayOnlyCodeFences(el, displayOnly.fences);
 
       // Every fence-driven pass below scans the full Markdown AND runs its own
       // `querySelectorAll` over the freshly built subtree. This function re-runs

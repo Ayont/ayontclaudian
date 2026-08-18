@@ -7,7 +7,8 @@ import type { AntigravityPermissionMode, AntigravityWorkspaceScope } from '../se
  *   agy --add-dir <vaultPath> \
  *       (--dangerously-skip-permissions | --sandbox) \
  *       [--add-dir <home>] [--agent <name>] [--model "<name>"] \
- *       [--print-timeout <v>] [--conversation <id>] -p "<prompt>"
+ *       [--print-timeout <v>] [--conversation <id>] \
+ *       --output-format stream-json -p "<prompt>"
  *
  * CRITICAL — `agy` uses Go's `flag` package, where `-p` / `--print` /
  * `--prompt` is a STRING flag whose value IS the prompt. `agy --print` with no
@@ -22,9 +23,10 @@ import type { AntigravityPermissionMode, AntigravityWorkspaceScope } from '../se
  *                  unattended print mode, which cannot answer prompts).
  *   - `sandbox` -> `--sandbox`, and the skip-permissions flag is omitted.
  *
- * Under a non-TTY stdout (a spawned child process), `agy` prints no final text
- * to stdout; the structured event stream is read from the per-conversation
- * transcript.jsonl instead.
+ * `agy` >= 1.1.12 emits a live NDJSON stream on stdout when
+ * `--output-format stream-json` is set (init / step_update / result, with
+ * `text_delta` and real token usage). The per-conversation transcript.jsonl
+ * is still tailed for tool cards that the stream does not yet describe.
  */
 
 export interface BuildAntigravityLaunchSpecParams {
@@ -125,6 +127,11 @@ export function buildAntigravityLaunchSpec(
   if (conversationId) {
     args.push('--conversation', conversationId);
   }
+
+  // Live NDJSON on stdout (agy >= 1.1.12). Must precede `-p` so Go's flag
+  // parser still sees it. Older agy binaries reject the flag; the runtime
+  // falls back to transcript tail + stderr in that case.
+  args.push('--output-format', 'stream-json');
 
   // `-p <prompt>`: the prompt is the VALUE of the print flag, placed last so
   // every preceding flag is parsed before Go's `flag` package consumes it.

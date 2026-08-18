@@ -26,6 +26,18 @@
     box-shadow var(--cl-dur) var(--cl-ease);
 }
 
+/* Effort / budget menus open upward. Lift the clip so they are not painted
+   over the prompt, and raise the composer above the transcript. */
+.claudian-input-wrapper:has(.claudian-thinking-gears:hover),
+.claudian-input-wrapper:has(.claudian-thinking-gears:focus-within) {
+  overflow: visible;
+}
+
+.claudian-input-container:has(.claudian-thinking-gears:hover),
+.claudian-input-container:has(.claudian-thinking-gears:focus-within) {
+  z-index: 20;
+}
+
 body.theme-light .claudian-input-wrapper {
   --claudian-input-wrapper-box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.72),
@@ -394,14 +406,14 @@ body.theme-light .claudian-input-wrapper {
   --claudian-input-wrapper-box-shadow: 0 0 0 1px #f472b6;
 }
 
-/* Speed: amber plate, same language as the Speed chip. Plan/instruction/bash
+/* Speed: amber rim, same language as the Fast chip. Plan/instruction/bash
    borders still win because they are more specific mode locks. */
 .claudian-input-wrapper.claudian-input-speed-mode:not(.claudian-input-plan-mode):not(.claudian-input-instruction-mode):not(.claudian-input-bang-bash-mode) {
   --claudian-input-wrapper-border-color: var(--cl-speed-line);
   --claudian-input-wrapper-box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 10px 28px color-mix(in srgb, var(--cl-speed) 16%, transparent);
-  background: color-mix(in srgb, var(--cl-speed-soft) 58%, var(--cl-surface-raised));
+    inset 0 1px 0 rgba(255, 245, 210, 0.08),
+    0 0 0 1px rgba(var(--cl-speed-rgb), 0.16),
+    0 10px 28px rgba(var(--cl-speed-rgb), 0.12);
 }
 
 .claudian-input-container:has(.claudian-input-speed-mode) .claudian-stream-status {
@@ -412,14 +424,20 @@ body.theme-light .claudian-input-wrapper {
 }
 
 .claudian-input-container:has(.claudian-input-speed-mode) .claudian-stream-status-label::after {
-  content: 'Speed';
+  content: 'Fast';
   display: inline-flex;
   align-items: center;
   margin-inline-start: 6px;
-  padding: 1px 6px;
+  padding: 1px 7px;
   border: 1px solid var(--cl-speed-line);
   border-radius: var(--cl-radius-pill);
-  background: var(--cl-speed-soft);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--cl-speed-rgb), 0.28) 0%,
+      rgba(var(--cl-speed-rgb), 0.12) 100%
+    );
+  box-shadow: inset 0 1px 0 rgba(255, 245, 210, 0.22);
   color: var(--cl-speed);
   font-size: 10px;
   font-weight: 700;

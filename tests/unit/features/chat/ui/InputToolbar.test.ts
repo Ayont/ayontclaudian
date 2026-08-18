@@ -431,6 +431,29 @@ describe('ThinkingBudgetSelector', () => {
       const current = parentEl.querySelector('.claudian-thinking-current');
       expect(current?.textContent).toBe('High');
     });
+
+    it('does not set native title tooltips on effort options', () => {
+      const uiConfig = createMockUIConfig();
+      uiConfig.getReasoningOptions.mockReturnValue([
+        { value: 'low', label: 'Low', description: 'Effizient — Token-sparend, kurze Aufgaben' },
+        { value: 'medium', label: 'Med', description: 'Ausgewogen — moderate Einsparung' },
+        { value: 'high', label: 'High', description: 'Gründlich' },
+      ]);
+      const parent = createMockEl();
+      new ThinkingBudgetSelector(parent, createMockCallbacks({ getUIConfig: () => uiConfig }));
+      const gears = parent.querySelector('.claudian-thinking-options')?.children ?? [];
+      expect(gears.length).toBeGreaterThan(0);
+      for (const gear of gears) {
+        expect(gear.getAttribute('title')).toBeNull();
+      }
+      const descriptions = (parent.querySelectorAll('.claudian-thinking-gear-desc') ?? []).map(
+        (el: { textContent: string }) => el.textContent,
+      );
+      expect(descriptions).toEqual(expect.arrayContaining([
+        'Effizient — Token-sparend, kurze Aufgaben',
+        'Ausgewogen — moderate Einsparung',
+      ]));
+    });
   });
 
   describe('legacy mode (custom models)', () => {

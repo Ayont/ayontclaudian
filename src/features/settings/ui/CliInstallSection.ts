@@ -96,6 +96,12 @@ function renderRow(
         button.onClick(async () => {
           button.setDisabled(true);
           button.setButtonText('Aktualisiert…');
+          const info = await checkProviderUpdate(spec.id, plugin.settings as unknown as Record<string, unknown>);
+          if (info?.updateCommand) {
+            plugin.startCliUpdate(info);
+            window.setTimeout(rerender, 800);
+            return;
+          }
           const installer = new CliInstaller();
           const result = await installer.run(updateCommand, () => {});
           if (result.ok) {

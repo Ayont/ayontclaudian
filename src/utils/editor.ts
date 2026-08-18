@@ -7,6 +7,8 @@
 import type { EditorView } from '@codemirror/view';
 import type { Editor } from 'obsidian';
 
+import { escapePromptXmlAttribute, escapePromptXmlClosingTags } from './promptXml';
+
 /**
  * Gets the CodeMirror EditorView from an Obsidian Editor.
  * Obsidian's Editor type doesn't expose the internal `.cm` property.
@@ -80,7 +82,7 @@ export function formatEditorContext(context: EditorSelectionContext): string {
     const lineAttr = context.startLine && context.lineCount
       ? ` lines="${context.startLine}-${context.startLine + context.lineCount - 1}"`
       : '';
-    return `<editor_selection path="${context.notePath}"${lineAttr}>\n${context.selectedText}\n</editor_selection>`;
+    return `<editor_selection path="${escapePromptXmlAttribute(context.notePath)}"${lineAttr}>\n${escapePromptXmlClosingTags(context.selectedText, 'editor_selection')}\n</editor_selection>`;
   } else if (context.mode === 'cursor' && context.cursorContext) {
     const ctx = context.cursorContext;
     let content: string;
@@ -93,7 +95,7 @@ export function formatEditorContext(context: EditorSelectionContext): string {
     } else {
       content = `${ctx.beforeCursor}|${ctx.afterCursor} #inline`;
     }
-    return `<editor_cursor path="${context.notePath}">\n${content}\n</editor_cursor>`;
+    return `<editor_cursor path="${escapePromptXmlAttribute(context.notePath)}">\n${escapePromptXmlClosingTags(content, 'editor_cursor')}\n</editor_cursor>`;
   }
   return '';
 }

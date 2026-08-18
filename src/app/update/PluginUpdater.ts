@@ -3,6 +3,7 @@ import type { Plugin} from 'obsidian';
 import { Notice, Platform, requestUrl } from 'obsidian';
 import * as path from 'path';
 
+import type { InstallProgressCallback } from '../../core/install/CliInstaller';
 import { compareSemver } from '../../core/install/semver';
 
 export interface UpdateInfo {
@@ -75,11 +76,14 @@ export class PluginUpdater {
    * Downloads the release assets for the given version and writes them into
    * the plugin folder, then reloads the plugin.
    */
-  async installUpdate(version: string): Promise<void> {
+  async installUpdate(version: string, onProgress?: InstallProgressCallback): Promise<boolean> {
     const pluginDir = this.getPluginDirectory();
     if (!pluginDir) {
-      new Notice('Ayontclaudian-update konnte nicht installiert werden: Plugin-Ordner nicht gefunden.');
-      return;
+      onProgress?.({ phase: 'error', percent: null, line: 'Plugin-Ordner nicht gefunden.' });
+      if (!onProgress) {
+        new Notice('Ayontclaudian-update konnte nicht installiert werden: Plugin-Ordner nicht gefunden.');
+      }
+      return false;
     }
 
     const files: { name: string; url: string }[] = [
@@ -97,8 +101,17 @@ export class PluginUpdater {
       },
     ];
 
+    onProgress?.({ phase: 'starting', percent: 0, line: `Lade ayontclaudian ${version}…` });
+
     try {
-      for (const file of files) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const percent = Math.round((i / files.length) * 100);
+        onProgress?.({
+          phase: 'running',
+          percent,
+          line: `Lade ${file.name}…`,
+        });
         const response = await requestUrl({ url: file.url, throw: true });
         const content = response.text ?? (response.arrayBuffer ? undefined : '');
         if (content === undefined) {
@@ -106,12 +119,26 @@ export class PluginUpdater {
         }
         const filePath = path.join(pluginDir, file.name);
         await fs.promises.writeFile(filePath, content, 'utf8');
+        onProgress?.({
+          phase: 'running',
+          percent: Math.round(((i + 1) / files.length) * 90),
+          line: `${file.name} geschrieben`,
+        });
       }
 
-      new Notice(`Ayontclaudian ${version} installiert. Lade neu...`);
+      onProgress?.({ phase: 'running', percent: 95, line: 'Lade Plugin neu…' });
+      if (!onProgress) {
+        new Notice(`Ayontclaudian ${version} installiert. Lade neu...`);
+      }
       await this.reloadPlugin();
+      onProgress?.({ phase: 'done', percent: 100, line: `ayontclaudian ${version} installiert` });
+      return true;
     } catch {
-      new Notice('Ayontclaudian-Update konnte nicht installiert werden.');
+      onProgress?.({ phase: 'error', percent: null, line: 'Download oder Schreiben fehlgeschlagen.' });
+      if (!onProgress) {
+        new Notice('Ayontclaudian-Update konnte nicht installiert werden.');
+      }
+      return false;
     }
   }
 

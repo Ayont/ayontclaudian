@@ -1,14 +1,8 @@
 import { buildPermissionUpdates } from '@/providers/claude/security/ClaudePermissionUpdates';
 
 describe('buildPermissionUpdates', () => {
-  it('constructs allow rule for allow decision', () => {
-    const updates = buildPermissionUpdates('Bash', { command: 'git status' }, 'allow');
-    expect(updates).toEqual([{
-      type: 'addRules',
-      behavior: 'allow',
-      rules: [{ toolName: 'Bash', ruleContent: 'git status' }],
-      destination: 'session',
-    }]);
+  it('does not persist allow-once decisions (invocation-scoped)', () => {
+    expect(buildPermissionUpdates('Bash', { command: 'git status' }, 'allow')).toEqual([]);
   });
 
   it('uses projectSettings destination for always decisions', () => {
@@ -33,23 +27,17 @@ describe('buildPermissionUpdates', () => {
   });
 
   it('falls back to constructed rule when no addRules suggestions', () => {
-    const updates = buildPermissionUpdates('Bash', { command: 'ls' }, 'allow', []);
+    const updates = buildPermissionUpdates('Bash', { command: 'ls' }, 'allow-always', []);
     expect(updates).toEqual([{
       type: 'addRules',
       behavior: 'allow',
       rules: [{ toolName: 'Bash', ruleContent: 'ls' }],
-      destination: 'session',
+      destination: 'projectSettings',
     }]);
   });
 
-  it('omits ruleContent when pattern is null (missing file_path)', () => {
-    const updates = buildPermissionUpdates('Read', {}, 'allow');
-    expect(updates).toEqual([{
-      type: 'addRules',
-      behavior: 'allow',
-      rules: [{ toolName: 'Read' }],
-      destination: 'session',
-    }]);
+  it('refuses a blanket allow-always when the action has no scope', () => {
+    expect(buildPermissionUpdates('Read', {}, 'allow-always')).toEqual([]);
   });
 
   it('includes addDirectories suggestions without overriding destination', () => {
@@ -136,9 +124,7 @@ describe('buildPermissionUpdates', () => {
       },
     ];
     const updates = buildPermissionUpdates('Read', { file_path: '/new/dir/file.md' }, 'allow', suggestions);
-    expect(updates).toHaveLength(2);
-    expect(updates[0].type).toBe('addRules');
-    expect(updates[1].type).toBe('addDirectories');
+    expect(updates).toEqual([]);
   });
 
   it('does not prepend addRules when replaceRules suggestion is present', () => {
@@ -170,14 +156,7 @@ describe('buildPermissionUpdates', () => {
       },
     ];
     const updates = buildPermissionUpdates('Bash', { command: 'git status' }, 'allow', suggestions);
-    expect(updates).toHaveLength(2);
-    expect(updates[0].type).toBe('addRules');
-    expect(updates[0]).toMatchObject({
-      behavior: 'allow',
-      rules: [{ toolName: 'Bash', ruleContent: 'git status' }],
-      destination: 'session',
-    });
-    expect(updates[1].type).toBe('removeRules');
+    expect(updates).toEqual([]);
   });
 
   it('preserves original behavior on removeRules suggestions', () => {

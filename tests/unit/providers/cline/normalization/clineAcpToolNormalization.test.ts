@@ -1,12 +1,12 @@
 import {
-  normalizeClineAcpToolInput,
-  normalizeClineAcpToolName,
-} from '@/providers/cline/normalization/clineAcpToolNormalization';
-import {
   TOOL_BASH,
   TOOL_READ,
   TOOL_WRITE,
 } from '@/core/tools/toolNames';
+import {
+  normalizeClineAcpToolInput,
+  normalizeClineAcpToolName,
+} from '@/providers/cline/normalization/clineAcpToolNormalization';
 
 describe('normalizeClineAcpToolName', () => {
   it('maps Cline 3.x snake_case tools onto the shared renderer names', () => {

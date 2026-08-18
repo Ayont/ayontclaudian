@@ -536,7 +536,7 @@ describe('ClaudianService', () => {
         );
       });
 
-      it('should return updatedPermissions with session destination for allow decisions', async () => {
+      it('should keep allow-once invocation-scoped without persisting a session rule', async () => {
         const callback = jest.fn().mockResolvedValue('allow');
         service.setApprovalCallback(callback);
 
@@ -544,12 +544,7 @@ describe('ClaudianService', () => {
         const result = await canUseTool('Bash', { command: 'git status' }, canUseToolOptions);
 
         expect(result.behavior).toBe('allow');
-        expect(result.updatedPermissions).toBeDefined();
-        expect(result.updatedPermissions[0]).toMatchObject({
-          type: 'addRules',
-          behavior: 'allow',
-          destination: 'session',
-        });
+        expect(result.updatedPermissions).toEqual([]);
       });
 
       it('should return updatedPermissions for allow-always decisions', async () => {

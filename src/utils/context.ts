@@ -4,6 +4,8 @@
  * Current note and context file formatting for prompts.
  */
 
+import { escapePromptXmlClosingTags } from './promptXml';
+
 // Matches <current_note> at the START of prompt (legacy format)
 const CURRENT_NOTE_PREFIX_REGEX = /^<current_note>\n[\s\S]*?<\/current_note>\n\n/;
 // Matches <current_note> at the END of prompt (current format)
@@ -43,7 +45,7 @@ export interface InjectedContextPrompt {
 }
 
 export function formatCurrentNote(notePath: string): string {
-  return `<current_note>\n${notePath}\n</current_note>`;
+  return `<current_note>\n${escapePromptXmlClosingTags(notePath, 'current_note')}\n</current_note>`;
 }
 
 export function appendCurrentNote(prompt: string, notePath: string): string {

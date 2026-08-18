@@ -19,6 +19,8 @@ describe('buildAntigravityLaunchSpec', () => {
       '--add-dir',
       '/vault',
       '--dangerously-skip-permissions',
+      '--output-format',
+      'stream-json',
       '-p',
       'hi',
     ]);

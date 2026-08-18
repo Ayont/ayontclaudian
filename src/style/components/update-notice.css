@@ -1,3 +1,253 @@
+/* Live update dock — in-chat card that streams CLI / plugin install progress.
+   Replaces blocking confirm() popups and Notice toasts. */
+
 .claudian-update-notice {
   cursor: pointer;
+}
+
+.claudian-update-dock {
+  position: absolute;
+  z-index: 40;
+  right: var(--cl-space-3);
+  bottom: var(--cl-space-3);
+  width: min(360px, calc(100% - var(--cl-space-6)));
+  display: flex;
+  flex-direction: column;
+  gap: var(--cl-space-3);
+  padding: var(--cl-space-3);
+  border-radius: var(--cl-radius-lg);
+  border: 1px solid var(--cl-accent-line);
+  color: var(--text-normal);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--cl-accent-rgb), 0.16) 0%,
+      rgba(var(--cl-accent-rgb), 0.06) 100%
+    ),
+    var(--cl-surface-raised);
+  box-shadow:
+    var(--cl-shadow-lg),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transform: translateY(0);
+  opacity: 1;
+  transition:
+    transform var(--cl-dur) var(--cl-ease-out),
+    opacity var(--cl-dur) var(--cl-ease-out);
+}
+
+.claudian-update-dock.claudian-hidden {
+  display: none;
+}
+
+@starting-style {
+  .claudian-update-dock:not(.claudian-hidden) {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+.claudian-update-dock-head {
+  display: flex;
+  align-items: center;
+  gap: var(--cl-space-2);
+}
+
+.claudian-update-dock-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--cl-radius-pill);
+  color: var(--cl-accent);
+  background: rgba(var(--cl-accent-rgb), 0.16);
+  box-shadow: 0 0 0 1px rgba(var(--cl-accent-rgb), 0.22) inset;
+}
+
+.claudian-update-dock-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.claudian-update-dock-title {
+  font-family: var(--cl-font-ui);
+  font-size: var(--cl-text-sm);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.claudian-update-dock-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cl-space-2);
+}
+
+.claudian-update-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--cl-space-2) var(--cl-space-3);
+  border-radius: var(--cl-radius-md);
+  background: var(--cl-surface-sunken);
+  border: 1px solid var(--cl-border-subtle);
+}
+
+.claudian-update-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.claudian-update-item-name {
+  font-size: var(--cl-text-sm);
+  font-weight: 600;
+}
+
+.claudian-update-item-versions {
+  font-size: var(--cl-text-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.claudian-update-item-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--cl-space-1);
+}
+
+.claudian-update-item-start,
+.claudian-update-dock-start-all {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  padding: 5px 10px;
+  border-radius: var(--cl-radius-pill);
+  font-size: var(--cl-text-xs);
+  font-weight: 600;
+  color: var(--cl-surface-base);
+  background: var(--cl-accent);
+  transition: transform 160ms var(--cl-ease-out), opacity var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-update-item-start:active,
+.claudian-update-dock-start-all:active {
+  transform: scale(0.97);
+}
+
+.claudian-update-item-dismiss {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--cl-radius-pill);
+  cursor: pointer;
+  transition: transform 160ms var(--cl-ease-out), color var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-update-item-dismiss:active {
+  transform: scale(0.97);
+}
+
+.claudian-update-item-dismiss svg {
+  width: 12px;
+  height: 12px;
+}
+
+.claudian-update-dock-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.claudian-update-item-meter {
+  position: relative;
+  height: 4px;
+  border-radius: var(--cl-radius-pill);
+  background: rgba(var(--cl-accent-rgb), 0.16);
+  overflow: hidden;
+}
+
+.claudian-update-item-bar {
+  height: 100%;
+  width: var(--cl-update-pct, 0%);
+  border-radius: inherit;
+  background: var(--cl-accent);
+  transition: width var(--cl-dur) var(--cl-ease-out);
+}
+
+.claudian-update-item-meter.is-indeterminate .claudian-update-item-bar {
+  width: 40%;
+  animation: cl-update-indeterminate 1.1s linear infinite;
+}
+
+.claudian-update-item-percent {
+  position: absolute;
+  right: 0;
+  top: -16px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.claudian-update-item-log {
+  max-height: 92px;
+  overflow: auto;
+  padding: 6px 8px;
+  border-radius: var(--cl-radius-sm);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--text-muted);
+  font-family: var(--cl-font-mono);
+  font-size: 10px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+body.theme-light .claudian-update-item-log {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.claudian-update-item-error {
+  font-size: var(--cl-text-xs);
+  color: var(--cl-danger);
+}
+
+.claudian-update-item-done {
+  font-size: var(--cl-text-xs);
+  color: var(--cl-success);
+}
+
+@keyframes cl-update-indeterminate {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(280%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-update-dock,
+  .claudian-update-item-bar,
+  .claudian-update-item-start,
+  .claudian-update-dock-start-all,
+  .claudian-update-item-dismiss {
+    transition: none;
+    animation: none;
+  }
+
+  .claudian-update-item-meter.is-indeterminate .claudian-update-item-bar {
+    animation: none;
+    width: 100%;
+    opacity: 0.6;
+  }
 }

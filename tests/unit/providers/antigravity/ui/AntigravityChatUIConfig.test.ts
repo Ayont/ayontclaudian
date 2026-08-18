@@ -79,6 +79,7 @@ describe('AntigravityChatUIConfig models', () => {
 
   it('isAntigravityModelName distinguishes real models from the default', () => {
     expect(isAntigravityModelName('Claude Opus 4.6 (Thinking)')).toBe(true);
+    expect(isAntigravityModelName('gemini-3.7-flash-high')).toBe(true);
     expect(isAntigravityModelName(ANTIGRAVITY_DEFAULT_MODEL_ID)).toBe(false);
   });
 });

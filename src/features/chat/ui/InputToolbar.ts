@@ -409,7 +409,6 @@ export class ThinkingBudgetSelector {
 
       if (effort.description) {
         gearEl.createDiv({ cls: 'claudian-thinking-gear-desc', text: effort.description });
-        gearEl.setAttribute('title', effort.description);
       }
 
       if (effort.value === currentEffort) {

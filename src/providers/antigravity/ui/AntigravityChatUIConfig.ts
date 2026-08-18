@@ -40,7 +40,28 @@ export const ANTIGRAVITY_MODEL_NAMES: readonly string[] = [
   'GPT-OSS 120B (Medium)',
 ] as const;
 
-const ANTIGRAVITY_MODEL_NAME_SET = new Set<string>(ANTIGRAVITY_MODEL_NAMES);
+/** Stable slugs from `agy models` (agy >= 1.1.5). Both slug and display name are valid `--model` values. */
+const ANTIGRAVITY_MODEL_SLUGS: Readonly<Record<string, string>> = Object.freeze({
+  'gemini-3.7-flash-high': 'Gemini 3.7 Flash (High)',
+  'gemini-3.7-flash-medium': 'Gemini 3.7 Flash (Medium)',
+  'gemini-3.7-flash-low': 'Gemini 3.7 Flash (Low)',
+  'gemini-3.6-flash-high': 'Gemini 3.6 Flash (High)',
+  'gemini-3.6-flash-medium': 'Gemini 3.6 Flash (Medium)',
+  'gemini-3.6-flash-low': 'Gemini 3.6 Flash (Low)',
+  'gemini-3.5-flash-high': 'Gemini 3.5 Flash (High)',
+  'gemini-3.5-flash-medium': 'Gemini 3.5 Flash (Medium)',
+  'gemini-3.5-flash-low': 'Gemini 3.5 Flash (Low)',
+  'gemini-3.1-pro-high': 'Gemini 3.1 Pro (High)',
+  'gemini-3.1-pro-low': 'Gemini 3.1 Pro (Low)',
+  'claude-sonnet-4-6': 'Claude Sonnet 4.6 (Thinking)',
+  'claude-opus-4-6-thinking': 'Claude Opus 4.6 (Thinking)',
+  'gpt-oss-120b-medium': 'GPT-OSS 120B (Medium)',
+});
+
+const ANTIGRAVITY_MODEL_NAME_SET = new Set<string>([
+  ...ANTIGRAVITY_MODEL_NAMES,
+  ...Object.keys(ANTIGRAVITY_MODEL_SLUGS),
+]);
 
 const ANTIGRAVITY_MODEL_OPTIONS: ProviderUIOption[] = [
   { value: ANTIGRAVITY_DEFAULT_MODEL_ID, label: 'Antigravity · Default' },
@@ -64,19 +85,19 @@ const DEFAULT_CONTEXT_WINDOW = 1_000_000;
  * back to DEFAULT_CONTEXT_WINDOW — correct for the Gemini 3.x and Claude 4.6
  * entries, which are all 1M per their vendors' own model docs.
  *
- * agy reports no token counts at all, so nothing ever corrects these downstream
- * (unlike Claude/Codex/opencode, where a runtime event overwrites the estimate).
- * Keep in sync with ANTIGRAVITY_MODEL_NAMES.
+ * stream-json now reports token counts; the window itself is still local
+ * (agy does not send a context-window field). Keep in sync with ANTIGRAVITY_MODEL_NAMES.
  */
 const ANTIGRAVITY_CONTEXT_WINDOWS: readonly (readonly [string, number])[] = [
   ['GPT-OSS 120B', 131_072],
 ] as const;
 
-/** Context window for an exact `agy models` name, or the 1M default. */
+/** Context window for an exact `agy models` name or slug, or the 1M default. */
 export function getAntigravityContextWindow(model: string): number {
   if (!model) return DEFAULT_CONTEXT_WINDOW;
+  const resolved = ANTIGRAVITY_MODEL_SLUGS[model] ?? model;
   for (const [prefix, window] of ANTIGRAVITY_CONTEXT_WINDOWS) {
-    if (model.startsWith(prefix)) return window;
+    if (resolved.startsWith(prefix)) return window;
   }
   return DEFAULT_CONTEXT_WINDOW;
 }
@@ -126,7 +147,7 @@ export const antigravityChatUIConfig: ProviderChatUIConfig = {
   getContextWindowSize(model: string, customLimits?: Record<string, number>): number {
     const custom = customLimits?.[model];
     if (typeof custom === 'number' && custom > 0 && isFinite(custom)) return custom;
-    return getAntigravityContextWindow(model);
+    return getAntigravityContextWindow(ANTIGRAVITY_MODEL_SLUGS[model] ?? model);
   },
 
   isDefaultModel(model: string): boolean {

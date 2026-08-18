@@ -16,6 +16,11 @@ describe('cliUpdateCatalog', () => {
     expect(command).toContain('x.ai/cli/install.sh');
   });
 
+  it('updates Antigravity via the native `agy update` command', () => {
+    expect(getPreferredUpdateCommand('antigravity', 'darwin')).toBe('agy update');
+    expect(getPreferredUpdateCommand('antigravity', 'linux')).toBe('agy update');
+  });
+
   it('returns null for unknown providers', () => {
     expect(getCliUpdateSpec('nope')).toBeNull();
     expect(getPreferredUpdateCommand('nope', 'darwin')).toBeNull();

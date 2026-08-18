@@ -14,7 +14,6 @@ import { VIEW_TYPE_CLAUDIAN } from '../../core/types';
 import { getWorkspaceModeMeta, normalizeWorkspaceMode, type WorkspaceMode } from '../../core/workspace/workspaceMode';
 import type ClaudianPlugin from '../../main';
 import { createProviderIconSvg } from '../../shared/icons';
-import { confirm } from '../../shared/modals/ConfirmModal';
 import {
   cancelScheduledAnimationFrame,
   scheduleAnimationFrame,
@@ -34,6 +33,7 @@ import { TabManager } from './tabs/TabManager';
 import type { TabData, TabId } from './tabs/types';
 import { ModelSelectModal } from './ui/ModelSelectModal';
 import { ShortcutOverlay } from './ui/ShortcutOverlay';
+import { UpdateDock } from './ui/UpdateDock';
 import { applyWorkspaceModeToContainer, WorkspaceModeToggle } from './ui/WorkspaceModeToggle';
 import { recalculateUsageForModel } from './utils/usageInfo';
 
@@ -65,6 +65,8 @@ export class ClaudianView extends ItemView {
   private headerActionsContent: HTMLElement | null = null;
   private newTabButtonEl: HTMLElement | null = null;
   private pluginUpdateButtonEl: HTMLElement | null = null;
+  private updateDock: UpdateDock | null = null;
+  private unsubscribeUpdates: (() => void) | null = null;
 
   // Header elements
   private historyDropdown: HTMLElement | null = null;
@@ -193,6 +195,7 @@ export class ClaudianView extends ItemView {
 
     this.navRowContent = this.buildNavRowContent();
     this.tabContentEl = this.viewContainerEl.createDiv({ cls: 'claudian-tab-content-container' });
+    this.mountUpdateDock(this.viewContainerEl);
 
     this.tabManager = new TabManager(
       this.plugin,
@@ -384,6 +387,9 @@ export class ClaudianView extends ItemView {
 
     this.tabBar?.destroy();
     this.tabBar = null;
+    this.unsubscribeUpdates?.();
+    this.unsubscribeUpdates = null;
+    this.updateDock = null;
     this.scope = null;
   }
 
@@ -480,7 +486,7 @@ export class ClaudianView extends ItemView {
     setIcon(this.pluginUpdateButtonEl, 'download');
     this.pluginUpdateButtonEl.setAttribute('aria-label', 'Plugin-Update installieren');
     this.pluginUpdateButtonEl.addEventListener('click', () => {
-      void this.installPluginUpdateFromHeader();
+      this.plugin.installPendingPluginUpdate();
     });
     this.setPluginUpdateAvailable(this.plugin.getPendingPluginUpdate());
 
@@ -732,20 +738,18 @@ export class ClaudianView extends ItemView {
     }
   }
 
-  private async installPluginUpdateFromHeader(): Promise<void> {
-    const update = this.plugin.getPendingPluginUpdate();
-    if (!update) {
-      return;
-    }
-    const accepted = await confirm(
-      this.app,
-      `ayontclaudian ${update.latestVersion} ist verfügbar (aktuell ${update.currentVersion}). Jetzt installieren?`,
-      'Installieren',
-    );
-    if (!accepted) {
-      return;
-    }
-    await this.plugin.installPendingPluginUpdate();
+  private mountUpdateDock(container: HTMLElement): void {
+    this.unsubscribeUpdates?.();
+    this.updateDock = new UpdateDock({
+      mountEl: container,
+      onStartAll: () => this.plugin.startOfferedUpdates(),
+      onStartOne: (id) => this.plugin.startOfferedUpdate(id),
+      onDismiss: (id) => this.plugin.dismissOfferedUpdate(id),
+    });
+    this.updateDock.setState(this.plugin.getUpdateSession());
+    this.unsubscribeUpdates = this.plugin.onUpdateSessionChange((state) => {
+      this.updateDock?.setState(state);
+    });
   }
 
   /** Applies the user's chat theme (or clears it to follow the host/provider). */

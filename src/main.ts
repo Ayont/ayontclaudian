@@ -11,7 +11,9 @@ import { FuzzySuggestModal,MarkdownView, Notice, Plugin, TFile } from 'obsidian'
 
 import { DEFAULT_CLAUDIAN_SETTINGS } from './app/settings/defaultSettings';
 import { SharedStorageService } from './app/storage/SharedStorageService';
-import { PluginUpdater,type UpdateInfo } from './app/update/PluginUpdater';
+import { PluginUpdater, type UpdateInfo } from './app/update/PluginUpdater';
+import { UpdateCoordinator } from './app/update/UpdateCoordinator';
+import type { UpdateSessionState } from './app/update/UpdateSession';
 import { whisperServerManager } from './core/audio/WhisperServerManager';
 import type { SharedAppStorage } from './core/bootstrap/storage';
 import { type TokenBudgetState,TokenBudgetTracker } from './core/budget/tokenBudget';
@@ -41,8 +43,7 @@ import {
   probeCli,
 } from './core/diagnostics/providerHealthCheck';
 import { globalEventBus } from './core/events/EventBus';
-import { CliInstaller } from './core/install/CliInstaller';
-import { checkEnabledProviderUpdates, clearCliUpdateCache } from './core/install/CliUpdateService';
+import { checkEnabledProviderUpdates, type ProviderUpdateInfo } from './core/install/CliUpdateService';
 import type { EmbeddingService } from './core/intelligence/embeddings/EmbeddingService';
 import { KeywordEmbeddingProvider } from './core/intelligence/embeddings/KeywordEmbeddingProvider';
 import { OllamaEmbeddingProvider } from './core/intelligence/embeddings/OllamaEmbeddingProvider';
@@ -178,7 +179,6 @@ import { VaultHealthService } from './features/templates/VaultHealthService';
 import { setLocale } from './i18n/i18n';
 import type { Locale } from './i18n/types';
 import { OPENCODE_PLAN_MODE_ID, OPENCODE_SAFE_MODE_ID } from './providers/opencode/modes';
-import { confirm } from './shared/modals/ConfirmModal';
 import { extractUserDisplayContent } from './utils/context';
 import { buildCursorContext } from './utils/editor';
 import { clearEnvPathCache, getEnhancedPath } from './utils/env';
@@ -195,6 +195,7 @@ export default class ClaudianPlugin extends Plugin {
   settings!: ClaudianSettings;
   private providerStatusBar: ProviderStatusBar | null = null;
   private pluginUpdater: PluginUpdater | null = null;
+  private readonly updateCoordinator = new UpdateCoordinator();
   storage!: SharedAppStorage;
   private conversations: Conversation[] = [];
   private lastKnownTabManagerState: AppTabManagerState | null = null;
@@ -783,6 +784,7 @@ export default class ClaudianPlugin extends Plugin {
 
     // In-app updater: notify once shortly after load if a GitHub release is newer.
     this.pluginUpdater = new PluginUpdater(this);
+    this.updateCoordinator.setPluginUpdater(this.pluginUpdater);
     window.setTimeout(() => {
       void this.checkAndOfferPluginUpdate({ notifyIfCurrent: false });
     }, 12_000);
@@ -954,6 +956,7 @@ export default class ClaudianPlugin extends Plugin {
     this.providerStatusBar?.destroy();
     this.providerStatusBar = null;
     this.pluginUpdater = null;
+    this.updateCoordinator.setPluginUpdater(null);
     // Clear the debounced RAG-save timer and flush any pending index changes so
     // the last edits aren't lost and the timer doesn't fire on a torn-down plugin.
     if (this.ragSaveTimer !== null) {
@@ -2829,7 +2832,33 @@ export default class ClaudianPlugin extends Plugin {
     if (!update) {
       return;
     }
-    await this.pluginUpdater?.installUpdate(update.latestVersion);
+    this.updateCoordinator.offerPluginUpdate(update);
+    this.updateCoordinator.startOne('plugin');
+  }
+
+  getUpdateSession(): UpdateSessionState {
+    return this.updateCoordinator.getState();
+  }
+
+  onUpdateSessionChange(listener: (state: UpdateSessionState) => void): () => void {
+    return this.updateCoordinator.subscribe(listener);
+  }
+
+  startOfferedUpdates(): void {
+    this.updateCoordinator.startAll();
+  }
+
+  startOfferedUpdate(id: string): void {
+    this.updateCoordinator.startOne(id);
+  }
+
+  dismissOfferedUpdate(id: string): void {
+    this.updateCoordinator.dismiss(id);
+  }
+
+  startCliUpdate(info: ProviderUpdateInfo): void {
+    this.updateCoordinator.offerProviderUpdates([info]);
+    this.updateCoordinator.startOne(`cli:${info.providerId}`);
   }
 
   private broadcastPluginUpdate(): void {
@@ -2848,20 +2877,7 @@ export default class ClaudianPlugin extends Plugin {
       }
       return null;
     }
-    new Notice(
-      `ayontclaudian ${update.latestVersion} ist verfügbar (aktuell ${update.currentVersion}). Klicke auf das Download-Symbol im Chat.`,
-      10_000,
-    );
-    if (this.getAllViews().length === 0) {
-      const accepted = await confirm(
-        this.app,
-        `ayontclaudian ${update.latestVersion} ist verfügbar (aktuell ${update.currentVersion}). Jetzt installieren?`,
-        'Installieren',
-      );
-      if (accepted) {
-        await this.installPendingPluginUpdate();
-      }
-    }
+    this.updateCoordinator.offerPluginUpdate(update);
     return update;
   }
 
@@ -2874,26 +2890,7 @@ export default class ClaudianPlugin extends Plugin {
     if (updates.length === 0) {
       return;
     }
-    const installer = new CliInstaller();
-    for (const info of updates) {
-      const latest = info.latestVersion ?? '';
-      const current = info.currentVersion ?? '?';
-      const accepted = await confirm(
-        this.app,
-        `Möchtest du ${info.displayName} auf ${latest} aktualisieren? (aktuell ${current})`,
-        'Aktualisieren',
-      );
-      if (!accepted || !info.updateCommand) {
-        continue;
-      }
-      const result = await installer.run(info.updateCommand, () => {});
-      if (result.ok) {
-        clearCliUpdateCache(info.providerId);
-      }
-      new Notice(result.ok
-        ? `${info.displayName} wurde aktualisiert.`
-        : `${info.displayName} konnte nicht aktualisiert werden.`);
-    }
+    this.updateCoordinator.offerProviderUpdates(updates);
   }
 
   findConversationAcrossViews(conversationId: string): { view: ClaudianView; tabId: string } | null {

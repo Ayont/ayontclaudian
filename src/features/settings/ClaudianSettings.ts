@@ -220,7 +220,9 @@ export class ClaudianSettingTab extends PluginSettingTab {
       button.setButtonText(pending ? 'Installieren' : 'Prüfen').onClick(async () => {
         button.setDisabled(true);
         if (pending) {
-          await this.plugin.installPendingPluginUpdate();
+          this.plugin.installPendingPluginUpdate();
+          button.setDisabled(false);
+          this.display();
           return;
         }
         const update = await this.plugin.checkAndOfferPluginUpdate({ notifyIfCurrent: true });

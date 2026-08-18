@@ -52,6 +52,10 @@ import {
   snapshotBrainConversationIds,
   splitTranscriptLines,
 } from '../history/AntigravityBrainStore';
+import {
+  createAgyNdjsonBuffer,
+  mapAgyStreamEventToChunks,
+} from '../normalization/streamEvents';
 import { parseTranscript } from '../normalization/transcript';
 import {
   type AntigravityTailState,
@@ -85,11 +89,11 @@ function sleep(ms: number): Promise<void> {
  * Single-shot subprocess runtime for the Antigravity (`agy`) CLI.
  *
  * Unlike the long-lived RPC providers (pi, opencode), each turn spawns
- * `agy --print …`, tails the per-conversation transcript.jsonl for structured
- * events while the process runs, and resolves the final assistant text from
- * stdout. Conversation continuity is achieved with `--conversation <id>`,
- * where the id is discovered from the newest `brain/<id>` directory after the
- * first spawn and persisted in provider state.
+ * `agy --print --output-format stream-json …`. Live assistant text, the
+ * conversation id, and token usage come off stdout (agy >= 1.1.12). The
+ * per-conversation transcript.jsonl is still tailed for tool cards. Older
+ * binaries that reject `--output-format` fall back to transcript + stdout
+ * text. Conversation continuity uses `--conversation <id>`.
  */
 export class AntigravityChatRuntime implements ChatRuntime {
   readonly providerId = ANTIGRAVITY_PROVIDER_ID;
@@ -328,8 +332,47 @@ export class AntigravityChatRuntime implements ChatRuntime {
     proc.stdin.end();
     let stdout = '';
     let stderr = '';
+    const streamBuffer = createAgyNdjsonBuffer();
+    const pendingStreamChunks: StreamChunk[] = [];
+    let emittedAnyTextFromStream = false;
+    let emittedAnyToolFromStream = false;
+    let sawStreamJson = false;
+    const contextWindow = getAntigravityContextWindow(selectedModel ?? '');
+    const streamToolUseEmitted = new Set<number>();
+
+    const ingestStreamEvents = (events: ReturnType<typeof streamBuffer.push>): void => {
+      for (const event of events) {
+        sawStreamJson = true;
+        if (event.kind === 'init' && event.conversationId) {
+          this.conversationId = event.conversationId;
+          this.transcriptPath = getAntigravityTranscriptPath(event.conversationId);
+        }
+        const sessionId = event.kind === 'init'
+          ? event.conversationId
+          : event.conversationId || this.conversationId;
+        for (const chunk of mapAgyStreamEventToChunks(event, {
+          contextWindow,
+          toolUseEmitted: streamToolUseEmitted,
+        })) {
+          if (chunk.type === 'text') {
+            emittedAnyTextFromStream = true;
+          }
+          if (chunk.type === 'tool_use' || chunk.type === 'tool_result') {
+            emittedAnyToolFromStream = true;
+          }
+          if (chunk.type === 'usage') {
+            pendingStreamChunks.push({ ...chunk, sessionId: sessionId || null });
+            continue;
+          }
+          pendingStreamChunks.push(chunk);
+        }
+      }
+    };
+
     proc.stdout.on('data', (chunk: Buffer | string) => {
-      stdout += typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
+      const text = typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
+      stdout += text;
+      ingestStreamEvents(streamBuffer.push(text));
     });
     proc.stderr.on('data', (chunk: Buffer | string) => {
       stderr += typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
@@ -346,15 +389,27 @@ export class AntigravityChatRuntime implements ChatRuntime {
     let tailCursor = priorTranscriptLineCount;
     let emittedAnyTextFromTranscript = false;
     let responseText = '';
+    let haveAuthoritativeUsage = false;
 
     const accumulateResponse = (chunk: StreamChunk): void => {
       if ((chunk.type === 'text' || chunk.type === 'thinking') && typeof chunk.content === 'string') {
         responseText += chunk.content;
       }
+      if (chunk.type === 'usage') {
+        haveAuthoritativeUsage = true;
+      }
     };
 
-    // Estimated context-window usage from history + this turn's prompt/response.
-    // agy reports no token counts, so this is a heuristic (≈4 chars/token).
+    const drainStream = (): StreamChunk[] => {
+      if (pendingStreamChunks.length === 0) {
+        return [];
+      }
+      const chunks = pendingStreamChunks.splice(0, pendingStreamChunks.length);
+      return chunks;
+    };
+
+    // Fallback estimate when stream-json is unavailable (older agy, or the
+    // turn produced no `result.usage`). stream-json reports real token counts.
     const buildUsageChunk = (): StreamChunk => ({
       type: 'usage',
       usage: buildEstimatedUsageInfo({
@@ -363,10 +418,7 @@ export class AntigravityChatRuntime implements ChatRuntime {
           prompt,
           responseText,
         ]),
-        // Per-model, not a flat 1M: the agy model list spans Gemini, Claude and
-        // GPT-OSS, and GPT-OSS 120B is 131K. Since agy reports no token counts,
-        // a wrong denominator here is never corrected downstream.
-        contextWindow: getAntigravityContextWindow(selectedModel ?? ''),
+        contextWindow,
       }),
       sessionId: this.conversationId,
     });
@@ -424,12 +476,26 @@ export class AntigravityChatRuntime implements ChatRuntime {
           exitPromise.then((value) => ({ done: true as const, value })),
           sleep(TRANSCRIPT_POLL_INTERVAL_MS).then(() => ({ done: false as const })),
         ]);
-        for (const chunk of drainTranscript()) {
+        for (const chunk of drainStream()) {
           accumulateResponse(chunk);
           yield chunk;
         }
-        // Live context meter: emit an updated estimate when the response grew.
-        if (responseText.length !== lastUsageLen) {
+        for (const chunk of drainTranscript()) {
+          if (emittedAnyTextFromStream && chunk.type === 'text') {
+            continue;
+          }
+          if (
+            emittedAnyToolFromStream
+            && (chunk.type === 'tool_use' || chunk.type === 'tool_result' || chunk.type === 'tool_output')
+          ) {
+            continue;
+          }
+          accumulateResponse(chunk);
+          yield chunk;
+        }
+        // Live context meter: emit an updated estimate when the response grew
+        // and stream-json has not already reported real usage.
+        if (!haveAuthoritativeUsage && responseText.length !== lastUsageLen) {
           lastUsageLen = responseText.length;
           yield buildUsageChunk();
         }
@@ -442,8 +508,22 @@ export class AntigravityChatRuntime implements ChatRuntime {
       }
 
       // Settle: let agy finish writing the transcript, then drain the remainder.
+      ingestStreamEvents(streamBuffer.flush());
       await sleep(POST_EXIT_SETTLE_MS);
+      for (const chunk of drainStream()) {
+        accumulateResponse(chunk);
+        yield chunk;
+      }
       for (const chunk of drainTranscript()) {
+        if (emittedAnyTextFromStream && chunk.type === 'text') {
+          continue;
+        }
+        if (
+          emittedAnyToolFromStream
+          && (chunk.type === 'tool_use' || chunk.type === 'tool_result' || chunk.type === 'tool_output')
+        ) {
+          continue;
+        }
         accumulateResponse(chunk);
         yield chunk;
       }
@@ -485,8 +565,9 @@ export class AntigravityChatRuntime implements ChatRuntime {
         return;
       }
 
-      // Fall back to stdout when no assistant text was recovered from the transcript.
-      if (!emittedAnyTextFromTranscript) {
+      // Fall back to stdout only when neither stream-json nor the transcript
+      // produced assistant text — and never dump raw NDJSON into the chat.
+      if (!emittedAnyTextFromTranscript && !emittedAnyTextFromStream && !sawStreamJson) {
         const text = stdout.trim();
         if (text) {
           responseText += text;
@@ -495,8 +576,9 @@ export class AntigravityChatRuntime implements ChatRuntime {
       }
 
       this.currentTurnMetadata.wasSent = true;
-      // Final context-window estimate (includes the stdout fallback text).
-      yield buildUsageChunk();
+      if (!haveAuthoritativeUsage) {
+        yield buildUsageChunk();
+      }
       yield { type: 'done' };
     } finally {
       if (this.activeProcess === proc) {
