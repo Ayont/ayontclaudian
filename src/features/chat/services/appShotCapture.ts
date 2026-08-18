@@ -93,7 +93,7 @@ export function buildScreencaptureArgs(
   const y = Math.round(bounds.y);
   const width = Math.max(1, Math.round(bounds.width));
   const height = Math.max(1, Math.round(bounds.height));
-  return ['-x', '-R', `${x},${y},${width},${height}`, dest];
+  return ['-x', '-T0', '-t', 'png', '-R', `${x},${y},${width},${height}`, dest];
 }
 
 export function formatAppShotHotkey(
@@ -148,40 +148,27 @@ export function resolveAppShotSettings(raw: unknown): AppShotSettings {
 
 const FRONTMOST_SCRIPT = `
 tell application "System Events"
-  set procs to application processes whose visible is true and background only is false
-  set targetProc to missing value
-  repeat with p in procs
-    if frontmost of p is true then
-      set pname to name of p as text
-      if pname is not "Obsidian" and pname is not "Electron" then
-        set targetProc to p
-        exit repeat
-      end if
-    end if
-  end repeat
-  if targetProc is missing value then
-    repeat with p in procs
+  set frontApp to first application process whose frontmost is true
+  set aname to name of frontApp as text
+  if aname is "Obsidian" or aname is "Electron" then
+    repeat with p in (application processes whose visible is true and background only is false)
       set pname to name of p as text
       if pname is not "Obsidian" and pname is not "Electron" then
         try
           if (count of windows of p) > 0 then
-            set targetProc to p
+            set frontApp to p
+            set aname to pname
             exit repeat
           end if
         end try
       end if
     end repeat
   end if
-  if targetProc is missing value then
-    set targetProc to first application process whose frontmost is true
-  end if
-  tell targetProc
+  tell frontApp
     set win to window 1
     set p to position of win
     set s to size of win
-    set wname to name of win
-    set aname to name
-    return (item 1 of p as text) & "," & (item 2 of p as text) & "," & (item 1 of s as text) & "," & (item 2 of s as text) & tab & aname & tab & wname
+    return (item 1 of p as text) & "," & (item 2 of p as text) & "," & (item 1 of s as text) & "," & (item 2 of s as text) & tab & aname & tab & (name of win as text)
   end tell
 end tell
 `.trim();
@@ -208,7 +195,7 @@ export async function captureFrontmostAppShot(): Promise<AppShotCapture> {
   }
 
   const { stdout } = await execFileAsync('osascript', ['-e', FRONTMOST_SCRIPT], {
-    timeout: 8000,
+    timeout: 2500,
   });
   const window = parseFrontmostWindow(stdout);
   if (!window) {
@@ -217,20 +204,23 @@ export async function captureFrontmostAppShot(): Promise<AppShotCapture> {
 
   const dest = path.join(os.tmpdir(), `claudian-appshot-${Date.now()}.png`);
   try {
-    await execFileAsync('screencapture', buildScreencaptureArgs(dest, window), { timeout: 8000 });
+    await execFileAsync('screencapture', buildScreencaptureArgs(dest, window), { timeout: 4000 });
     const png = await fs.readFile(dest);
     if (png.length < 32) {
       throw new Error('Screenshot war leer.');
     }
-    let extractedText = '';
-    try {
-      const text = await execFileAsync('osascript', ['-e', TEXT_SCRIPT], { timeout: 3000 });
-      extractedText = text.stdout.trim().slice(0, 12_000);
-    } catch {
-      extractedText = '';
-    }
-    return { png, appName: window.appName, windowTitle: window.windowTitle, bounds: window, extractedText };
+    return { png, appName: window.appName, windowTitle: window.windowTitle, bounds: window, extractedText: '' };
   } finally {
-    await fs.unlink(dest).catch(() => undefined);
+    void fs.unlink(dest).catch(() => undefined);
+  }
+}
+
+/** Accessibility scrape — not on the capture critical path. */
+export async function extractFrontmostAppText(): Promise<string> {
+  try {
+    const text = await execFileAsync('osascript', ['-e', TEXT_SCRIPT], { timeout: 1500 });
+    return text.stdout.trim().slice(0, 12_000);
+  } catch {
+    return '';
   }
 }

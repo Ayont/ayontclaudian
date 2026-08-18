@@ -625,13 +625,27 @@ describe('ImageContextManager - Private Helpers', () => {
       const { container: c } = createContainerWithInputWrapper();
       const localManager = new ImageContextManager(c, localInput, localCallbacks);
 
-      const ok = await localManager['stageFileAttachment']({ name: 'brief.pdf', size: 2048 } as File);
+      const jpeg = Uint8Array.from([
+        0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01,
+        ...Array.from({ length: 80 }, () => 0x22),
+        0xFF, 0xD9,
+      ]);
+      const pdfBytes = Uint8Array.from([0x25, 0x50, 0x44, 0x46, ...jpeg]);
+      const ok = await localManager['stageFileAttachment']({
+        name: 'brief.pdf',
+        size: pdfBytes.byteLength,
+        arrayBuffer: async () => pdfBytes.buffer.slice(
+          pdfBytes.byteOffset,
+          pdfBytes.byteOffset + pdfBytes.byteLength,
+        ),
+      } as File);
 
       expect(ok).toBe(true);
       const peek = localManager['attachmentPreviewEl'].querySelector('.claudian-attachment-peek');
       expect(peek).toBeTruthy();
-      expect(localManager['attachmentPreviewEl'].querySelector('.claudian-attachment-peek-pdf')?.getAttribute('src'))
-        .toBe('app://vault/.claudian/attachments/brief-1.pdf');
+      const img = localManager['attachmentPreviewEl'].querySelector('.claudian-attachment-peek-image');
+      expect(img?.getAttribute('src')?.startsWith('data:image/jpeg;base64,')).toBe(true);
+      expect(localManager['attachmentPreviewEl'].querySelector('.claudian-attachment-peek-pdf')).toBeNull();
     });
 
     it('notifies when a staged file lands so the library can remember it', async () => {

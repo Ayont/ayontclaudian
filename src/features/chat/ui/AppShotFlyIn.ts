@@ -8,6 +8,7 @@ export interface AppShotFlyInOptions {
   targetEl: HTMLElement | null;
   ownerDocument?: Document;
   reduceMotion?: boolean;
+  dataUri?: string;
 }
 
 function dataUri(png: Buffer): string {
@@ -36,7 +37,7 @@ function playShutter(ownerDocument: Document): void {
 /**
  * Flies the captured window thumbnail from its screen rect into the chat
  * composer. Spatial consistency: the shot leaves the captured app and docks
- * as a chip. Occasional action — 280ms ease-out, opacity+transform only.
+ * as a chip. Occasional action — 180ms ease-out, opacity+transform only.
  */
 export function playAppShotFlyIn(options: AppShotFlyInOptions): Promise<void> {
   const ownerDocument = options.ownerDocument ?? window.document;
@@ -47,7 +48,7 @@ export function playAppShotFlyIn(options: AppShotFlyInOptions): Promise<void> {
   const overlay = ownerDocument.body.createDiv({ cls: 'claudian-appshot-fly' });
   const card = overlay.createDiv({ cls: 'claudian-appshot-fly-card' });
   const img = card.createEl('img', { cls: 'claudian-appshot-fly-image' });
-  img.src = dataUri(options.png);
+  img.src = options.dataUri ?? dataUri(options.png);
   img.alt = options.bounds.appName;
 
   const fromW = Math.max(160, Math.min(options.bounds.width, ownerDocument.documentElement.clientWidth * 0.62));
@@ -87,7 +88,7 @@ export function playAppShotFlyIn(options: AppShotFlyInOptions): Promise<void> {
         opacity: 1,
       },
     ],
-    { duration: 280, easing: EASE_OUT, fill: 'forwards' },
+    { duration: 180, easing: EASE_OUT, fill: 'forwards' },
   );
 
   return new Promise((resolve) => {
@@ -96,7 +97,7 @@ export function playAppShotFlyIn(options: AppShotFlyInOptions): Promise<void> {
       resolve();
     };
     animation.addEventListener('finish', done);
-    window.setTimeout(done, 360);
+    window.setTimeout(done, 220);
   });
 }
 

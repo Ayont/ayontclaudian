@@ -55,7 +55,7 @@ describe('appShotCapture', () => {
       y: 20,
       width: 800,
       height: 600,
-    })).toEqual(['-x', '-R', '10,20,800,600', '/tmp/shot.png']);
+    })).toEqual(['-x', '-T0', '-t', 'png', '-R', '10,20,800,600', '/tmp/shot.png']);
   });
 
   it('formats the default hotkey differently from ChatGPT and as an Electron accelerator', () => {

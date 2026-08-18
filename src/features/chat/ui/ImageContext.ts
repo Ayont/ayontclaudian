@@ -10,6 +10,7 @@ import {
   isTextLikeFile,
   MAX_DROPPED_TEXT_SIZE,
 } from './file-drop/droppedTextFile';
+import { createPdfPeekSrc, isRasterPeekSrc } from './file-drop/pdfPeek';
 
 /** A non-image file staged into the vault and shown as a preview chip. */
 interface StagedAttachment {
@@ -17,6 +18,7 @@ interface StagedAttachment {
   name: string;
   relPath: string;
   size: number;
+  previewSrc?: string;
 }
 
 const MAX_IMAGE_SIZE = 25 * 1024 * 1024;
@@ -362,7 +364,16 @@ export class ImageContextManager {
 
     // Track the staged attachment as a removable preview chip. The @path
     // reference travels invisibly with the next send — no textarea noise.
-    this.stagedAttachments.set(pendingId, { id: pendingId, name: file.name, relPath, size: file.size });
+    const previewSrc = attachmentPeekMode(file.name) === 'iframe'
+      ? await createPdfPeekSrc(file)
+      : undefined;
+    this.stagedAttachments.set(pendingId, {
+      id: pendingId,
+      name: file.name,
+      relPath,
+      size: file.size,
+      previewSrc: previewSrc ?? undefined,
+    });
     this.updateAttachmentPreview();
     this.callbacks.onImagesChanged();
     this.callbacks.onAttachmentStaged?.({ kind: 'file', path: relPath, name: file.name });
@@ -666,14 +677,19 @@ export class ImageContextManager {
       cls: `claudian-attachment-chip claudian-attachment-chip--${meta.typeClass} claudian-attachment-chip--peek`,
     });
 
-    const resourcePath = this.callbacks.getResourcePath?.(att.relPath) ?? null;
-    if (peek === 'iframe' && resourcePath) {
+    const resourcePath = att.previewSrc ?? this.callbacks.getResourcePath?.(att.relPath) ?? null;
+    if (peek === 'iframe' && resourcePath && isRasterPeekSrc(resourcePath)) {
+      const peekEl = chip.createDiv({ cls: 'claudian-attachment-peek' });
+      peekEl.createEl('img', {
+        cls: 'claudian-attachment-peek-image',
+        attr: { src: resourcePath, alt: att.name },
+      });
+    } else if (peek === 'iframe' && resourcePath) {
       const peekEl = chip.createDiv({ cls: 'claudian-attachment-peek' });
       const frame = peekEl.createEl('iframe', {
         cls: 'claudian-attachment-peek-pdf',
         attr: {
           src: resourcePath,
-          sandbox: 'allow-same-origin',
           tabindex: '-1',
           title: att.name,
         },

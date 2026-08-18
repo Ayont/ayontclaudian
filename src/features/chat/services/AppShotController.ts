@@ -4,6 +4,7 @@ import type ClaudianPlugin from '../../../main';
 import { playAppShotFlyIn, playAppShotSound } from '../ui/AppShotFlyIn';
 import {
   captureFrontmostAppShot,
+  extractFrontmostAppText,
   resolveAppShotSettings,
 } from './appShotCapture';
 
@@ -23,36 +24,44 @@ export async function takeAppShot(plugin: ClaudianPlugin): Promise<boolean> {
   inFlight = true;
 
   try {
+    playAppShotSound(settings.playSound);
     const shot = await captureFrontmostAppShot();
-    await plugin.activateView();
-    const view = plugin.getView();
-    const tab = view?.getActiveTab();
+    let tab = plugin.getView()?.getActiveTab();
+    if (!tab) {
+      await plugin.activateView();
+      tab = plugin.getView()?.getActiveTab();
+    }
     const imageContext = tab?.ui.imageContextManager;
-    if (!imageContext) {
+    if (!tab || !imageContext) {
       new Notice('Kein Chat geöffnet — App Shot konnte nicht angehängt werden.');
       return false;
     }
 
-    playAppShotSound(settings.playSound);
+    const pngBase64 = shot.png.toString('base64');
+    const name = `App Shot — ${sanitizeFilePart(shot.appName)}.png`;
+    const attached = imageContext.addAppShot(pngBase64, name, shot.png.length);
+    if (!attached) return false;
+
     const targetEl = tab.dom.contextRowEl ?? tab.dom.inputEl;
-    await playAppShotFlyIn({
+    void playAppShotFlyIn({
       png: shot.png,
       bounds: shot.bounds,
       targetEl,
       ownerDocument: tab.dom.inputEl.ownerDocument,
+      dataUri: `data:image/png;base64,${pngBase64}`,
     });
 
-    const name = `App Shot — ${sanitizeFilePart(shot.appName)}.png`;
-    const attached = imageContext.addAppShot(shot.png.toString('base64'), name, shot.png.length);
-    if (!attached) return false;
-
-    if (shot.extractedText && !tab.dom.inputEl.value.trim()) {
-      const title = shot.windowTitle ? ` · ${shot.windowTitle}` : '';
-      tab.dom.inputEl.value = `App Shot${title} (${shot.appName})\n\n${shot.extractedText}`;
-      tab.dom.inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+    const inputEl = tab.dom.inputEl;
+    if (!inputEl.value.trim()) {
+      void extractFrontmostAppText().then((extractedText) => {
+        if (!extractedText || inputEl.value.trim()) return;
+        const title = shot.windowTitle ? ` · ${shot.windowTitle}` : '';
+        inputEl.value = `App Shot${title} (${shot.appName})\n\n${extractedText}`;
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      });
     }
 
-    tab.dom.inputEl.focus();
+    inputEl.focus();
     return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
