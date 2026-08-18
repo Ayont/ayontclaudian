@@ -124,7 +124,10 @@ export class Scope {
 
 export const Platform = {
   isMacOS: true,
+  isDesktop: true,
 };
+
+export const requestUrl = jest.fn();
 
 export class App {
   vault: any = {

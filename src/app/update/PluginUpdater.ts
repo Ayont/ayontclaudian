@@ -5,6 +5,7 @@ import * as path from 'path';
 
 import type { InstallProgressCallback } from '../../core/install/CliInstaller';
 import { compareSemver } from '../../core/install/semver';
+import { parseManifestVersion, releaseAssetBytes } from './pluginUpdateAssets';
 
 export interface UpdateInfo {
   currentVersion: string;
@@ -113,12 +114,9 @@ export class PluginUpdater {
           line: `Lade ${file.name}…`,
         });
         const response = await requestUrl({ url: file.url, throw: true });
-        const content = response.text ?? (response.arrayBuffer ? undefined : '');
-        if (content === undefined) {
-          throw new Error(`Empty response for ${file.name}`);
-        }
+        const bytes = releaseAssetBytes(response);
         const filePath = path.join(pluginDir, file.name);
-        await fs.promises.writeFile(filePath, content, 'utf8');
+        await fs.promises.writeFile(filePath, bytes);
         onProgress?.({
           phase: 'running',
           percent: Math.round(((i + 1) / files.length) * 90),
@@ -126,17 +124,29 @@ export class PluginUpdater {
         });
       }
 
-      onProgress?.({ phase: 'running', percent: 95, line: 'Lade Plugin neu…' });
+      const written = await fs.promises.readFile(path.join(pluginDir, 'manifest.json'), 'utf8');
+      const writtenVersion = parseManifestVersion(written);
+      if (writtenVersion !== version) {
+        throw new Error(
+          `Geschriebene Version ist ${writtenVersion ?? 'ungültig'}, erwartet ${version}.`,
+        );
+      }
+
+      this.lastUpdate = null;
+      onProgress?.({ phase: 'running', percent: 95, line: 'Lade Obsidian neu…' });
       if (!onProgress) {
         new Notice(`Ayontclaudian ${version} installiert. Lade neu...`);
       }
-      await this.reloadPlugin();
+      this.reloadHostApp();
       onProgress?.({ phase: 'done', percent: 100, line: `ayontclaudian ${version} installiert` });
       return true;
-    } catch {
-      onProgress?.({ phase: 'error', percent: null, line: 'Download oder Schreiben fehlgeschlagen.' });
+    } catch (error) {
+      const message = error instanceof Error && error.message
+        ? error.message
+        : 'Download oder Schreiben fehlgeschlagen.';
+      onProgress?.({ phase: 'error', percent: null, line: message });
       if (!onProgress) {
-        new Notice('Ayontclaudian-Update konnte nicht installiert werden.');
+        new Notice(`Ayontclaudian-Update konnte nicht installiert werden: ${message}`);
       }
       return false;
     }
@@ -145,11 +155,8 @@ export class PluginUpdater {
   private async fetchLatestManifest(): Promise<{ version: string } | null> {
     const url = `https://github.com/${this.owner}/${this.repo}/releases/latest/download/manifest.json`;
     const response = await requestUrl({ url, throw: true });
-    const text = response.text;
-    if (!text) {
-      return null;
-    }
-    return JSON.parse(text) as { version: string };
+    const version = parseManifestVersion(Buffer.from(releaseAssetBytes(response)).toString('utf8'));
+    return version ? { version } : null;
   }
 
   private getPluginDirectory(): string | null {
@@ -168,32 +175,20 @@ export class PluginUpdater {
     return path.join(basePath, configDir, 'plugins', this.plugin.manifest.id);
   }
 
-  private async reloadPlugin(): Promise<void> {
-    // Obsidian's public App type does not expose the plugins registry, but it
-    // is available at runtime on desktop.
+  /**
+   * A plugin cannot reliably disable+enable itself: the in-memory manifest
+   * stays on the old version and the JS module stays cached. Full app reload
+   * is what actually activates the files we just wrote.
+   */
+  private reloadHostApp(): void {
     const app = this.plugin.app as unknown as {
-      plugins: {
-        disablePlugin?: (id: string) => Promise<void>;
-        enablePlugin?: (id: string) => Promise<void>;
-        enablePluginAndSave?: (id: string) => Promise<void>;
-      };
+      commands?: { executeCommandById?: (id: string) => boolean };
     };
-    const plugins = app.plugins;
-    const id = this.plugin.manifest.id;
-    try {
-      if (plugins.disablePlugin && plugins.enablePluginAndSave) {
-        await plugins.disablePlugin(id);
-        await plugins.enablePluginAndSave(id);
-        return;
+    window.setTimeout(() => {
+      const reloaded = app.commands?.executeCommandById?.('app:reload');
+      if (!reloaded) {
+        new Notice('Bitte Obsidian neu laden, um die neue ayontclaudian-Version zu aktivieren.');
       }
-      if (plugins.disablePlugin && plugins.enablePlugin) {
-        await plugins.disablePlugin(id);
-        await plugins.enablePlugin(id);
-        return;
-      }
-    } catch {
-      // Reload is best-effort; the files are already written.
-    }
-    new Notice('Bitte Obsidian neu laden, um die neue ayontclaudian-Version zu aktivieren.');
+    }, 400);
   }
 }

@@ -96,7 +96,10 @@ export class UpdateDock {
     } else if (item.status === 'error' && item.error) {
       row.createDiv({ cls: 'claudian-update-item-error', text: item.error });
     } else if (item.status === 'done') {
-      row.createDiv({ cls: 'claudian-update-item-done', text: 'Fertig' });
+      row.createDiv({
+        cls: 'claudian-update-item-done',
+        text: item.kind === 'plugin' ? `Jetzt ${item.latestVersion}` : 'Fertig',
+      });
     }
 
     const actions = row.createDiv({ cls: 'claudian-update-item-actions' });
