@@ -110,7 +110,7 @@ function renderRow(
             currentVersion: info?.currentVersion ?? null,
             latestVersion: info?.latestVersion ?? null,
             updateAvailable: info?.updateAvailable ?? false,
-            updateCommand,
+            updateCommand: info?.updateCommand ?? updateCommand,
           };
           const unsub = plugin.onUpdateSessionChange((state) => {
             const item = state.items.find((entry) => entry.id === `cli:${spec.id}`);

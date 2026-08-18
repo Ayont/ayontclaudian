@@ -26,6 +26,19 @@ describe('cliUpdateCatalog', () => {
     expect(getPreferredUpdateCommand('kimi', 'linux')).toBe('uv tool upgrade kimi-cli');
   });
 
+  it('upgrades the modern Kimi Code binary, not the legacy kimi-cli package', () => {
+    const cliPath = '/Users/ayont/.kimi-code/bin/kimi';
+    expect(getCliUpdateSpec('kimi', cliPath)?.npmPackage).toBe('@moonshot-ai/kimi-code');
+    expect(getCliUpdateSpec('kimi', cliPath)?.pypiPackage).toBeUndefined();
+    expect(getPreferredUpdateCommand('kimi', 'darwin', cliPath)).toBe(`"${cliPath}" upgrade`);
+  });
+
+  it('still upgrades a uv kimi-cli install via PyPI', () => {
+    const cliPath = '/Users/ayont/.local/share/uv/tools/kimi-cli/bin/kimi-cli';
+    expect(getCliUpdateSpec('kimi', cliPath)?.pypiPackage).toBe('kimi-cli');
+    expect(getPreferredUpdateCommand('kimi', 'linux', cliPath)).toBe('uv tool upgrade kimi-cli');
+  });
+
   it('exposes PyPI packages for latest-version probes', () => {
     expect(getCliUpdateSpec('vibe')?.pypiPackage).toBe('mistral-vibe');
     expect(getCliUpdateSpec('kimi')?.pypiPackage).toBe('kimi-cli');

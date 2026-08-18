@@ -143,11 +143,6 @@ export class ImageContextManager {
     }
     this.updateImagePreview();
     this.callbacks.onImagesChanged();
-    this.callbacks.onAttachmentStaged?.({
-      kind: 'file',
-      path: `data:image/png;base64,${pngBase64}`,
-      name,
-    });
     return true;
   }
 
@@ -519,11 +514,6 @@ export class ImageContextManager {
       }
       this.updateImagePreview();
       this.callbacks.onImagesChanged();
-      this.callbacks.onAttachmentStaged?.({
-        kind: 'file',
-        path: `data:${attachment.mediaType};base64,${attachment.data}`,
-        name: attachment.name,
-      });
       return true;
     } catch (error) {
       this.notifyImageError('Failed to attach image.', error);

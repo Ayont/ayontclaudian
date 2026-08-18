@@ -69,10 +69,30 @@ describe('FilePreviewPanel', () => {
     });
 
     expect(plugin.app.vault.getAbstractFileByPath).not.toHaveBeenCalled();
-    expect(container.hasClass('claudian-preview-open')).toBe(true);
+    expect(container.hasClass('claudian-preview-open')).toBe(false);
+    panel.open();
     expect(container.querySelector('.claudian-preview-library')).not.toBeNull();
     expect(container.querySelector('.claudian-preview-card-name')?.textContent).toBe('G175110768.pdf');
     expect(container.querySelector('.claudian-preview-empty')).toBeNull();
+  });
+
+  it('does not open or store a resent image in the library', () => {
+    const { container, panel } = mountPanel();
+
+    panel.rememberUpload({
+      name: 'shot.png',
+      relPath: 'data:image/png;base64,abc',
+      previewSrc: 'data:image/png;base64,abc',
+    });
+    panel.rememberUpload({
+      name: 'photo.jpg',
+      relPath: '.claudian/attachments/photo.jpg',
+    });
+
+    expect(container.hasClass('claudian-preview-open')).toBe(false);
+    panel.open();
+    expect(container.querySelector('.claudian-preview-empty')?.textContent).toContain('Erstellte Dokumente');
+    expect(container.querySelector('.claudian-preview-card-name')).toBeNull();
   });
 
   it('keeps created live documents in the same library', () => {

@@ -85,11 +85,6 @@ export async function checkProviderUpdate(
   settings: Record<string, unknown>,
   platform: NodeJS.Platform = process.platform,
 ): Promise<ProviderUpdateInfo | null> {
-  const spec = getCliUpdateSpec(providerId);
-  if (!spec) {
-    return null;
-  }
-
   const cached = cache.get(providerId);
   if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
     return cached.info;
@@ -97,6 +92,11 @@ export async function checkProviderUpdate(
 
   const cliPath = resolveProviderCliPath(providerId, settings);
   if (!cliPath) {
+    return null;
+  }
+
+  const spec = getCliUpdateSpec(providerId, cliPath);
+  if (!spec) {
     return null;
   }
 
@@ -115,7 +115,7 @@ export async function checkProviderUpdate(
     currentVersion,
     latestVersion,
     updateAvailable,
-    updateCommand: getPreferredUpdateCommand(providerId, platform),
+    updateCommand: getPreferredUpdateCommand(providerId, platform, cliPath),
   };
   cache.set(providerId, { at: Date.now(), info });
   return info;

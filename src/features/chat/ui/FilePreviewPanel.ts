@@ -10,6 +10,11 @@ import {
 
 const EMPTY_COPY = 'Erstellte Dokumente und Uploads erscheinen hier.';
 
+function isChatImageUpload(upload: LibraryUpload): boolean {
+  if (upload.relPath.startsWith('data:image')) return true;
+  return attachmentTypeMeta(upload.name).kind === 'image';
+}
+
 export interface LibraryUpload {
   name: string;
   relPath: string;
@@ -28,6 +33,7 @@ export class FilePreviewPanel {
   private panelEl: HTMLElement | null = null;
   private toggleBtn: HTMLElement | null = null;
   private titleEl: HTMLElement | null = null;
+  private countEl: HTMLElement | null = null;
   private contentEl: HTMLElement | null = null;
   private isOpen = false;
   private readonly host = new Component();
@@ -48,8 +54,12 @@ export class FilePreviewPanel {
     this.panelEl = this.containerEl.createDiv({ cls: 'claudian-preview-panel' });
 
     const header = this.panelEl.createDiv({ cls: 'claudian-preview-header' });
-    setIcon(header.createSpan({ cls: 'claudian-preview-header-icon' }), 'images');
-    this.titleEl = header.createEl('span', { cls: 'claudian-preview-title', text: 'Speicher' });
+    const brand = header.createDiv({ cls: 'claudian-preview-brand' });
+    setIcon(brand.createSpan({ cls: 'claudian-preview-header-icon' }), 'library');
+    const titles = brand.createDiv({ cls: 'claudian-preview-titles' });
+    this.titleEl = titles.createEl('span', { cls: 'claudian-preview-title', text: 'Speicher' });
+    titles.createEl('span', { cls: 'claudian-preview-subtitle', text: 'Dokumente & Uploads' });
+    this.countEl = header.createSpan({ cls: 'claudian-preview-count claudian-hidden', text: '0' });
     const closeBtn = header.createEl('button', { cls: 'claudian-preview-close' });
     setIcon(closeBtn, 'x');
     closeBtn.setAttribute('aria-label', 'Speicher schließen');
@@ -84,8 +94,10 @@ export class FilePreviewPanel {
   }
 
   rememberUpload(upload: LibraryUpload): void {
+    if (isChatImageUpload(upload)) {
+      return;
+    }
     if (this.items.some((item) => item.type === 'upload' && item.relPath === upload.relPath)) {
-      this.open();
       return;
     }
     this.items.unshift({
@@ -95,7 +107,7 @@ export class FilePreviewPanel {
       relPath: upload.relPath,
       previewSrc: upload.previewSrc,
     });
-    this.open();
+    if (this.isOpen) this.renderLibrary();
   }
 
   rememberLiveDocument(document: LiveDocument, theme?: LiveDocumentTheme): void {
@@ -123,6 +135,10 @@ export class FilePreviewPanel {
     if (!this.contentEl) return;
     this.contentEl.empty();
     this.setTitle('Speicher');
+    if (this.countEl) {
+      this.countEl.setText(String(this.items.length));
+      this.countEl.toggleClass('claudian-hidden', this.items.length === 0);
+    }
 
     if (this.items.length === 0) {
       this.contentEl.createEl('p', { cls: 'claudian-preview-empty', text: EMPTY_COPY });
@@ -193,5 +209,6 @@ export class FilePreviewPanel {
     this.toggleBtn = null;
     this.contentEl = null;
     this.titleEl = null;
+    this.countEl = null;
   }
 }

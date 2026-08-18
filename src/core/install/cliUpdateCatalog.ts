@@ -31,10 +31,33 @@ const NATIVE_UPDATE_COMMANDS: Record<string, string> = {
   kimi: 'uv tool upgrade kimi-cli',
 };
 
-export function getCliUpdateSpec(providerId: string): CliUpdateSpec | null {
+export function isKimiCodeInstall(cliPath: string | null | undefined): boolean {
+  if (!cliPath) return false;
+  const normalized = cliPath.replace(/\\/g, '/').toLowerCase();
+  if (normalized.includes('/.kimi-code/')) return true;
+  if (normalized.includes('kimi-cli')) return false;
+  return /(?:^|\/)kimi$/.test(normalized);
+}
+
+function shellQuote(value: string): string {
+  return `"${value.replace(/"/g, '\\"')}"`;
+}
+
+export function getCliUpdateSpec(
+  providerId: string,
+  cliPath?: string | null,
+): CliUpdateSpec | null {
   const install = CLI_INSTALL_CATALOG[providerId];
   if (!install) {
     return null;
+  }
+  if (providerId === 'kimi' && isKimiCodeInstall(cliPath)) {
+    return {
+      providerId,
+      displayName: install.displayName,
+      versionArgs: ['--version'],
+      npmPackage: '@moonshot-ai/kimi-code',
+    };
   }
   return {
     providerId,
@@ -48,12 +71,16 @@ export function getCliUpdateSpec(providerId: string): CliUpdateSpec | null {
 export function getPreferredUpdateCommand(
   providerId: string,
   platform: NodeJS.Platform,
+  cliPath?: string | null,
 ): string | null {
+  if (providerId === 'kimi' && isKimiCodeInstall(cliPath)) {
+    return `${shellQuote(cliPath ?? 'kimi')} upgrade`;
+  }
   const native = NATIVE_UPDATE_COMMANDS[providerId];
   if (native) {
     return native;
   }
-  const spec = getCliUpdateSpec(providerId);
+  const spec = getCliUpdateSpec(providerId, cliPath);
   if (spec?.npmPackage) {
     return `npm install -g ${spec.npmPackage}@latest`;
   }
