@@ -31,16 +31,18 @@ const NATIVE_UPDATE_COMMANDS: Record<string, string> = {
   kimi: 'uv tool upgrade kimi-cli',
 };
 
+/** Official Kimi Code installer — `kimi upgrade` can no-op with exit 0. */
+export const KIMI_CODE_UPDATE_COMMAND_UNIX =
+  'curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash';
+export const KIMI_CODE_UPDATE_COMMAND_WIN =
+  'powershell -NoProfile -Command "irm https://code.kimi.com/kimi-code/install.ps1 | iex"';
+
 export function isKimiCodeInstall(cliPath: string | null | undefined): boolean {
   if (!cliPath) return false;
   const normalized = cliPath.replace(/\\/g, '/').toLowerCase();
   if (normalized.includes('/.kimi-code/')) return true;
   if (normalized.includes('kimi-cli')) return false;
   return /(?:^|\/)kimi$/.test(normalized);
-}
-
-function shellQuote(value: string): string {
-  return `"${value.replace(/"/g, '\\"')}"`;
 }
 
 export function getCliUpdateSpec(
@@ -74,7 +76,9 @@ export function getPreferredUpdateCommand(
   cliPath?: string | null,
 ): string | null {
   if (providerId === 'kimi' && isKimiCodeInstall(cliPath)) {
-    return `${shellQuote(cliPath ?? 'kimi')} upgrade`;
+    return platform === 'win32'
+      ? KIMI_CODE_UPDATE_COMMAND_WIN
+      : KIMI_CODE_UPDATE_COMMAND_UNIX;
   }
   const native = NATIVE_UPDATE_COMMANDS[providerId];
   if (native) {

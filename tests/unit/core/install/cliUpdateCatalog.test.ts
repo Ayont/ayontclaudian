@@ -30,7 +30,15 @@ describe('cliUpdateCatalog', () => {
     const cliPath = '/Users/ayont/.kimi-code/bin/kimi';
     expect(getCliUpdateSpec('kimi', cliPath)?.npmPackage).toBe('@moonshot-ai/kimi-code');
     expect(getCliUpdateSpec('kimi', cliPath)?.pypiPackage).toBeUndefined();
-    expect(getPreferredUpdateCommand('kimi', 'darwin', cliPath)).toBe(`"${cliPath}" upgrade`);
+    // `kimi upgrade` on native installs can exit 0 after only printing a curl
+    // command (it currently mis-detects macOS as Windows). Re-run the official
+    // installer instead — that is the command the CLI itself tells users to run.
+    expect(getPreferredUpdateCommand('kimi', 'darwin', cliPath)).toBe(
+      'curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash',
+    );
+    expect(getPreferredUpdateCommand('kimi', 'win32', cliPath)).toBe(
+      'powershell -NoProfile -Command "irm https://code.kimi.com/kimi-code/install.ps1 | iex"',
+    );
   });
 
   it('still upgrades a uv kimi-cli install via PyPI', () => {

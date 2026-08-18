@@ -1,8 +1,10 @@
 import {
   buildScreencaptureArgs,
   DEFAULT_APP_SHOT_HOTKEY,
+  focusObsidianApp,
   formatAppShotHotkey,
   isObsidianProcessName,
+  obsidianActivateScript,
   parseFrontmostWindow,
   pickCaptureProcess,
   toElectronAccelerator,
@@ -63,5 +65,16 @@ describe('appShotCapture', () => {
     expect(formatAppShotHotkey(DEFAULT_APP_SHOT_HOTKEY, 'darwin')).toBe('⌘⇧2');
     expect(formatAppShotHotkey(DEFAULT_APP_SHOT_HOTKEY, 'win32')).toBe('Ctrl+Shift+2');
     expect(toElectronAccelerator(DEFAULT_APP_SHOT_HOTKEY)).toBe('CommandOrControl+Shift+2');
+  });
+
+  it('activates Obsidian so an App Shot returns to the chat without tabbing', async () => {
+    expect(obsidianActivateScript()).toBe('tell application "Obsidian" to activate');
+    const exec = jest.fn().mockResolvedValue({ stdout: '', stderr: '' });
+    await focusObsidianApp(exec, 'darwin');
+    expect(exec).toHaveBeenCalledWith(
+      'osascript',
+      ['-e', 'tell application "Obsidian" to activate'],
+      expect.objectContaining({ timeout: 1500 }),
+    );
   });
 });

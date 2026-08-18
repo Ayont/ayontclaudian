@@ -10,6 +10,7 @@ export interface UpdateOffer {
   currentVersion: string;
   latestVersion: string;
   command?: string;
+  cliPath?: string;
 }
 
 export interface UpdateItem extends UpdateOffer {
@@ -47,6 +48,7 @@ export function offerUpdateItems(
       existing.currentVersion = offer.currentVersion;
       existing.latestVersion = offer.latestVersion;
       existing.command = offer.command;
+      existing.cliPath = offer.cliPath;
       existing.status = 'available';
       existing.percent = null;
       existing.error = undefined;

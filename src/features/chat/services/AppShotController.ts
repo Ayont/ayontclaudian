@@ -1,10 +1,12 @@
 import { Notice } from 'obsidian';
 
 import type ClaudianPlugin from '../../../main';
+import { createAppShotFlash } from '../ui/AppShotFlash';
 import { playAppShotFlyIn, playAppShotSound } from '../ui/AppShotFlyIn';
 import {
   captureFrontmostAppShot,
   extractFrontmostAppText,
+  focusObsidianApp,
   resolveAppShotSettings,
 } from './appShotCapture';
 
@@ -23,16 +25,19 @@ export async function takeAppShot(plugin: ClaudianPlugin): Promise<boolean> {
   if (inFlight) return false;
   inFlight = true;
 
+  const flash = createAppShotFlash();
   try {
     playAppShotSound(settings.playSound);
     const shot = await captureFrontmostAppShot();
-    let tab = plugin.getView()?.getActiveTab();
-    if (!tab) {
-      await plugin.activateView();
-      tab = plugin.getView()?.getActiveTab();
-    }
+    flash.cover();
+    flash.attach();
+    const textPromise = extractFrontmostAppText();
+    await focusObsidianApp();
+    await plugin.activateView();
+    const tab = plugin.getView()?.getActiveTab();
     const imageContext = tab?.ui.imageContextManager;
     if (!tab || !imageContext) {
+      flash.dismiss();
       new Notice('Kein Chat geöffnet — App Shot konnte nicht angehängt werden.');
       return false;
     }
@@ -40,7 +45,10 @@ export async function takeAppShot(plugin: ClaudianPlugin): Promise<boolean> {
     const pngBase64 = shot.png.toString('base64');
     const name = `App Shot — ${sanitizeFilePart(shot.appName)}.png`;
     const attached = imageContext.addAppShot(pngBase64, name, shot.png.length);
-    if (!attached) return false;
+    if (!attached) {
+      flash.dismiss();
+      return false;
+    }
 
     const targetEl = tab.dom.contextRowEl ?? tab.dom.inputEl;
     void playAppShotFlyIn({
@@ -50,10 +58,11 @@ export async function takeAppShot(plugin: ClaudianPlugin): Promise<boolean> {
       ownerDocument: tab.dom.inputEl.ownerDocument,
       dataUri: `data:image/png;base64,${pngBase64}`,
     });
+    void flash.fadeOut();
 
     const inputEl = tab.dom.inputEl;
     if (!inputEl.value.trim()) {
-      void extractFrontmostAppText().then((extractedText) => {
+      void textPromise.then((extractedText) => {
         if (!extractedText || inputEl.value.trim()) return;
         const title = shot.windowTitle ? ` · ${shot.windowTitle}` : '';
         inputEl.value = `App Shot${title} (${shot.appName})\n\n${extractedText}`;
@@ -64,6 +73,7 @@ export async function takeAppShot(plugin: ClaudianPlugin): Promise<boolean> {
     inputEl.focus();
     return true;
   } catch (error) {
+    flash.dismiss();
     const message = error instanceof Error ? error.message : String(error);
     new Notice(message);
     return false;

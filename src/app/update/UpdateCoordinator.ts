@@ -1,5 +1,10 @@
 import { CliInstaller, type InstallProgress } from '../../core/install/CliInstaller';
-import { clearCliUpdateCache, type ProviderUpdateInfo } from '../../core/install/CliUpdateService';
+import {
+  clearCliUpdateCache,
+  type ProviderUpdateInfo,
+  readCliBinaryVersion,
+  wasCliVersionUnchanged,
+} from '../../core/install/CliUpdateService';
 import type { UpdateInfo } from './PluginUpdater';
 import type { PluginUpdater } from './PluginUpdater';
 import {
@@ -14,6 +19,7 @@ import {
   queueAllAvailable,
   queueOne,
   startNextQueued,
+  type UpdateItem,
   type UpdateOffer,
   type UpdateSessionState,
 } from './UpdateSession';
@@ -69,6 +75,7 @@ export class UpdateCoordinator {
         currentVersion: info.currentVersion ?? '?',
         latestVersion: info.latestVersion ?? 'neueste',
         command: info.updateCommand,
+        cliPath: info.cliPath,
       });
     }
     this.offer(offers);
@@ -124,7 +131,7 @@ export class UpdateCoordinator {
           break;
         }
         this.emit();
-        const ok = await this.runItem(running.id, running.kind, running.latestVersion, running.command);
+        const ok = await this.runItem(running);
         this.emit();
         if (!ok && running.kind === 'plugin') {
           // Plugin reload may have torn the process down mid-queue.
@@ -136,12 +143,8 @@ export class UpdateCoordinator {
     }
   }
 
-  private async runItem(
-    id: string,
-    kind: 'plugin' | 'cli',
-    latestVersion: string,
-    command: string | undefined,
-  ): Promise<boolean> {
+  private async runItem(item: UpdateItem): Promise<boolean> {
+    const { id, kind, latestVersion, command, currentVersion, cliPath } = item;
     const onProgress = (progress: InstallProgress): void => {
       this.state = applyItemProgress(this.state, id, progress);
       this.emit();
@@ -166,6 +169,18 @@ export class UpdateCoordinator {
     const providerId = providerIdFromUpdateItem(id);
     if (result.ok && providerId) {
       clearCliUpdateCache(providerId);
+      if (cliPath && currentVersion && currentVersion !== '?') {
+        const after = await readCliBinaryVersion(cliPath);
+        if (wasCliVersionUnchanged(currentVersion, after)) {
+          this.state = completeItem(
+            this.state,
+            id,
+            false,
+            'Version unverändert — das Update hat nicht gegriffen.',
+          );
+          return false;
+        }
+      }
     }
     this.state = completeItem(this.state, id, result.ok, result.error);
     return result.ok;

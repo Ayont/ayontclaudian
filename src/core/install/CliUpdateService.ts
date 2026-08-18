@@ -12,6 +12,7 @@ export interface ProviderUpdateInfo {
   latestVersion: string | null;
   updateAvailable: boolean;
   updateCommand: string | null;
+  cliPath?: string;
 }
 
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -19,6 +20,18 @@ const cache = new Map<string, { at: number; info: ProviderUpdateInfo }>();
 
 export function isCliUpdateAvailable(current: string | null, latest: string | null): boolean {
   return Boolean(current && latest && compareSemver(latest, current) > 0);
+}
+
+/** True when a finished update command left the binary on the same (or older) version. */
+export function wasCliVersionUnchanged(before: string | null, after: string | null): boolean {
+  return Boolean(before && after && compareSemver(after, before) <= 0);
+}
+
+export async function readCliBinaryVersion(
+  cliPath: string,
+  versionArgs: string[] = ['--version'],
+): Promise<string | null> {
+  return readVersion(cliPath, versionArgs, 5000);
 }
 
 export function clearCliUpdateCache(providerId?: string): void {
@@ -116,6 +129,7 @@ export async function checkProviderUpdate(
     latestVersion,
     updateAvailable,
     updateCommand: getPreferredUpdateCommand(providerId, platform, cliPath),
+    cliPath,
   };
   cache.set(providerId, { at: Date.now(), info });
   return info;

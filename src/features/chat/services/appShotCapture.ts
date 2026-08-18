@@ -215,6 +215,54 @@ export async function captureFrontmostAppShot(): Promise<AppShotCapture> {
   }
 }
 
+export function obsidianActivateScript(): string {
+  return 'tell application "Obsidian" to activate';
+}
+
+type ExecFileLike = (
+  command: string,
+  args: string[],
+  options?: { timeout?: number },
+) => Promise<{ stdout: string; stderr: string }>;
+
+function tryFocusElectronWindow(): void {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Electron is only in the Obsidian renderer.
+    const electron = require('electron') as {
+      remote?: {
+        app?: { focus?: (opts?: { steal: boolean }) => void; show?: () => void };
+        getCurrentWindow?: () => {
+          show: () => void;
+          focus: () => void;
+          moveTop?: () => void;
+        };
+      };
+    };
+    const win = electron.remote?.getCurrentWindow?.();
+    win?.show();
+    win?.moveTop?.();
+    win?.focus();
+    electron.remote?.app?.show?.();
+    electron.remote?.app?.focus?.({ steal: true });
+  } catch {
+    // Renderer may not expose remote — AppleScript below still activates.
+  }
+}
+
+/** Bring Obsidian to the front after the shot so the user does not have to tab. */
+export async function focusObsidianApp(
+  exec: ExecFileLike = execFileAsync,
+  platform: NodeJS.Platform = process.platform,
+): Promise<void> {
+  tryFocusElectronWindow();
+  if (platform !== 'darwin') return;
+  try {
+    await exec('osascript', ['-e', obsidianActivateScript()], { timeout: 1500 });
+  } catch {
+    // Electron focus may already have succeeded.
+  }
+}
+
 /** Accessibility scrape — not on the capture critical path. */
 export async function extractFrontmostAppText(): Promise<string> {
   try {

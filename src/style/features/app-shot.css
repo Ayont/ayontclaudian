@@ -1,4 +1,18 @@
-/* App Shots — fly-in from the captured window into the chat composer. */
+/* App Shots — camera flash, then fly-in from the captured window. */
+
+.claudian-appshot-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  pointer-events: none;
+  background: #fff;
+  opacity: 1;
+  transition: opacity var(--cl-dur-slow) var(--cl-ease-out);
+}
+
+.claudian-appshot-flash.is-fading {
+  opacity: 0;
+}
 
 .claudian-appshot-fly {
   position: fixed;
@@ -75,6 +89,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .claudian-appshot-flash {
+    transition-duration: var(--cl-dur-fast);
+  }
+
   .claudian-appshot-fly-card {
     box-shadow: none;
   }
