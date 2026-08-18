@@ -4,7 +4,7 @@ import * as path from 'path';
 import type { ImageAttachment, ImageMediaType } from '../../../core/types';
 import { updateContextRowHasContent } from '../controllers/contextRowVisibility';
 import type { ImageStagingService } from '../services/ImageStagingService';
-import { attachmentTypeMeta, type FileDockTarget, formatFileSize } from './file-drop/attachmentMeta';
+import { attachmentPeekMode, attachmentTypeMeta, type FileDockTarget, formatFileSize } from './file-drop/attachmentMeta';
 import {
   formatDroppedFileBlock,
   isTextLikeFile,
@@ -40,8 +40,10 @@ export interface ImageContextCallbacks {
    * mention. Optional: when absent, such files are reported as unsupported.
    */
   stageVaultAttachment?: (file: File) => Promise<string | null>;
-  /** Called after a non-image file is staged so the document pane can dock it. */
+  /** Called after a non-image file is staged so the library can remember it. */
   onAttachmentStaged?: (target: FileDockTarget) => void;
+  /** Vault resource URL for a staged file (PDF peek in the composer). */
+  getResourcePath?: (relPath: string) => string | null;
   /** Stages and decodes Cisco Packet Tracer files into readable XML context. */
   stagePacketTracerAttachment?: (file: File) => Promise<string | null>;
   /**
@@ -141,6 +143,11 @@ export class ImageContextManager {
     }
     this.updateImagePreview();
     this.callbacks.onImagesChanged();
+    this.callbacks.onAttachmentStaged?.({
+      kind: 'file',
+      path: `data:image/png;base64,${pngBase64}`,
+      name,
+    });
     return true;
   }
 
@@ -512,6 +519,11 @@ export class ImageContextManager {
       }
       this.updateImagePreview();
       this.callbacks.onImagesChanged();
+      this.callbacks.onAttachmentStaged?.({
+        kind: 'file',
+        path: `data:${attachment.mediaType};base64,${attachment.data}`,
+        name: attachment.name,
+      });
       return true;
     } catch (error) {
       this.notifyImageError('Failed to attach image.', error);
@@ -659,14 +671,42 @@ export class ImageContextManager {
   /** A finished, removable chip for a staged non-image file. */
   private renderAttachmentChip(id: string, att: StagedAttachment): void {
     const meta = attachmentTypeMeta(att.name);
+    const peek = attachmentPeekMode(att.name);
     const chip = this.attachmentPreviewEl.createDiv({
-      cls: `claudian-attachment-chip claudian-attachment-chip--${meta.typeClass}`,
+      cls: `claudian-attachment-chip claudian-attachment-chip--${meta.typeClass} claudian-attachment-chip--peek`,
     });
 
-    const iconWrap = chip.createDiv({ cls: 'claudian-attachment-icon' });
+    const resourcePath = this.callbacks.getResourcePath?.(att.relPath) ?? null;
+    if (peek === 'iframe' && resourcePath) {
+      const peekEl = chip.createDiv({ cls: 'claudian-attachment-peek' });
+      const frame = peekEl.createEl('iframe', {
+        cls: 'claudian-attachment-peek-pdf',
+        attr: {
+          src: resourcePath,
+          sandbox: 'allow-same-origin',
+          tabindex: '-1',
+          title: att.name,
+        },
+      });
+      frame.addClass('claudian-attachment-peek-pdf');
+    } else if (peek === 'thumb' && resourcePath) {
+      const peekEl = chip.createDiv({ cls: 'claudian-attachment-peek' });
+      peekEl.createEl('img', {
+        cls: 'claudian-attachment-peek-image',
+        attr: { src: resourcePath, alt: att.name },
+      });
+    } else {
+      const peekEl = chip.createDiv({ cls: 'claudian-attachment-peek claudian-attachment-peek--paper' });
+      peekEl.createDiv({ cls: 'claudian-attachment-peek-sheet' });
+      const face = peekEl.createDiv({ cls: 'claudian-attachment-peek-face' });
+      setIcon(face.createSpan(), meta.icon);
+    }
+
+    const row = chip.createDiv({ cls: 'claudian-attachment-row' });
+    const iconWrap = row.createDiv({ cls: 'claudian-attachment-icon' });
     setIcon(iconWrap, meta.icon);
 
-    const infoEl = chip.createDiv({ cls: 'claudian-attachment-info' });
+    const infoEl = row.createDiv({ cls: 'claudian-attachment-info' });
     const nameEl = infoEl.createSpan({ cls: 'claudian-attachment-name' });
     nameEl.setText(this.truncateName(att.name, 22));
     nameEl.setAttribute('title', att.name);

@@ -5,13 +5,22 @@ import { homedir, tmpdir } from 'node:os';
 import { Notice, setIcon } from 'obsidian';
 
 import type { CloudWhisperConfig } from '../../../core/audio/CloudWhisperTranscriber';
+import {
+  isLiveSpeechSupported,
+  type LiveSpeechSession,
+  startLiveSpeech,
+} from '../../../core/audio/liveSpeech';
 import { transcribeAudioFile } from '../../../core/audio/transcription';
 import { ensureFfmpegOnly, ensureVoiceDependencies } from '../../../core/audio/voiceSetup';
 import { getEnhancedPath } from '../../../utils/env';
 
 export interface VoiceInputCallbacks {
-  /** Inserts the transcribed text into the composer. */
+  /** Inserts the transcribed text into the composer (file / cloud fallback). */
   onInsert: (text: string) => void;
+  /** Snapshot the composer before live dictation rewrites the live span. */
+  onLiveBegin?: () => void;
+  /** Replace the in-progress live dictation span. */
+  onLivePreview?: (text: string) => void;
   /** Optional language hint for whisper ('auto' by default). */
   getLanguage?: () => string;
   /** Returns the whisper model name (e.g. 'base', 'small') for the model path. */
@@ -37,6 +46,9 @@ type VoiceState = 'idle' | 'recording' | 'processing';
  */
 export class VoiceInput {
   private button: HTMLButtonElement | null = null;
+  private wrap: HTMLElement | null = null;
+  private timerEl: HTMLElement | null = null;
+  private captionEl: HTMLElement | null = null;
   private state: VoiceState = 'idle';
   private mediaRecorder: MediaRecorder | null = null;
   private chunks: Blob[] = [];
@@ -44,15 +56,21 @@ export class VoiceInput {
   private setupDone = false;
   private abortController: AbortController | null = null;
   private processingTimeout: number | null = null;
+  private recordStartedAt = 0;
+  private timerInterval: number | null = null;
+  private liveSession: LiveSpeechSession | null = null;
+  private liveCommitted = '';
+  private liveInterim = '';
   private static readonly TRANSCRIPTION_TIMEOUT_MS = 20_000;
 
   constructor(private readonly callbacks: VoiceInputCallbacks) {}
 
   /** Creates the mic toggle button inside the given toolbar element. */
   render(parent: HTMLElement): HTMLButtonElement {
-    const button = parent.createEl('button', {
+    const wrap = parent.createDiv({ cls: 'claudian-voice' });
+    const button = wrap.createEl('button', {
       cls: 'claudian-voice-btn',
-      attr: { type: 'button', 'aria-label': 'Spracheingabe (Push-to-talk)', title: 'Spracheingabe' },
+      attr: { type: 'button', 'aria-label': 'Spracheingabe — tippen, sprechen, fertig', title: 'Spracheingabe' },
     });
     setIcon(button, 'mic');
     button.addEventListener('click', (event) => {
@@ -60,12 +78,17 @@ export class VoiceInput {
       event.stopPropagation();
       void this.toggle();
     });
+    this.timerEl = wrap.createSpan({ cls: 'claudian-voice-timer claudian-hidden', text: '0:00' });
+    this.captionEl = wrap.createSpan({ cls: 'claudian-voice-caption claudian-hidden' });
+    this.wrap = wrap;
     this.button = button;
     return button;
   }
 
   private setState(state: VoiceState): void {
     this.state = state;
+    this.wrap?.toggleClass('is-recording', state === 'recording');
+    this.wrap?.toggleClass('is-processing', state === 'processing');
     if (!this.button) return;
     this.button.toggleClass('is-recording', state === 'recording');
     this.button.toggleClass('is-processing', state === 'processing');
@@ -83,6 +106,30 @@ export class VoiceInput {
     } else {
       this.button.removeAttribute('disabled');
     }
+    this.timerEl?.toggleClass('claudian-hidden', state !== 'recording');
+    if (state !== 'recording' && state !== 'processing') {
+      this.setCaption('');
+    }
+  }
+
+  private setCaption(text: string): void {
+    if (!this.captionEl) return;
+    const trimmed = text.trim();
+    this.captionEl.toggleClass('claudian-hidden', !trimmed);
+    this.captionEl.setText(trimmed);
+  }
+
+  private joinLiveText(): string {
+    const committed = this.liveCommitted.trim();
+    const interim = this.liveInterim.trim();
+    if (committed && interim) return `${committed} ${interim}`;
+    return committed || interim;
+  }
+
+  private publishLivePreview(): void {
+    const text = this.joinLiveText();
+    this.setCaption(text || 'Hört zu…');
+    this.callbacks.onLivePreview?.(text);
   }
 
   private async toggle(): Promise<void> {
@@ -111,11 +158,12 @@ export class VoiceInput {
   private async ensureSetup(): Promise<boolean> {
     if (this.setupDone) return true;
     const cloud = this.callbacks.getCloudConfig?.();
-    // Cloud path: the ONLY local dependency is ffmpeg (webm→wav before
-    // upload) — no whisper binaries, no multi-hundred-MB model downloads.
-    if (cloud?.apiKey) {
+    const liveOk = isLiveSpeechSupported();
+    // Live dictation needs nothing local. Cloud only needs ffmpeg for the
+    // recorded fallback. Skip the 1–3 min whisper-cpp download in both cases.
+    if (liveOk || cloud?.apiKey) {
       const ffmpeg = await ensureFfmpegOnly();
-      if (ffmpeg.ok) {
+      if (ffmpeg.ok || liveOk) {
         this.setupDone = true;
         return true;
       }
@@ -192,6 +240,10 @@ export class VoiceInput {
     }
 
     this.chunks = [];
+    this.liveCommitted = '';
+    this.liveInterim = '';
+    this.callbacks.onLiveBegin?.();
+    this.startLiveSession();
     this.mediaRecorder = new MediaRecorder(this.stream);
     this.mediaRecorder.addEventListener('dataavailable', (event) => {
       if (event.data.size > 0) this.chunks.push(event.data);
@@ -200,10 +252,56 @@ export class VoiceInput {
       void this.finishRecording();
     });
     this.mediaRecorder.start();
+    this.recordStartedAt = Date.now();
+    this.startTimer();
     this.setState('recording');
+    this.setCaption('Hört zu…');
+  }
+
+  private startLiveSession(): void {
+    this.liveSession?.stop();
+    this.liveSession = null;
+    if (!isLiveSpeechSupported()) return;
+    this.liveSession = startLiveSpeech({
+      language: this.callbacks.getLanguage?.() ?? 'auto',
+      onInterim: (text) => {
+        this.liveInterim = text;
+        this.publishLivePreview();
+      },
+      onFinal: (text) => {
+        this.liveCommitted = this.liveCommitted
+          ? `${this.liveCommitted} ${text}`
+          : text;
+        this.liveInterim = '';
+        this.publishLivePreview();
+      },
+    });
+  }
+
+  private startTimer(): void {
+    this.stopTimer();
+    const tick = () => {
+      if (!this.timerEl) return;
+      const elapsed = Math.max(0, Math.floor((Date.now() - this.recordStartedAt) / 1000));
+      const minutes = Math.floor(elapsed / 60);
+      const seconds = elapsed % 60;
+      this.timerEl.setText(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+    };
+    tick();
+    this.timerInterval = window.setInterval(tick, 250);
+  }
+
+  private stopTimer(): void {
+    if (this.timerInterval !== null) {
+      window.clearInterval(this.timerInterval);
+      this.timerInterval = null;
+    }
   }
 
   private stopRecording(): void {
+    this.stopTimer();
+    this.liveSession?.stop();
+    this.liveSession = null;
     try {
       this.mediaRecorder?.stop();
     } catch {
@@ -215,6 +313,14 @@ export class VoiceInput {
   }
 
   private async finishRecording(): Promise<void> {
+    const liveText = this.joinLiveText();
+    if (liveText) {
+      this.callbacks.onLivePreview?.(liveText);
+      this.mediaRecorder = null;
+      this.setState('idle');
+      return;
+    }
+
     const blob = new Blob(this.chunks, { type: this.mediaRecorder?.mimeType || 'audio/webm' });
     this.mediaRecorder = null;
     if (blob.size < 100) {
@@ -337,6 +443,9 @@ export class VoiceInput {
   }
 
   destroy(): void {
+    this.stopTimer();
+    this.liveSession?.stop();
+    this.liveSession = null;
     this.stopRecording();
     if (this.processingTimeout) {
       window.clearTimeout(this.processingTimeout);
@@ -344,7 +453,10 @@ export class VoiceInput {
     }
     this.abortController?.abort();
     this.abortController = null;
-    this.button?.remove();
+    this.wrap?.remove();
+    this.wrap = null;
     this.button = null;
+    this.timerEl = null;
+    this.captionEl = null;
   }
 }

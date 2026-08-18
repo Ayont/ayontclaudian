@@ -159,6 +159,7 @@ export function parseClineJsonLine(line: string): ClineJsonEvent | null {
       kind: 'thinking',
       sessionId,
       text: asString(inner.reasoning) ?? asString(inner.text),
+      isFinal: eventType === 'content_end',
     };
   }
 
@@ -215,22 +216,56 @@ export function parseClineJsonLine(line: string): ClineJsonEvent | null {
   return { kind: 'other' };
 }
 
+export interface ClineReplayState {
+  sawText: boolean;
+  sawThinking: boolean;
+}
+
+export function createClineReplayState(): ClineReplayState {
+  return { sawText: false, sawThinking: false };
+}
+
+/**
+ * Cline 3.x always reprints the finished answer as `content_end` and again on
+ * `run_result`. Live deltas are `content_start`; a model that does not stream
+ * only emits those two finals — both must not land in the transcript.
+ */
+export function shouldEmitClineText(event: ClineJsonEvent, state: ClineReplayState): boolean {
+  if ((event.kind !== 'text' && event.kind !== 'usage') || !event.text) {
+    return false;
+  }
+  if (event.isFinal && state.sawText) {
+    return false;
+  }
+  state.sawText = true;
+  return true;
+}
+
+/**
+ * `assistant-message` also emits a reasoning `content_end` snapshot. After the
+ * answer has started that snapshot would open a second empty "Nachgedacht" block.
+ */
+export function shouldEmitClineThinking(event: ClineJsonEvent, state: ClineReplayState): boolean {
+  if (event.kind !== 'thinking' || !event.text) {
+    return false;
+  }
+  if (event.isFinal && (state.sawThinking || state.sawText)) {
+    return false;
+  }
+  state.sawThinking = true;
+  return true;
+}
+
 /** Concatenate visible text from a full `--json` buffer (aux queries). */
 export function extractClineJsonText(buffer: string): string {
   const parts: string[] = [];
-  let sawDelta = false;
+  const replay = createClineReplayState();
   for (const line of buffer.split(/\r?\n/)) {
     const event = parseClineJsonLine(line);
-    if (!event || (event.kind !== 'text' && event.kind !== 'usage') || !event.text) {
+    if (!event || !shouldEmitClineText(event, replay)) {
       continue;
     }
-    if (event.isFinal && sawDelta) {
-      continue;
-    }
-    if (!event.isFinal) {
-      sawDelta = true;
-    }
-    parts.push(event.text);
+    parts.push(event.text as string);
   }
   return parts.join('');
 }

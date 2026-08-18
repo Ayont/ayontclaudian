@@ -617,7 +617,24 @@ describe('ImageContextManager - Private Helpers', () => {
       expect(contextRow.hasClass('has-content')).toBe(false);
     });
 
-    it('docks a staged file as soon as it lands in the vault', async () => {
+    it('renders a half-cut PDF peek on the composer chip', async () => {
+      const stageVaultAttachment = jest.fn().mockResolvedValue('.claudian/attachments/brief-1.pdf');
+      const getResourcePath = jest.fn().mockReturnValue('app://vault/.claudian/attachments/brief-1.pdf');
+      const localCallbacks = { onImagesChanged: jest.fn(), stageVaultAttachment, getResourcePath };
+      const localInput = createMockTextArea();
+      const { container: c } = createContainerWithInputWrapper();
+      const localManager = new ImageContextManager(c, localInput, localCallbacks);
+
+      const ok = await localManager['stageFileAttachment']({ name: 'brief.pdf', size: 2048 } as File);
+
+      expect(ok).toBe(true);
+      const peek = localManager['attachmentPreviewEl'].querySelector('.claudian-attachment-peek');
+      expect(peek).toBeTruthy();
+      expect(localManager['attachmentPreviewEl'].querySelector('.claudian-attachment-peek-pdf')?.getAttribute('src'))
+        .toBe('app://vault/.claudian/attachments/brief-1.pdf');
+    });
+
+    it('notifies when a staged file lands so the library can remember it', async () => {
       const stageVaultAttachment = jest.fn().mockResolvedValue('.claudian/attachments/brief-1.pdf');
       const onAttachmentStaged = jest.fn();
       const localCallbacks = { onImagesChanged: jest.fn(), stageVaultAttachment, onAttachmentStaged };

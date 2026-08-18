@@ -38,6 +38,7 @@
 
 /* Features */
 @import "./features/app-shot.css";
+@import "./features/voice-input.css";
 @import "./features/auto-memory.css";
 @import "./features/chat-search.css";
 @import "./features/shortcuts.css";

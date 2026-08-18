@@ -1,7 +1,7 @@
 import type { Component } from 'obsidian';
 import { Menu, Notice, Platform, setIcon } from 'obsidian';
 
-import { DEFAULT_CLOUD_BASE_URL, DEFAULT_CLOUD_MODEL } from '../../../core/audio/CloudWhisperTranscriber';
+import { resolveVoiceCloudConfig } from '../../../core/audio/resolveVoiceCloudConfig';
 import { resolveVoiceLanguage } from '../../../core/audio/transcription';
 import { buildConversationContextBootstrap, computeBootstrapCharCap } from '../../../core/conversation/ConversationContextBootstrap';
 import { computeProviderSessionHandoff } from '../../../core/conversation/providerSessionHandoff';
@@ -10,6 +10,7 @@ import { getHiddenProviderCommandSet } from '../../../core/providers/commands/hi
 import type { ProviderCommandDropdownConfig } from '../../../core/providers/commands/ProviderCommandCatalog';
 import type { ProviderCommandEntry } from '../../../core/providers/commands/ProviderCommandEntry';
 import { getEnabledProviderForModel, getProviderForModel } from '../../../core/providers/modelRouting';
+import { getRuntimeEnvironmentVariables } from '../../../core/providers/providerEnvironment';
 import { ProviderRegistry } from '../../../core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '../../../core/providers/ProviderSettingsCoordinator';
 import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorkspaceRegistry';
@@ -967,7 +968,18 @@ function initializeContextManagers(tab: TabData, plugin: ClaudianPlugin): void {
       // archived with the correct chat (never restored into the compose field).
       getConversationId: () => tab.state.currentConversationId,
       onAttachmentStaged: (target) => {
-        void tab.ui.filePreviewPanel?.dockFile(target.path);
+        tab.ui.filePreviewPanel?.rememberUpload({
+          name: target.name,
+          relPath: target.path,
+          previewSrc: target.path.startsWith('data:') ? target.path : undefined,
+        });
+      },
+      getResourcePath: (relPath) => {
+        try {
+          return plugin.app.vault.adapter.getResourcePath(relPath);
+        } catch {
+          return null;
+        }
       },
       // Stage dropped PDFs / docs / binary files into the vault so any provider's
       // agent can read them via the @path mention inserted by the drop handler.
@@ -1409,6 +1421,22 @@ function initializeInputToolbar(
       autoResizeTextarea(textarea);
       textarea.focus();
     },
+    onLiveBegin: () => {
+      const textarea = dom.inputEl;
+      textarea.dataset.claudianVoiceBefore = textarea.value.slice(0, textarea.selectionStart ?? textarea.value.length);
+      textarea.dataset.claudianVoiceAfter = textarea.value.slice(textarea.selectionEnd ?? textarea.value.length);
+    },
+    onLivePreview: (text: string) => {
+      const textarea = dom.inputEl;
+      const before = textarea.dataset.claudianVoiceBefore ?? textarea.value;
+      const after = textarea.dataset.claudianVoiceAfter ?? '';
+      const prefix = before.length > 0 && text && !/\s$/.test(before) ? ' ' : '';
+      textarea.value = `${before}${prefix}${text}${after}`;
+      const cursor = before.length + prefix.length + text.length;
+      textarea.setSelectionRange(cursor, cursor);
+      autoResizeTextarea(textarea);
+      textarea.focus();
+    },
     getLanguage: () => resolveVoiceLanguage(
       plugin.settings.voiceSettings?.language ?? 'auto',
       getLocale(),
@@ -1418,12 +1446,18 @@ function initializeInputToolbar(
     getPreferFastBackend: () => plugin.settings.voiceSettings?.preferFastBackend ?? true,
     getCloudConfig: () => {
       const vs = plugin.settings.voiceSettings;
-      if (!vs?.cloudEnabled || !vs.cloudApiKey?.trim()) return null;
-      return {
-        baseUrl: vs.cloudBaseUrl?.trim() || DEFAULT_CLOUD_BASE_URL,
-        apiKey: vs.cloudApiKey.trim(),
-        model: vs.cloudModel?.trim() || DEFAULT_CLOUD_MODEL,
-      };
+      const vibeEnv = getRuntimeEnvironmentVariables(plugin.settings, 'vibe');
+      return resolveVoiceCloudConfig({
+        cloudEnabled: vs?.cloudEnabled,
+        cloudApiKey: vs?.cloudApiKey,
+        cloudBaseUrl: vs?.cloudBaseUrl,
+        cloudModel: vs?.cloudModel,
+        env: {
+          ...vibeEnv,
+          GROQ_API_KEY: process.env.GROQ_API_KEY || vibeEnv.GROQ_API_KEY,
+          MISTRAL_API_KEY: process.env.MISTRAL_API_KEY || vibeEnv.MISTRAL_API_KEY,
+        },
+      });
     },
   });
   voiceInput.render(osActionsEl);
@@ -1793,10 +1827,13 @@ export function initializeTabControllers(
     },
   );
   tab.renderer.setDockHandler?.((target) => {
-    void tab.ui.filePreviewPanel?.dockFile(target.path);
+    tab.ui.filePreviewPanel?.rememberUpload({
+      name: target.name,
+      relPath: target.path,
+    });
   });
   tab.renderer.setLiveDocumentDockHandler?.((document, theme) => {
-    void tab.ui.filePreviewPanel?.dockLiveDocument(document, theme);
+    tab.ui.filePreviewPanel?.rememberLiveDocument(document, theme);
   });
 
   // Selection controller

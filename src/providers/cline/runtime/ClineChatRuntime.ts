@@ -51,7 +51,12 @@ import {
   normalizeClineAcpToolInput,
   normalizeClineAcpToolName,
 } from '../normalization/clineAcpToolNormalization';
-import { parseClineJsonLine } from '../normalization/jsonEvents';
+import {
+  createClineReplayState,
+  parseClineJsonLine,
+  shouldEmitClineText,
+  shouldEmitClineThinking,
+} from '../normalization/jsonEvents';
 import { CLINE_PROVIDER_ID, getClineProviderSettings } from '../settings';
 import { buildPersistedClineState, type ClineProviderState,getClineState, isClineNativeSessionId } from '../types';
 import { ClineAuxQueryRunner } from './ClineAuxQueryRunner';
@@ -302,7 +307,7 @@ export class ClineChatRuntime implements ChatRuntime {
     let exitInfo: { code: number | null; error?: Error } = { code: null };
     let wake: (() => void) | null = null;
     let lastActivity = Date.now();
-    let sawTextDelta = false;
+    const replay = createClineReplayState();
     let reportedUsage: StreamChunk | null = null;
     const signal = (): void => {
       if (wake) {
@@ -326,8 +331,8 @@ export class ClineChatRuntime implements ChatRuntime {
         return;
       }
       if (event.kind === 'usage') {
-        if (event.text && !sawTextDelta) {
-          pendingChunks.push({ type: 'text', content: event.text });
+        if (shouldEmitClineText(event, replay)) {
+          pendingChunks.push({ type: 'text', content: event.text as string });
         }
         const inputTokens = event.usage?.inputTokens ?? 0;
         const cacheRead = event.usage?.cacheReadTokens ?? 0;
@@ -354,16 +359,16 @@ export class ClineChatRuntime implements ChatRuntime {
         return;
       }
       if (event.kind === 'text' && event.text) {
-        if (event.isFinal && sawTextDelta) {
+        if (!shouldEmitClineText(event, replay)) {
           return;
-        }
-        if (!event.isFinal) {
-          sawTextDelta = true;
         }
         pendingChunks.push({ type: 'text', content: event.text });
         return;
       }
       if (event.kind === 'thinking' && event.text) {
+        if (!shouldEmitClineThinking(event, replay)) {
+          return;
+        }
         pendingChunks.push({ type: 'thinking', content: event.text });
         return;
       }
@@ -435,7 +440,7 @@ export class ClineChatRuntime implements ChatRuntime {
     }, CLINE_KEEPALIVE_INTERVAL_MS);
 
     const firstEventTimer = window.setTimeout(() => {
-      if (finished || this.cancelled || sawTextDelta || this.sessionId) {
+      if (finished || this.cancelled || replay.sawText || this.sessionId) {
         return;
       }
       const tail = stderr.trim();

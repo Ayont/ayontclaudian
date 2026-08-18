@@ -1,5 +1,5 @@
 import { createMockEl } from '@test/helpers/mockElement';
-import { MarkdownRenderer, TFile } from 'obsidian';
+import { TFile } from 'obsidian';
 
 import type { LiveDocument } from '@/features/chat/rendering/LiveDocumentRenderer';
 import { FilePreviewPanel } from '@/features/chat/ui/FilePreviewPanel';
@@ -46,7 +46,7 @@ describe('FilePreviewPanel', () => {
     jest.clearAllMocks();
   });
 
-  it('opens with an empty dock state instead of dumping the active vault note', async () => {
+  it('opens as an empty library instead of dumping the active vault note', async () => {
     const activeFile = vaultFile('Home.md');
     const { container, panel, plugin } = mountPanel(createPlugin({ activeFile }));
 
@@ -55,28 +55,27 @@ describe('FilePreviewPanel', () => {
     expect(plugin.app.workspace.getActiveFile).not.toHaveBeenCalled();
     expect(plugin.app.vault.getAbstractFileByPath).not.toHaveBeenCalled();
     expect(container.hasClass('claudian-preview-open')).toBe(true);
-    expect(container.querySelector('.claudian-preview-title')?.textContent).toBe('Dokument');
-    expect(container.querySelector('.claudian-preview-empty')?.textContent).toContain('Noch kein Dokument angedockt');
+    expect(container.querySelector('.claudian-preview-title')?.textContent).toBe('Speicher');
+    expect(container.querySelector('.claudian-preview-empty')?.textContent).toContain('Erstellte Dokumente und Uploads');
     expect(container.querySelector('.claudian-preview-text')).toBeNull();
   });
 
-  it('docks a vault file and renders markdown as a page, not raw source', async () => {
-    const file = vaultFile('.claudian/documents/brief.md');
-    const { container, panel } = mountPanel(createPlugin({
-      files: { [file.path]: file },
-      read: jest.fn(async () => '# Brief\n\nHallo Welt'),
-    }));
+  it('remembers an upload as a library card instead of looking the file up', () => {
+    const { container, panel, plugin } = mountPanel();
 
-    await panel.dockFile(file.path);
+    panel.rememberUpload({
+      name: 'G175110768.pdf',
+      relPath: '.claudian/attachments/G175110768.pdf',
+    });
 
+    expect(plugin.app.vault.getAbstractFileByPath).not.toHaveBeenCalled();
     expect(container.hasClass('claudian-preview-open')).toBe(true);
-    expect(container.querySelector('.claudian-preview-title')?.textContent).toBe('brief.md');
-    expect(container.querySelector('.claudian-preview-page')).not.toBeNull();
-    expect(container.querySelector('.claudian-preview-text--markdown')).toBeNull();
-    expect(MarkdownRenderer.render).toHaveBeenCalled();
+    expect(container.querySelector('.claudian-preview-library')).not.toBeNull();
+    expect(container.querySelector('.claudian-preview-card-name')?.textContent).toBe('G175110768.pdf');
+    expect(container.querySelector('.claudian-preview-empty')).toBeNull();
   });
 
-  it('docks a live document into the panel', async () => {
+  it('keeps created live documents in the same library', () => {
     const { container, panel } = mountPanel();
     const document: LiveDocument = {
       title: 'Strategie Q3',
@@ -84,22 +83,9 @@ describe('FilePreviewPanel', () => {
       body: '# Strategie Q3\n\nPlan.',
     };
 
-    await panel.dockLiveDocument(document);
+    panel.rememberLiveDocument(document);
 
-    expect(container.hasClass('claudian-preview-open')).toBe(true);
-    expect(container.querySelector('.claudian-preview-title')?.textContent).toBe('Strategie Q3');
-    expect(container.querySelector('.claudian-preview-live')).not.toBeNull();
-  });
-
-  it('docks a PDF with an embedded preview', async () => {
-    const file = vaultFile('.claudian/attachments/vertrag.pdf');
-    const { container, panel } = mountPanel(createPlugin({
-      files: { [file.path]: file },
-    }));
-
-    await panel.dockFile(file.path);
-
-    expect(container.querySelector('.claudian-preview-pdf')).not.toBeNull();
-    expect(container.querySelector('.claudian-preview-title')?.textContent).toBe('vertrag.pdf');
+    expect(container.querySelector('.claudian-preview-card-name')?.textContent).toBe('Strategie Q3');
+    expect(container.querySelector('.claudian-preview-card--live')).not.toBeNull();
   });
 });

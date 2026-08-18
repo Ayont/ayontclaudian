@@ -1,6 +1,9 @@
 import {
+  createClineReplayState,
   extractClineJsonText,
   parseClineJsonLine,
+  shouldEmitClineText,
+  shouldEmitClineThinking,
 } from '@/providers/cline/normalization/jsonEvents';
 
 describe('parseClineJsonLine', () => {
@@ -143,5 +146,57 @@ describe('extractClineJsonText', () => {
 
   it('uses run_result text when no deltas arrived', () => {
     expect(extractClineJsonText('{"type":"run_result","text":"Fertig"}')).toBe('Fertig');
+  });
+
+  it('does not reprint content_end text when run_result repeats the same answer', () => {
+    const buffer = [
+      '{"type":"agent_event","payload":{"event":{"type":"content_end","contentType":"text","text":"Hi Niccolo!"}}}',
+      '{"type":"run_result","text":"Hi Niccolo!","usage":{"inputTokens":10,"outputTokens":20}}',
+    ].join('\n');
+    expect(extractClineJsonText(buffer)).toBe('Hi Niccolo!');
+  });
+
+  it('keeps streamed deltas and drops the content_end plus run_result snapshots', () => {
+    const buffer = [
+      '{"type":"agent_event","payload":{"event":{"type":"content_start","contentType":"text","text":"Hi "}}}',
+      '{"type":"agent_event","payload":{"event":{"type":"content_start","contentType":"text","text":"Niccolo!"}}}',
+      '{"type":"agent_event","payload":{"event":{"type":"content_end","contentType":"text","text":"Hi Niccolo!"}}}',
+      '{"type":"run_result","text":"Hi Niccolo!","usage":{"inputTokens":10,"outputTokens":20}}',
+    ].join('\n');
+    expect(extractClineJsonText(buffer)).toBe('Hi Niccolo!');
+  });
+});
+
+describe('Cline content_end snapshots', () => {
+  it('marks reasoning content_end as a final thinking snapshot', () => {
+    const event = parseClineJsonLine(JSON.stringify({
+      type: 'agent_event',
+      payload: {
+        event: {
+          type: 'content_end',
+          contentType: 'reasoning',
+          reasoning: 'vault glance',
+        },
+      },
+    }));
+    expect(event).toEqual(expect.objectContaining({
+      kind: 'thinking',
+      text: 'vault glance',
+      isFinal: true,
+    }));
+  });
+
+  it('drops a late reasoning snapshot after the answer already started', () => {
+    const state = createClineReplayState();
+    const answer = parseClineJsonLine(JSON.stringify({
+      type: 'agent_event',
+      payload: { event: { type: 'content_end', contentType: 'text', text: 'Hi Niccolo!' } },
+    }));
+    const lateReasoning = parseClineJsonLine(JSON.stringify({
+      type: 'agent_event',
+      payload: { event: { type: 'content_end', contentType: 'reasoning', reasoning: 'vault glance' } },
+    }));
+    expect(answer && shouldEmitClineText(answer, state)).toBe(true);
+    expect(lateReasoning && shouldEmitClineThinking(lateReasoning, state)).toBe(false);
   });
 });

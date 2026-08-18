@@ -1,7 +1,10 @@
 import { Notice, Setting } from 'obsidian';
 
 import { DEFAULT_CLOUD_BASE_URL, DEFAULT_CLOUD_MODEL } from '../../../core/audio/CloudWhisperTranscriber';
+import { isLiveSpeechSupported } from '../../../core/audio/liveSpeech';
+import { resolveVoiceCloudConfig } from '../../../core/audio/resolveVoiceCloudConfig';
 import { areVoiceDependenciesReady, diagnoseVoiceSetup, ensureVoiceDependencies } from '../../../core/audio/voiceSetup';
+import { getRuntimeEnvironmentVariables } from '../../../core/providers/providerEnvironment';
 import type ClaudianPlugin from '../../../main';
 
 /**
@@ -89,7 +92,7 @@ function renderInto(section: HTMLElement, plugin: ClaudianPlugin): void {
   new Setting(section).setName('Spracheingabe').setHeading();
   section.createEl('p', {
     cls: 'claudian-voice-settings-hint',
-    text: 'Spracherkennung lokal über whisper-cpp (privat, kein Netzwerk) oder optional über ein Cloud-Backend (Groq/OpenAI-kompatibel — am schnellsten, Audio verlässt den Mac). Ein warmgehaltener whisper-server hält lokale Modelle zwischen Aufnahmen geladen; mlx-whisper läuft nativ mit Metal-Beschleunigung aus einer eigenen Python-Umgebung.',
+    text: 'Sprache erscheint live im Composer, während du redest. Schnellster Weg: System-Diktat (kostenlos, kein Key). Fallback: Groq Whisper (kostenloser Key) oder Mistral Voxtral über deinen Vibe-Key — Audio geht dann in die Cloud. Lokal bleibt whisper-cpp als letzter Fallback.',
   });
 
   // ── Apple Silicon architecture warning ─────────────────────────────
@@ -183,7 +186,7 @@ function renderInto(section: HTMLElement, plugin: ClaudianPlugin): void {
   new Setting(section).setName('Cloud-Backend').setHeading();
   section.createEl('p', {
     cls: 'claudian-voice-settings-hint',
-    text: 'OpenAI-kompatible Transkription — Antwort in Bruchteilen einer Sekunde, keine lokale Installation. Standard: Groq (kostenloser API-Key auf console.groq.com, Modell whisper-large-v3-turbo). Achtung: Audio verlässt dabei den Mac.',
+    text: 'Groq (console.groq.com, kostenlos, whisper-large-v3-turbo) oder Mistral Voxtral (dein bestehender Vibe-Key / MISTRAL_API_KEY). Ohne Extra-Toggle: ein Key in den Umgebungsvariablen reicht. Audio verlässt dabei den Mac.',
   });
 
   new Setting(section)
@@ -248,18 +251,30 @@ function renderInto(section: HTMLElement, plugin: ClaudianPlugin): void {
 
   void (async () => {
     const { VoiceBackendResolver } = await import('../../../core/audio/VoiceBackendResolver');
-    const cloud = vs.cloudEnabled && vs.cloudApiKey?.trim()
-      ? {
-        baseUrl: vs.cloudBaseUrl?.trim() || DEFAULT_CLOUD_BASE_URL,
-        apiKey: vs.cloudApiKey.trim(),
-        model: vs.cloudModel?.trim() || DEFAULT_CLOUD_MODEL,
-      }
-      : null;
+    const vibeEnv = getRuntimeEnvironmentVariables(plugin.settings, 'vibe');
+    const cloud = resolveVoiceCloudConfig({
+      cloudEnabled: vs.cloudEnabled,
+      cloudApiKey: vs.cloudApiKey,
+      cloudBaseUrl: vs.cloudBaseUrl,
+      cloudModel: vs.cloudModel,
+      env: {
+        ...vibeEnv,
+        GROQ_API_KEY: process.env.GROQ_API_KEY || vibeEnv.GROQ_API_KEY,
+        MISTRAL_API_KEY: process.env.MISTRAL_API_KEY || vibeEnv.MISTRAL_API_KEY,
+      },
+    });
     const resolver = new VoiceBackendResolver(vs.preferFastBackend, process.platform, undefined, cloud);
     const backend = await resolver.resolve();
-    backendStatusEl.textContent = backend
-      ? `Aktives Backend: ${backend.displayName}`
-      : 'Aktives Backend: nicht verfügbar';
+    const live = isLiveSpeechSupported();
+    if (live && backend) {
+      backendStatusEl.textContent = `Live-Diktat aktiv · Fallback: ${backend.displayName}`;
+    } else if (live) {
+      backendStatusEl.textContent = 'Live-Diktat aktiv (System, kostenlos)';
+    } else if (backend) {
+      backendStatusEl.textContent = `Aktives Backend: ${backend.displayName}`;
+    } else {
+      backendStatusEl.textContent = 'Aktives Backend: nicht verfügbar';
+    }
   })();
 
   // ── Language Picker ───────────────────────────────────────────────
