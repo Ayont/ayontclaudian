@@ -3,6 +3,8 @@ import { createMockEl } from '@test/helpers/mockElement';
 import {
   createThinkingBlock,
   finalizeThinkingBlock,
+  formatThinkingDoneLabel,
+  formatThinkingLiveLabel,
   renderStoredThinkingBlock,
 } from '@/features/chat/rendering/ThinkingBlockRenderer';
 
@@ -119,6 +121,16 @@ describe('ThinkingBlockRenderer', () => {
       const wrapperEl = renderStoredThinkingBlock(parentEl, 'thinking content', 10, mockRenderContent);
 
       expect(wrapperEl).toBeDefined();
+    });
+  });
+
+  describe('duration labels', () => {
+    it('does not advertise 0s for a blink of reasoning', () => {
+      expect(formatThinkingLiveLabel(0)).toBe('Denkt …');
+      expect(formatThinkingLiveLabel(4)).toBe('Denkt 4s …');
+      expect(formatThinkingDoneLabel(0)).toBe('Nachgedacht');
+      expect(formatThinkingDoneLabel(undefined)).toBe('Nachgedacht');
+      expect(formatThinkingDoneLabel(12)).toBe('Nachgedacht: 12s');
     });
   });
 });

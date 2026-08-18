@@ -5,6 +5,14 @@ import { collapseElement, setupCollapsible } from './collapsible';
 export type RenderContentFn = (el: HTMLElement, markdown: string) => Promise<void>;
 
 const TIMER_TICK_MS = 1000;
+
+export function formatThinkingLiveLabel(elapsedSeconds: number): string {
+  return elapsedSeconds > 0 ? `Denkt ${elapsedSeconds}s …` : 'Denkt …';
+}
+
+export function formatThinkingDoneLabel(durationSeconds: number | undefined): string {
+  return durationSeconds && durationSeconds > 0 ? `Nachgedacht: ${durationSeconds}s` : 'Nachgedacht';
+}
 const THINKING_ICON = 'brain';
 const CHEVRON_ICON = 'chevron-right';
 const BASE_ARIA_LABEL = 'Extended thinking';
@@ -53,12 +61,12 @@ export function createThinkingBlock(
   const { header, labelEl } = buildHeader(wrapperEl);
 
   const startTime = Date.now();
-  labelEl.setText('Denkt 0s …');
+  labelEl.setText(formatThinkingLiveLabel(0));
 
   // Update the label once per second while reasoning streams in.
   const timerInterval = window.setInterval(() => {
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
-    labelEl.setText(`Denkt ${elapsed}s …`);
+    labelEl.setText(formatThinkingLiveLabel(elapsed));
   }, TIMER_TICK_MS);
 
   // Collapsible content (collapsed by default)
@@ -104,7 +112,7 @@ export function finalizeThinkingBlock(state: ThinkingBlockState): number {
   const durationSeconds = Math.floor((Date.now() - state.startTime) / 1000);
 
   // Update label to show final duration (without "...")
-  state.labelEl.setText(`Nachgedacht: ${durationSeconds}s`);
+  state.labelEl.setText(formatThinkingDoneLabel(durationSeconds));
 
   // Collapse when done and sync state
   const header = state.wrapperEl.querySelector('.claudian-thinking-header');
@@ -131,8 +139,7 @@ export function renderStoredThinkingBlock(
 
   const { header, labelEl } = buildHeader(wrapperEl);
 
-  const labelText = durationSeconds !== undefined ? `Nachgedacht: ${durationSeconds}s` : 'Nachgedacht';
-  labelEl.setText(labelText);
+  labelEl.setText(formatThinkingDoneLabel(durationSeconds));
 
   // Collapsible content
   const contentEl = wrapperEl.createDiv({ cls: 'claudian-thinking-content' });

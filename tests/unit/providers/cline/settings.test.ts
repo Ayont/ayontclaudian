@@ -11,7 +11,7 @@ describe('Cline settings', () => {
     expect(settings.thinking).toBe('medium');
     expect(settings.permissionMode).toBe('yolo');
     expect(settings.compaction).toBe('agentic');
-    expect(settings.retries).toBe(3);
+    expect(settings.retries).toBe(6);
   });
 
   it('persists api provider, thinking, and custom models', () => {

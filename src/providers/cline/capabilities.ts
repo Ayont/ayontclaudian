@@ -13,6 +13,6 @@ export const CLINE_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Objec
   supportsInstructionMode: true,
   supportsMcpTools: true,
   supportsMultiAgent: true,
-  supportsTurnSteer: true,
+  supportsTurnSteer: false,
   reasoningControl: 'effort',
 });

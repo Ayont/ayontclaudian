@@ -227,7 +227,7 @@ export const clineSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     new Setting(container)
       .setName('Modus')
-      .setDesc('`--yolo` für Act ohne Freigaben, `--plan` für Plan-Modus. Headless-Turns brauchen YOLO, weil Freigaben hier nicht angezeigt werden.')
+      .setDesc('`--auto-approve true` für Act ohne Freigaben, `--plan` für Plan-Modus. Safe setzt `--auto-approve false`.')
       .addDropdown((dropdown) => {
         dropdown.addOption('yolo', 'YOLO (Act)');
         dropdown.addOption('plan', 'Plan');

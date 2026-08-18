@@ -58,6 +58,7 @@ const TOOL_ICONS: Record<string, string> = {
   [TOOL_TOOL_SEARCH]: 'search-check',
   [TOOL_ENTER_PLAN_MODE]: 'map',
   [TOOL_EXIT_PLAN_MODE]: 'check-circle',
+  Ergebnis: 'check-circle',
   // Runtime-managed tools
   [TOOL_APPLY_PATCH]: 'file-pen',
   [TOOL_WRITE_STDIN]: 'terminal',

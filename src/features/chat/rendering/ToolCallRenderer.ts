@@ -103,6 +103,8 @@ export function getToolSummary(name: string, input: Record<string, unknown>): st
       return truncateText(parseToolSearchQuery(getInputText(input, 'query')), 60);
     case TOOL_TODO_WRITE:
       return '';
+    case 'Ergebnis':
+      return truncateText(getInputText(input, 'summary'), 60);
     case TOOL_APPLY_PATCH:
       return getApplyPatchSummary(input);
     case TOOL_WRITE_STDIN:
@@ -161,6 +163,8 @@ export function getToolLabel(name: string, input: Record<string, unknown>): stri
       return 'Entering plan mode';
     case TOOL_EXIT_PLAN_MODE:
       return 'Plan fertig';
+    case 'Ergebnis':
+      return input.summary ? `Ergebnis: ${String(input.summary).slice(0, 40)}` : 'Ergebnis';
     case TOOL_APPLY_PATCH: {
       const summary = getApplyPatchSummary(input);
       return summary ? `apply_patch: ${summary}` : 'apply_patch';

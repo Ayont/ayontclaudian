@@ -30,6 +30,7 @@ import type {
   SessionUpdateResult,
   SubagentRuntimeState,
 } from '../../../core/runtime/types';
+import { TOOL_EDIT, TOOL_WRITE } from '../../../core/tools/toolNames';
 import type {
   ChatMessage,
   Conversation,
@@ -46,7 +47,10 @@ import {
 import { CLINE_PROVIDER_CAPABILITIES } from '../capabilities';
 import { clineSessionExists } from '../history/ClineSessionStore';
 import { getClineModelContextWindow, resolveClineModelSelection } from '../modelOptions';
-import { normalizeClineAcpToolName } from '../normalization/clineAcpToolNormalization';
+import {
+  normalizeClineAcpToolInput,
+  normalizeClineAcpToolName,
+} from '../normalization/clineAcpToolNormalization';
 import { parseClineJsonLine } from '../normalization/jsonEvents';
 import { CLINE_PROVIDER_ID, getClineProviderSettings } from '../settings';
 import { buildPersistedClineState, type ClineProviderState,getClineState, isClineNativeSessionId } from '../types';
@@ -364,11 +368,17 @@ export class ClineChatRuntime implements ChatRuntime {
         return;
       }
       if (event.kind === 'tool_start') {
+        const rawName = event.toolName;
+        const input = normalizeClineAcpToolInput(rawName, event.toolInput ?? {});
+        let name = normalizeClineAcpToolName(rawName);
+        if (name === TOOL_WRITE && typeof input.old_string === 'string' && input.old_string) {
+          name = TOOL_EDIT;
+        }
         pendingChunks.push({
           type: 'tool_use',
           id: event.toolCallId ?? `cline-tool-${Date.now()}`,
-          name: normalizeClineAcpToolName(event.toolName),
-          input: event.toolInput ?? {},
+          name,
+          input,
         });
         return;
       }

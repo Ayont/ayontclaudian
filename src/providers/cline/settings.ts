@@ -55,7 +55,7 @@ export const DEFAULT_CLINE_PROVIDER_SETTINGS: Readonly<PersistedClineProviderSet
   goalLoopMaxIterations: DEFAULT_GOAL_LOOP_MAX_ITERATIONS,
   goalLoopVerification: 'verifier',
   permissionMode: 'yolo',
-  retries: 3,
+  retries: 6,
   thinking: 'medium',
 });
 

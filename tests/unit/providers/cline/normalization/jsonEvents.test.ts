@@ -49,6 +49,26 @@ describe('parseClineJsonLine', () => {
     }));
   });
 
+  it('reads Cline 3.x tool name from event.name', () => {
+    const tool = parseClineJsonLine(JSON.stringify({
+      type: 'agent_event',
+      payload: {
+        event: {
+          type: 'content_start',
+          contentType: 'tool',
+          id: 'call_1',
+          name: 'read_files',
+          input: { files: [{ path: 'Home.md' }] },
+        },
+      },
+    }));
+    expect(tool).toEqual(expect.objectContaining({
+      kind: 'tool_start',
+      toolCallId: 'call_1',
+      toolName: 'read_files',
+    }));
+  });
+
   it('accepts the documented flat {event.text} shape', () => {
     const event = parseClineJsonLine('{"type":"agent_event","event":{"text":"OK"}}');
     expect(event).toEqual(expect.objectContaining({ kind: 'text', text: 'OK' }));

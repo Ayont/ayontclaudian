@@ -36,7 +36,6 @@ describe('buildClineLaunchSpec', () => {
       retries: 5,
     });
     expect(spec.args).toEqual([
-      '--yolo',
       '--json',
       '-P', 'cline-pass',
       '-m', 'cline-pass/kimi-k3',
@@ -78,11 +77,11 @@ describe('buildClineLaunchSpec', () => {
       thinking: 'none',
     });
     expect(spec.args).toEqual([
-      '--yolo',
       '--json',
       '-P', 'cline-pass',
       '-m', 'cline-pass/deepseek-v4-flash',
       '-c', '/vault',
+      '--auto-approve', 'true',
       'Name this chat',
     ]);
     expect(spec.args).not.toContain('--thinking');

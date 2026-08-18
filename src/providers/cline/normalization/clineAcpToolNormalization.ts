@@ -20,18 +20,28 @@ const PATH_AS_FILE_PATH = new Set<string>(['Read', 'View', 'Write', 'Edit', 'Mul
 
 const TOOL_NAME_MAP: Record<string, string> = {
   agent: TOOL_SUBAGENT,
+  askfollowupquestion: TOOL_ASK_USER_QUESTION,
   askuserquestion: TOOL_ASK_USER_QUESTION,
+  attemptcompletion: 'Ergebnis',
   bash: TOOL_BASH,
   browser: TOOL_WEB_FETCH,
+  browseraction: TOOL_WEB_FETCH,
   edit: TOOL_EDIT,
+  editor: TOOL_WRITE,
   glob: TOOL_GLOB,
   grep: TOOL_GREP,
   list: TOOL_GLOB,
+  listfiles: TOOL_GLOB,
   ls: TOOL_GLOB,
   multiedit: TOOL_EDIT,
   question: TOOL_ASK_USER_QUESTION,
   read: TOOL_READ,
+  readfile: TOOL_READ,
+  readfiles: TOOL_READ,
+  runcommands: TOOL_BASH,
+  searchfiles: TOOL_GREP,
   shell: TOOL_BASH,
+  submitandexit: 'Ergebnis',
   task: TOOL_SUBAGENT_LEGACY,
   taskoutput: TOOL_AGENT_OUTPUT,
   todo_write: TOOL_TODO_WRITE,
@@ -40,31 +50,98 @@ const TOOL_NAME_MAP: Record<string, string> = {
   webfetch: TOOL_WEB_FETCH,
   websearch: TOOL_WEB_SEARCH,
   write: TOOL_WRITE,
+  writetofile: TOOL_WRITE,
 };
 
 function toKnownToolName(value: string | undefined): string | null {
   if (!value) {
     return null;
   }
-  const lower = value.trim().toLowerCase();
+  const lower = value.trim().toLowerCase().replace(/[_-\s]/g, '');
   return lower in TOOL_NAME_MAP ? TOOL_NAME_MAP[lower] : null;
+}
+
+function firstString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function firstPathFromFiles(value: unknown): string | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  for (const entry of value) {
+    if (typeof entry === 'string' && entry.trim()) {
+      return entry;
+    }
+    if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+      const path = firstString((entry as Record<string, unknown>).path)
+        ?? firstString((entry as Record<string, unknown>).file_path);
+      if (path) {
+        return path;
+      }
+    }
+  }
+  return undefined;
+}
+
+function firstCommand(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim()) {
+    return value;
+  }
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  for (const entry of value) {
+    if (typeof entry === 'string' && entry.trim()) {
+      return entry;
+    }
+    if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+      const command = firstString((entry as Record<string, unknown>).command)
+        ?? firstString((entry as Record<string, unknown>).cmd);
+      if (command) {
+        return command;
+      }
+    }
+  }
+  return undefined;
 }
 
 export function normalizeClineAcpToolInput(
   rawName: string | undefined,
   input: Record<string, unknown>,
 ): Record<string, unknown> {
-  const name = rawName ?? '';
-  if (!PATH_AS_FILE_PATH.has(name)) {
-    return input;
-  }
-  const path = input.path;
-  if (typeof path !== 'string' || !path.trim()) {
-    return input;
-  }
+  const key = String(rawName ?? '').trim().toLowerCase().replace(/[_-\s]/g, '');
   const next: Record<string, unknown> = { ...input };
-  delete next.path;
-  next.file_path = path;
+
+  const filePath = firstString(input.file_path)
+    ?? firstString(input.path)
+    ?? firstPathFromFiles(input.files);
+  if (filePath && !firstString(next.file_path)) {
+    next.file_path = filePath;
+  }
+
+  const command = firstString(input.command) ?? firstCommand(input.commands);
+  if (command && !firstString(next.command)) {
+    next.command = command;
+  }
+
+  const contents = firstString(input.contents)
+    ?? firstString(input.new_text)
+    ?? firstString(input.new_string)
+    ?? firstString(input.content);
+  if (contents && !firstString(next.contents)) {
+    next.contents = contents;
+  }
+
+  if (key === 'editor' && firstString(input.old_string)) {
+    next.old_string = input.old_string;
+  }
+
+  if (PATH_AS_FILE_PATH.has(rawName ?? '') && firstString(input.path) && !firstString(input.file_path)) {
+    delete next.path;
+    next.file_path = input.path;
+  }
+
   return next;
 }
 

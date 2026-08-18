@@ -42,7 +42,7 @@ export function normalizeClineThinking(value: string): ClineThinkingLevel {
 
 export function normalizeClineRetries(value: number | undefined): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
-    return 3;
+    return 6;
   }
   return Math.min(10, Math.max(1, Math.round(value)));
 }
@@ -63,7 +63,7 @@ export function buildClineLaunchSpec(params: BuildClineLaunchSpecParams): ClineL
   const thinking = normalizeClineThinking(params.thinking);
   const compaction = isClineCompactionMode(params.compaction) ? params.compaction : undefined;
   const retries = normalizeClineRetries(params.retries);
-  const args: string[] = ['--yolo', '--json'];
+  const args: string[] = ['--json'];
 
   if (apiProvider) {
     args.push('-P', apiProvider);
@@ -77,13 +77,17 @@ export function buildClineLaunchSpec(params: BuildClineLaunchSpecParams): ClineL
   if (compaction && compaction !== 'agentic') {
     args.push('--compaction', compaction);
   }
-  if (retries !== 3) {
+  if (retries !== 6) {
     args.push('--retries', String(retries));
   }
   args.push('-c', params.cwd);
 
   if (params.permissionMode === 'plan') {
     args.push('--plan');
+  } else if (params.permissionMode === 'normal') {
+    args.push('--auto-approve', 'false');
+  } else {
+    args.push('--auto-approve', 'true');
   }
   if (isClineNativeSessionId(params.sessionId)) {
     args.push('--id', params.sessionId.trim());

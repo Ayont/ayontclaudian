@@ -12,9 +12,10 @@ const CLINE_FEATURE_GROUPS: ClineFeatureGroup[] = [
     desc: 'Headless `cline --json` — Plan/Act, Thinking, YOLO.',
     items: [
       { label: 'JSON-Stream', flag: 'json' },
-      { label: 'YOLO / Act', flag: 'yolo' },
+      { label: 'Auto-Approve', flag: 'yolo' },
       { label: 'Plan', flag: 'plan' },
       { label: 'Thinking', flag: 'thinking' },
+      { label: 'Read / Bash / Editor' },
       { label: 'Session-Resume' },
     ],
   },
@@ -34,7 +35,7 @@ const CLINE_FEATURE_GROUPS: ClineFeatureGroup[] = [
     desc: 'Offizielle Flags, die ayontclaudian setzt.',
     items: [
       { label: '--json' },
-      { label: '--yolo' },
+      { label: '--auto-approve' },
       { label: '-P / -m' },
       { label: '--thinking' },
       { label: '--plan' },

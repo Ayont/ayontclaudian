@@ -184,8 +184,8 @@ export function parseClineJsonLine(line: string): ClineJsonEvent | null {
       return {
         kind: 'tool_end',
         sessionId,
-        toolCallId: asString(inner.toolCallId),
-        toolName: asString(inner.toolName),
+        toolCallId: asString(inner.toolCallId) ?? asString(inner.id),
+        toolName: asString(inner.toolName) ?? asString(inner.name),
         toolOutput: asString(inner.output),
         toolError: asString(inner.error),
       };
@@ -193,8 +193,8 @@ export function parseClineJsonLine(line: string): ClineJsonEvent | null {
     return {
       kind: 'tool_start',
       sessionId,
-      toolCallId: asString(inner.toolCallId),
-      toolName: asString(inner.toolName),
+      toolCallId: asString(inner.toolCallId) ?? asString(inner.id),
+      toolName: asString(inner.toolName) ?? asString(inner.name),
       toolInput,
     };
   }
