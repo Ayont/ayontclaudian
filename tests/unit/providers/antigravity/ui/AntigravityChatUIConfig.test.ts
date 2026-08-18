@@ -39,6 +39,28 @@ describe('AntigravityChatUIConfig models', () => {
     );
   });
 
+  // Regression: verified live against `agy models` (agy 1.1.13) — Gemini 3.7
+  // Flash is agy's own default model there (`agy -p "/model"` reports
+  // gemini-3.7-flash-high), so all three tiers must be selectable.
+  it('includes all three Gemini 3.7 Flash reasoning tiers', () => {
+    expect(ANTIGRAVITY_MODEL_NAMES).toEqual(
+      expect.arrayContaining([
+        'Gemini 3.7 Flash (Low)',
+        'Gemini 3.7 Flash (Medium)',
+        'Gemini 3.7 Flash (High)',
+      ]),
+    );
+  });
+
+  // The selector renders in list order, so the newest generation must lead.
+  it('lists the Gemini Flash generations newest first', () => {
+    const flashGenerations = ANTIGRAVITY_MODEL_NAMES.filter((name) => name.includes('Flash')).map((name) =>
+      name.slice('Gemini '.length, name.indexOf(' Flash')),
+    );
+    expect(flashGenerations[0]).toBe('3.7');
+    expect([...new Set(flashGenerations)]).toEqual(['3.7', '3.6', '3.5']);
+  });
+
   it('owns the default id and every model name', () => {
     expect(antigravityChatUIConfig.ownsModel(ANTIGRAVITY_DEFAULT_MODEL_ID, {})).toBe(true);
     expect(antigravityChatUIConfig.ownsModel('Gemini 3.1 Pro (High)', {})).toBe(true);
@@ -122,6 +144,7 @@ describe('AntigravityChatUIConfig permission mode', () => {
     });
 
     it('returns 1M for the Gemini and Claude entries', () => {
+      expect(antigravityChatUIConfig.getContextWindowSize('Gemini 3.7 Flash (High)', undefined)).toBe(1_000_000);
       expect(antigravityChatUIConfig.getContextWindowSize('Gemini 3.6 Flash (High)', undefined)).toBe(1_000_000);
       expect(antigravityChatUIConfig.getContextWindowSize('Gemini 3.1 Pro (Low)', undefined)).toBe(1_000_000);
       expect(antigravityChatUIConfig.getContextWindowSize('Claude Sonnet 4.6 (Thinking)', undefined)).toBe(1_000_000);

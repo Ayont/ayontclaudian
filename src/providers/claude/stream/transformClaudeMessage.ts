@@ -725,6 +725,13 @@ export function* transformSDKMessage(
 
     case 'result':
       options?.streamState?.clearAll();
+      if (message.fast_mode_state === 'cooldown') {
+        yield {
+          type: 'notice',
+          level: 'warning',
+          content: 'Speed-Limit erreicht. Claude läuft jetzt mit Standard-Tempo weiter.',
+        };
+      }
       if (options?.usageState) {
         const usageChunk = maybeEmitUsageFromPromptUsage(options.usageState.getPromptUsage(), options);
         if (usageChunk) {

@@ -133,12 +133,14 @@
   transition:
     border-color var(--cl-dur-fast) var(--cl-ease),
     background var(--cl-dur-fast) var(--cl-ease),
-    transform var(--cl-dur-fast) var(--cl-ease);
+    transform var(--cl-dur-fast) var(--cl-ease),
+    box-shadow var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-welcome-starter:hover {
   border-color: var(--cl-accent-line);
   background: var(--cl-accent-soft);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--cl-accent) 12%, transparent);
 }
 
 .claudian-welcome-starter:active {
@@ -170,6 +172,7 @@
   min-width: 0;
   overflow-wrap: anywhere;
   word-wrap: break-word;
+  contain: layout style;
 }
 
 /* NOTE: `content-visibility: auto` was removed here on purpose. The 280px

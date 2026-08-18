@@ -21,7 +21,7 @@
   width: 24px;
   height: 24px;
   color: var(--text-faint);
-  transition: color 0.15s ease;
+  transition: color var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-mcp-selector-icon-wrapper:hover .claudian-mcp-selector-icon {

@@ -694,6 +694,7 @@ describe('PermissionToggle', () => {
 describe('ServiceTierToggle', () => {
   let parentEl: any;
   let callbacks: ReturnType<typeof createMockCallbacks>;
+  let toggle: ServiceTierToggle;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -716,7 +717,7 @@ describe('ServiceTierToggle', () => {
         permissionMode: 'normal',
       }),
     });
-    new ServiceTierToggle(parentEl, callbacks);
+    toggle = new ServiceTierToggle(parentEl, callbacks);
   });
 
   it('shows the control when the provider exposes service tier options', () => {
@@ -731,7 +732,12 @@ describe('ServiceTierToggle', () => {
     const container = parentEl.querySelector('.claudian-service-tier-toggle');
     expect(button?.hasClass('active')).toBe(false);
     expect(icon).not.toBeNull();
-    expect(container?.getAttribute('title')).toBe('Toggle on/off fast mode');
+    expect(container?.getAttribute('title')).toBe('1.5x speed, 2x credits');
+  });
+
+  it('renders the Speed label next to the bolt', () => {
+    const label = parentEl.querySelector('.claudian-service-tier-label');
+    expect(label?.textContent).toBe('Fast');
   });
 
   it('renders the icon button in the active state when fast mode is on', () => {
@@ -748,13 +754,39 @@ describe('ServiceTierToggle', () => {
     const button = parentEl2.querySelector('.claudian-service-tier-button');
     const container = parentEl2.querySelector('.claudian-service-tier-toggle');
     expect(button?.hasClass('active')).toBe(true);
-    expect(container?.getAttribute('title')).toBe('Toggle on/off fast mode');
+    expect(container?.getAttribute('title')).toBe('1.5x speed, 2x credits');
   });
 
   it('toggles from Standard to Fast on click', async () => {
     const button = parentEl.querySelector('.claudian-service-tier-button');
     await button?.dispatchEvent('click');
     expect(callbacks.onServiceTierChange).toHaveBeenCalledWith('fast');
+  });
+
+  it('exposes cooldown as a distinct visual state without turning Speed off', () => {
+    toggle.setRuntimeState('cooldown');
+
+    const button = parentEl.querySelector('.claudian-service-tier-button');
+    const container = parentEl.querySelector('.claudian-service-tier-toggle');
+    expect(button?.hasClass('is-cooldown')).toBe(true);
+    expect(container?.getAttribute('title')).toContain('Speed-Limit');
+  });
+
+  it('toggles from the keyboard with Enter', async () => {
+    const button = parentEl.querySelector('.claudian-service-tier-button');
+    await button?.dispatchEvent({ type: 'keydown', key: 'Enter', preventDefault() {} });
+    expect(callbacks.onServiceTierChange).toHaveBeenCalledWith('fast');
+  });
+
+  it('reports availability from the provider toggle config', () => {
+    expect(toggle.isAvailable()).toBe(true);
+
+    callbacks.getUIConfig.mockReturnValue({
+      ...createMockUIConfig(),
+      getServiceTierToggle: jest.fn().mockReturnValue(null),
+    });
+    const hidden = new ServiceTierToggle(createMockEl(), callbacks);
+    expect(hidden.isAvailable()).toBe(false);
   });
 
   it('toggles from Fast to Standard on click', async () => {

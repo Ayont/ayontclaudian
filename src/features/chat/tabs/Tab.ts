@@ -350,9 +350,19 @@ async function updateTabProviderSettings(
   return snapshot;
 }
 
-function refreshTabProviderUI(tab: TabData, plugin: ClaudianPlugin): void {
+export function syncComposerModeClasses(tab: TabData, plugin: ClaudianPlugin): void {
   const capabilities = getTabCapabilities(tab, plugin);
   const permissionMode = getTabPermissionMode(tab, plugin);
+  const settings = getTabSettingsSnapshot(tab, plugin);
+  tab.dom.inputWrapper.toggleClass(
+    'claudian-input-plan-mode',
+    permissionMode === 'plan' && capabilities.supportsPlanMode,
+  );
+  const speedOn = !!tab.ui.serviceTierToggle?.isAvailable() && settings.serviceTier === 'fast';
+  tab.dom.inputWrapper.toggleClass('claudian-input-speed-mode', speedOn);
+}
+
+function refreshTabProviderUI(tab: TabData, plugin: ClaudianPlugin): void {
   tab.ui.modelSelector?.updateDisplay();
   tab.ui.modelSelector?.renderOptions();
   tab.ui.modeSelector?.updateDisplay();
@@ -361,10 +371,7 @@ function refreshTabProviderUI(tab: TabData, plugin: ClaudianPlugin): void {
   tab.ui.permissionToggle?.updateDisplay();
   tab.ui.serviceTierToggle?.updateDisplay();
   syncTabGoalBanner(tab, plugin);
-  tab.dom.inputWrapper.toggleClass(
-    'claudian-input-plan-mode',
-    permissionMode === 'plan' && capabilities.supportsPlanMode,
-  );
+  syncComposerModeClasses(tab, plugin);
   plugin.updateProviderStatusBar();
 }
 
@@ -1247,6 +1254,8 @@ function initializeInputToolbar(
         settings.serviceTier = serviceTier;
       });
       tab.ui.serviceTierToggle?.updateDisplay();
+      tab.ui.serviceTierToggle?.setRuntimeState(serviceTier === 'fast' ? 'on' : 'off');
+      syncComposerModeClasses(tab, plugin);
     },
     onPermissionModeChange: async (mode: string) => {
       await updateTabProviderSettings(tab, plugin, (settings) => {
@@ -1258,10 +1267,7 @@ function initializeInputToolbar(
         }
       });
       tab.ui.permissionToggle?.updateDisplay();
-      dom.inputWrapper.toggleClass(
-        'claudian-input-plan-mode',
-        mode === 'plan' && getTabCapabilities(tab, plugin).supportsPlanMode,
-      );
+      syncComposerModeClasses(tab, plugin);
     },
     getAutoMode: () => plugin.settings.autoMode === true,
     onAutoModeChange: async (value: boolean) => {
@@ -1285,6 +1291,7 @@ function initializeInputToolbar(
   tab.ui.mcpServerSelector = toolbarComponents.mcpServerSelector;
   tab.ui.permissionToggle = toolbarComponents.permissionToggle;
   tab.ui.serviceTierToggle = toolbarComponents.serviceTierToggle;
+  syncComposerModeClasses(tab, plugin);
 
   tab.ui.mcpServerSelector.setMcpManager(getProviderMcpManager(getTabProviderId(tab, plugin)));
 
@@ -2548,8 +2555,5 @@ export function updatePlanModeUI(tab: TabData, plugin: ClaudianPlugin, mode: str
   );
   void plugin.saveSettings();
   tab.ui.permissionToggle?.updateDisplay();
-  tab.dom.inputWrapper.toggleClass(
-    'claudian-input-plan-mode',
-    mode === 'plan' && getTabCapabilities(tab, plugin).supportsPlanMode,
-  );
+  syncComposerModeClasses(tab, plugin);
 }

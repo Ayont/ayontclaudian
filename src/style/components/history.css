@@ -160,6 +160,7 @@
   max-height: 350px;
   overflow-y: auto;
   padding: 4px 0 6px;
+  contain: content;
 }
 
 .claudian-history-group {
@@ -186,7 +187,10 @@
   padding: 8px 10px;
   border: none;
   border-radius: 10px;
-  transition: background 0.15s ease;
+  contain: layout style;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 44px;
+  transition: background var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-history-item-icon {

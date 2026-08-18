@@ -19,6 +19,7 @@ import {
   resolveClaudeSettingSources,
 } from '../settings';
 import {
+  isClaudeFastModeEnabled,
   isUltracodeEffort,
   resolveEffortLevel,
   toApiEffortLevel,
@@ -132,6 +133,7 @@ export class QueryOptionsBuilder {
       claudeCliPath: ctx.cliPath,
       enableChrome: claudeSettings.enableChrome,
       enableAutoMode: claudeSettings.safeMode === 'auto',
+      fastMode: isClaudeFastModeEnabled(ctx.settings.model, ctx.settings.serviceTier),
     };
   }
 
@@ -155,6 +157,7 @@ export class QueryOptionsBuilder {
       ctx.canUseTool,
     );
     QueryOptionsBuilder.applyThinking(options, ctx.settings, ctx.settings.model);
+    QueryOptionsBuilder.applyFastMode(options, ctx.settings, ctx.settings.model);
     options.hooks = ctx.hooks;
 
     options.enableFileCheckpointing = true;
@@ -208,6 +211,7 @@ export class QueryOptionsBuilder {
     );
     options.hooks = ctx.hooks;
     QueryOptionsBuilder.applyThinking(options, ctx.settings, ctx.modelOverride ?? ctx.settings.model);
+    QueryOptionsBuilder.applyFastMode(options, ctx.settings, ctx.modelOverride ?? ctx.settings.model);
 
     if (ctx.allowedTools !== undefined && ctx.allowedTools.length > 0) {
       options.tools = ctx.allowedTools;
@@ -324,6 +328,20 @@ export class QueryOptionsBuilder {
         options.settings && typeof options.settings === 'object' ? options.settings : {};
       options.settings = { ...existing, ultracode: true };
     }
+  }
+
+  private static applyFastMode(
+    options: Options,
+    settings: ClaudianSettings,
+    model: string,
+  ): void {
+    const fastMode = isClaudeFastModeEnabled(model, settings.serviceTier);
+    if (!fastMode && !options.settings) {
+      return;
+    }
+    const existing =
+      options.settings && typeof options.settings === 'object' ? options.settings : {};
+    options.settings = { ...existing, fastMode };
   }
 
   private static pathsChanged(a?: string[], b?: string[]): boolean {

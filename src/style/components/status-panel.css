@@ -22,7 +22,7 @@
   padding: 4px 0;
   cursor: pointer;
   border-radius: 4px;
-  transition: background 0.15s ease;
+  transition: background var(--cl-dur-fast) var(--cl-ease);
   overflow: hidden;
 }
 

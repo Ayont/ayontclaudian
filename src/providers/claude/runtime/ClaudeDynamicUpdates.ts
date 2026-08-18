@@ -10,6 +10,7 @@ import type {
 } from '../../../core/runtime/types';
 import type { ClaudianSettings, PermissionMode } from '../../../core/types/settings';
 import {
+  isClaudeFastModeEnabled,
   isUltracodeEffort,
   resolveEffortLevel,
   toApiEffortLevel,
@@ -97,6 +98,19 @@ export async function applyClaudeDynamicUpdates(
       });
     } catch {
       deps.notifyFailure('Failed to update effort level');
+    }
+  }
+
+  const fastMode = isClaudeFastModeEnabled(selectedModel, settings.serviceTier);
+  const currentFastMode = deps.getCurrentConfig()?.fastMode ?? false;
+  if (fastMode !== currentFastMode) {
+    try {
+      await persistentQuery.applyFlagSettings({ fastMode });
+      deps.mutateCurrentConfig(config => {
+        config.fastMode = fastMode;
+      });
+    } catch {
+      deps.notifyFailure('Failed to update fast mode');
     }
   }
 

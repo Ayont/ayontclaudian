@@ -77,6 +77,7 @@ function createMockPersistentQueryConfig(
     claudeCliPath: '/mock/claude',
     enableChrome: false,
     enableAutoMode: false,
+    fastMode: false,
     ...overrides,
   };
 }
@@ -254,6 +255,28 @@ describe('QueryOptionsBuilder', () => {
       const config = QueryOptionsBuilder.buildPersistentQueryConfig(ctx);
 
       expect(config.effortLevel).toBe('max');
+    });
+
+    it('tracks Claude fast mode only when Opus supports it and Speed is on', () => {
+      const enabled = QueryOptionsBuilder.buildPersistentQueryConfig(createMockContext({
+        settings: createMockSettings({ model: 'opus', serviceTier: 'fast' }),
+      }));
+      const unsupported = QueryOptionsBuilder.buildPersistentQueryConfig(createMockContext({
+        settings: createMockSettings({ model: 'haiku', serviceTier: 'fast' }),
+      }));
+      const off = QueryOptionsBuilder.buildPersistentQueryConfig(createMockContext({
+        settings: createMockSettings({ model: 'opus', serviceTier: 'default' }),
+      }));
+
+      expect(enabled.fastMode).toBe(true);
+      expect(unsupported.fastMode).toBe(false);
+      expect(off.fastMode).toBe(false);
+    });
+
+    it('does not restart the persistent query when only fast mode changes', () => {
+      const currentConfig = createMockPersistentQueryConfig({ fastMode: false });
+      const newConfig = { ...currentConfig, fastMode: true };
+      expect(QueryOptionsBuilder.needsRestart(currentConfig, newConfig)).toBe(false);
     });
 
     it('uses effort for Claude models even when a legacy budget is configured', () => {
@@ -435,6 +458,29 @@ describe('QueryOptionsBuilder', () => {
       expect(options.thinking).toEqual({ type: 'adaptive' });
       expect(options.effort).toBe('max');
       expect(options.maxThinkingTokens).toBeUndefined();
+    });
+
+    it('sends settings.fastMode for Speed-enabled Opus and omits it elsewhere', () => {
+      const fastCtx = {
+        ...createMockContext({
+          settings: createMockSettings({ model: 'opus', serviceTier: 'fast' }),
+        }),
+        abortController: new AbortController(),
+        hooks: {},
+      };
+      const haikuCtx = {
+        ...createMockContext({
+          settings: createMockSettings({ model: 'haiku', serviceTier: 'fast' }),
+        }),
+        abortController: new AbortController(),
+        hooks: {},
+      };
+
+      const fastSettings = QueryOptionsBuilder.buildPersistentQueryOptions(fastCtx).settings;
+      const haikuSettings = QueryOptionsBuilder.buildPersistentQueryOptions(haikuCtx).settings;
+
+      expect(fastSettings).toEqual(expect.objectContaining({ fastMode: true }));
+      expect(typeof haikuSettings === 'object' ? haikuSettings?.fastMode : undefined).toBeFalsy();
     });
 
     it('clamps unsupported xhigh effort before building adaptive options', () => {

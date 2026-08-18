@@ -9,11 +9,15 @@
 /* Height calculation: context row (36px) + textarea min (60px) + toolbar (38px) + border (2px) = 136px */
 .claudian-input-wrapper {
   --claudian-input-wrapper-border-color: var(--cl-border-subtle);
-  --claudian-input-wrapper-box-shadow: 0 10px 32px rgba(0, 0, 0, 0.18);
+  --claudian-input-wrapper-box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 10px 32px rgba(0, 0, 0, 0.18);
   position: relative;
   display: flex;
   flex-direction: column;
   min-height: 118px;
+  isolation: isolate;
+  overflow: hidden;
   border: 1px solid var(--claudian-input-wrapper-border-color);
   border-radius: var(--cl-radius-xl);
   background: color-mix(in srgb, var(--cl-composer-tint, transparent) 42%, var(--cl-surface-raised));
@@ -23,7 +27,9 @@
 }
 
 body.theme-light .claudian-input-wrapper {
-  --claudian-input-wrapper-box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --claudian-input-wrapper-box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 8px 24px rgba(0, 0, 0, 0.08);
 }
 
 /* Focus elevation: lift the composer with an accent border + soft shadow while
@@ -170,8 +176,8 @@ body.theme-light .claudian-input-wrapper {
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   padding: 0;
   border: 1px solid var(--cl-border-subtle);
   border-radius: var(--cl-radius-pill);
@@ -182,7 +188,8 @@ body.theme-light .claudian-input-wrapper {
     background var(--cl-dur-fast) var(--cl-ease),
     color var(--cl-dur-fast) var(--cl-ease),
     border-color var(--cl-dur-fast) var(--cl-ease),
-    transform var(--cl-dur-fast) var(--cl-ease);
+    transform var(--cl-dur-fast) var(--cl-ease),
+    box-shadow var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-send-btn svg {
@@ -194,6 +201,7 @@ body.theme-light .claudian-input-wrapper {
   background: var(--cl-accent);
   border-color: transparent;
   color: var(--text-on-accent, #fff);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--cl-accent) 28%, transparent);
 }
 
 .claudian-send-btn.is-ready:hover {
@@ -384,6 +392,38 @@ body.theme-light .claudian-input-wrapper {
 .claudian-input-wrapper.claudian-input-bang-bash-mode {
   --claudian-input-wrapper-border-color: #f472b6;
   --claudian-input-wrapper-box-shadow: 0 0 0 1px #f472b6;
+}
+
+/* Speed: amber plate, same language as the Speed chip. Plan/instruction/bash
+   borders still win because they are more specific mode locks. */
+.claudian-input-wrapper.claudian-input-speed-mode:not(.claudian-input-plan-mode):not(.claudian-input-instruction-mode):not(.claudian-input-bang-bash-mode) {
+  --claudian-input-wrapper-border-color: var(--cl-speed-line);
+  --claudian-input-wrapper-box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 10px 28px color-mix(in srgb, var(--cl-speed) 16%, transparent);
+  background: color-mix(in srgb, var(--cl-speed-soft) 58%, var(--cl-surface-raised));
+}
+
+.claudian-input-container:has(.claudian-input-speed-mode) .claudian-stream-status {
+  border-color: var(--cl-speed-line);
+  background:
+    linear-gradient(90deg, var(--cl-speed-soft), transparent 46%),
+    var(--cl-surface-raised);
+}
+
+.claudian-input-container:has(.claudian-input-speed-mode) .claudian-stream-status-label::after {
+  content: 'Speed';
+  display: inline-flex;
+  align-items: center;
+  margin-inline-start: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--cl-speed-line);
+  border-radius: var(--cl-radius-pill);
+  background: var(--cl-speed-soft);
+  color: var(--cl-speed);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 /* Monospace input while in bash mode */

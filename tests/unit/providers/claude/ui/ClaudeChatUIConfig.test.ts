@@ -188,4 +188,25 @@ describe('claudeChatUIConfig', () => {
       expect(settings.effortLevel).toBe('xhigh');
     });
   });
+
+  describe('getServiceTierToggle', () => {
+    it('exposes the Speed toggle on Opus models that support Claude fast mode', () => {
+      const toggle = claudeChatUIConfig.getServiceTierToggle?.({ model: 'opus' });
+
+      expect(toggle).toEqual({
+        inactiveValue: 'default',
+        inactiveLabel: 'Standard',
+        activeValue: 'fast',
+        activeLabel: 'Speed',
+        description: expect.stringMatching(/2,5[x×]|2\.5x/),
+      });
+    });
+
+    it('hides the Speed toggle on Haiku, Sonnet, Fable, and Opus 4.7', () => {
+      expect(claudeChatUIConfig.getServiceTierToggle?.({ model: 'haiku' })).toBeNull();
+      expect(claudeChatUIConfig.getServiceTierToggle?.({ model: 'sonnet' })).toBeNull();
+      expect(claudeChatUIConfig.getServiceTierToggle?.({ model: 'fable' })).toBeNull();
+      expect(claudeChatUIConfig.getServiceTierToggle?.({ model: 'claude-opus-4-7' })).toBeNull();
+    });
+  });
 });

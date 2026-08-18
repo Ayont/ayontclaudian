@@ -316,6 +316,9 @@ export class StreamController {
         break;
 
       case 'notice':
+        if (chunk.level === 'warning' && chunk.content.startsWith('Speed-Limit')) {
+          this.deps.plugin.getView()?.getActiveTab()?.ui.serviceTierToggle?.setRuntimeState('cooldown');
+        }
         this.deps.updateLiveActivity?.({
           primary: chunk.level === 'warning' ? 'Provider-Warnung' : 'Provider-Hinweis',
           meta: chunk.content,

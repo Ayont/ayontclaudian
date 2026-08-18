@@ -178,6 +178,28 @@ export function isDefaultClaudeModel(model: string): boolean {
 }
 
 /**
+ * Whether Claude Code can serve this model through fast mode (`/fast`).
+ *
+ * Official support is Opus 5 and Opus 4.8 only. Opus 4.7 had fast mode
+ * removed in July 2026. Sonnet, Haiku, and Fable are not on that path.
+ * The floating `opus` alias currently resolves to a supported generation,
+ * so it stays in the allow-list; a future alias move is self-correcting
+ * because the CLI ignores `fastMode` on unsupported models.
+ */
+export function supportsClaudeFastMode(model: string): boolean {
+  const normalized = normalizeModelId(model);
+  if (isBuiltInFamilyVariant(normalized, 'opus')) return true;
+  return /claude-opus-5/.test(normalized) || /claude-opus-4-8/.test(normalized);
+}
+
+export function isClaudeFastModeEnabled(model: string, serviceTier: unknown): boolean {
+  return serviceTier === 'fast' && supportsClaudeFastMode(model);
+}
+
+export const CLAUDE_FAST_MODE_DESCRIPTION =
+  'Opus bis zu 2,5× schneller. Gleiche Qualität, höhere Token-Kosten. Nur Opus 5 und Opus 4.8.';
+
+/**
  * Whether the model supports the `xhigh` effort level.
  *
  * Per the bundled SDK (`sdk.d.ts`: "`'xhigh'` — Deeper than high (Fable 5, Opus

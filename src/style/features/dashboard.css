@@ -28,7 +28,7 @@ body {
   margin: 0 auto;
   font-family: var(--font-interface);
   color: var(--claudian-text);
-  animation: claudian-fade-in 0.4s ease;
+  animation: claudian-fade-in 220ms var(--cl-ease, cubic-bezier(0.16, 1, 0.3, 1));
 }
 
 @keyframes claudian-fade-in {

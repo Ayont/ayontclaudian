@@ -625,7 +625,9 @@ export class ServiceTierToggle {
   private container: HTMLElement;
   private buttonEl: HTMLElement | null = null;
   private iconEl: HTMLElement | null = null;
+  private labelEl: HTMLElement | null = null;
   private callbacks: ToolbarCallbacks;
+  private runtimeState: 'off' | 'on' | 'cooldown' = 'off';
 
   constructor(parentEl: HTMLElement, callbacks: ToolbarCallbacks) {
     this.callbacks = callbacks;
@@ -637,13 +639,23 @@ export class ServiceTierToggle {
     this.container.empty();
 
     this.buttonEl = this.container.createDiv({ cls: 'claudian-service-tier-button' });
+    this.buttonEl.setAttribute('role', 'button');
+    this.buttonEl.setAttribute('tabindex', '0');
+    this.buttonEl.setAttribute('aria-label', 'Speed');
     this.iconEl = this.buttonEl.createSpan({ cls: 'claudian-service-tier-icon' });
     setIcon(this.iconEl, 'zap');
+    this.labelEl = this.buttonEl.createSpan({ cls: 'claudian-service-tier-label' });
 
     this.updateDisplay();
 
     this.buttonEl.addEventListener('click', () => {
-      runToolbarAction(() => this.toggle(), 'Failed to change service tier');
+      runToolbarAction(() => this.toggle().then(() => undefined), 'Speed konnte nicht umgeschaltet werden');
+    });
+    this.buttonEl.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        runToolbarAction(() => this.toggle().then(() => undefined), 'Speed konnte nicht umgeschaltet werden');
+      }
     });
   }
 
@@ -652,37 +664,65 @@ export class ServiceTierToggle {
     return uiConfig.getServiceTierToggle?.(this.callbacks.getSettings()) ?? null;
   }
 
+  isAvailable(): boolean {
+    return this.getToggleConfig() !== null;
+  }
+
+  setRuntimeState(state: 'off' | 'on' | 'cooldown'): void {
+    this.runtimeState = state;
+    this.updateDisplay();
+  }
+
   updateDisplay() {
     if (!this.buttonEl || !this.iconEl) return;
 
     const toggleConfig = this.getToggleConfig();
     if (!toggleConfig) {
       this.container.addClass('claudian-hidden');
+      this.buttonEl.removeAttribute('aria-pressed');
       return;
     }
 
     this.container.removeClass('claudian-hidden');
     const current = this.callbacks.getSettings().serviceTier;
     const isActive = current === toggleConfig.activeValue;
-    if (isActive) {
-      this.buttonEl.addClass('active');
-    } else {
-      this.buttonEl.removeClass('active');
-    }
+    this.buttonEl.toggleClass('active', isActive);
+    this.buttonEl.toggleClass('is-cooldown', this.runtimeState === 'cooldown');
+    this.buttonEl.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    this.buttonEl.setAttribute('aria-label', toggleConfig.activeLabel);
+    this.labelEl?.setText(toggleConfig.activeLabel);
 
-    this.container.setAttribute('title', 'Toggle on/off fast mode');
+    if (this.runtimeState === 'cooldown') {
+      this.container.setAttribute('title', 'Speed-Limit erreicht. Fallback auf Standard-Tempo.');
+    } else if (isActive) {
+      this.container.setAttribute(
+        'title',
+        toggleConfig.description ?? 'Speed an. Klicken zum Ausschalten.',
+      );
+    } else {
+      this.container.setAttribute(
+        'title',
+        toggleConfig.description ?? 'Speed: schnelleres Tempo, höhere Kosten.',
+      );
+    }
   }
 
-  private async toggle() {
+  async toggle(): Promise<boolean> {
     const toggleConfig = this.getToggleConfig();
-    if (!toggleConfig) return;
+    if (!toggleConfig) return false;
 
     const current = this.callbacks.getSettings().serviceTier;
     const next = current === toggleConfig.activeValue
       ? toggleConfig.inactiveValue
       : toggleConfig.activeValue;
     await this.callbacks.onServiceTierChange(next);
+    if (next !== toggleConfig.activeValue) {
+      this.runtimeState = 'off';
+    } else if (this.runtimeState === 'off') {
+      this.runtimeState = 'on';
+    }
     this.updateDisplay();
+    return next === toggleConfig.activeValue;
   }
 }
 

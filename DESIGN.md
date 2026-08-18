@@ -23,6 +23,7 @@ Claudian is a T3 Code-style control plane for coding agents inside an Obsidian v
 
 - Radius: 6px controls, 12px rows, 16px cards, 22px composer, pill for send and status chips.
 - The composer carries a soft resting shadow; other surfaces use hairline borders.
+- Speed mode uses a warm amber pill and composer edge, independent of the provider accent.
 - Avoid nested cards. Use sections, separators, and rows inside major surfaces.
 
 ## Provider Identity
@@ -35,7 +36,7 @@ Claudian is a T3 Code-style control plane for coding agents inside an Obsidian v
 ## Feedback
 
 - Immediate: hover, press, focus, selected, and disabled states.
-- Live: provider name, activity phrase, elapsed time, progress, and latest tool activity.
+- Live: provider name, activity phrase, elapsed time, progress, latest tool activity, and Speed / cooldown state.
 - Completion: success or error state plus durable output location.
 - Empty states show a greeting plus mode-aware starter chips.
 

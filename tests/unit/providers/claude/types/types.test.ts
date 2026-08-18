@@ -18,10 +18,12 @@ import {
   DEFAULT_EFFORT_LEVEL,
   filterVisibleModelOptions,
   getContextWindowSize,
+  isClaudeFastModeEnabled,
   isDefaultClaudeModel,
   isUltracodeEffort,
   normalizeEffortLevel,
   normalizeVisibleModelVariant,
+  supportsClaudeFastMode,
   supportsXHighEffort,
   toApiEffortLevel,
 } from '@/providers/claude/types/models';
@@ -846,6 +848,37 @@ describe('types.ts', () => {
       expect(supportsXHighEffort('claude-sonnet-4-5')).toBe(false);
       expect(supportsXHighEffort('claude-opus-4-6')).toBe(false);
       expect(supportsXHighEffort('haiku')).toBe(false);
+    });
+  });
+
+  describe('supportsClaudeFastMode', () => {
+    it('returns true for the floating opus alias and Opus 5 / 4.8 ids', () => {
+      expect(supportsClaudeFastMode('opus')).toBe(true);
+      expect(supportsClaudeFastMode('opus[1m]')).toBe(true);
+      expect(supportsClaudeFastMode('OPUS')).toBe(true);
+      expect(supportsClaudeFastMode('claude-opus-5')).toBe(true);
+      expect(supportsClaudeFastMode('claude-opus-5[1m]')).toBe(true);
+      expect(supportsClaudeFastMode('claude-opus-4-8')).toBe(true);
+      expect(supportsClaudeFastMode('claude-opus-4-8[1m]')).toBe(true);
+    });
+
+    it('returns false for models Claude Code does not serve through fast mode', () => {
+      expect(supportsClaudeFastMode('haiku')).toBe(false);
+      expect(supportsClaudeFastMode('sonnet')).toBe(false);
+      expect(supportsClaudeFastMode('sonnet[1m]')).toBe(false);
+      expect(supportsClaudeFastMode('claude-sonnet-5')).toBe(false);
+      expect(supportsClaudeFastMode('claude-opus-4-7')).toBe(false);
+      expect(supportsClaudeFastMode('claude-opus-4-6')).toBe(false);
+      expect(supportsClaudeFastMode('fable')).toBe(false);
+    });
+  });
+
+  describe('isClaudeFastModeEnabled', () => {
+    it('requires both a supported Opus model and the fast service tier', () => {
+      expect(isClaudeFastModeEnabled('opus', 'fast')).toBe(true);
+      expect(isClaudeFastModeEnabled('claude-opus-4-8', 'fast')).toBe(true);
+      expect(isClaudeFastModeEnabled('opus', 'default')).toBe(false);
+      expect(isClaudeFastModeEnabled('sonnet', 'fast')).toBe(false);
     });
   });
 

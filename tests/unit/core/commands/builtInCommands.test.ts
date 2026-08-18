@@ -100,6 +100,16 @@ describe('builtInCommands', () => {
       expect(detectBuiltInCommand('/Fork')).not.toBeNull();
     });
 
+    it('detects /fast and /speed as the Speed toggle', () => {
+      const fast = detectBuiltInCommand('/fast');
+      expect(fast).not.toBeNull();
+      expect(fast?.command.action).toBe('fast');
+
+      const alias = detectBuiltInCommand('/speed');
+      expect(alias).not.toBeNull();
+      expect(alias?.command.action).toBe('fast');
+    });
+
     it('detects /status and /claudian alias', () => {
       const status = detectBuiltInCommand('/status');
       expect(status).not.toBeNull();
@@ -281,8 +291,8 @@ describe('builtInCommands', () => {
     it('returns only commands supported by codex capabilities', () => {
       const commands = getBuiltInCommandsForDropdown('codex');
       // Universal commands (no required capability) join the supported set.
-      expect(commands.length).toBe(22);
-      expect(commands.map(c => c.name)).toEqual(['clear', 'add-dir', 'resume', 'fork', 'undo', 'branches', 'commands', 'export-html', 'export-pdf', 'goal', 'workflow', 'schedule', 'team', 'template', 'vault-health', 'artifact', 'document', 'email', 'image', 'skill', 'packet-tracer', 'status']);
+      expect(commands.length).toBe(23);
+      expect(commands.map(c => c.name)).toEqual(['clear', 'add-dir', 'resume', 'fork', 'undo', 'branches', 'commands', 'export-html', 'export-pdf', 'goal', 'workflow', 'schedule', 'team', 'template', 'vault-health', 'artifact', 'document', 'email', 'image', 'skill', 'packet-tracer', 'status', 'fast']);
     });
   });
 

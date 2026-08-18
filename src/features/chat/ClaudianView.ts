@@ -26,6 +26,7 @@ import {
   getTabTitle,
   onProviderAvailabilityChanged,
   sendTabInputMessageFromExplicitEnterShortcut,
+  syncComposerModeClasses,
   updatePlanModeUI,
 } from './tabs/Tab';
 import { TabBar } from './tabs/TabBar';
@@ -128,7 +129,6 @@ export class ClaudianView extends ItemView {
       );
       const model = providerSettings.model;
       const uiConfig = ProviderRegistry.getChatUIConfig(providerId);
-      const capabilities = ProviderRegistry.getCapabilities(providerId);
       const contextWindow = uiConfig.getContextWindowSize(
         model,
         providerSettings.customContextLimits,
@@ -146,10 +146,7 @@ export class ClaudianView extends ItemView {
       tab.ui.thinkingBudgetSelector?.updateDisplay();
       tab.ui.permissionToggle?.updateDisplay();
       tab.ui.serviceTierToggle?.updateDisplay();
-      tab.dom.inputWrapper.toggleClass(
-        'claudian-input-plan-mode',
-        providerSettings.permissionMode === 'plan' && capabilities.supportsPlanMode,
-      );
+      syncComposerModeClasses(tab, this.plugin);
     }
 
     this.tabManager?.primeProviderRuntime();

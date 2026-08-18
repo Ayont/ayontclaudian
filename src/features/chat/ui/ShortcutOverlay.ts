@@ -16,6 +16,7 @@ export const CHAT_SHORTCUTS: readonly ShortcutEntry[] = [
   { id: 'history', keys: '⌘ ⇧ H', label: 'Verlauf öffnen', group: 'Navigation' },
   { id: 'command-center', keys: '⌘ K', label: 'Befehlspalette', group: 'Navigation' },
   { id: 'plan', keys: '⇧ Tab', label: 'Plan-Modus umschalten', group: 'Modi' },
+  { id: 'speed', keys: '/fast', label: 'Speed-Modus umschalten', group: 'Modi' },
   { id: 'shortcuts', keys: '⌘ /', label: 'Tastenkürzel', group: 'Modi' },
 ];
 

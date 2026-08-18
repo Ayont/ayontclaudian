@@ -109,6 +109,8 @@ export interface PersistentQueryConfig {
   claudeCliPath: string;
   enableChrome: boolean;
   enableAutoMode: boolean;
+  /** Claude Code `/fast` serving path. Dynamic via applyFlagSettings. */
+  fastMode?: boolean;
 }
 
 export interface SessionState {

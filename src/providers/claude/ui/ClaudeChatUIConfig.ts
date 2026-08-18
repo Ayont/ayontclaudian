@@ -2,6 +2,7 @@ import type {
   ProviderChatUIConfig,
   ProviderPermissionModeToggleConfig,
   ProviderReasoningOption,
+  ProviderServiceTierToggleConfig,
   ProviderUIOption,
 } from '../../../core/providers/types';
 import { CLAUDE_PROVIDER_ICON } from '../../../shared/icons';
@@ -9,6 +10,7 @@ import { getCustomModelIds } from '../env/claudeModelEnv';
 import { getClaudeModelOptions } from '../modelOptions';
 import { getClaudeProviderSettings, updateClaudeProviderSettings } from '../settings';
 import {
+  CLAUDE_FAST_MODE_DESCRIPTION,
   DEFAULT_CLAUDE_MODELS,
   DEFAULT_EFFORT_LEVEL,
   EFFORT_LEVELS,
@@ -16,6 +18,7 @@ import {
   isEffortLevelSupported,
   normalizeEffortLevel,
   normalizeVisibleModelVariant,
+  supportsClaudeFastMode,
 } from '../types/models';
 
 const CLAUDE_PERMISSION_MODE_TOGGLE: ProviderPermissionModeToggleConfig = {
@@ -25,6 +28,14 @@ const CLAUDE_PERMISSION_MODE_TOGGLE: ProviderPermissionModeToggleConfig = {
   activeLabel: 'YOLO',
   planValue: 'plan',
   planLabel: 'PLAN',
+};
+
+const CLAUDE_SERVICE_TIER_TOGGLE: ProviderServiceTierToggleConfig = {
+  inactiveValue: 'default',
+  inactiveLabel: 'Standard',
+  activeValue: 'fast',
+  activeLabel: 'Speed',
+  description: CLAUDE_FAST_MODE_DESCRIPTION,
 };
 
 export const claudeChatUIConfig: ProviderChatUIConfig = {
@@ -86,6 +97,12 @@ export const claudeChatUIConfig: ProviderChatUIConfig = {
 
   getPermissionModeToggle() {
     return CLAUDE_PERMISSION_MODE_TOGGLE;
+  },
+
+  getServiceTierToggle(settings): ProviderServiceTierToggleConfig | null {
+    return supportsClaudeFastMode(typeof settings.model === 'string' ? settings.model : '')
+      ? CLAUDE_SERVICE_TIER_TOGGLE
+      : null;
   },
 
   isBangBashEnabled(settings) {

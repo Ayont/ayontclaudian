@@ -91,6 +91,11 @@
   --cl-success: var(--color-green, #54a86b);
   --cl-warning: var(--color-orange, #d49a45);
   --cl-danger: var(--color-red, #d35f5f);
+
+  /* Speed / fast-mode — warm amber, independent of the provider accent. */
+  --cl-speed: #e2b04a;
+  --cl-speed-soft: rgba(226, 176, 74, 0.14);
+  --cl-speed-line: rgba(226, 176, 74, 0.38);
 }
 
 /* Light theme softens elevation so cards don't look heavy on white. */
@@ -99,6 +104,9 @@ body.theme-light .claudian-container {
   --cl-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.10);
   --cl-shadow-lg: 0 8px 22px rgba(0, 0, 0, 0.14);
   --cl-shadow-pop: 0 14px 34px rgba(0, 0, 0, 0.18);
+  --cl-speed: #b8861a;
+  --cl-speed-soft: rgba(184, 134, 26, 0.12);
+  --cl-speed-line: rgba(184, 134, 26, 0.32);
 }
 
 body.theme-light {

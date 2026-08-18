@@ -1,26 +1,27 @@
-/* Codex fast-mode / service-tier toggle */
+/* T3-style Speed / Fast chip — labeled pill, amber when live. */
 .claudian-service-tier-toggle {
   display: flex;
   align-items: center;
-  padding-left: 2px;
+  flex-shrink: 0;
 }
 
 .claudian-service-tier-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border: 1px solid transparent;
-  border-radius: var(--cl-radius-sm);
+  gap: 5px;
+  min-height: 28px;
+  padding: 3px 9px 3px 7px;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: var(--cl-radius-pill);
   color: var(--text-muted);
-  background: transparent;
+  background: var(--cl-surface-raised);
   cursor: pointer;
-  transition: color var(--cl-dur-fast) var(--cl-ease),
+  transition:
+    color var(--cl-dur-fast) var(--cl-ease),
     background var(--cl-dur-fast) var(--cl-ease),
     border-color var(--cl-dur-fast) var(--cl-ease),
     transform var(--cl-dur-fast) var(--cl-ease);
-  flex-shrink: 0;
 }
 
 .claudian-service-tier-icon {
@@ -30,27 +31,53 @@
 }
 
 .claudian-service-tier-icon svg {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
+}
+
+.claudian-service-tier-label {
+  font-family: var(--cl-font-ui);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: -0.012em;
+  line-height: 1;
 }
 
 .claudian-service-tier-button:hover {
-  color: var(--cl-accent);
-  background: var(--cl-accent-soft);
+  color: var(--cl-speed);
+  background: var(--cl-speed-soft);
+  border-color: var(--cl-speed-line);
 }
 
 .claudian-service-tier-button:focus-visible {
   outline: none;
-  border-color: var(--cl-accent-line);
-  box-shadow: 0 0 0 2px var(--cl-accent-softer);
+  border-color: var(--cl-speed-line);
+  box-shadow: 0 0 0 2px var(--cl-speed-soft);
 }
 
 .claudian-service-tier-button:active {
-  transform: scale(0.92);
+  transform: scale(0.97);
 }
 
 .claudian-service-tier-button.active {
-  color: var(--cl-accent);
-  background: var(--cl-accent-soft);
-  border-color: var(--cl-accent-line);
+  color: var(--cl-speed);
+  background: var(--cl-speed-soft);
+  border-color: var(--cl-speed-line);
+}
+
+.claudian-service-tier-button.is-cooldown {
+  color: var(--cl-warning);
+  background: color-mix(in srgb, var(--cl-warning) 14%, var(--cl-surface-raised));
+  border-color: color-mix(in srgb, var(--cl-warning) 42%, transparent);
+}
+
+@media (max-width: 380px) {
+  .claudian-service-tier-label {
+    display: none;
+  }
+
+  .claudian-service-tier-button {
+    width: 28px;
+    padding: 0;
+  }
 }

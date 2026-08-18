@@ -1195,6 +1195,34 @@ describe('transformSDKMessage', () => {
       ]);
     });
 
+    it('yields a warning notice when Claude fast mode falls back to cooldown', () => {
+      const message = msg({
+        type: 'result',
+        fast_mode_state: 'cooldown',
+        modelUsage: {
+          'claude-opus-4-8': {
+            inputTokens: 1000,
+            cacheCreationInputTokens: 0,
+            cacheReadInputTokens: 0,
+            outputTokens: 80,
+            webSearchRequests: 0,
+            costUSD: 0.01,
+            contextWindow: 1000000,
+            maxOutputTokens: 8192,
+          },
+        },
+      });
+
+      const results = [...transformSDKMessage(message)];
+
+      expect(results[0]).toEqual({
+        type: 'notice',
+        level: 'warning',
+        content: 'Speed-Limit erreicht. Claude läuft jetzt mit Standard-Tempo weiter.',
+      });
+      expect(results).toContainEqual({ type: 'context_window', contextWindow: 1000000 });
+    });
+
     it('yields error and context_window for failed result messages', () => {
       const message = msg({
         type: 'result',

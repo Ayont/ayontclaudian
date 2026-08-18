@@ -18,6 +18,7 @@ import {
   initializeTabUI,
   onProviderAvailabilityChanged,
   setupServiceCallbacks,
+  syncComposerModeClasses,
   type TabCreateOptions,
   wireTabInputEvents,
 } from '@/features/chat/tabs/Tab';
@@ -180,6 +181,8 @@ const createMockPermissionToggle = () => ({
 
 const createMockServiceTierToggle = () => ({
   updateDisplay: jest.fn(),
+  isAvailable: jest.fn().mockReturnValue(false),
+  setRuntimeState: jest.fn(),
 });
 
 // Shared mock instances (reset in beforeEach)
@@ -4335,5 +4338,39 @@ describe('Tab - InputController getTabProviderId wiring', () => {
     // For a blank tab with default model, should resolve to claude
     const result = config.getTabProviderId();
     expect(result).toBe('claude');
+  });
+});
+
+describe('syncComposerModeClasses', () => {
+  it('tints the composer when Speed is available and on', () => {
+    const plugin = createMockPlugin();
+    plugin.settings.serviceTier = 'fast';
+    plugin.settings.savedProviderServiceTier = { claude: 'fast' };
+    const tab = createTab(createMockOptions({ plugin }));
+    tab.ui.serviceTierToggle = {
+      isAvailable: jest.fn().mockReturnValue(true),
+      updateDisplay: jest.fn(),
+      setRuntimeState: jest.fn(),
+    } as never;
+
+    syncComposerModeClasses(tab, plugin);
+
+    expect(tab.dom.inputWrapper.hasClass('claudian-input-speed-mode')).toBe(true);
+  });
+
+  it('clears the Speed tint when the toggle is unavailable', () => {
+    const plugin = createMockPlugin();
+    plugin.settings.serviceTier = 'fast';
+    const tab = createTab(createMockOptions({ plugin }));
+    tab.ui.serviceTierToggle = {
+      isAvailable: jest.fn().mockReturnValue(false),
+      updateDisplay: jest.fn(),
+      setRuntimeState: jest.fn(),
+    } as never;
+    tab.dom.inputWrapper.addClass('claudian-input-speed-mode');
+
+    syncComposerModeClasses(tab, plugin);
+
+    expect(tab.dom.inputWrapper.hasClass('claudian-input-speed-mode')).toBe(false);
   });
 });

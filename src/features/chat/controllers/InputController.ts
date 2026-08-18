@@ -2967,6 +2967,19 @@ export class InputController {
         });
         break;
       }
+      case 'fast': {
+        const tab = this.deps.plugin.getView()?.getActiveTab();
+        const toggle = tab?.ui.serviceTierToggle;
+        if (!toggle || !toggle.isAvailable()) {
+          new Notice('Speed ist für dieses Modell nicht verfügbar.');
+          return;
+        }
+        const next = await toggle.toggle();
+        new Notice(next
+          ? 'Speed an. Antworten laufen schneller, kosten aber mehr.'
+          : 'Speed aus. Standard-Tempo.');
+        break;
+      }
       case 'status': {
         const { plugin, state, renderer } = this.deps;
         const version = plugin.manifest?.version ?? 'unknown';
