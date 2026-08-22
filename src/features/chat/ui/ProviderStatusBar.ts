@@ -26,6 +26,7 @@ const PROVIDER_COLOR: Record<string, string> = {
   vibe: '#FF7A00',
   grok: '#E8E8E8',
   cline: '#00C9A7',
+  dsh: '#4D6BFE',
 };
 
 export interface ProviderStatus {

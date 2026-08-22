@@ -21,6 +21,9 @@
   /* Grok (xAI): white/black. Near-white accent on dark themes; black in light. */
   --claudian-brand-grok: oklch(0.93 0.006 255);
   --claudian-brand-grok-rgb: 245, 245, 245;
+  /* DeepSeek Harness: DeepSeek brand blue (#4D6BFE), legible on both themes. */
+  --claudian-brand-dsh: oklch(0.585 0.23 266);
+  --claudian-brand-dsh-rgb: 77, 107, 254;
   /* Cline / ClinePass: teal brand used on cline.bot. */
   --claudian-brand-cline: oklch(0.76 0.12 175);
   --claudian-brand-cline-rgb: 0, 201, 167;
@@ -174,6 +177,11 @@ body.theme-light .claudian-container {
 .claudian-container[data-provider="grok"] {
   --claudian-brand: var(--claudian-brand-grok);
   --claudian-brand-rgb: var(--claudian-brand-grok-rgb);
+}
+
+.claudian-container[data-provider="dsh"] {
+  --claudian-brand: var(--claudian-brand-dsh);
+  --claudian-brand-rgb: var(--claudian-brand-dsh-rgb);
 }
 
 .claudian-container[data-provider="cline"] {

@@ -3,6 +3,7 @@ import { DEFAULT_ANTIGRAVITY_PROVIDER_SETTINGS } from './antigravity/settings';
 import { DEFAULT_CLAUDE_PROVIDER_SETTINGS } from './claude/settings';
 import { DEFAULT_CLINE_PROVIDER_SETTINGS } from './cline/settings';
 import { DEFAULT_CODEX_PROVIDER_SETTINGS } from './codex/settings';
+import { DEFAULT_DSH_PROVIDER_SETTINGS } from './dsh/settings';
 import { DEFAULT_GROK_PROVIDER_SETTINGS } from './grok/settings';
 import { DEFAULT_KIMI_PROVIDER_SETTINGS } from './kimi/settings';
 import { DEFAULT_OPENCODE_PROVIDER_SETTINGS } from './opencode/settings';
@@ -20,5 +21,6 @@ export function getBuiltInProviderDefaultConfigs(): ProviderConfigMap {
     kimi: { ...DEFAULT_KIMI_PROVIDER_SETTINGS },
     vibe: { ...DEFAULT_VIBE_PROVIDER_SETTINGS },
     grok: { ...DEFAULT_GROK_PROVIDER_SETTINGS },
+    dsh: { ...DEFAULT_DSH_PROVIDER_SETTINGS },
   };
 }

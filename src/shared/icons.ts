@@ -219,6 +219,33 @@ export const GROK_PROVIDER_ICON: ProviderIconSvg = {
   ],
 };
 
+// DeepSeek Harness mark: a clean geometric whale (the DeepSeek brand motif).
+// No official vector ships with the CLI, so this is a hand-drawn brand glyph
+// that tints to `currentColor` like the other monochrome provider marks.
+export const DSH_PROVIDER_ICON: ProviderIconSvg = {
+  kind: 'composite',
+  viewBox: '0 0 24 24',
+  children: [
+    {
+      tag: 'path',
+      attributes: {
+        d: 'M2.5 14.6c0-4.5 4-7.6 9-7.6 3.5 0 6.6 1.5 8.2 3.9l1.6-2.3c.3-.5 1.1-.3 1.1.4v5.5c0 .6-.8.9-1.1.4l-1.6-2.3c-.5.7-1.1 1.4-1.9 1.9l.9 2.6c.2.5-.4 1-.8.7l-2.4-2c-1.2.4-2.5.6-4 .6-5 0-9-.7-9-1.8Z',
+        fill: 'currentColor',
+        'fill-rule': 'evenodd',
+      },
+    },
+    {
+      tag: 'circle',
+      attributes: {
+        cx: '18.2',
+        cy: '12.4',
+        r: '0.9',
+        fill: 'currentColor',
+      },
+    },
+  ],
+};
+
 export interface CreateProviderIconSvgOptions {
   className?: string;
   dataProvider?: string;

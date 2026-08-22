@@ -75,6 +75,15 @@ export const CLI_INSTALL_CATALOG: Record<string, CliInstallSpec> = {
     },
   },
 
+  // DeepSeek Harness CLI — npm package, no platform-specific installer.
+  dsh: {
+    id: 'dsh',
+    displayName: 'DeepSeek Harness',
+    binary: 'dsh',
+    docsUrl: 'https://github.com/deepseek-ai/deepseek-harness',
+    methods: { default: [NPM('@deepseek-ai/dsh')] },
+  },
+
   claude: {
     id: 'claude',
     displayName: 'Claude Code',
