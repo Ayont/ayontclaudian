@@ -52,7 +52,7 @@ export function perfSince(start: number, key: string, detail?: string): void {
   const ms = now() - start;
   recentPerf.set(key, { ms, at: Date.now(), detail });
   if (perfEnabled()) {
-    // eslint-disable-next-line no-console
+     
     console.debug(`[claudian:perf] ${key}${detail ? ` (${detail})` : ''}: ${ms.toFixed(1)}ms`);
   }
 }

@@ -171,7 +171,7 @@ export class SessionStorage {
     options: { yieldBetweenFiles?: () => Promise<void>; onProgress?: (reclaimed: number) => void } = {},
   ): Promise<number> {
     const yieldBetweenFiles = options.yieldBetweenFiles
-      ?? (() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+      ?? (() => new Promise<void>((resolve) => window.setTimeout(resolve, 0)));
 
     const files = await this.listMetadataFiles(SESSIONS_PATH);
     let reclaimed = 0;

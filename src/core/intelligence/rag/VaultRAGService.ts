@@ -25,7 +25,7 @@ export interface VaultRAGOptions {
  * responsive to input between files.
  */
 function yieldToEventLoop(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0));
+  return new Promise((resolve) => window.setTimeout(resolve, 0));
 }
 
 export class VaultRAGService {
