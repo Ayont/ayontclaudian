@@ -128,6 +128,13 @@ export interface ClaudianSettings {
    */
   autoMode?: boolean;
 
+  /** Background CLI update policy: 'auto' installs silently, 'notify' only offers, 'off' disables. */
+  cliAutoUpdateMode?: 'off' | 'notify' | 'auto';
+  /** Hours between background CLI update checks. */
+  cliAutoUpdateIntervalHours?: number;
+  /** Last finished or attempted background check (ms epoch), for due-timing and the settings display. */
+  cliAutoUpdateLastRunAt?: number;
+
   /**
    * Auto-mode loop guard: pause for a human after this many consecutive
    * auto-resolved prompts (questions + plan approvals). Defaults to 25.

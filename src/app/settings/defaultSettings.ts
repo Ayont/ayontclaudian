@@ -9,6 +9,8 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
 
   permissionMode: 'yolo',
   autoMode: false,
+  cliAutoUpdateMode: 'auto',
+  cliAutoUpdateIntervalHours: 24,
   autoModePauseAfter: 25,
   modelRouterEnabled: true,
   modelRouterRules: [],

@@ -1,5 +1,6 @@
 import { Notice, Setting } from 'obsidian';
 
+import { normalizeCliAutoUpdateIntervalHours, parseCliAutoUpdateMode } from '../../../app/update/CliAutoUpdateService';
 import { isCliInstalled } from '../../../core/install/cliDetection';
 import {
   CLI_INSTALL_CATALOG,
@@ -53,9 +54,71 @@ function renderInto(section: HTMLElement, plugin: ClaudianPlugin): void {
     text: 'Installiere die CLI eines Providers direkt hier. Fehlt eine CLI, ist sie ausgegraut — erst installieren, dann nutzen.',
   });
 
+  renderAutoUpdateControls(section, plugin);
+
   for (const spec of Object.values(CLI_INSTALL_CATALOG)) {
     renderRow(section, plugin, spec, () => renderInto(section, plugin));
   }
+}
+
+function renderAutoUpdateControls(section: HTMLElement, plugin: ClaudianPlugin): void {
+  new Setting(section).setName('Automatische Updates').setHeading();
+
+  const modeSetting = new Setting(section)
+    .setName('Aktualisierungsmodus')
+    .setDesc(
+      '„Automatisch“ bringt CLI-Updates im Hintergrund von selbst an. „Nur melden“ zeigt sie im Chat an, „Aus“ deaktiviert die Prüfung.',
+    )
+    .addDropdown((dropdown) => {
+      dropdown
+        .addOption('auto', 'Automatisch im Hintergrund')
+        .addOption('notify', 'Nur melden')
+        .addOption('off', 'Aus')
+        .setValue(parseCliAutoUpdateMode(plugin.settings.cliAutoUpdateMode))
+        .onChange(async (value) => {
+          plugin.settings.cliAutoUpdateMode = parseCliAutoUpdateMode(value);
+          await plugin.saveSettings();
+          plugin.getCliAutoUpdater().schedule();
+        });
+    });
+  modeSetting.settingEl.addClass('claudian-cli-auto-mode');
+
+  const intervalSetting = new Setting(section)
+    .setName('Prüfintervall')
+    .setDesc('Wie oft im Hintergrund nach neuen CLI-Versionen gesucht wird.')
+    .addDropdown((dropdown) => {
+      for (const hours of [6, 12, 24, 48, 168]) {
+        dropdown.addOption(String(hours), hours === 168 ? '1 Woche' : `${hours} Stunden`);
+      }
+      dropdown
+        .setValue(String(normalizeCliAutoUpdateIntervalHours(plugin.settings.cliAutoUpdateIntervalHours)))
+        .onChange(async (value) => {
+          plugin.settings.cliAutoUpdateIntervalHours = normalizeCliAutoUpdateIntervalHours(Number(value));
+          await plugin.saveSettings();
+          plugin.getCliAutoUpdater().schedule();
+        });
+    });
+  intervalSetting.settingEl.addClass('claudian-cli-auto-interval');
+
+  const lastRunAt = plugin.settings.cliAutoUpdateLastRunAt;
+  if (lastRunAt) {
+    const mode = parseCliAutoUpdateMode(plugin.settings.cliAutoUpdateMode);
+    new Setting(section)
+      .setName('Letzte Prüfung')
+      .setDesc(`Vor ${formatAge(lastRunAt)} · Modus: ${mode === 'auto' ? 'Automatisch' : mode === 'notify' ? 'Nur melden' : 'Aus'}`);
+  }
+}
+
+function formatAge(atMs: number): string {
+  const minutes = Math.max(0, Math.round((Date.now() - atMs) / 60_000));
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours} h ${minutes % 60} min`;
+  }
+  return `${Math.floor(hours / 24)} d ${hours % 24} h`;
 }
 
 function renderRow(

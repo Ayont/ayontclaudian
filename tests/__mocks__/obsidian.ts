@@ -44,6 +44,8 @@ export class Plugin {
   addStatusBarItem = jest.fn(() => makeElStub());
   loadData = jest.fn().mockResolvedValue({});
   saveData = jest.fn().mockResolvedValue(undefined);
+  registerInterval = jest.fn((id: number) => id);
+  unregisterInterval = jest.fn();
 }
 
 export class PluginSettingTab {
@@ -169,6 +171,8 @@ export class Component {
   register(): void {}
   registerEvent(): void {}
   registerDomEvent(): void {}
+  registerInterval(id: number): number { return id; }
+  unregisterInterval(): void {}
 }
 
 export class Setting {

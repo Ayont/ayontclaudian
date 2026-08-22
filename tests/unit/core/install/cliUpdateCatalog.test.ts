@@ -1,3 +1,7 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
 import { getCliUpdateSpec, getPreferredUpdateCommand } from '@/core/install/cliUpdateCatalog';
 
 describe('cliUpdateCatalog', () => {
@@ -55,5 +59,56 @@ describe('cliUpdateCatalog', () => {
   it('returns null for unknown providers', () => {
     expect(getCliUpdateSpec('nope')).toBeNull();
     expect(getPreferredUpdateCommand('nope', 'darwin')).toBeNull();
+  });
+
+  it('upgrades a standalone opencode with its own upgrade command, not npm', () => {
+    const cliPath = '/Users/ayont/.opencode/bin/opencode';
+    expect(getPreferredUpdateCommand('opencode', 'darwin', cliPath)).toBe('opencode upgrade');
+    expect(getPreferredUpdateCommand('opencode', 'linux', cliPath)).toBe('opencode upgrade');
+  });
+
+  it('keeps npm updates for npm-installed CLIs even when a vendor dir exists elsewhere', () => {
+    const cliPath = '/Users/ayont/.npm-global/bin/opencode';
+    expect(getPreferredUpdateCommand('opencode', 'darwin', cliPath)).toBe(
+      'npm install -g opencode-ai@latest',
+    );
+  });
+
+  it('resolves symlinks so homebrew aliases of standalone installs upgrade natively', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claudian-symlink-'));
+    const target = path.join(dir, '.opencode', 'bin');
+    fs.mkdirSync(target, { recursive: true });
+    const binary = path.join(target, 'opencode');
+    fs.writeFileSync(binary, '#!/bin/sh\n');
+    const link = path.join(dir, 'brew-bin-opencode');
+    fs.symlinkSync(binary, link);
+    try {
+      expect(getPreferredUpdateCommand('opencode', 'darwin', link)).toBe('opencode upgrade');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('upgrades the native Claude build and the standalone Grok with self-update commands', () => {
+    expect(getPreferredUpdateCommand('claude', 'darwin', '/Users/ayont/.local/bin/claude')).toBe(
+      'claude update',
+    );
+    expect(getPreferredUpdateCommand('grok', 'darwin', '/Users/ayont/.grok/bin/grok')).toBe(
+      'grok update',
+    );
+  });
+
+  it('still uses the npm package when a native-looking provider is npm-managed', () => {
+    const cliPath = '/Users/ayont/.npm-global/bin/claude';
+    expect(getPreferredUpdateCommand('claude', 'darwin', cliPath)).toBe(
+      'npm install -g @anthropic-ai/claude-code@latest',
+    );
+  });
+
+  it('keeps documented priority without a resolved path (npm first, installer fallback)', () => {
+    expect(getPreferredUpdateCommand('opencode', 'darwin')).toBe(
+      'npm install -g opencode-ai@latest',
+    );
+    expect(getPreferredUpdateCommand('grok', 'darwin')).toContain('x.ai/cli/install.sh');
   });
 });

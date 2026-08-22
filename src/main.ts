@@ -11,6 +11,7 @@ import { FuzzySuggestModal,MarkdownView, Notice, Plugin, TFile } from 'obsidian'
 
 import { DEFAULT_CLAUDIAN_SETTINGS } from './app/settings/defaultSettings';
 import { SharedStorageService } from './app/storage/SharedStorageService';
+import { CliAutoUpdateService } from './app/update/CliAutoUpdateService';
 import { PluginUpdater, type UpdateInfo } from './app/update/PluginUpdater';
 import { UpdateCoordinator } from './app/update/UpdateCoordinator';
 import type { UpdateSessionState } from './app/update/UpdateSession';
@@ -198,6 +199,7 @@ export default class ClaudianPlugin extends Plugin {
   private providerStatusBar: ProviderStatusBar | null = null;
   private pluginUpdater: PluginUpdater | null = null;
   private readonly updateCoordinator = new UpdateCoordinator();
+  private readonly cliAutoUpdater = new CliAutoUpdateService(this);
   storage!: SharedAppStorage;
   private conversations: Conversation[] = [];
   private lastKnownTabManagerState: AppTabManagerState | null = null;
@@ -802,6 +804,8 @@ export default class ClaudianPlugin extends Plugin {
     window.setTimeout(() => {
       void this.offerProviderUpdates();
     }, 18_000);
+    // Background CLI auto-update cycle (mode + interval are user-configurable).
+    this.cliAutoUpdater.schedule();
 
     // RAG: load any persisted index, top it up in the background, and keep it
     // fresh on vault changes so the chat's vault_context works out of the box.
@@ -964,6 +968,7 @@ export default class ClaudianPlugin extends Plugin {
     // plugin unloads.
     unregisterAppShotGlobalHotkey();
     whisperServerManager.stop();
+    this.cliAutoUpdater.stop();
     this.workflowEngine?.stop();
     this.providerStatusBar?.destroy();
     this.providerStatusBar = null;
@@ -2901,6 +2906,15 @@ export default class ClaudianPlugin extends Plugin {
     return update;
   }
 
+  /** Surfaces already-checked CLI updates in the in-chat update session. */
+  offerProviderUpdateInfos(updates: readonly ProviderUpdateInfo[]): void {
+    this.updateCoordinator.offerProviderUpdates(updates);
+  }
+
+  getCliAutoUpdater(): CliAutoUpdateService {
+    return this.cliAutoUpdater;
+  }
+
   private async offerProviderUpdates(): Promise<void> {
     const enabled = ProviderRegistry.getEnabledProviderIds(this.settings as unknown as Record<string, unknown>);
     const updates = await checkEnabledProviderUpdates(
@@ -2910,7 +2924,7 @@ export default class ClaudianPlugin extends Plugin {
     if (updates.length === 0) {
       return;
     }
-    this.updateCoordinator.offerProviderUpdates(updates);
+    this.offerProviderUpdateInfos(updates);
   }
 
   findConversationAcrossViews(conversationId: string): { view: ClaudianView; tabId: string } | null {
