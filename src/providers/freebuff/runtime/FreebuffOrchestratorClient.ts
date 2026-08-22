@@ -36,8 +36,10 @@ export function parseListenPorts(lsofOutput: string): number[] {
  * Bun server owns the port, unlike anything else that happens to listen.
  */
 export function isOrchestratorHealthPayload(status: number, body: string): boolean {
-  if (status === 401 && body.includes('invalid launch id')) {
-    return true;
+  if (status === 401) {
+    // Desktop updates reworded the gate ('invalid launch id' -> 'missing or
+    // invalid token'); both prove the Bun orchestrator owns the port.
+    return body.includes('launch id') || body.includes('token');
   }
   if (status === 200) {
     try {
@@ -50,6 +52,26 @@ export function isOrchestratorHealthPayload(status: number, body: string): boole
   return false;
 }
 
+export interface FreebuffProcessLaunchInfo {
+  port?: number;
+  launchId?: string;
+}
+
+/** Parses `ps eww` output: the desktop app exports PORT and
+ *  FREEBUFF_LAUNCH_ID into the orchestrator process environment. */
+export function parseProcessLaunchInfo(psOutput: string): FreebuffProcessLaunchInfo {
+  const info: FreebuffProcessLaunchInfo = {};
+  for (const match of psOutput.matchAll(/(?:^|\s)(PORT|FREEBUFF_LAUNCH_ID)=(\S+)/g)) {
+    if (match[1] === 'PORT') {
+      const port = Number.parseInt(match[2], 10);
+      if (Number.isInteger(port) && port > 0) info.port = port;
+    } else {
+      info.launchId = match[2];
+    }
+  }
+  return info;
+}
+
 /**
  * Loopback HTTP client for the Freebuff desktop orchestrator.
  *
@@ -60,6 +82,7 @@ export function isOrchestratorHealthPayload(status: number, body: string): boole
  */
 export class FreebuffOrchestratorClient {
   private cachedPort: number | null = null;
+  private cachedLaunchId: string | null = null;
   private readonly fetchImpl: FetchLike;
   private readonly execImpl: ExecLike;
 
@@ -70,6 +93,16 @@ export class FreebuffOrchestratorClient {
 
   forgetPort(): void {
     this.cachedPort = null;
+    this.cachedLaunchId = null;
+  }
+
+  getLaunchId(): string | null {
+    return this.cachedLaunchId;
+  }
+
+  /** The API gate requires the desktop app's launch id on every call. */
+  private authHeaders(): Record<string, string> {
+    return this.cachedLaunchId ? { 'x-freebuff-launch-id': this.cachedLaunchId } : {};
   }
 
   baseUrl(port: number): string {
@@ -98,13 +131,26 @@ export class FreebuffOrchestratorClient {
       return null;
     }
     for (const pid of pids.split('\n').map((line) => line.trim()).filter(Boolean)) {
-      let lsofOut: string;
+      // The process environment exports PORT and FREEBUFF_LAUNCH_ID — the most
+      // direct answer, independent of which socket belongs to whom.
+      let launchInfo: FreebuffProcessLaunchInfo = {};
       try {
-        lsofOut = (await this.execImpl('lsof', ['-nP', '-p', pid, '-iTCP', '-sTCP:LISTEN'])).stdout;
+        launchInfo = parseProcessLaunchInfo((await this.execImpl('ps', ['eww', '-p', pid])).stdout);
       } catch {
-        continue;
+        // ps may be unavailable; lsof below still lists candidate ports.
       }
-      for (const port of parseListenPorts(lsofOut)) {
+      if (launchInfo.launchId) {
+        this.cachedLaunchId = launchInfo.launchId;
+      }
+      const candidates: number[] = [];
+      if (launchInfo.port) candidates.push(launchInfo.port);
+      try {
+        const lsofOut = (await this.execImpl('lsof', ['-nP', '-p', pid, '-iTCP', '-sTCP:LISTEN'])).stdout;
+        candidates.push(...parseListenPorts(lsofOut));
+      } catch {
+        // No lsof candidates; the env port above already covers the happy path.
+      }
+      for (const port of new Set(candidates)) {
         if (await this.healthCheck(port)) {
           this.cachedPort = port;
           return port;
@@ -128,7 +174,7 @@ export class FreebuffOrchestratorClient {
   /** Login state; null when the orchestrator is unreachable. */
   async authStatus(port: number): Promise<FreebuffAuthStatus | null> {
     try {
-      const response = await this.fetchImpl(`${this.baseUrl(port)}/api/auth/status`);
+      const response = await this.fetchImpl(`${this.baseUrl(port)}/api/auth/status`, { headers: { ...this.authHeaders() } });
       if (!response.ok) {
         return null;
       }
@@ -146,7 +192,7 @@ export class FreebuffOrchestratorClient {
     try {
       const response = await this.fetchImpl(`${this.baseUrl(port)}/api/threads`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
         body: JSON.stringify(params),
       });
       if (!response.ok) {
@@ -163,7 +209,7 @@ export class FreebuffOrchestratorClient {
     try {
       const response = await this.fetchImpl(`${this.baseUrl(port)}/api/thread/${threadId}/message`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
         body: JSON.stringify({ text }),
       });
       if (!response.ok) {
@@ -188,7 +234,12 @@ export class FreebuffOrchestratorClient {
   /** Close a thread so it stops drawing desktop-app attention. Best-effort. */
   async closeThread(port: number, threadId: string): Promise<void> {
     try {
-      await this.fetchImpl(`${this.baseUrl(port)}/api/thread/${threadId}/close`, { method: 'POST' });
+      // The endpoint validates JSON even for an empty body (live verified).
+      await this.fetchImpl(`${this.baseUrl(port)}/api/thread/${threadId}/close`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+        body: '{}',
+      });
     } catch {
       // Closing is courtesy cleanup, never a failure path.
     }
@@ -197,7 +248,10 @@ export class FreebuffOrchestratorClient {
   /** Open the SSE bus; caller reads response.body incrementally. */
   async openEventStream(port: number, signal: AbortSignal): Promise<Response | null> {
     try {
-      return await this.fetchImpl(`${this.baseUrl(port)}/api/events`, { signal });
+      return await this.fetchImpl(`${this.baseUrl(port)}/api/events`, {
+        signal,
+        headers: { ...this.authHeaders() },
+      });
     } catch {
       return null;
     }

@@ -2,6 +2,7 @@ import {
   FreebuffOrchestratorClient,
   isOrchestratorHealthPayload,
   parseListenPorts,
+  parseProcessLaunchInfo,
 } from '@/providers/freebuff/runtime/FreebuffOrchestratorClient';
 
 describe('parseListenPorts', () => {
@@ -21,6 +22,24 @@ describe('isOrchestratorHealthPayload', () => {
     expect(isOrchestratorHealthPayload(401, '{"error":"invalid launch id"}')).toBe(true);
     expect(isOrchestratorHealthPayload(404, 'not found')).toBe(false);
     expect(isOrchestratorHealthPayload(200, '<html>other server</html>')).toBe(false);
+  });
+
+  it('recognizes the newer token-gate rejection of the desktop update', () => {
+    const body = JSON.stringify({ error: { kind: 'bad_request', message: 'missing or invalid token' } });
+    expect(isOrchestratorHealthPayload(401, body)).toBe(true);
+    expect(isOrchestratorHealthPayload(401, 'totally different server')).toBe(false);
+  });
+});
+
+describe('parseProcessLaunchInfo', () => {
+  it('extracts port and launch id from the orchestrator process environment', () => {
+    const info = parseProcessLaunchInfo('KEY=x PATH=/bin PORT=49451 FREEBUFF_LAUNCH_ID=bed71499 OTHER=1');
+    expect(info).toEqual({ port: 49451, launchId: 'bed71499' });
+  });
+
+  it('tolerates missing values', () => {
+    expect(parseProcessLaunchInfo('SOMETHING=else')).toEqual({});
+    expect(parseProcessLaunchInfo('PORT=not-a-number')).toEqual({});
   });
 });
 
@@ -75,6 +94,29 @@ describe('FreebuffOrchestratorClient', () => {
     expect(calls.some((url) => url.endsWith(':1111/healthz'))).toBe(true);
     // Memoized second call does no exec work.
     await expect(client.discoverPort()).resolves.toBe(2222);
+  });
+
+  it('discovers via ps environment and remembers the launch id for auth', async () => {
+    const { fetchImpl, calls } = makeFetch(new Map([
+      ['http://127.0.0.1:49451/healthz', { status: 401, body: '{"error":{"kind":"bad_request","message":"missing or invalid token"}}' }],
+      ['http://127.0.0.1:49451/api/threads', { status: 200, body: '{"id":"t1"}' }],
+    ]));
+    const inits: RequestInit[] = [];
+    const client = new FreebuffOrchestratorClient({
+      fetchImpl: ((input: string, init?: RequestInit) => { inits.push(init ?? {}); return (fetchImpl as (i: string) => Promise<Response>)(input); }) as typeof fetch,
+      execImpl: async (file) => {
+        if (file === 'pgrep') return { stdout: '96642\n' };
+        if (file === 'ps') return { stdout: 'PORT=49451 FREEBUFF_LAUNCH_ID=bed71499-xyz' };
+        if (file === 'lsof') return { stdout: '' };
+        throw new Error('unexpected ' + file);
+      },
+    });
+    await expect(client.discoverPort()).resolves.toBe(49451);
+    expect(client.getLaunchId()).toBe('bed71499-xyz');
+    await client.createThread(49451, { projectPath: '/tmp' });
+    const headers = (inits.find((init) => init.headers)?.headers ?? {}) as Record<string, string>;
+    expect(headers['x-freebuff-launch-id']).toBe('bed71499-xyz');
+    expect(calls.some((url) => url.includes(':49451'))).toBe(true);
   });
 
   it('posts messages as JSON and reports acceptance', async () => {
