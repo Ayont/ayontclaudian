@@ -92,6 +92,10 @@
   box-shadow: inset 0 -2px 0 var(--claudian-brand-dsh);
 }
 
+.claudian-tab-badge[data-provider="freebuff"] {
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-freebuff);
+}
+
 .claudian-tab-badge[data-provider="cline"] {
   box-shadow: inset 0 -2px 0 var(--claudian-brand-cline);
 }
@@ -135,6 +139,10 @@
 
 .claudian-tab-badge-streaming[data-provider="dsh"] {
   border-color: var(--claudian-brand-dsh, #4D6BFE);
+}
+
+.claudian-tab-badge-streaming[data-provider="freebuff"] {
+  border-color: var(--claudian-brand-freebuff, #E8A33D);
 }
 
 .claudian-tab-badge-streaming[data-provider="cline"] {

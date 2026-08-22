@@ -27,6 +27,7 @@ const PROVIDER_COLOR: Record<string, string> = {
   grok: '#E8E8E8',
   cline: '#00C9A7',
   dsh: '#4D6BFE',
+  freebuff: '#E8A33D',
 };
 
 export interface ProviderStatus {

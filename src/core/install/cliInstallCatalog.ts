@@ -84,6 +84,15 @@ export const CLI_INSTALL_CATALOG: Record<string, CliInstallSpec> = {
     methods: { default: [NPM('@deepseek-ai/dsh')] },
   },
 
+  // Freebuff — the CLI is the login vehicle; turns run in the desktop app.
+  freebuff: {
+    id: 'freebuff',
+    displayName: 'Freebuff',
+    binary: 'freebuff',
+    docsUrl: 'https://freebuff.com',
+    methods: { default: [NPM('freebuff')] },
+  },
+
   claude: {
     id: 'claude',
     displayName: 'Claude Code',

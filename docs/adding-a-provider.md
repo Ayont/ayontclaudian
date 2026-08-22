@@ -26,6 +26,7 @@ Copy the one whose transport matches your CLI:
 | Print + full-message NDJSON (one complete OpenAI message per line) | `src/providers/kimi/`, `src/providers/vibe/` |
 | ACP | `src/providers/opencode/` + `src/providers/acp/` |
 | Single-shot print, state recovered by tailing a transcript | `src/providers/antigravity/` |
+| HTTP + SSE against a local app API (no child process) | `src/providers/freebuff/` |
 | Official SDK (full-feature reference) | `src/providers/claude/` |
 
 ## Steps

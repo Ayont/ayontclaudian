@@ -24,6 +24,9 @@
   /* DeepSeek Harness: DeepSeek brand blue (#4D6BFE), legible on both themes. */
   --claudian-brand-dsh: oklch(0.585 0.23 266);
   --claudian-brand-dsh-rgb: 77, 107, 254;
+  /* Freebuff: warm buffalo amber (#E8A33D), distinct from the DeepSeek blue. */
+  --claudian-brand-freebuff: oklch(0.76 0.14 70);
+  --claudian-brand-freebuff-rgb: 232, 163, 61;
   /* Cline / ClinePass: teal brand used on cline.bot. */
   --claudian-brand-cline: oklch(0.76 0.12 175);
   --claudian-brand-cline-rgb: 0, 201, 167;
@@ -182,6 +185,11 @@ body.theme-light .claudian-container {
 .claudian-container[data-provider="dsh"] {
   --claudian-brand: var(--claudian-brand-dsh);
   --claudian-brand-rgb: var(--claudian-brand-dsh-rgb);
+}
+
+.claudian-container[data-provider="freebuff"] {
+  --claudian-brand: var(--claudian-brand-freebuff);
+  --claudian-brand-rgb: var(--claudian-brand-freebuff-rgb);
 }
 
 .claudian-container[data-provider="cline"] {

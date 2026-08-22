@@ -222,6 +222,34 @@ export const GROK_PROVIDER_ICON: ProviderIconSvg = {
 // DeepSeek Harness mark: a clean geometric whale (the DeepSeek brand motif).
 // No official vector ships with the CLI, so this is a hand-drawn brand glyph
 // that tints to `currentColor` like the other monochrome provider marks.
+/**
+ * Freebuff icon: a buffalo silhouette with horns, drawn as a single filled
+ * path plus an eye dot — friendly mascot over literal branding.
+ */
+export const FREEBUFF_PROVIDER_ICON: ProviderIconSvg = {
+  kind: 'composite',
+  viewBox: '0 0 24 24',
+  children: [
+    {
+      tag: 'path',
+      attributes: {
+        d: 'M4.2 8.2C3 7.4 2.3 6.2 2.4 4.9c.9.2 1.7.7 2.3 1.4C6 5.1 7.7 4.5 9.7 4.5c2.9 0 5.3 1.2 6.4 3l3.2-.6c.6-.1 1 .4.8 1l-.9 2.4c.9 1 1.4 2.2 1.4 3.5 0 3-3 5.7-8.6 5.7-5 0-9.2-2.3-9.2-5.9 0-1.9 1.1-3.6 2.9-4.7-.6-.5-1.1-1.1-1.5-1.7Z',
+        fill: 'currentColor',
+        'fill-rule': 'evenodd',
+      },
+    },
+    {
+      tag: 'circle',
+      attributes: {
+        cx: '15.6',
+        cy: '12.2',
+        r: '0.95',
+        fill: 'var(--background-primary)',
+      },
+    },
+  ],
+};
+
 export const DSH_PROVIDER_ICON: ProviderIconSvg = {
   kind: 'composite',
   viewBox: '0 0 24 24',

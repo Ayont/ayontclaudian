@@ -11,6 +11,8 @@ import { codexWorkspaceRegistration } from './codex/app/CodexWorkspaceServices';
 import { codexProviderRegistration } from './codex/registration';
 import { dshWorkspaceRegistration } from './dsh/app/DshWorkspaceServices';
 import { dshProviderRegistration } from './dsh/registration';
+import { freebuffWorkspaceRegistration } from './freebuff/app/FreebuffWorkspaceServices';
+import { freebuffProviderRegistration } from './freebuff/registration';
 import { grokWorkspaceRegistration } from './grok/app/GrokWorkspaceServices';
 import { grokProviderRegistration } from './grok/registration';
 import { kimiWorkspaceRegistration } from './kimi/app/KimiWorkspaceServices';
@@ -39,6 +41,7 @@ export function registerBuiltInProviders(): void {
   ProviderRegistry.register('vibe', vibeProviderRegistration);
   ProviderRegistry.register('grok', grokProviderRegistration);
   ProviderRegistry.register('dsh', dshProviderRegistration);
+  ProviderRegistry.register('freebuff', freebuffProviderRegistration);
   ProviderWorkspaceRegistry.register('claude', claudeWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('cline', clineWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('codex', codexWorkspaceRegistration);
@@ -49,6 +52,7 @@ export function registerBuiltInProviders(): void {
   ProviderWorkspaceRegistry.register('vibe', vibeWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('grok', grokWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('dsh', dshWorkspaceRegistration);
+  ProviderWorkspaceRegistry.register('freebuff', freebuffWorkspaceRegistration);
 
   ModelConfigSyncRegistry.register('kimi', kimiModelConfigSync);
 
