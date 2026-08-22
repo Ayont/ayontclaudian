@@ -12,7 +12,7 @@ import {
   RATE_WILDCARD,
   summarizeProviderCost,
 } from '../../../core/budget/providerPricing';
-import { DEFAULT_USAGE_WINDOW_HOURS } from '../../../core/budget/tokenBudget';
+import { DEFAULT_USAGE_WINDOW_HOURS,type ProviderWindow, type TokenBudgetSettings } from '../../../core/budget/tokenBudget';
 import { ProviderRegistry } from '../../../core/providers/ProviderRegistry';
 import type { ProviderId } from '../../../core/types/provider';
 import type ClaudianPlugin from '../../../main';
@@ -119,6 +119,7 @@ function renderBody(
   });
 
   renderTotals(root, summaries, currency, period);
+  renderWindowsAndBudgets(root, plugin, now);
 
   const grid = root.createDiv({ cls: 'claudian-usage-center-grid' });
   const ordered = [...summaries].sort((a, b) => b.tokens - a.tokens);
@@ -144,6 +145,96 @@ function collectProviderIds(plugin: ClaudianPlugin): string[] {
   const registered = ProviderRegistry.getRegisteredProviderIds() as string[];
   const seen = plugin.tokenBudgetTracker.getSeenProviderIds();
   return [...new Set([...registered, ...seen])];
+}
+
+/**
+ * Rate-limit windows and the daily budget, rendered as the "usage check"
+ * strip: one activity-style ring per provider whose arc is the age of its
+ * current window (so the ring fills toward the reset moment), plus the
+ * day-budget progress. Data comes straight from the tracker's verified APIs.
+ */
+function renderWindowsAndBudgets(
+  root: HTMLElement,
+  plugin: ClaudianPlugin,
+  now: number,
+): void {
+  const windows = plugin.tokenBudgetTracker.getWindowedProviders({}, now).slice(0, 8);
+  const settings = plugin.settings as unknown as TokenBudgetSettings;
+  const budgetEnabled = settings.tokenBudgetEnabled === true;
+  const budgetCap = typeof settings.dailyTokenBudget === 'number' ? settings.dailyTokenBudget : 0;
+  const todayTotal = windows.reduce((sum, entry) => sum + entry.todayTokens, 0);
+
+  const hasWindows = windows.length > 0;
+  if (!hasWindows && !(budgetEnabled && budgetCap > 0)) {
+    return;
+  }
+
+  if (hasWindows) {
+    const strip = root.createDiv({ cls: 'claudian-usage-ringstrip' });
+    for (const entry of windows) {
+      strip.appendChild(renderWindowCard(entry, now));
+    }
+  }
+
+  if (budgetEnabled && budgetCap > 0) {
+    root.appendChild(renderBudgetCard(todayTotal, budgetCap));
+  }
+}
+
+function renderWindowCard(entry: ProviderWindow, now: number): HTMLElement {
+  const card = document.createElement('div');
+  card.className = `claudian-usage-ringcard${entry.tokens > 0 ? '' : ' is-idle'}`;
+  card.dataset.provider = entry.providerId;
+
+  // The ring tracks window age, not a token quota — rate-limit windows have no
+  // published cap to measure against, and pretending otherwise would invent a
+  // number. Full arc == the oldest in-window event just left the window.
+  const elapsed = DEFAULT_USAGE_WINDOW_HOURS > 0
+    ? Math.min(1, Math.max(0.04, 1 - Math.max(0, (entry.resetAt ?? now) - now) / (DEFAULT_USAGE_WINDOW_HOURS * 3_600_000)))
+    : 0;
+  const idleArc = 0.06;
+
+  const ring = card.createDiv({ cls: 'claudian-usage-ringcard-dial' });
+  ring.style.setProperty('--ring-progress', String(entry.tokens > 0 ? elapsed : idleArc));
+
+  const meta = card.createDiv({ cls: 'claudian-usage-ringcard-meta' });
+  const name = meta.createDiv({ cls: 'claudian-usage-ringcard-name' });
+  name.createSpan({ cls: 'claudian-usage-ringcard-dot' });
+  name.createSpan({ text: safeProviderName(entry.providerId) });
+  meta.createDiv({ cls: 'claudian-usage-ringcard-figure', text: formatTokens(entry.tokens) });
+  meta.createDiv({
+    cls: 'claudian-usage-ringcard-reset',
+    text: entry.resetAt === null || entry.tokens === 0 ? `${entry.runs} Turns · frei` : `Reset ${formatRelativeTime(entry.resetAt, now)}`,
+  });
+  return card;
+}
+
+function renderBudgetCard(todayTotal: number, cap: number): HTMLElement {
+  const card = document.createElement('div');
+  card.className = 'claudian-usage-budget';
+  const head = card.createDiv({ cls: 'claudian-usage-budget-head' });
+  head.createDiv({ cls: 'claudian-usage-budget-title', text: 'Tagesbudget' });
+  const fraction = cap > 0 ? Math.min(1, todayTotal / cap) : 0;
+  head.createDiv({
+    cls: 'claudian-usage-budget-figure',
+    text: `${formatTokens(todayTotal)} / ${formatTokens(cap)} (${Math.round(fraction * 100)} %)`,
+  });
+  const track = card.createDiv({ cls: 'claudian-usage-budget-track' });
+  const fill = track.createDiv({
+    cls: `claudian-usage-budget-fill${fraction >= 1 ? ' is-over' : ''}`,
+  });
+  fill.style.width = `${Math.max(2, fraction * 100)}%`;
+  return card;
+}
+
+function formatRelativeTime(targetMs: number, now: number): string {
+  const minutes = Math.max(0, Math.round((targetMs - now) / 60_000));
+  if (minutes < 60) {
+    return `in ${minutes} min`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest > 0 ? `in ${hours} h ${rest} min` : `in ${hours} h`;
 }
 
 function startOfPeriod(period: Period, now: number): number {

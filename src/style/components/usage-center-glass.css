@@ -1,0 +1,237 @@
+/*
+ * Liquid-Glass material for the usage center.
+ *
+ * The look is built from three cues Apple's translucent materials share:
+ *   1. a tinted, heavily blurred backdrop (the "liquid" body),
+ *   2. a hairline contour PLUS a top light edge (the glass rim catches light
+ *      from above),
+ *   3. content that stays fully opaque on top of the blur.
+ * Color stays neutral per the product's anti-references; provider identity
+ * appears only as data accents (brand dot, sparkline stroke).
+ */
+
+.claudian-usage-center {
+  --glass-blur: 26px;
+  --glass-saturation: 1.65;
+  --glass-body: color-mix(in srgb, var(--background-primary) 62%, transparent);
+  --glass-rim: rgb(255 255 255 / 9%);
+  --glass-rim-strong: rgb(255 255 255 / 16%);
+  --glass-shadow: rgb(0 0 0 / 28%);
+  --glass-num-font: var(--font-monospace);
+}
+
+body.theme-light .claudian-usage-center {
+  --glass-body: color-mix(in srgb, var(--background-primary) 78%, transparent);
+  --glass-rim: rgb(0 0 0 / 8%);
+  --glass-rim-strong: rgb(0 0 0 / 12%);
+  --glass-shadow: rgb(30 30 30 / 12%);
+}
+
+/* ── Hero band ── one calm instrument strip, not three floating cards ── */
+
+.claudian-usage-center-totals {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 10px;
+}
+
+.claudian-usage-total {
+  position: relative;
+  overflow: hidden;
+  padding: 14px 16px 12px;
+  border-radius: 18px;
+  background: var(--glass-body);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  box-shadow:
+    inset 0 0 0 1px var(--glass-rim),
+    inset 0 1px 0 var(--glass-rim-strong),
+    0 10px 34px var(--glass-shadow);
+}
+
+/* Specular sweep along the top edge of every glass pane. */
+.claudian-usage-total::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    165deg,
+    rgb(255 255 255 / 10%) 0%,
+    rgb(255 255 255 / 3%) 22%,
+    transparent 46%,
+    transparent 100%
+  );
+}
+
+body.theme-light .claudian-usage-total::before {
+  background: linear-gradient(
+    165deg,
+    rgb(255 255 255 / 65%) 0%,
+    rgb(255 255 255 / 20%) 24%,
+    transparent 48%,
+    transparent 100%
+  );
+}
+
+.claudian-usage-total-value {
+  font-family: var(--glass-num-font);
+  font-size: 1.45em;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.claudian-usage-total.is-cost .claudian-usage-total-value {
+  font-size: 1.85em;
+}
+
+/* ── Window rings ── the signature element: each active provider gets an
+ * activity-style ring whose arc is the age of its current rate-limit window,
+ * so the user reads at a glance how soon the window resets. ── */
+
+.claudian-usage-ringstrip {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 10px;
+}
+
+.claudian-usage-ringcard {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: var(--glass-body);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  box-shadow:
+    inset 0 0 0 1px var(--glass-rim),
+    inset 0 1px 0 var(--glass-rim-strong),
+    0 6px 22px var(--glass-shadow);
+}
+
+.claudian-usage-ringcard.is-idle {
+  opacity: 0.55;
+}
+
+.claudian-usage-ringcard-dial {
+  --ring-progress: 0;
+  --ring-color: var(--claudian-brand, var(--interactive-accent));
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background:
+    conic-gradient(
+      var(--ring-color) calc(var(--ring-progress) * 1turn),
+      color-mix(in srgb, currentColor 12%, transparent) 0
+    );
+  -webkit-mask: radial-gradient(farthest-side, transparent 62%, #000 63%);
+  mask: radial-gradient(farthest-side, transparent 62%, #000 63%);
+}
+
+.claudian-usage-ringcard-meta {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.claudian-usage-ringcard-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-ui-small);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.claudian-usage-ringcard-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--claudian-brand, var(--interactive-accent));
+}
+
+.claudian-usage-ringcard-figure {
+  font-family: var(--glass-num-font);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-ui-medium);
+}
+
+.claudian-usage-ringcard-reset {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Daily budget bar ── how much of today's allowance is spent ── */
+
+.claudian-usage-budget {
+  margin-top: 10px;
+  padding: 12px 16px 13px;
+  border-radius: 18px;
+  background: var(--glass-body);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  box-shadow:
+    inset 0 0 0 1px var(--glass-rim),
+    inset 0 1px 0 var(--glass-rim-strong),
+    0 6px 22px var(--glass-shadow);
+}
+
+.claudian-usage-budget-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+  font-size: var(--font-ui-small);
+}
+
+.claudian-usage-budget-title {
+  font-weight: 600;
+}
+
+.claudian-usage-budget-figure {
+  font-family: var(--glass-num-font);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.claudian-usage-budget-track {
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  overflow: hidden;
+}
+
+.claudian-usage-budget-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--interactive-accent), color-mix(in srgb, var(--interactive-accent) 70%, white));
+  transition: width 480ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.claudian-usage-budget-fill.is-over {
+  background: linear-gradient(90deg, var(--claudian-error), color-mix(in srgb, var(--claudian-error) 75%, black));
+}
+
+@media (max-width: 520px) {
+  .claudian-usage-center-totals {
+    grid-template-columns: 1fr 1fr;
+  }
+  .claudian-usage-total.is-cost {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-usage-budget-fill {
+    transition: none;
+  }
+}

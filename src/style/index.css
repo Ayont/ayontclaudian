@@ -1,11 +1,9 @@
 /* CSS module order. scripts/build-css.mjs reads these @import lines. */
 /* Add new modules here to include them in the build. */
-
 /* Base */
 @import "./base/variables.css";
 @import "./base/container.css";
 @import "./base/animations.css";
-
 /* Components */
 @import "./components/header.css";
 @import "./components/mode-toggle.css";
@@ -26,7 +24,6 @@
 @import "./components/swarm-panel.css";
 @import "./components/input.css";
 @import "./components/context-footer.css";
-
 /* Toolbar */
 @import "./toolbar/model-selector.css";
 @import "./toolbar/mode-selector.css";
@@ -35,7 +32,6 @@
 @import "./toolbar/service-tier-toggle.css";
 @import "./toolbar/external-context.css";
 @import "./toolbar/mcp-selector.css";
-
 /* Features */
 @import "./features/app-shot.css";
 @import "./features/voice-input.css";
@@ -61,7 +57,6 @@
 @import "./features/status-card.css";
 @import "./features/productivity.css";
 @import "./features/master-prompter.css";
-
 /* Modals */
 @import "./modals/instruction.css";
 @import "./modals/mcp-modal.css";
@@ -69,7 +64,6 @@
 @import "./modals/model-select.css";
 @import "./modals/kimi-help.css";
 @import "./modals/related-notes.css";
-
 /* Settings */
 @import "./settings/base.css";
 @import "./settings/chat-appearance.css";
@@ -85,15 +79,13 @@
 @import "./settings/kimi-features.css";
 @import "./settings/cline-features.css";
 @import "./settings/antigravity-ui.css";
-
 /* Accessibility */
 @import "./accessibility.css";
-
 /* Utilities imported last to preserve cascade priority without importance flags */
 @import "./base/visibility.css";
-
 @import "features/approval-diff-preview.css";
 @import "features/dashboard.css";
 @import "features/artifacts.css";
 @import "features/file-preview.css";
 @import "features/message-provider.css";
+@import "./components/usage-center-glass.css";
