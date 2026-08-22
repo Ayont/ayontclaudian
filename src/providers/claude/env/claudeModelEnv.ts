@@ -54,7 +54,7 @@ export function getModelsFromEnvironment(
     models.push({
       value: modelValue,
       label: info.label,
-      description: `Custom model (${sortedTypes.join(', ')})`
+      description: `Eigenes Modell (${sortedTypes.join(', ')})`
     });
   }
 

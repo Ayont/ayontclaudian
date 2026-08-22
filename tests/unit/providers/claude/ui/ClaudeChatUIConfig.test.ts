@@ -25,12 +25,12 @@ describe('claudeChatUIConfig', () => {
         {
           value: 'claude-opus-4-6',
           label: 'Opus 4.6',
-          description: 'Custom model',
+          description: 'Eigenes Modell',
         },
         {
           value: 'claude-opus-4-6[1m]',
           label: 'Opus 4.6 (1M)',
-          description: 'Custom model',
+          description: 'Eigenes Modell',
         },
       ]);
     });
@@ -67,7 +67,7 @@ describe('claudeChatUIConfig', () => {
       expect(options.at(-1)).toEqual({
         value: 'claude-opus-4-5-20251101',
         label: 'Opus 4.5 (2511)',
-        description: 'Custom model',
+        description: 'Eigenes Modell',
       });
     });
 
@@ -86,7 +86,7 @@ describe('claudeChatUIConfig', () => {
       expect(options.at(-1)).toEqual({
         value: 'claude-opus-4-6',
         label: 'Work Opus',
-        description: 'Custom model',
+        description: 'Eigenes Modell',
       });
     });
 
@@ -104,7 +104,7 @@ describe('claudeChatUIConfig', () => {
         {
           value: 'claude-sonnet-4-5',
           label: 'Sonnet 4.5',
-          description: 'Custom model (model)',
+          description: 'Eigenes Modell (model)',
         },
       ]);
     });
@@ -125,7 +125,7 @@ describe('claudeChatUIConfig', () => {
         {
           value: 'claude-sonnet-4-5',
           label: 'Gateway Sonnet',
-          description: 'Custom model (model)',
+          description: 'Eigenes Modell (model)',
         },
       ]);
     });

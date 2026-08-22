@@ -94,6 +94,11 @@ describe('XML_CONTEXT_PATTERN', () => {
     expect(XML_CONTEXT_PATTERN.test(text)).toBe(true);
   });
 
+  it('matches injected graph context', () => {
+    const text = 'Query\n\n<graph_context>\nDirekt verknüpfte Notizen zu [[Home.md]]:\n</graph_context>';
+    expect(XML_CONTEXT_PATTERN.test(text)).toBe(true);
+  });
+
   it('matches editor_selection tag with attributes', () => {
     const text = 'Query\n\n<editor_selection path="test.md">\nselected text\n</editor_selection>';
     expect(XML_CONTEXT_PATTERN.test(text)).toBe(true);
@@ -304,6 +309,33 @@ describe('extractInjectedContextPrompt', () => {
       memoryContext: '- **UI preference**: compact',
       userContent: 'Fix the compact context display.',
     });
+  });
+
+  it('folds graph context into the card and hides attached-file transport lines', () => {
+    const prompt = [
+      '<graph_context>',
+      'Direkt verknüpfte Notizen zu [[Home.md]]:',
+      '',
+      '- [[Feature-Backlog.md]]',
+      '  dump that must not leak into the bubble',
+      '</graph_context>',
+      '',
+      '<vault_context>',
+      '- From [[Veylor-Core.md]] (score 61%): snippet',
+      '</vault_context>',
+      '',
+      'Attached file: @/var/folders/tmp/App-Shot-firefox.png',
+      '',
+      'Was steht in Home?',
+    ].join('\n');
+
+    expect(extractInjectedContextPrompt(prompt)).toEqual({
+      graphContext: 'Direkt verknüpfte Notizen zu [[Home.md]]:\n\n- [[Feature-Backlog.md]]\n  dump that must not leak into the bubble',
+      vaultContext: '- From [[Veylor-Core.md]] (score 61%): snippet',
+      userContent: 'Was steht in Home?',
+    });
+    expect(extractUserDisplayContent(prompt)).toBe('Was steht in Home?');
+    expect(extractUserQuery(prompt)).toBe('Was steht in Home?');
   });
 });
 

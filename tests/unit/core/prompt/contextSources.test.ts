@@ -1,4 +1,4 @@
-import { extractContextSources, sourceChipLabel } from '@/core/prompt/contextSources';
+import { extractContextSources, formatGraphContextForDisplay, sourceChipLabel } from '@/core/prompt/contextSources';
 
 const SAMPLE = `<vault_context>
 Relevant vault knowledge:
@@ -42,6 +42,25 @@ describe('extractContextSources', () => {
   it('preserves first-seen order', () => {
     const text = '[[z.md]] (score 5%) [[a.md]] (score 9%)';
     expect(extractContextSources(text).map(s => s.path)).toEqual(['z.md', 'a.md']);
+  });
+});
+
+describe('formatGraphContextForDisplay', () => {
+  it('keeps the hub and linked notes, not the raw note dumps', () => {
+    const raw = [
+      'Direkt verknüpfte Notizen zu [[Home.md]]:',
+      '',
+      '- [[Claudian/Conversations/VLA.md]]',
+      '  Wir machen jetzt eine dokumentations liste',
+      '  <recommended_plugins>',
+      '  Here is a list of plugins',
+    ].join('\n');
+
+    expect(formatGraphContextForDisplay(raw)).toBe([
+      'Direkt verknüpft mit [[Home.md]]',
+      '',
+      '- [[Claudian/Conversations/VLA.md]]',
+    ].join('\n'));
   });
 });
 

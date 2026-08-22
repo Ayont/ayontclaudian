@@ -36,7 +36,7 @@ export const DEFAULT_TEMPLATE_FOLDER = 'Templates/Prompt Templates';
 export const BUILT_IN_TEMPLATES: PromptTemplate[] = [
   {
     name: 'code-review',
-    description: 'Review code for bugs, security, and best practices',
+    description: 'Code auf Fehler, Sicherheit und Best Practices prüfen',
     body:
       'Review the following code for bugs, security issues, performance problems, and maintainability.\n' +
       'Suggest concrete fixes and prioritize them by severity.\n\n' +
@@ -45,7 +45,7 @@ export const BUILT_IN_TEMPLATES: PromptTemplate[] = [
   },
   {
     name: 'note-summary',
-    description: 'Summarize the current note concisely',
+    description: 'Aktuelle Notiz prägnant zusammenfassen',
     body:
       'Summarize the following note in 3-5 bullet points. Capture the key insights and action items.\n\n' +
       '{{note}}',
@@ -53,7 +53,7 @@ export const BUILT_IN_TEMPLATES: PromptTemplate[] = [
   },
   {
     name: 'daily-review',
-    description: 'Review your daily notes and extract action items',
+    description: 'Tagesnotizen durchsehen und Aufgaben extrahieren',
     body:
       'Review my daily note from {{date}} and extract:\n' +
       '1. Key accomplishments\n2. Open tasks\n3. Decisions made\n4. Items to follow up on tomorrow\n\n' +
@@ -62,7 +62,7 @@ export const BUILT_IN_TEMPLATES: PromptTemplate[] = [
   },
   {
     name: 'bug-analysis',
-    description: 'Analyze a bug report and propose a fix',
+    description: 'Bug-Report analysieren und Lösung vorschlagen',
     body:
       'Analyze the following bug report and propose a fix:\n' +
       '1. Identify the root cause\n2. Propose the smallest fix that resolves it\n3. List potential side effects\n\n' +
@@ -71,7 +71,7 @@ export const BUILT_IN_TEMPLATES: PromptTemplate[] = [
   },
   {
     name: 'refactor',
-    description: 'Suggest refactoring improvements',
+    description: 'Refactoring-Verbesserungen vorschlagen',
     body:
       'Suggest refactoring improvements for the following code. Focus on readability, ' +
       'maintainability, and design patterns. Preserve behavior.\n\n' +

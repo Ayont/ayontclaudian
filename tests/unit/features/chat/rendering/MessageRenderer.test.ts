@@ -392,6 +392,52 @@ describe('MessageRenderer', () => {
     expect(renderContentSpy).not.toHaveBeenCalledWith(expect.anything(), expect.stringContaining('<memory_context>'));
   });
 
+  it('renders graph context as chips and a formatted list, not raw XML', () => {
+    const messagesEl = createMockEl();
+    const { renderer } = createRenderer(messagesEl);
+    const renderContentSpy = jest.spyOn(renderer, 'renderContent').mockResolvedValue(undefined);
+    const msg: ChatMessage = {
+      id: 'graph-context-user',
+      role: 'user',
+      content: [
+        '<graph_context>',
+        'Direkt verknüpfte Notizen zu [[Home.md]]:',
+        '',
+        '- [[Feature-Backlog.md]]',
+        '  raw dump that must stay out of the bubble',
+        '</graph_context>',
+        '',
+        'Attached file: @/var/folders/tmp/App-Shot-firefox.png',
+        '',
+        'Was steht in Home?',
+      ].join('\n'),
+      timestamp: Date.now(),
+    };
+
+    renderer.renderStoredMessage(msg);
+
+    const contentEl = messagesEl.children[0].children[0];
+    expect(contentEl.children[0].hasClass('claudian-vault-context-card')).toBe(true);
+    expect(contentEl.children[0].children[0].children[1].textContent).toBe('1 verknüpfte Notiz');
+    expect(renderContentSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      'Direkt verknüpft mit [[Home.md]]\n\n- [[Feature-Backlog.md]]',
+    );
+    expect(renderContentSpy).toHaveBeenCalledWith(expect.anything(), 'Was steht in Home?');
+    expect(renderContentSpy).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining('<graph_context>'),
+    );
+    expect(renderContentSpy).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining('Attached file'),
+    );
+    expect(renderContentSpy).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining('raw dump'),
+    );
+  });
+
   it('uses the same collapsed context presentation for live user messages', () => {
     const messagesEl = createMockEl();
     const { renderer } = createRenderer(messagesEl);

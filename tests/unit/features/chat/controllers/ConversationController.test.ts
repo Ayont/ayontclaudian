@@ -962,7 +962,7 @@ describe('ConversationController', () => {
           'Open in new tab',
           'Open in background tab',
           'Rename',
-          'Export to note',
+          'Als Notiz exportieren',
           'Delete',
         ]);
       });
@@ -994,7 +994,7 @@ describe('ConversationController', () => {
         expect(menu.items.map(item => item.title)).toEqual([
           'Switch to open session',
           'Rename',
-          'Export to note',
+          'Als Notiz exportieren',
           'Delete',
         ]);
       });

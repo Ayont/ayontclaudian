@@ -387,7 +387,7 @@ export class InlineAskUserQuestion {
     if (this.focusedItemIndex === 1) cancelRow.addClass('is-focused');
     cancelRow.createSpan({ text: this.focusedItemIndex === 1 ? '\u203A' : '\u00A0', cls: 'claudian-ask-cursor' });
     cancelRow.createSpan({ text: '2. ', cls: 'claudian-ask-item-num' });
-    cancelRow.createSpan({ text: 'Cancel', cls: 'claudian-ask-item-label' });
+    cancelRow.createSpan({ text: 'Abbrechen', cls: 'claudian-ask-item-label' });
     cancelRow.addEventListener('click', () => {
       this.focusedItemIndex = 1;
       this.handleResolve(null);

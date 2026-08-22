@@ -84,7 +84,7 @@ function createSection(parentEl: HTMLElement, title: string, bodyClass?: string)
 function setPromptText(promptBodyEl: HTMLElement, prompt: string): void {
   promptBodyEl.empty();
   const textEl = promptBodyEl.createDiv({ cls: 'claudian-subagent-prompt-text' });
-  textEl.setText(prompt || 'No prompt provided');
+  textEl.setText(prompt || 'Kein Prompt angegeben');
 }
 
 function updateSyncHeaderAria(state: SubagentState): void {

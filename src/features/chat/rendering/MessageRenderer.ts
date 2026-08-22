@@ -1,7 +1,7 @@
 import type { App, Component } from 'obsidian';
 import { MarkdownRenderer, Menu, Notice, setIcon, setTooltip } from 'obsidian';
 
-import { extractContextSources, sourceChipLabel } from '../../../core/prompt/contextSources';
+import { extractContextSources, formatGraphContextForDisplay, sourceChipLabel } from '../../../core/prompt/contextSources';
 import { ProviderRegistry } from '../../../core/providers/ProviderRegistry';
 import { DEFAULT_CHAT_PROVIDER_ID, type ProviderCapabilities, type ProviderId } from '../../../core/providers/types';
 import type { ChatRewindMode } from '../../../core/runtime/types';
@@ -322,6 +322,7 @@ export class MessageRenderer {
     text: string;
     vaultContext?: string;
     memoryContext?: string;
+    graphContext?: string;
   } {
     const injectedContext = extractInjectedContextPrompt(msg.content);
     const displayContent = msg.displayContent
@@ -331,6 +332,7 @@ export class MessageRenderer {
       text: displayContent ?? injectedContext?.userContent ?? extractUserDisplayContent(msg.content) ?? msg.content,
       ...(injectedContext?.vaultContext ? { vaultContext: injectedContext.vaultContext } : {}),
       ...(injectedContext?.memoryContext ? { memoryContext: injectedContext.memoryContext } : {}),
+      ...(injectedContext?.graphContext ? { graphContext: injectedContext.graphContext } : {}),
     };
   }
 
@@ -338,6 +340,7 @@ export class MessageRenderer {
     parentEl: HTMLElement,
     vaultContext?: string,
     memoryContext?: string,
+    graphContext?: string,
   ): void {
     const sourceCount = vaultContext
       ? (vaultContext.match(/^\s*(?:[-*]\s+)?From \[\[/gm) ?? []).length
@@ -345,15 +348,19 @@ export class MessageRenderer {
     const memoryCount = memoryContext
       ? (memoryContext.match(/^\s*[-*]\s+\*\*/gm) ?? []).length
       : 0;
+    const graphNoteCount = graphContext
+      ? (graphContext.match(/^- \[\[.+?\]\]/gm) ?? []).length
+      : 0;
     const summaryParts = [
       ...(vaultContext ? [`${sourceCount || 'Vault'} Vault-Quelle${sourceCount === 1 ? '' : 'n'}`] : []),
       ...(memoryContext ? [`${memoryCount || 'KI'} Erinnerung${memoryCount === 1 ? '' : 'en'}`] : []),
+      ...(graphContext ? [`${graphNoteCount} verknüpfte Notiz${graphNoteCount === 1 ? '' : 'en'}`] : []),
     ];
     const detailsEl = parentEl.createEl('details', { cls: 'claudian-vault-context-card' });
     detailsEl.setAttribute('aria-label', 'Verwendeten KI-Kontext anzeigen');
     const summaryEl = detailsEl.createEl('summary', { cls: 'claudian-vault-context-summary' });
     const iconEl = summaryEl.createSpan({ cls: 'claudian-vault-context-icon' });
-    setIcon(iconEl, memoryContext ? 'brain' : 'library-big');
+    setIcon(iconEl, graphContext ? 'links' : memoryContext ? 'brain' : 'library-big');
     summaryEl.createSpan({
       cls: 'claudian-vault-context-title',
       text: summaryParts.join(' · ') || 'Verwendeter KI-Kontext',
@@ -394,6 +401,11 @@ export class MessageRenderer {
       bodyEl.createDiv({ cls: 'claudian-vault-context-section-title', text: 'Erinnerungen' });
       const memoryBodyEl = bodyEl.createDiv({ cls: 'claudian-vault-context-section' });
       void this.renderContent(memoryBodyEl, memoryContext);
+    }
+    if (graphContext) {
+      bodyEl.createDiv({ cls: 'claudian-vault-context-section-title', text: 'Verknüpfte Notizen' });
+      const graphBodyEl = bodyEl.createDiv({ cls: 'claudian-vault-context-section' });
+      void this.renderContent(graphBodyEl, formatGraphContextForDisplay(graphContext));
     }
   }
 
@@ -542,7 +554,7 @@ export class MessageRenderer {
     // Skip empty bubble for image-only messages
     if (msg.role === 'user') {
       const presentation = this.getUserMessagePresentation(msg);
-      if (!presentation.text && !presentation.vaultContext && !presentation.memoryContext) {
+      if (!presentation.text && !presentation.vaultContext && !presentation.memoryContext && !presentation.graphContext) {
         this.scrollToBottom();
         const lastChild = this.messagesEl.lastElementChild as HTMLElement;
         return lastChild ?? this.messagesEl;
@@ -572,11 +584,12 @@ export class MessageRenderer {
 
     if (msg.role === 'user') {
       const presentation = this.getUserMessagePresentation(msg);
-      if (presentation.vaultContext || presentation.memoryContext) {
+      if (presentation.vaultContext || presentation.memoryContext || presentation.graphContext) {
         this.renderInjectedContextCard(
           contentEl,
           presentation.vaultContext,
           presentation.memoryContext,
+          presentation.graphContext,
         );
       }
       if (presentation.text) {
@@ -612,11 +625,12 @@ export class MessageRenderer {
     contentEl.empty();
 
     const presentation = this.getUserMessagePresentation(msg);
-    if (presentation.vaultContext || presentation.memoryContext) {
+    if (presentation.vaultContext || presentation.memoryContext || presentation.graphContext) {
       this.renderInjectedContextCard(
         contentEl,
         presentation.vaultContext,
         presentation.memoryContext,
+        presentation.graphContext,
       );
     }
     if (presentation.text) {
@@ -704,7 +718,7 @@ export class MessageRenderer {
     // Skip empty bubble for image-only messages
     const userPresentation = msg.role === 'user' ? this.getUserMessagePresentation(msg) : null;
     if (msg.role === 'user') {
-      if (!userPresentation?.text && !userPresentation?.vaultContext && !userPresentation?.memoryContext) {
+      if (!userPresentation?.text && !userPresentation?.vaultContext && !userPresentation?.memoryContext && !userPresentation?.graphContext) {
         return;
       }
     }
@@ -727,11 +741,12 @@ export class MessageRenderer {
     const contentEl = msgEl.createDiv({ cls: 'claudian-message-content', attr: { dir: 'auto' } });
 
     if (msg.role === 'user') {
-      if (userPresentation?.vaultContext || userPresentation?.memoryContext) {
+      if (userPresentation?.vaultContext || userPresentation?.memoryContext || userPresentation?.graphContext) {
         this.renderInjectedContextCard(
           contentEl,
           userPresentation.vaultContext,
           userPresentation.memoryContext,
+          userPresentation.graphContext,
         );
       }
       if (userPresentation?.text) {

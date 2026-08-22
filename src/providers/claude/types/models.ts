@@ -6,14 +6,14 @@
 export type ClaudeModel = string;
 
 export const DEFAULT_CLAUDE_MODELS: { value: ClaudeModel; label: string; description: string }[] = [
-  { value: 'haiku', label: 'Haiku', description: 'Fast and efficient' },
-  { value: 'sonnet', label: 'Sonnet', description: 'Balanced performance' },
-  { value: 'sonnet[1m]', label: 'Sonnet 1M', description: 'Balanced performance (1M context window)' },
+  { value: 'haiku', label: 'Haiku', description: 'Schnell und effizient' },
+  { value: 'sonnet', label: 'Sonnet', description: 'Ausgewogene Leistung' },
+  { value: 'sonnet[1m]', label: 'Sonnet 1M', description: 'Ausgewogene Leistung (1M-Kontextfenster)' },
   // `opus` is a floating alias — the CLI resolves it to "the latest model" server-side,
   // so it always tracks the newest Opus release without a plugin change. The SDK's own
   // `supportedModels()` reports the alias resolving to `claude-opus-4-8[1m]` today.
-  { value: 'opus', label: 'Opus', description: 'Most capable (tracks the latest release)' },
-  { value: 'opus[1m]', label: 'Opus 1M', description: 'Most capable (1M context window)' },
+  { value: 'opus', label: 'Opus', description: 'Leistungsfähigstes (folgt dem neuesten Release)' },
+  { value: 'opus[1m]', label: 'Opus 1M', description: 'Leistungsfähigstes (1M-Kontextfenster)' },
   // Pinned dated IDs alongside the floating `opus` alias, so a specific generation stays
   // selectable even after `opus` moves on to a newer release. Both verified live and still
   // reachable today — Anthropic keeps prior dated Opus snapshots available after a new
@@ -23,14 +23,14 @@ export const DEFAULT_CLAUDE_MODELS: { value: ClaudeModel; label: string; descrip
   // (measured: `claude-opus-5` -> 200000, `claude-opus-5[1m]` -> 1000000). Both spellings
   // are listed so the `enableOpus1M` toggle governs the pinned entry the same way it
   // governs the floating alias — see filterVisibleModelOptions().
-  { value: 'claude-opus-5', label: 'Opus 5', description: 'Pinned to Opus 5 — stays fixed even once a newer Opus becomes the `opus` default' },
-  { value: 'claude-opus-5[1m]', label: 'Opus 5 1M', description: 'Pinned to Opus 5 with the 1M context window opt-in' },
-  { value: 'claude-opus-4-8', label: 'Opus 4.8', description: 'Pinned to the previous Opus 4.8 release (1M context by default)' },
+  { value: 'claude-opus-5', label: 'Opus 5', description: 'An Opus 5 gebunden — bleibt fix, auch wenn ein neueres Opus zum `opus`-Standard wird' },
+  { value: 'claude-opus-5[1m]', label: 'Opus 5 1M', description: 'An Opus 5 gebunden mit 1M-Kontext-Opt-in' },
+  { value: 'claude-opus-4-8', label: 'Opus 4.8', description: 'An das vorherige Opus-4.8-Release gebunden (1M Kontext standardmäßig)' },
   // Fable 5 is Anthropic's Mythos-class flagship (introduced with Claude Code 2.1.170).
   // It ships with a 1M context window by default, so there is no separate `[1m]` variant —
   // the CLI strips a `[1m]` suffix automatically (changelog 2.1.173). Placed last (not at
   // index 0) so it never becomes the accidental default and silently consumes usage credits.
-  { value: 'fable', label: 'Fable', description: 'Mythos-class flagship (1M context by default)' },
+  { value: 'fable', label: 'Fable', description: 'Flaggschiff der Mythos-Klasse (1M Kontext standardmäßig)' },
 ];
 
 /**

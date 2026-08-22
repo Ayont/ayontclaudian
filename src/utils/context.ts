@@ -17,11 +17,13 @@ const CURRENT_NOTE_SUFFIX_REGEX = /\n\n<current_note>\n[\s\S]*?<\/current_note>$
  * Matches: current_note, editor_selection (with attributes), editor_cursor (with attributes),
  * context_files, canvas_selection, browser_selection
  */
-export const XML_CONTEXT_PATTERN = /\n\n<(?:vault_context|memory_context|current_note|editor_selection|editor_cursor|context_files|canvas_selection|browser_selection)[\s>]/;
+export const XML_CONTEXT_PATTERN = /\n\n<(?:vault_context|memory_context|graph_context|current_note|editor_selection|editor_cursor|context_files|canvas_selection|browser_selection)[\s>]/;
 const BRACKET_CONTEXT_PATTERN = /\n\[(?:Current note|Editor selection from|Browser selection from|Canvas selection from)\b/;
 const VAULT_CONTEXT_PATTERN = /<vault_context>\s*([\s\S]*?)\s*<\/vault_context>/i;
 const MEMORY_CONTEXT_PATTERN = /<memory_context>\s*([\s\S]*?)\s*<\/memory_context>/i;
-const INJECTED_CONTEXT_PATTERN = /<(vault_context|memory_context)>\s*([\s\S]*?)\s*<\/\1>/gi;
+const GRAPH_CONTEXT_PATTERN = /<graph_context>\s*([\s\S]*?)\s*<\/graph_context>/i;
+const ATTACHED_FILE_PATTERN = /^Attached file:\s*@?\S.*(?:\n|$)/gm;
+const INJECTED_CONTEXT_PATTERN = /<(vault_context|memory_context|graph_context)>\s*([\s\S]*?)\s*<\/\1>/gi;
 // Codex persists image attachments as provider-internal XML before the human
 // prompt. These tags are transport metadata, never user-authored chat text.
 const INTERNAL_IMAGE_TAG_PATTERN = /<image\b(?=[^>]*\bname=\[Image\s+#\d+\])(?=[^>]*\bpath=(?:"[^"]*"|'[^']*'))[^>]*>(?:\s*<\/image>)?\s*/gi;
@@ -40,6 +42,7 @@ export interface VaultContextPrompt {
 export interface InjectedContextPrompt {
   vaultContext?: string;
   memoryContext?: string;
+  graphContext?: string;
   /** Human-authored prompt after all internal context envelopes are removed. */
   userContent: string;
 }
@@ -115,17 +118,19 @@ export function extractInjectedContextPrompt(text: string): InjectedContextPromp
   if (!text) return undefined;
   const vaultMatch = text.match(VAULT_CONTEXT_PATTERN);
   const memoryMatch = text.match(MEMORY_CONTEXT_PATTERN);
-  if (!vaultMatch && !memoryMatch) return undefined;
+  const graphMatch = text.match(GRAPH_CONTEXT_PATTERN);
+  if (!vaultMatch && !memoryMatch && !graphMatch) return undefined;
 
   const withoutInjectedContext = stripInternalImageTags(
     text.replace(INJECTED_CONTEXT_PATTERN, ''),
   );
-  const userContent = extractContentBeforeXmlContext(withoutInjectedContext)
-    ?? withoutInjectedContext;
+  const userContent = (extractContentBeforeXmlContext(withoutInjectedContext)
+    ?? withoutInjectedContext).replace(ATTACHED_FILE_PATTERN, "");
 
   return {
     ...(vaultMatch?.[1]?.trim() ? { vaultContext: vaultMatch[1].trim() } : {}),
     ...(memoryMatch?.[1]?.trim() ? { memoryContext: memoryMatch[1].trim() } : {}),
+    ...(graphMatch?.[1]?.trim() ? { graphContext: graphMatch[1].trim() } : {}),
     userContent: userContent.trim(),
   };
 }
@@ -185,6 +190,7 @@ export function extractUserQuery(prompt: string): string {
     .replace(/<browser_selection[\s\S]*?<\/browser_selection>\s*/g, '')
     .replace(/<vault_context>[\s\S]*?<\/vault_context>\s*/g, '')
     .replace(/<memory_context>[\s\S]*?<\/memory_context>\s*/g, '')
+    .replace(/<graph_context>[\s\S]*?<\/graph_context>\s*/g, '')
     .trim();
 }
 

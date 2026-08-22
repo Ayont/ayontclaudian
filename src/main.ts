@@ -495,7 +495,7 @@ export default class ClaudianPlugin extends Plugin {
 
     this.addCommand({
       id: 'search-in-chat',
-      name: 'Search in current chat',
+      name: 'Im aktuellen Chat suchen',
       checkCallback: (checking: boolean) => {
         const tab = this.getView()?.getActiveTab();
         if (!tab?.ui.chatSearch) return false;
@@ -530,7 +530,7 @@ export default class ClaudianPlugin extends Plugin {
 
     this.addCommand({
       id: 'show-conversation-tree',
-      name: 'Show conversation branch tree',
+      name: 'Konversations-Baum anzeigen',
       callback: () => this.openConversationTree(),
     });
 
@@ -550,7 +550,7 @@ export default class ClaudianPlugin extends Plugin {
 
     this.addCommand({
       id: 'show-run-timeline',
-      name: 'Show last run timeline',
+      name: 'Letzte Run-Timeline anzeigen',
       callback: () => {
         void this.showLastRunTimeline();
       },
@@ -634,7 +634,7 @@ export default class ClaudianPlugin extends Plugin {
 
     this.addCommand({
       id: 'show-token-budget',
-      name: 'Show token budget status',
+      name: 'Token-Budget-Status anzeigen',
       callback: () => {
         const state = this.tokenBudgetTracker.getState();
         const daily = this.settings.dailyTokenBudget ?? 0;
@@ -721,7 +721,7 @@ export default class ClaudianPlugin extends Plugin {
 
     this.addCommand({
       id: 'export-conversation',
-      name: 'Export conversation to note',
+      name: 'Konversation als Notiz exportieren',
       callback: () => { void this.exportActiveConversation(); },
     });
 

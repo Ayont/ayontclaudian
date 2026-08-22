@@ -68,7 +68,7 @@ export function getToolName(name: string, input: Record<string, unknown>): strin
       return 'Tasks';
     }
     case TOOL_ENTER_PLAN_MODE:
-      return 'Entering plan mode';
+      return 'Betrete Plan-Modus';
     case TOOL_EXIT_PLAN_MODE:
       return 'Plan fertig';
     default:
@@ -160,7 +160,7 @@ export function getToolLabel(name: string, input: Record<string, unknown>): stri
       return `ToolSearch: ${tools || 'tools'}`;
     }
     case TOOL_ENTER_PLAN_MODE:
-      return 'Entering plan mode';
+      return 'Betrete Plan-Modus';
     case TOOL_EXIT_PLAN_MODE:
       return 'Plan fertig';
     case 'Ergebnis':

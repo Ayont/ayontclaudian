@@ -37,7 +37,7 @@ describe('keyboardNavigation', () => {
     it('should reject invalid formats', () => {
       const result = parseNavMappings('map w scrollUp extra');
 
-      expect(result.error).toBe('Each line must follow "map <key> <action>"');
+      expect(result.error).toBe('Jede Zeile muss dem Format "map <Taste> <Aktion>" folgen');
     });
 
     it('should reject unknown actions', () => {
@@ -61,7 +61,7 @@ describe('keyboardNavigation', () => {
     it('should reject duplicate keys case-insensitively', () => {
       const result = parseNavMappings('map W scrollUp\nmap w scrollDown\nmap i focusInput');
 
-      expect(result.error).toBe('Navigation keys must be unique');
+      expect(result.error).toBe('Navigationstasten müssen eindeutig sein');
     });
 
     it('should reject missing mappings', () => {

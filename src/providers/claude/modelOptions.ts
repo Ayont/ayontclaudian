@@ -69,7 +69,7 @@ export function getClaudeModelOptions(settings: Record<string, unknown>): Provid
     models.push({
       value: modelId,
       label: customModelAliases[modelId] ?? formatCustomModelLabel(modelId),
-      description: 'Custom model',
+      description: 'Eigenes Modell',
     });
   }
 

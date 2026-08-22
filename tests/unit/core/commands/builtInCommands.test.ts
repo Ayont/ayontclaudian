@@ -181,7 +181,7 @@ describe('builtInCommands', () => {
       const clearCmd = commands.find((c) => c.name === 'clear');
       expect(clearCmd).toBeDefined();
       expect(clearCmd?.id).toBe('builtin:clear');
-      expect(clearCmd?.description).toBe('Start a new conversation');
+      expect(clearCmd?.description).toBe('Neue Konversation starten');
       expect(clearCmd?.content).toBe('');
     });
 
@@ -210,14 +210,14 @@ describe('builtInCommands', () => {
       expect(addDirCmd).toBeDefined();
       expect(addDirCmd?.action).toBe('add-dir');
       expect(addDirCmd?.hasArgs).toBe(true);
-      expect(addDirCmd?.description).toBe('Add external context directory');
+      expect(addDirCmd?.description).toBe('Externes Kontext-Verzeichnis hinzufügen');
     });
 
     it('has resume command', () => {
       const resumeCmd = BUILT_IN_COMMANDS.find((c) => c.name === 'resume');
       expect(resumeCmd).toBeDefined();
       expect(resumeCmd?.action).toBe('resume');
-      expect(resumeCmd?.description).toBe('Resume a previous conversation');
+      expect(resumeCmd?.description).toBe('Vorherige Konversation fortsetzen');
     });
 
     it('has fork command without args', () => {

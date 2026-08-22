@@ -347,7 +347,7 @@ describe('ToolCallRenderer', () => {
     });
 
     it('should return plan mode labels', () => {
-      expect(getToolName('EnterPlanMode', {})).toBe('Entering plan mode');
+      expect(getToolName('EnterPlanMode', {})).toBe('Betrete Plan-Modus');
       expect(getToolName('ExitPlanMode', {})).toBe('Plan fertig');
     });
 

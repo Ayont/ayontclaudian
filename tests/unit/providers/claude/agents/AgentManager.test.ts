@@ -115,7 +115,7 @@ describe('AgentManager', () => {
       expect(explore).toBeDefined();
       expect(explore?.source).toBe('builtin');
       expect(explore?.name).toBe('Explore');
-      expect(explore?.description).toBe('Fast codebase exploration and search');
+      expect(explore?.description).toBe('Schnelle Codebasis-Erkundung und Suche');
     });
 
     it('loads agents from vault directory', async () => {
@@ -490,7 +490,7 @@ describe('AgentManager', () => {
       const manager = new AgentManager(VAULT_PATH, createMockPluginManager());
 
       await manager.loadAgents();
-      const results = manager.searchAgents('codebase');
+      const results = manager.searchAgents('Suche');
 
       expect(results.length).toBeGreaterThanOrEqual(1);
       expect(results.some(r => r.id === 'Explore')).toBe(true);

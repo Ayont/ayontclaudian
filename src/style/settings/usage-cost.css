@@ -316,7 +316,7 @@ body.theme-light .claudian-usage-center {
   box-shadow: none;
   color: var(--text-muted);
   cursor: pointer;
-  transition: all var(--cl-dur-fast, 120ms) ease;
+  transition: background-color var(--cl-dur-fast, 120ms) ease, border-color var(--cl-dur-fast, 120ms) ease, color var(--cl-dur-fast, 120ms) ease;
 }
 
 .claudian-usage-provider-toggle:hover {
@@ -539,7 +539,7 @@ body.theme-light .claudian-usage-center {
   font-size: 10px;
   font-weight: 600;
   cursor: pointer;
-  transition: all var(--cl-dur-fast, 120ms) ease;
+  transition: background-color var(--cl-dur-fast, 120ms) ease, border-color var(--cl-dur-fast, 120ms) ease, color var(--cl-dur-fast, 120ms) ease;
 }
 
 .claudian-usage-mode-btn.is-active {
@@ -593,7 +593,7 @@ body.theme-light .claudian-usage-center {
   color: var(--text-muted);
   font-size: 10.5px;
   cursor: pointer;
-  transition: all var(--cl-dur-fast, 120ms) ease;
+  transition: background-color var(--cl-dur-fast, 120ms) ease, border-color var(--cl-dur-fast, 120ms) ease, color var(--cl-dur-fast, 120ms) ease;
 }
 
 .claudian-usage-center-reset:hover {

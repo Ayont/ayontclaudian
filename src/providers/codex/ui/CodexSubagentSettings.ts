@@ -28,7 +28,7 @@ const CODEX_AGENT_NAME_PATTERN = /^[a-z0-9_-]+$/;
 const CODEX_NICKNAME_PATTERN = /^[A-Za-z0-9 _-]+$/;
 
 export function validateCodexSubagentName(name: string): string | null {
-  if (!name) return 'Subagent name is required';
+  if (!name) return 'Subagent-Name ist erforderlich';
   if (name.length > MAX_NAME_LENGTH) return `Subagent name must be ${MAX_NAME_LENGTH} characters or fewer`;
   if (!CODEX_AGENT_NAME_PATTERN.test(name)) return 'Subagent name can only contain lowercase letters, numbers, hyphens, and underscores';
   return null;
@@ -205,7 +205,7 @@ class CodexSubagentModal extends Modal {
 
       const developerInstructions = this._instructionsArea.value;
       if (!developerInstructions.trim()) {
-        new Notice('Developer instructions are required');
+        new Notice('Entwickler-Anweisungen sind erforderlich');
         return;
       }
 
@@ -373,7 +373,7 @@ export class CodexSubagentSettings {
         this.onChanged?.();
         new Notice(`Subagent "${agent.name}" deleted`);
       } catch {
-        new Notice('Failed to delete subagent');
+        new Notice('Subagent konnte nicht gelöscht werden');
       }
       })();
     });

@@ -22,10 +22,10 @@ const PLUGIN_AGENTS_DIR = 'agents';
 const FALLBACK_BUILTIN_AGENT_NAMES = ['Explore', 'Plan', 'Bash', 'general-purpose'];
 
 const BUILTIN_AGENT_DESCRIPTIONS: Record<string, string> = {
-  'Explore': 'Fast codebase exploration and search',
-  'Plan': 'Implementation planning and architecture',
-  'Bash': 'Command execution specialist',
-  'general-purpose': 'Multi-step tasks and complex workflows',
+  'Explore': 'Schnelle Codebasis-Erkundung und Suche',
+  'Plan': 'Implementierungs-Planung und Architektur',
+  'Bash': 'Spezialist für Befehlsausführung',
+  'general-purpose': 'Mehrstufige Aufgaben und komplexe Workflows',
 };
 
 function makeBuiltinAgent(name: string): AgentDefinition {

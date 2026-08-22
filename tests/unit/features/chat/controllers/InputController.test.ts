@@ -400,7 +400,7 @@ describe('InputController - Message Queue', () => {
       const queueIndicatorEl = deps.state.queueIndicatorEl as any;
       const editButton = queueIndicatorEl
         .querySelectorAll('.claudian-queue-indicator-icon-action')
-        .find((button: any) => button.getAttribute('aria-label') === 'Edit queued message');
+        .find((button: any) => button.getAttribute('aria-label') === 'Nachricht bearbeiten');
       editButton?.click();
 
       expect(deps.state.queuedMessage).toBeNull();
@@ -425,7 +425,7 @@ describe('InputController - Message Queue', () => {
       const queueIndicatorEl = deps.state.queueIndicatorEl as any;
       const discardButton = queueIndicatorEl
         .querySelectorAll('.claudian-queue-indicator-icon-action')
-        .find((button: any) => button.getAttribute('aria-label') === 'Discard queued message');
+        .find((button: any) => button.getAttribute('aria-label') === 'Nachricht verwerfen');
       discardButton?.click();
 
       expect(deps.state.queuedMessage).toBeNull();

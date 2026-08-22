@@ -40,7 +40,7 @@ function validateFilePath(value: string): string | null {
   }
   const expandedPath = expandHomePath(trimmed);
   if (!fs.existsSync(expandedPath)) {
-    return 'Path does not exist';
+    return 'Pfad existiert nicht';
   }
   if (!fs.statSync(expandedPath).isFile()) {
     return 'Path must point to a file';

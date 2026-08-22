@@ -46,3 +46,40 @@ export function sourceChipLabel(path: string): string {
   const base = path.split('/').pop() ?? path;
   return base.replace(/\.md$/i, '');
 }
+/**
+ * Format injected graph context for display: condense multi-note dumps into a
+ * compact card showing the hub note and linked notes without the raw snippets.
+ *
+ * Input example:
+ *   Direkt verknüpfte Notizen zu [[Home.md]]:
+ *
+ *   - [[Claudian/Conversations/VLA.md]]
+ *     Wir machen jetzt eine dokumentations liste
+ *     <recommended_plugins>
+ *
+ * Output:
+ *   Direkt verknüpft mit [[Home.md]]
+ *
+ *   - [[Claudian/Conversations/VLA.md]]
+ */
+export function formatGraphContextForDisplay(raw: string): string {
+  if (!raw) return raw;
+
+  const lines = raw.split('\n');
+
+  // Rewrite the heading: "zu" → "mit" (shorter, more natural)
+  const headingRx = /^Direkt verknüpfte Notizen zu (\[\[.+?\]\]):/;
+  const heading = lines[0]?.replace(headingRx, 'Direkt verknüpft mit $1') ?? lines[0];
+
+  // Filter to heading + linked-note lines (drop raw note dumps)
+  const filtered = [heading];
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    // Keep empty lines and lines starting with "- [[" (wikilink entries)
+    if (line === '' || /^- \[\[.+?\]\]/.test(line)) {
+      filtered.push(line);
+    }
+  }
+
+  return filtered.join('\n');
+}

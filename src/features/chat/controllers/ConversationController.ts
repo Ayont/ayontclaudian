@@ -306,7 +306,7 @@ export class ConversationController {
     const msgs = state.messages;
     const userIdx = msgs.findIndex(m => m.id === userMessageId);
     if (userIdx === -1) {
-      new Notice(t('chat.rewind.failed', { error: 'Message not found' }));
+      new Notice(t('chat.rewind.failed', { error: 'Nachricht nicht gefunden' }));
       return;
     }
     const userMsg = msgs[userIdx];
@@ -369,7 +369,7 @@ export class ConversationController {
     try {
       await this.save(false, { resumeAtMessageId: prevAssistantUuid });
     } catch (e) {
-      saveError = e instanceof Error ? e.message : 'Failed to save';
+      saveError = e instanceof Error ? e.message : 'Speichern fehlgeschlagen';
     }
 
     if (saveError) {
@@ -912,7 +912,7 @@ export class ConversationController {
         this.showRenameInput(item, conversationId, title);
       }));
     menu.addItem((menuItem) => menuItem
-      .setTitle('Export to note')
+      .setTitle('Als Notiz exportieren')
       .setIcon('download')
       .onClick(() => {
         void this.deps.plugin.exportActiveConversation(conversationId);

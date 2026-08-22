@@ -445,7 +445,7 @@ export class ThinkingBudgetSelector {
       const gearEl = optionsEl.createDiv({ cls: 'claudian-thinking-gear' });
       gearEl.setText(budget.label);
       const tokens = budget.tokens ?? 0;
-      gearEl.setAttribute('title', tokens > 0 ? `${tokens.toLocaleString()} tokens` : 'Disabled');
+      gearEl.setAttribute('title', tokens > 0 ? `${tokens.toLocaleString('en-US')} tokens` : 'Disabled');
 
       if (budget.value === currentBudget) {
         gearEl.addClass('selected');

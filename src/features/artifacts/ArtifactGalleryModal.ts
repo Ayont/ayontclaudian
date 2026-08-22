@@ -28,7 +28,7 @@ export class ArtifactGalleryModal extends Modal {
 
     this.gridEl = contentEl.createDiv({ cls: 'claudian-artifact-gallery-grid' });
 
-    const loading = this.gridEl.createEl('p', { cls: 'claudian-artifact-gallery-empty', text: 'Loading...' });
+    const loading = this.gridEl.createEl('p', { cls: 'claudian-artifact-gallery-empty', text: 'Lädt...' });
     try {
       this.artifacts = await this.plugin.artifactService.listArtifacts();
     } catch {

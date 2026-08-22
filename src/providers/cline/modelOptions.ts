@@ -48,7 +48,7 @@ export function getClineModelOptions(settings: Record<string, unknown>): Provide
     models.unshift({
       value: envModel,
       label: formatClineModelLabel(envModel),
-      description: 'Custom (env)',
+      description: 'Eigenes (env)',
       group: 'Custom',
       providerId: 'cline',
       isDefault: false,

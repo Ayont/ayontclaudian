@@ -24,7 +24,7 @@ export const parseNavMappings = (
 
     const parts = line.split(/\s+/);
     if (parts.length !== 3 || parts[0] !== 'map') {
-      return { error: 'Each line must follow "map <key> <action>"' };
+      return { error: 'Jede Zeile muss dem Format "map <Taste> <Aktion>" folgen' };
     }
 
     const key = parts[1];
@@ -40,7 +40,7 @@ export const parseNavMappings = (
 
     const normalizedKey = key.toLowerCase();
     if (usedKeys.has(normalizedKey)) {
-      return { error: 'Navigation keys must be unique' };
+      return { error: 'Navigationstasten müssen eindeutig sein' };
     }
 
     if (parsed[action]) {

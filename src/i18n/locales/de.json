@@ -240,12 +240,12 @@
       "desc": "Lädt ~/.claude/settings.json. Wenn aktiviert, können Benutzer-Claude-Code-Berechtigungsregeln den Sicherheitsmodus umgehen."
     },
     "claudeSafeMode": {
-      "name": "Safe mode",
-      "desc": "Permission mode used when the Safe toggle is active."
+      "name": "Sicherer Modus",
+      "desc": "Berechtigungsmodus, der verwendet wird, wenn der Safe-Toggle aktiv ist."
     },
     "codexSafeMode": {
-      "name": "Safe mode",
-      "desc": "Sandbox mode used when the Safe toggle is active."
+      "name": "Sicherer Modus",
+      "desc": "Sandbox-Modus, der verwendet wird, wenn der Safe-Toggle aktiv ist."
     },
     "environment": "Umgebung",
     "customVariables": {
@@ -292,8 +292,8 @@
       "desc": "Sonnet 1M in der Modellauswahl anzeigen. Erfordert zusätzliche Nutzung bei Max-, Team- und Enterprise-Plänen. API- und Pro-Nutzer benötigen zusätzliche Nutzung."
     },
     "customModels": {
-      "name": "Custom models",
-      "desc": "Append additional Claude model IDs to the picker, one per line. Environment model overrides still replace the picker.",
+      "name": "Benutzerdefinierte Modelle",
+      "desc": "Zusätzliche Claude-Modell-IDs zur Auswahl hinzufügen, eine pro Zeile. Umgebungsmodell-Überschreibungen ersetzen weiterhin die Auswahl.",
       "placeholder": "claude-opus-4-6\nclaude-opus-4-6[1m]\nclaude-opus-4-5-20251101"
     },
     "enableChrome": {
@@ -351,30 +351,30 @@
       "name": "Sprache",
       "desc": "Anzeigesprache der Plugin-Oberfläche ändern"
     },
-    "memoryAndBudget": "Memory & budget",
+    "memoryAndBudget": "Speicher & Budget",
     "memoryEnabled": {
-      "name": "Enable agentic memory",
-      "desc": "Automatically recall relevant notes from .claudian/memory/ and prepend them to the prompt."
+      "name": "Agentisches Gedächtnis aktivieren",
+      "desc": "Relevante Notizen aus .claudian/memory/ automatisch abrufen und dem Prompt voranstellen."
     },
     "memoryFolder": {
-      "name": "Memory folder",
-      "desc": "Folder where memory notes are stored."
+      "name": "Gedächtnis-Ordner",
+      "desc": "Ordner, in dem Gedächtnis-Notizen gespeichert werden."
     },
     "memoryMaxNotes": {
-      "name": "Max recalled memories",
-      "desc": "Maximum number of memory notes injected per turn."
+      "name": "Max. abgerufene Gedächtnis-Notizen",
+      "desc": "Maximale Anzahl von Gedächtnis-Notizen, die pro Runde eingebunden werden."
     },
     "tokenBudgetEnabled": {
-      "name": "Enable token budget",
-      "desc": "Block new turns when the daily or session token budget is reached."
+      "name": "Token-Budget aktivieren",
+      "desc": "Neue Runden blockieren, wenn das tägliche oder Sitzungs-Token-Budget erreicht ist."
     },
     "dailyTokenBudget": {
-      "name": "Daily token budget",
-      "desc": "0 = unlimited."
+      "name": "Tägliches Token-Budget",
+      "desc": "0 = unbegrenzt."
     },
     "sessionTokenBudget": {
-      "name": "Session token budget",
-      "desc": "0 = unlimited."
+      "name": "Sitzungs-Token-Budget",
+      "desc": "0 = unbegrenzt."
     }
   }
 }

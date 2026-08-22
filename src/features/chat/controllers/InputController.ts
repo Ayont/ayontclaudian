@@ -1194,7 +1194,7 @@ export class InputController {
         const editButton = this.createQueueIconButton(
           actionsEl,
           'pencil',
-          'Edit queued message',
+          'Nachricht bearbeiten',
         );
         editButton.addEventListener('click', (event) => {
           event.stopPropagation();
@@ -1204,7 +1204,7 @@ export class InputController {
         const discardButton = this.createQueueIconButton(
           actionsEl,
           'trash-2',
-          'Discard queued message',
+          'Nachricht verwerfen',
         );
         discardButton.addEventListener('click', (event) => {
           event.stopPropagation();

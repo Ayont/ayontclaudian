@@ -229,7 +229,7 @@ export class SlashCommandModal extends Modal {
 
       const content = contentArea.value;
       if (!content.trim()) {
-        new Notice('Prompt template is required');
+        new Notice('Prompt-Vorlage ist erforderlich');
         return;
       }
 

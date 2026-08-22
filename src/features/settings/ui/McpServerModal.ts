@@ -71,7 +71,7 @@ export class McpServerModal extends Modal {
   }
 
   onOpen() {
-    this.setTitle(this.existingServer ? 'Edit MCP Server' : 'Add MCP Server');
+    this.setTitle(this.existingServer ? 'MCP-Server bearbeiten' : 'MCP-Server hinzufügen');
     this.modalEl.addClass('claudian-mcp-modal');
 
     const { contentEl } = this;
@@ -129,7 +129,7 @@ export class McpServerModal extends Modal {
     const buttonContainer = contentEl.createDiv({ cls: 'claudian-mcp-buttons' });
 
     const cancelBtn = buttonContainer.createEl('button', {
-      text: 'Cancel',
+      text: 'Abbrechen',
       cls: 'claudian-cancel-btn',
     });
     cancelBtn.addEventListener('click', () => this.close());
@@ -231,13 +231,13 @@ export class McpServerModal extends Modal {
   private save() {
     const name = this.serverName.trim();
     if (!name) {
-      new Notice('Please enter a server name');
+      new Notice('Bitte gib einen Servernamen ein');
       this.nameInputEl?.focus();
       return;
     }
 
     if (!/^[a-zA-Z0-9._-]+$/.test(name)) {
-      new Notice('Server name can only contain letters, numbers, dots, hyphens, and underscores');
+      new Notice('Der Servername darf nur Buchstaben, Zahlen, Punkte, Bindestriche und Unterstriche enthalten');
       this.nameInputEl?.focus();
       return;
     }
@@ -247,7 +247,7 @@ export class McpServerModal extends Modal {
     if (this.serverType === 'stdio') {
       const fullCommand = this.command.trim();
       if (!fullCommand) {
-        new Notice('Please enter a command');
+        new Notice('Bitte gib einen Befehl ein');
         return;
       }
 
@@ -267,7 +267,7 @@ export class McpServerModal extends Modal {
     } else {
       const url = this.url.trim();
       if (!url) {
-        new Notice('Please enter a URL');
+        new Notice('Bitte gib eine URL ein');
         return;
       }
 
