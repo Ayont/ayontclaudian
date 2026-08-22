@@ -320,6 +320,11 @@ export async function renderLiveDocument(
   return card;
 }
 
+/** Per-message signature memory so unchanged streaming frames skip rebuilds.
+ *  Rebuilding every frame made the canvas flicker and dropped UI state like
+ *  the theme toggle — the guard keeps the mounted page stable instead. */
+const liveDocumentFrameSignatures = new WeakMap<HTMLElement, string>();
+
 /** Replaces live-document code fences with a designed, streaming document canvas. */
 export async function renderLiveDocuments(
   root: HTMLElement,
@@ -327,6 +332,11 @@ export async function renderLiveDocuments(
   context: LiveDocumentRenderContext,
 ): Promise<boolean> {
   const blocks = parseLiveDocumentBlocks(markdown);
+  const frameSignature = blocks.map((block) => JSON.stringify(block.liveDocument ?? null)).join('\u0002');
+  if (liveDocumentFrameSignatures.get(root) === frameSignature && root.querySelector('.claudian-live-document-page')) {
+    return true;
+  }
+  liveDocumentFrameSignatures.set(root, frameSignature);
   const codeBlocks = Array.from(root.querySelectorAll(
     'pre code.language-claudian-document, pre code.language-live-document',
   ));

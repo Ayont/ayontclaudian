@@ -242,6 +242,53 @@ function cloneAsPlainTemplate(template: EmailTemplate): EmailTemplate {
   };
 }
 
+/** Editable fields a streaming re-render must not clobber once touched. */
+const EDITABLE_FIELDS: Array<keyof EmailTemplate> = ['subject', 'recipient', 'sender', 'preheader', 'body'];
+
+export interface EmailDraftState {
+  drafts: EmailTemplate[];
+  agentValues: EmailTemplate[];
+}
+
+/** Stable content signature so streaming frames can detect real changes. */
+export function emailTemplatesSignature(templates: readonly EmailTemplate[]): string {
+  return templates.map((template) => [
+    template.subject,
+    template.recipient ?? '',
+    template.sender ?? '',
+    template.preheader ?? '',
+    template.kind,
+    template.body,
+  ].join('\u0001')).join('\u0002');
+}
+
+/** Merges freshly parsed agent templates into the persisted draft state:
+ *  a field the user edited keeps its value; untouched fields adopt the new
+ *  agent output. New or removed variants are adopted/dropped wholesale. */
+export function mergeEmailDrafts(
+  previous: EmailDraftState,
+  nextAgent: EmailTemplate[],
+): EmailDraftState {
+  const drafts = nextAgent.map((agentTemplate, index) => {
+    const previousDraft = previous.drafts[index];
+    const previousAgent = previous.agentValues[index];
+    if (!previousDraft || !previousAgent) {
+      return { ...agentTemplate };
+    }
+    const merged: EmailTemplate = { ...agentTemplate };
+    const writable = merged as unknown as Record<string, string | undefined>;
+    for (const field of EDITABLE_FIELDS) {
+      const userValue = previousDraft[field];
+      const lastAgentValue = previousAgent[field];
+      if (userValue !== undefined && userValue !== lastAgentValue) {
+        writable[field as string] = userValue;
+      }
+    }
+    return merged;
+  });
+  return { drafts, agentValues: nextAgent.map((template) => ({ ...template })) };
+}
+
 function buildTabLabels(templates: EmailTemplate[]): string[] {
   const totals = new Map<EmailTemplateKind, number>();
   const seen = new Map<EmailTemplateKind, number>();
@@ -258,8 +305,9 @@ export async function renderEmailTemplateWorkspace(
   container: HTMLElement,
   sourceTemplates: EmailTemplate[],
   context: EmailTemplateRenderContext,
+  options?: { initialDrafts?: EmailTemplate[]; onDraftsChange?: (drafts: EmailTemplate[]) => void },
 ): Promise<HTMLElement> {
-  const drafts = sourceTemplates.map(cloneAsPlainTemplate);
+  const drafts = (options?.initialDrafts ?? sourceTemplates).map(cloneAsPlainTemplate);
   let activeIndex = 0;
   let activeKind = drafts[0].kind;
   const labels = buildTabLabels(drafts);
@@ -347,6 +395,7 @@ export async function renderEmailTemplateWorkspace(
     draft.recipient = recipientInput.value.trim() || undefined;
     draft.subject = subjectInput.value;
     draft.body = bodyInput.value;
+    options?.onDraftsChange?.(drafts);
   };
 
   const renderDraft = (index: number) => {
@@ -414,7 +463,12 @@ export async function renderEmailTemplate(
   return renderEmailTemplateWorkspace(container, [template], context);
 }
 
-/** Groups every email fence in one selectable, plain-text editor. */
+/** Per-message draft memory so streaming re-renders never clobber edits. */
+const emailWorkspaceStates = new WeakMap<HTMLElement, { signature: string; state: EmailDraftState }>();
+
+/** Groups every email fence in one selectable, plain-text editor. Safe to call
+ *  on every streaming frame: identical content is a no-op, changed content
+ *  merges into the persisted drafts instead of overwriting user edits. */
 export async function renderEmailTemplates(
   root: HTMLElement,
   markdown: string,
@@ -425,6 +479,28 @@ export async function renderEmailTemplates(
     .map((block) => block.template)
     .filter((template): template is EmailTemplate => template !== null);
   if (templates.length === 0) return false;
+
+  const signature = emailTemplatesSignature(templates);
+  const previous = emailWorkspaceStates.get(root);
+  if (previous && previous.signature === signature && root.querySelector('.claudian-email-template')) {
+    // Same content and the card is still mounted — keep it untouched,
+    // including every keystroke the user has typed into it.
+    return true;
+  }
+  const mergedState = previous
+    ? mergeEmailDrafts(previous.state, templates)
+    : { drafts: templates.map((template) => ({ ...template })), agentValues: templates.map((template) => ({ ...template })) };
+
+  const rebuild = async (host: HTMLElement): Promise<void> => {
+    await renderEmailTemplateWorkspace(host, templates, context, {
+      initialDrafts: mergedState.drafts,
+      onDraftsChange: (drafts) => {
+        const entry = emailWorkspaceStates.get(root);
+        if (entry) entry.state.drafts = drafts;
+      },
+    });
+    emailWorkspaceStates.set(root, { signature, state: mergedState });
+  };
 
   const codeBlocks = Array.from(root.querySelectorAll(
     'pre code.language-claudian-email, pre code.language-email-template',
@@ -438,12 +514,12 @@ export async function renderEmailTemplates(
     const host = root.ownerDocument.createElement('div');
     firstPre.parentElement.replaceChild(host, firstPre);
     for (const pre of pres.slice(1)) pre.remove();
-    await renderEmailTemplateWorkspace(host, templates, context);
+    await rebuild(host);
     return true;
   }
 
   if (blocks.some((block) => !block.closed)) {
-    await renderEmailTemplateWorkspace(root, templates, context);
+    await rebuild(root);
     return true;
   }
   return false;

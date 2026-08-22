@@ -201,4 +201,65 @@ describe('EmailTemplateRenderer', () => {
     expect((root.querySelector('.claudian-email-subject-input') as HTMLInputElement).value)
       .toBe('Freundliche Antwort');
   });
+
+  it('preserves user edits across a re-render when the agent text is unchanged', async () => {
+    const root = document.createElement('div');
+    const markdown = [
+      '```claudian-email',
+      '---',
+      'subject: Erste Fassung',
+      'template: business',
+      '---',
+      'Lieber Kunde,',
+      '```'
+    ].join('\n');
+
+    root.innerHTML = '<pre><code class="language-claudian-email">email</code></pre>';
+    await renderEmailTemplates(root, markdown, createContext());
+    const subjectInput = root.querySelector('.claudian-email-subject-input') as HTMLInputElement;
+    const bodyInput = root.querySelector('.claudian-email-body-input') as HTMLTextAreaElement;
+    expect(subjectInput).not.toBeNull();
+    const typeInto = (el: HTMLInputElement | HTMLTextAreaElement, value: string) => {
+      el.value = value;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    typeInto(subjectInput, 'Mein besserer Betreff');
+    typeInto(bodyInput, 'Meine eigene Formulierung.');
+
+    // Streaming frame re-render: the DOM is rebuilt from scratch each frame.
+    root.innerHTML = '<pre><code class="language-claudian-email">email</code></pre>';
+    await renderEmailTemplates(root, markdown, createContext());
+    const sameSubject = root.querySelector('.claudian-email-subject-input') as HTMLInputElement;
+    const sameBody = root.querySelector('.claudian-email-body-input') as HTMLTextAreaElement;
+    expect(sameSubject.value).toBe('Mein besserer Betreff');
+    expect(sameBody.value).toBe('Meine eigene Formulierung.');
+  });
+
+  it('adopts agent changes on re-render but keeps untouched fields stable', async () => {
+    const root = document.createElement('div');
+    const markdownV1 = [
+      '```claudian-email',
+      '---',
+      'subject: Fassung Eins',
+      'template: business',
+      '---',
+      'Text Eins',
+      '```'
+    ].join('\n');
+    root.innerHTML = '<pre><code class="language-claudian-email">email</code></pre>';
+    await renderEmailTemplates(root, markdownV1, createContext());
+    const subjectInput = root.querySelector('.claudian-email-subject-input') as HTMLInputElement;
+    expect(subjectInput).not.toBeNull();
+    subjectInput.value = 'Nutzer-Betreff';
+    subjectInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+    const markdownV2 = markdownV1.replace('Text Eins', 'Text Eins - jetzt ausfuehrlicher').replace('Fassung Eins', 'Fassung Zwei');
+    root.innerHTML = '<pre><code class="language-claudian-email">email</code></pre>';
+    await renderEmailTemplates(root, markdownV2, createContext());
+    const afterSubject = root.querySelector('.claudian-email-subject-input') as HTMLInputElement;
+    const afterBody = root.querySelector('.claudian-email-body-input') as HTMLTextAreaElement;
+    // Subject was user-edited and stays kept; body grew because the agent rewrote it.
+    expect(afterSubject.value).toBe('Nutzer-Betreff');
+    expect(afterBody.value).toContain('ausfuehrlicher');
+  });
 });
