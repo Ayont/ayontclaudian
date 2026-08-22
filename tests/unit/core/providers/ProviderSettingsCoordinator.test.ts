@@ -1,4 +1,11 @@
-import '@/providers';
+// The dsh model dropdown reads the machine's real ~/.dsh/settings.yaml; keep
+  // provider-state tests deterministic by pinning the bridge to an empty harness.
+  jest.mock('@/providers/dsh/harnessBridge', () => ({
+    getDshConfiguredSelectionOptions: () => ({ options: [], active: null }),
+    syncDshSelectionToHarness: () => false,
+  }));
+
+  import '@/providers';
 
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '@/core/providers/ProviderSettingsCoordinator';

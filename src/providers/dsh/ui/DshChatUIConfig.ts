@@ -47,7 +47,11 @@ export const dshChatUIConfig: ProviderChatUIConfig = {
     }
   },
 
-  normalizeModelVariant(_model: string, _settings: Record<string, unknown>): string {
+  normalizeModelVariant(model: string, settings: Record<string, unknown>): string {
+    // Keep a configured harness selection instead of collapsing it to 'default'.
+    if (this.ownsModel(model, settings)) {
+      return model;
+    }
     return DEFAULT_DSH_MODEL;
   },
 

@@ -39,6 +39,7 @@ import {
   type WindowsCmdShimSpawnSpec,
 } from '../../../utils/windowsCmdShim';
 import { DSH_PROVIDER_CAPABILITIES } from '../capabilities';
+import { syncDshSelectionToHarness } from '../harnessBridge';
 import { getDshModelContextWindow, resolveDshModelSelection } from '../modelOptions';
 import { DSH_PROVIDER_ID,getDshProviderSettings } from '../settings';
 import { buildPersistedDshState, type DshProviderState,getDshState } from '../types';
@@ -141,6 +142,11 @@ export class DshChatRuntime implements ChatRuntime {
       settingsBag,
       typeof settingsBag.model === 'string' ? settingsBag.model : '',
     );
+    // A toolbar pick must reach the harness before the run reads its own
+    // selection file; no-op unless the two actually differ.
+    if (model.includes('|')) {
+      syncDshSelectionToHarness(model);
+    }
 
     // Expand a chosen vault command/skill client-side — print-mode CLIs can't
     // expand `/command` or `$skill` tokens themselves. Best-effort.

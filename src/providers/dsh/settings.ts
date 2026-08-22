@@ -90,11 +90,14 @@ export function getConfiguredDshCliPath(settings: PersistedDshProviderSettings):
 
 /**
  * Side effects when the active model changes. The headless profile has no
- * model flag (verified against 
-`dsh --profile headless --help`; model choice
- * follows agent-default-model in ~/.dsh/settings.yaml), so this is inert but
- * present to keep the chatUIConfig contract uniform with the other providers.
+ * launch-time model flag (verified against `dsh --profile headless --help`);
+ * model choice follows agent-default-model in ~/.dsh/settings.yaml.
  */
+
+/** Deliberately inert: this hook also runs inside settings projection, which
+ *  must never rewrite the user's ~/.dsh/settings.yaml. The toolbar pick is
+ *  persisted in plugin settings; DshChatRuntime syncs it to the harness file
+ *  at turn time via syncDshSelectionToHarness. */
 export function applyDshModelDefaults(
   _model: string,
   _settings: Record<string, unknown>,
