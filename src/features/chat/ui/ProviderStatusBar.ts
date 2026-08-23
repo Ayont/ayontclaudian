@@ -39,10 +39,22 @@ export interface StatusBarRateLimit {
   resetIn: string;
 }
 
+/**
+ * Compact token figure for a bar that is only a few characters wide.
+ *
+ * The billions tier matters: a 7-day Claude window reaches billions of tokens
+ * because cache reads are re-counted every turn, and without it the figure
+ * rendered as an unreadable "3323M".
+ */
 function formatCompactTokens(tokens: number): string {
-  if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1).replace('.0', '')}M`;
-  if (tokens >= 1000) return `${Math.round(tokens / 1000)}k`;
+  if (tokens >= 1_000_000_000) return `${trimZero((tokens / 1_000_000_000).toFixed(1))} Mrd`;
+  if (tokens >= 1_000_000) return `${trimZero((tokens / 1_000_000).toFixed(1))}M`;
+  if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}k`;
   return String(tokens);
+}
+
+function trimZero(value: string): string {
+  return value.endsWith('.0') ? value.slice(0, -2) : value;
 }
 
 /** Chip text like `5h: 34% · Reset 1h 30m`; rolling windows without a reset

@@ -191,6 +191,13 @@ import { clearEnvPathCache, getEnhancedPath } from './utils/env';
 import { revealWorkspaceLeaf } from './utils/obsidianCompat';
 import { getVaultPath } from './utils/path';
 
+/**
+ * How long a provider's native rate-limit read stays cached. Both sources only
+ * change when that CLI itself runs, and the status bar refreshes on every usage
+ * chunk of a stream — so re-reading per update buys nothing and costs a lot.
+ */
+const RATE_LIMIT_REFRESH_MS = 60_000;
+
 function isClaudianView(value: unknown): value is ClaudianView {
   return !!value
     && typeof value === 'object'
@@ -211,7 +218,10 @@ export default class ClaudianPlugin extends Plugin {
   private codexRateLimitFetchedAt = 0;
   private codexRateLimitRefreshing = false;
   private claudeRateLimitCache: ClaudeRateWindows | null = null;
+  private claudeRateLimitFetchedAt = 0;
   private claudeRateLimitFetching = false;
+  /** Global pause switch for the goal harness loop (/goal pause|resume). */
+  goalLoopPaused = false;
   private usagePersistTimer: number | null = null;
 
   /**
@@ -2074,46 +2084,27 @@ export default class ClaudianPlugin extends Plugin {
     });
   }
 
-  /** Status-bar limit chips: Codex reports native percentages in its rollout
-   *  transcripts; everyone else gets the honest local tracker window. The
-   *  Codex read is throttled to once a minute — the transcript only grows
-   *  when Codex itself runs. */
+  /** Status-bar limit chips for the ACTIVE provider only: Codex reports native
+   *  percentages in its rollout transcripts, Claude's windows are summed from
+   *  its own transcripts, everyone else gets the honest local tracker window.
+   *
+   *  Both native reads are scoped to the active provider and throttled: this
+   *  runs on every usage chunk of a stream, and the Claude read walks ~130 MB
+   *  of transcripts (~300 ms of JSON parsing) — unthrottled that was a
+   *  continuous stall on the renderer thread. */
   private collectRateLimitChips(providerId: string) {
     const now = Date.now();
-    if (now - this.codexRateLimitFetchedAt > 60000 && !this.codexRateLimitRefreshing) {
-      this.codexRateLimitRefreshing = true;
-      this.codexRateLimitFetchedAt = now;
-      // Async on purpose: walking the sessions tree must never block the UI
-      // thread; the next update picks the fresh snapshot up.
-      void readLatestCodexRateLimits()
-        .then((snapshot) => {
-          this.codexRateLimitCache = snapshot;
-        })
-        .catch(() => {
-          // Missing or unreadable transcripts simply mean no chips.
-        })
-        .finally(() => {
-          this.codexRateLimitRefreshing = false;
-        });
+    if (providerId === 'codex') {
+      this.refreshCodexRateLimits(now);
     }
-    if (!this.claudeRateLimitFetching) {
-      this.claudeRateLimitFetching = true;
-      const nowMs = Date.now();
-      void readClaudeUsageEvents(undefined, nowMs)
-        .then((events) => {
-          this.claudeRateLimitCache = buildClaudeWindows(events, nowMs);
-        })
-        .catch(() => {
-          // No native transcripts simply means no claude chips.
-        })
-        .finally(() => {
-          this.claudeRateLimitFetching = false;
-        });
+    if (providerId === 'claude') {
+      this.refreshClaudeRateLimits(now);
     }
     const trackerWindows = providerId !== 'codex' && providerId !== 'claude'
       ? [this.tokenBudgetTracker.getProviderWindow(providerId)]
       : [];
     return buildRateLimitChips({
+      activeProviderId: providerId,
       codex: this.codexRateLimitCache,
       claude: this.claudeRateLimitCache,
       trackerWindows,
@@ -2125,6 +2116,44 @@ export default class ClaudianPlugin extends Plugin {
       },
       now,
     });
+  }
+
+  private refreshCodexRateLimits(now: number): void {
+    if (now - this.codexRateLimitFetchedAt <= RATE_LIMIT_REFRESH_MS || this.codexRateLimitRefreshing) {
+      return;
+    }
+    this.codexRateLimitRefreshing = true;
+    this.codexRateLimitFetchedAt = now;
+    // Async on purpose: walking the sessions tree must never block the UI
+    // thread; the next update picks the fresh snapshot up.
+    void readLatestCodexRateLimits()
+      .then((snapshot) => {
+        this.codexRateLimitCache = snapshot;
+      })
+      .catch(() => {
+        // Missing or unreadable transcripts simply mean no chips.
+      })
+      .finally(() => {
+        this.codexRateLimitRefreshing = false;
+      });
+  }
+
+  private refreshClaudeRateLimits(now: number): void {
+    if (now - this.claudeRateLimitFetchedAt <= RATE_LIMIT_REFRESH_MS || this.claudeRateLimitFetching) {
+      return;
+    }
+    this.claudeRateLimitFetching = true;
+    this.claudeRateLimitFetchedAt = now;
+    void readClaudeUsageEvents(undefined, now)
+      .then((events) => {
+        this.claudeRateLimitCache = buildClaudeWindows(events, now);
+      })
+      .catch(() => {
+        // No native transcripts simply means no claude chips.
+      })
+      .finally(() => {
+        this.claudeRateLimitFetching = false;
+      });
   }
 
   private async persistOpenTabStates(): Promise<void> {

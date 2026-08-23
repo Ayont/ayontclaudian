@@ -7,7 +7,7 @@ import {
   parseBuiltInCommandChain,
 } from '../../../core/commands/builtInCommands';
 import { buildLinkedNoteContext } from '../../../core/context/linkedNoteContext';
-import { applyGoalPrefix, parseGoalArgs } from '../../../core/conversation/goalPrompt';
+import { applyGoalPrefix, parseGoalArgs, parseGoalCommand } from '../../../core/conversation/goalPrompt';
 import { providerErrorRecoveryService } from '../../../core/diagnostics/errorRecovery';
 import { getLastPerf, perfMark, perfSince } from '../../../core/diagnostics/perfLog';
 import { ensureProviderHealthy } from '../../../core/diagnostics/providerHealthCheck';
@@ -2688,9 +2688,28 @@ export class InputController {
         await this.deps.plugin.exportActiveConversationPdf();
         break;
       case 'goal': {
-        const nextGoal = parseGoalArgs(args);
+        const command = parseGoalCommand(args);
+        if (command.action === 'pause') {
+          this.deps.plugin.goalLoopPaused = true;
+          new Notice('⏸️ Goal-Loop pausiert. /goal resume setzt fort.');
+          break;
+        }
+        if (command.action === 'resume') {
+          this.deps.plugin.goalLoopPaused = false;
+          new Notice('▶️ Goal-Loop fortgesetzt. Nächste Nachricht arbeitet am Ziel weiter.');
+          break;
+        }
+        const nextGoal = command.action === 'set' ? command.goal : parseGoalArgs(args);
         this.deps.setActiveGoal?.(nextGoal);
-        new Notice(nextGoal ? `Goal gesetzt: ${nextGoal}` : 'Goal gelöscht.');
+        new Notice(nextGoal ? `🎯 Goal gesetzt — Loop startet jetzt: ${nextGoal}` : 'Goal gelöscht.');
+        // A newly set goal starts working IMMEDIATELY: put the goal text into
+        // the composer and fire the normal send path so the harness loop picks
+        // it up (framed goal in the prompt) on this very turn.
+        if (command.action === 'set' && nextGoal) {
+          const inputEl = this.deps.getInputEl();
+          inputEl.value = nextGoal;
+          void this.sendMessage().catch(() => {});
+        }
         break;
       }
       case 'workflow': {

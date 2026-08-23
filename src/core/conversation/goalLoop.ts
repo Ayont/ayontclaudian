@@ -39,6 +39,7 @@ export type GoalLoopStopReason =
   | 'max-iterations'
   | 'stalled'
   | 'cancelled'
+  | 'paused'
   | 'error';
 
 /**
@@ -248,6 +249,8 @@ export function describeGoalLoopOutcome(
       return `⏹️ Kein Fortschritt mehr nach ${iterations} Durchläufen — Loop gestoppt${suffix}`;
     case 'cancelled':
       return `⏹️ Goal-Loop abgebrochen nach ${iterations} Durchläufen`;
+    case 'paused':
+      return `⏸️ Goal-Loop nach ${iterations} Durchläufen pausiert — /goal resume fortsetzt ihn`;
     case 'error':
       return `⚠️ Goal-Loop nach ${iterations} Durchläufen wegen eines Fehlers beendet${suffix}`;
   }

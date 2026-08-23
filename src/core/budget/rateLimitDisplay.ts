@@ -39,11 +39,16 @@ export function windowLabel(windowMinutes: number): string {
   return windowMinutes + 'min-Fenster';
 }
 
-/** Compact German countdown; sub-minute reads as overdue. */
+/**
+ * Compact German countdown; sub-minute reads as overdue.
+ *
+ * Returns the remaining time only — the caller supplies the "Reset " prefix.
+ * Returning the full phrase here rendered as "Reset Reset fällig".
+ */
 export function formatResetIn(resetsAtMs: number, now: number): string {
   const remainingMs = resetsAtMs - now;
   if (remainingMs <= 0) {
-    return 'Reset fällig';
+    return 'fällig';
   }
   const totalMinutes = Math.floor(remainingMs / 60000);
   const hours = Math.floor(totalMinutes / 60);
@@ -67,6 +72,17 @@ export interface RateLimitChipInputs {
   trackerWindows: ProviderWindowInput[];
   /** Configured token budgets unlock real percentages for native windows. */
   budgets?: Record<string, ClaudeTokenBudgets>;
+  /**
+   * The provider the status bar is currently showing. Chips belonging to any
+   * other provider are dropped.
+   *
+   * Without this the bar mixed sources: Codex' native windows were built from
+   * its cached transcript snapshot no matter which provider was active, so a
+   * Claude chat displayed Codex' "7T: 100%". Caches also outlive a provider
+   * switch, which is why the guarantee lives here rather than only at the call
+   * site. Omit to keep every chip (used by the usage center).
+   */
+  activeProviderId?: string;
   now: number;
 }
 
@@ -119,5 +135,7 @@ export function buildRateLimitChips(inputs: RateLimitChipInputs): RateLimitChip[
       resetIn: formatResetIn(window.resetAt, inputs.now),
     });
   }
-  return chips;
+  return inputs.activeProviderId === undefined
+    ? chips
+    : chips.filter((chip) => chip.providerId === inputs.activeProviderId);
 }

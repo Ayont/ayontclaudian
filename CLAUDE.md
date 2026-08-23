@@ -76,14 +76,18 @@ cost), `bootstrap/` (session storage), `undo/` (vault snapshots for turn undo),
 
 ## Three subsystems you will not find by reading one file
 
-**Goal loop (Cline).** A `/goal` is a standing objective every provider re-injects
-per turn (`core/conversation/goalPrompt.ts`). Cline goes further: `ClineChatRuntime.query()`
-detects the framed goal in the prompt and hands the turn to `runClineGoalLoop`
-(`providers/cline/runtime/ClineGoalLoop.ts`), which re-runs turns until an
+**Goal loop (every provider).** A `/goal <text>` sets a standing objective AND
+starts working on it immediately; the harness loop then re-runs turns until an
 adversarial verifier agrees the goal is reached, or the loop hits its iteration
-cap / stalls / errors. Decision logic is pure in `core/conversation/goalLoop.ts`;
-the runtime only supplies "run one turn" and "verify". Loop turns suppress the
-duplicate `user_message_start` and the loop owns the single terminal `done`.
+cap / stalls / is paused. The runner is provider-neutral:
+`core/conversation/goalLoopRunner.ts` (moved out of Cline, which now re-exports it),
+and `core/conversation/goalLoopRuntime.ts` wraps ANY runtime's query boundary so a
+framed goal turns the turn into a verify-and-continue loop — Cline keeps its own
+in-runtime wiring. `/goal pause|resume` suspends/resumes via `plugin.goalLoopPaused`;
+`/goal done|clear` clears. Decision logic is pure in `core/conversation/goalLoop.ts`;
+the wrapper only supplies "run one turn" and "verify" as queries against the same
+runtime. Loop turns suppress the duplicate `user_message_start` and the loop owns
+the single terminal `done`.
 
 **Master prompter (multi-agent).** Missions no longer fan the same question out to
 every specialist. `MasterPrompterService` runs one planning pass that writes a

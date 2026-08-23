@@ -22,6 +22,17 @@ const GOAL_CLEAR_KEYWORDS = new Set([
   'done', 'clear', 'reset', 'complete', 'fertig', 'erledigt', 'löschen',
 ]);
 
+/** What a `/goal` invocation should do beyond storing text. */
+export type GoalCommandAction = 'set' | 'clear' | 'pause' | 'resume';
+
+export interface GoalCommand {
+  action: GoalCommandAction;
+  goal: string | null;
+}
+
+const GOAL_PAUSE_KEYWORDS = new Set(['pause', 'pausieren', 'pause']);
+const GOAL_RESUME_KEYWORDS = new Set(['resume', 'weiter', 'fortsetzen', 'continue']);
+
 /**
  * Parses the argument of a `/goal` command into the next goal value.
  * - empty/whitespace, or a clear keyword (`done`, `clear`, `fertig`, …) → `null` (clears)
@@ -32,6 +43,23 @@ export function parseGoalArgs(args: string): string | null {
   if (!trimmed) return null;
   if (GOAL_CLEAR_KEYWORDS.has(trimmed.toLowerCase())) return null;
   return trimmed;
+}
+
+/** Full command parsing: control keywords steer the loop (pause/resume/clear),
+ *  everything else sets a goal that should START working immediately. */
+export function parseGoalCommand(args: string): GoalCommand {
+  const trimmed = (args ?? '').trim();
+  const keyword = trimmed.toLowerCase();
+  if (!trimmed || GOAL_CLEAR_KEYWORDS.has(keyword)) {
+    return { action: 'clear', goal: null };
+  }
+  if (GOAL_PAUSE_KEYWORDS.has(keyword)) {
+    return { action: 'pause', goal: null };
+  }
+  if (GOAL_RESUME_KEYWORDS.has(keyword)) {
+    return { action: 'resume', goal: null };
+  }
+  return { action: 'set', goal: trimmed };
 }
 
 /**

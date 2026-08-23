@@ -1,4 +1,5 @@
 import type ClaudianPlugin from '../../main';
+import { withGoalLoop } from '../conversation/goalLoopRuntime';
 import { AUTO_MODEL_VALUE } from '../routing/modelRouterRules';
 import type { ChatRuntime } from '../runtime/ChatRuntime';
 import {
@@ -50,7 +51,17 @@ export class ProviderRegistry {
 
   static createChatRuntime(options: CreateChatRuntimeOptions): ChatRuntime {
     const providerId = options.providerId ?? DEFAULT_CHAT_PROVIDER_ID;
-    return this.getProviderRegistration(providerId).createRuntime(options);
+    const runtime = this.getProviderRegistration(providerId).createRuntime(options);
+    // Cline ships its own goal loop inside the runtime; everyone else gets the
+    // shared harness loop wrapped around the query boundary.
+    if (providerId === 'cline') {
+      return runtime;
+    }
+    const settings = options.plugin.settings as Record<string, unknown> | undefined;
+    return withGoalLoop(runtime, {
+      isPaused: () => options.plugin.goalLoopPaused === true,
+      maxIterations: settings?.goalLoopMaxIterations as number | undefined,
+    });
   }
 
   static createTitleGenerationService(plugin: ClaudianPlugin, providerId?: ProviderId): TitleGenerationService {
