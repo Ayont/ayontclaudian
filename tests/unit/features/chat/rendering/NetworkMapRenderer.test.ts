@@ -135,6 +135,18 @@ describe('NetworkMapRenderer', () => {
       expect(root.querySelector('.claudian-network-map')).not.toBeNull();
     });
 
+    it('skips the rebuild when the mounted map content is unchanged', () => {
+      const root = document.createElement('div');
+      root.innerHTML = '<pre><code class="language-network-map">Internet -- WAN --> FortiGate 60F</code></pre>';
+      const markdown = '```network-map\nInternet -- WAN --> FortiGate 60F\n```';
+      renderNetworkMaps(root, markdown);
+      const svgBefore = root.querySelector('.claudian-network-map-svg');
+
+      // Same content again while the map is still mounted: no second build.
+      expect(renderNetworkMaps(root, markdown)).toBe(true);
+      expect(root.querySelector('.claudian-network-map-svg')).toBe(svgBefore);
+    });
+
     it('never renders a map from prose without an explicit fence', () => {
       // Regression: the former AUTO inference kept surfacing half-guessed maps
       // under unrelated answers. Only explicit blocks may render.

@@ -2080,13 +2080,18 @@ export default class ClaudianPlugin extends Plugin {
     if (now - this.codexRateLimitFetchedAt > 60000 && !this.codexRateLimitRefreshing) {
       this.codexRateLimitRefreshing = true;
       this.codexRateLimitFetchedAt = now;
-      try {
-        this.codexRateLimitCache = readLatestCodexRateLimits();
-      } catch {
-        // Missing or unreadable transcripts simply mean no chips.
-      } finally {
-        this.codexRateLimitRefreshing = false;
-      }
+      // Async on purpose: walking the sessions tree must never block the UI
+      // thread; the next update picks the fresh snapshot up.
+      void readLatestCodexRateLimits()
+        .then((snapshot) => {
+          this.codexRateLimitCache = snapshot;
+        })
+        .catch(() => {
+          // Missing or unreadable transcripts simply mean no chips.
+        })
+        .finally(() => {
+          this.codexRateLimitRefreshing = false;
+        });
     }
     const trackerWindows = providerId !== 'codex'
       ? [this.tokenBudgetTracker.getProviderWindow(providerId)]

@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -74,13 +74,13 @@ export function pickLatestRateLimitSnapshot(lines: string[]): CodexRateLimitSnap
 
 const TAIL_BYTES = 256 * 1024;
 
-function newestSessionFile(sessionsDir: string): string | null {
+async function newestSessionFile(sessionsDir: string): Promise<string | null> {
   let newestPath: string | null = null;
   let newestMtime = 0;
-  const walk = (dir: string): void => {
+  const walk = async (dir: string): Promise<void> => {
     let entries: string[];
     try {
-      entries = readdirSync(dir);
+      entries = await readdir(dir);
     } catch {
       return;
     }
@@ -88,34 +88,34 @@ function newestSessionFile(sessionsDir: string): string | null {
       const full = join(dir, entry);
       let stats;
       try {
-        stats = statSync(full);
+        stats = await stat(full);
       } catch {
         continue;
       }
       if (stats.isDirectory()) {
-        walk(full);
+        await walk(full);
       } else if (stats.isFile() && entry.endsWith('.jsonl') && stats.mtimeMs > newestMtime) {
         newestPath = full;
         newestMtime = stats.mtimeMs;
       }
     }
   };
-  walk(sessionsDir);
+  await walk(sessionsDir);
   return newestPath;
 }
 
 /** Reads the freshest rate-limit snapshot from the newest rollout transcript.
  *  Only the file tail is parsed — snapshots repeat constantly, so the tail is
  *  guaranteed to hold the current one without loading megabytes of history. */
-export function readLatestCodexRateLimits(codexDir = join(homedir(), '.codex')): CodexRateLimitSnapshot | null {
+export async function readLatestCodexRateLimits(codexDir = join(homedir(), '.codex')): Promise<CodexRateLimitSnapshot | null> {
   const sessionsDir = join(codexDir, 'sessions');
-  const file = newestSessionFile(sessionsDir);
+  const file = await newestSessionFile(sessionsDir);
   if (!file) {
     return null;
   }
   let text: string;
   try {
-    const handle = readFileSync(file);
+    const handle = await readFile(file);
     const start = Math.max(0, handle.length - TAIL_BYTES);
     text = handle.subarray(start).toString('utf8');
   } catch {

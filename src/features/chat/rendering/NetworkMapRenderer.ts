@@ -705,12 +705,21 @@ function openNetworkMapFullscreen(svg: SVGSVGElement, title: string): void {
  * Maps now render ONLY for explicit fences; the system prompt instructs the
  * model to emit one whenever the conversation is actually about a network.
  */
+/** Per-message signature memory: identical frames skip the SVG rebuild,
+ *  which used to flicker and burn CPU on every streaming tick. */
+const networkMapFrameSignatures = new WeakMap<HTMLElement, string>();
+
 export function renderNetworkMaps(
   root: HTMLElement,
   markdown: string,
   options?: NetworkMapRenderOptions,
 ): boolean {
   const blocks = parseNetworkMapBlocks(markdown);
+  const frameSignature = blocks.map((block) => JSON.stringify(block.topology ?? null)).join('\u0002');
+  if (networkMapFrameSignatures.get(root) === frameSignature && root.querySelector('.claudian-network-map-svg')) {
+    return true;
+  }
+  networkMapFrameSignatures.set(root, frameSignature);
   const codeBlocks = Array.from(root.querySelectorAll('pre code.language-network-map'));
   let rendered = false;
 

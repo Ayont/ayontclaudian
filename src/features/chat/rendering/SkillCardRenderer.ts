@@ -82,12 +82,21 @@ async function renderSkillCard(
 }
 
 /** Replaces claudian-skill code fences with a designed, streaming skill card. */
+/** Same streaming-frame guard as the other fence renderers: unchanged
+ *  content on a still-mounted card is a no-op instead of a rebuild. */
+const skillCardFrameSignatures = new WeakMap<HTMLElement, string>();
+
 export async function renderSkillCards(
   root: HTMLElement,
   markdown: string,
   context: SkillRenderContext,
 ): Promise<boolean> {
   const blocks = parseSkillBlocks(markdown);
+  const frameSignature = blocks.map((block) => JSON.stringify(block.skill ?? null)).join('\u0002');
+  if (skillCardFrameSignatures.get(root) === frameSignature && root.querySelector('.claudian-skill-card')) {
+    return true;
+  }
+  skillCardFrameSignatures.set(root, frameSignature);
   const codeBlocks = Array.from(root.querySelectorAll('pre code.language-claudian-skill'));
   let rendered = false;
 
