@@ -116,7 +116,12 @@ export class FreebuffOrchestratorClient {
    */
   async discoverPort(portOverride?: string): Promise<number | null> {
     if (this.cachedPort !== null) {
-      return this.cachedPort;
+      // The desktop picks a new dynamic port on every restart, so a cached
+      // port is only trusted while it still answers.
+      if (await this.healthCheck(this.cachedPort)) {
+        return this.cachedPort;
+      }
+      this.forgetPort();
     }
     const override = Number.parseInt((portOverride ?? '').trim(), 10);
     if (Number.isInteger(override) && override > 0 && await this.healthCheck(override)) {

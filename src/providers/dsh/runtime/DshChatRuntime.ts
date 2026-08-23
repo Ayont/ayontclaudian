@@ -47,6 +47,7 @@ import { buildDshPromptText } from './buildDshPrompt';
 import { buildDshLaunchSpec } from './DshLaunchSpec';
 import { buildDshRuntimeEnv } from './DshRuntimeEnvironment';
 import { findNewestDshSessionDir, getDshHome } from './DshSessionStore';
+import { tailDshSessionFile } from './dshSessionTail';
 import { DSH_KEEPALIVE_INTERVAL_MS, DSH_KEEPALIVE_MAX_SILENCE_MS } from './keepalive';
 
 /**
@@ -194,6 +195,37 @@ export class DshChatRuntime implements ChatRuntime {
     this.activeProcess = proc;
     proc.stdin.end();
 
+    // Live view: the headless runner is stdout-silent by design, but it
+    // writes assistant deltas into its compressed session transcript as they
+    // happen. Tailing that file turns the silent wait into a live stream.
+    let liveStreamedText = false;
+    let tailLastSeq = 0;
+    let tailFile: string | null = null;
+    const tailTimer = window.setInterval(() => {
+      void (async () => {
+        try {
+          if (!tailFile) {
+            const found = findNewestDshSessionDir(getDshHome(), turnStartedAtMs);
+            if (!found) return;
+            tailFile = path.join(found.dir, 'session.jsonl.zstd');
+          }
+          const result = await tailDshSessionFile(tailFile, tailLastSeq);
+          tailLastSeq = result.lastSeq;
+          for (const event of result.events) {
+            if (event.kind === 'text') liveStreamedText = true;
+            pendingChunks.push(
+              event.kind === 'text'
+                ? { type: 'text', content: event.text }
+                : { type: 'thinking', content: event.text },
+            );
+          }
+          if (pendingChunks.length > 0) signal();
+        } catch {
+          // The live view is best-effort; never fail a turn over it.
+        }
+      })();
+    }, 800);
+
     // The headless runner is silent by design until its final line; heartbeat
     // so the watchdog does not kill healthy agentic work mid-flight.
     const turnStartedAtMs = Date.now() - 1_000;
@@ -253,6 +285,7 @@ export class DshChatRuntime implements ChatRuntime {
         });
       }
     } finally {
+      window.clearInterval(tailTimer);
       window.clearInterval(keepaliveTimer);
       if (this.activeProcess === proc) {
         this.activeProcess = null;
@@ -282,7 +315,11 @@ export class DshChatRuntime implements ChatRuntime {
     }
 
     this.currentTurnMetadata.wasSent = true;
-    yield { type: 'text', content: responseText };
+    // When the transcript tail already streamed this answer live, replaying
+    // the final stdout line would duplicate the whole message.
+    if (!liveStreamedText) {
+      yield { type: 'text', content: responseText };
+    }
 
     // Capture the transcript directory dsh just flushed (informational).
     try {

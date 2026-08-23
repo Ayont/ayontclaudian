@@ -119,6 +119,29 @@ describe('FreebuffOrchestratorClient', () => {
     expect(calls.some((url) => url.includes(':49451'))).toBe(true);
   });
 
+  it('revalidates the cached port and recovers after a desktop restart', async () => {
+    const responses = new Map<string, { status: number; body: string }>([
+      ['http://127.0.0.1:49451/healthz', { status: 404, body: '' }],
+      ['http://127.0.0.1:60589/healthz', { status: 401, body: '{"error":"invalid launch id"}' }],
+    ]);
+    const client = new FreebuffOrchestratorClient({
+      fetchImpl: ((input: string) => {
+        const hit = responses.get(input) ?? { status: 404, body: 'nope' };
+        return Promise.resolve({ status: hit.status, text: async () => hit.body } as unknown as Response);
+      }) as typeof fetch,
+      execImpl: async (file) => {
+        if (file === 'pgrep') return { stdout: '9126\n' };
+        if (file === 'ps') return { stdout: 'PORT=0 FREEBUFF_LAUNCH_ID=new-id' };
+        if (file === 'lsof') return { stdout: 'TCP 127.0.0.1:60589 (LISTEN)' };
+        throw new Error('unexpected ' + file);
+      },
+    });
+    // Seed the cache with the port from the PREVIOUS desktop session.
+    ;(client as unknown as { cachedPort: number }).cachedPort = 49451;
+    // The desktop restarted; the old port is dead but the env now says PORT=0.
+    await expect(client.discoverPort()).resolves.toBe(60589);
+  });
+
   it('posts messages as JSON and reports acceptance', async () => {
     const bodies: string[] = [];
     const fetchImpl = (async (input: string, init?: RequestInit) => {

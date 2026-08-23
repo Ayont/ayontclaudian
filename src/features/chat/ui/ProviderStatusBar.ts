@@ -45,12 +45,13 @@ function formatCompactTokens(tokens: number): string {
   return String(tokens);
 }
 
-/** Chip text like `5h: 34% · Reset 1h 30m`. Pure, for testing. */
+/** Chip text like `5h: 34% · Reset 1h 30m`; rolling windows without a reset
+ *  instant drop the suffix. Pure, for testing. */
 export function formatRateLimitChipText(chip: StatusBarRateLimit): string {
   const amount = typeof chip.percent === 'number'
     ? `${chip.percent}%`
     : `${formatCompactTokens(chip.tokensUsed ?? 0)} Tokens`;
-  return `${chip.label}: ${amount} · Reset ${chip.resetIn}`;
+  return chip.resetIn ? `${chip.label}: ${amount} · Reset ${chip.resetIn}` : `${chip.label}: ${amount}`;
 }
 
 export interface ProviderStatus {

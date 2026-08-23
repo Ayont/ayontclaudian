@@ -134,6 +134,10 @@ export interface ClaudianSettings {
   cliAutoUpdateIntervalHours?: number;
   /** Last finished or attempted background check (ms epoch), for due-timing and the settings display. */
   cliAutoUpdateLastRunAt?: number;
+  /** Optional token budgets that turn the native Claude rate windows into
+   *  real percentages in the status bar. 0/unset keeps the honest count. */
+  claudeFiveHourTokenBudget?: number;
+  claudeWeeklyTokenBudget?: number;
 
   /**
    * Auto-mode loop guard: pause for a human after this many consecutive

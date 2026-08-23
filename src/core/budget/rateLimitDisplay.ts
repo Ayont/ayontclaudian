@@ -13,6 +13,11 @@ export interface RateLimitChip {
   resetIn: string;
 }
 
+export interface ClaudeWindowsInput {
+  fiveHour: { tokens: number; resetAt: number | null };
+  weekly: { tokens: number };
+}
+
 export interface CodexRateLimitSnapshotInput {
   planType?: string;
   windows: Array<{ usedPercent: number; windowMinutes: number; resetsAtEpochSec: number }>;
@@ -49,10 +54,19 @@ export function formatResetIn(resetsAtMs: number, now: number): string {
 }
 
 const DEFAULT_TRACKER_WINDOW_MINUTES = 300;
+const SEVEN_DAY_MINUTES = 10080;
+
+export interface ClaudeTokenBudgets {
+  fiveHour?: number;
+  weekly?: number;
+}
 
 export interface RateLimitChipInputs {
   codex: CodexRateLimitSnapshotInput | null;
+  claude?: ClaudeWindowsInput | null;
   trackerWindows: ProviderWindowInput[];
+  /** Configured token budgets unlock real percentages for native windows. */
+  budgets?: Record<string, ClaudeTokenBudgets>;
   now: number;
 }
 
@@ -71,6 +85,27 @@ export function buildRateLimitChips(inputs: RateLimitChipInputs): RateLimitChip[
         resetIn: formatResetIn(window.resetsAtEpochSec * 1000, inputs.now),
       });
     }
+  }
+  const claude = inputs.claude;
+  if (claude && claude.fiveHour.tokens > 0) {
+    const budget = inputs.budgets?.claude?.fiveHour ?? 0;
+    chips.push({
+      providerId: 'claude',
+      label: windowLabel(DEFAULT_TRACKER_WINDOW_MINUTES),
+      percent: budget > 0 ? Math.round((claude.fiveHour.tokens / budget) * 100) : null,
+      tokensUsed: claude.fiveHour.tokens,
+      resetIn: claude.fiveHour.resetAt === null ? '' : formatResetIn(claude.fiveHour.resetAt, inputs.now),
+    });
+  }
+  if (claude && claude.weekly.tokens > 0) {
+    const budget = inputs.budgets?.claude?.weekly ?? 0;
+    chips.push({
+      providerId: 'claude',
+      label: windowLabel(SEVEN_DAY_MINUTES),
+      percent: budget > 0 ? Math.round((claude.weekly.tokens / budget) * 100) : null,
+      tokensUsed: claude.weekly.tokens,
+      resetIn: '',
+    });
   }
   for (const window of inputs.trackerWindows) {
     if (window.tokens <= 0 || window.resetAt === null) {

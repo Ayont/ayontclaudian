@@ -182,6 +182,7 @@ import {
 import { VaultHealthService } from './features/templates/VaultHealthService';
 import { setLocale } from './i18n/i18n';
 import type { Locale } from './i18n/types';
+import { buildClaudeWindows, type ClaudeRateWindows,readClaudeUsageEvents } from './providers/claude/runtime/rateLimits';
 import { readLatestCodexRateLimits } from './providers/codex/runtime/rateLimits';
 import { OPENCODE_PLAN_MODE_ID, OPENCODE_SAFE_MODE_ID } from './providers/opencode/modes';
 import { extractUserDisplayContent } from './utils/context';
@@ -209,6 +210,8 @@ export default class ClaudianPlugin extends Plugin {
   private codexRateLimitCache: Awaited<ReturnType<typeof readLatestCodexRateLimits>> = null;
   private codexRateLimitFetchedAt = 0;
   private codexRateLimitRefreshing = false;
+  private claudeRateLimitCache: ClaudeRateWindows | null = null;
+  private claudeRateLimitFetching = false;
   private usagePersistTimer: number | null = null;
 
   /**
@@ -2093,12 +2096,33 @@ export default class ClaudianPlugin extends Plugin {
           this.codexRateLimitRefreshing = false;
         });
     }
-    const trackerWindows = providerId !== 'codex'
+    if (!this.claudeRateLimitFetching) {
+      this.claudeRateLimitFetching = true;
+      const nowMs = Date.now();
+      void readClaudeUsageEvents(undefined, nowMs)
+        .then((events) => {
+          this.claudeRateLimitCache = buildClaudeWindows(events, nowMs);
+        })
+        .catch(() => {
+          // No native transcripts simply means no claude chips.
+        })
+        .finally(() => {
+          this.claudeRateLimitFetching = false;
+        });
+    }
+    const trackerWindows = providerId !== 'codex' && providerId !== 'claude'
       ? [this.tokenBudgetTracker.getProviderWindow(providerId)]
       : [];
     return buildRateLimitChips({
       codex: this.codexRateLimitCache,
+      claude: this.claudeRateLimitCache,
       trackerWindows,
+      budgets: {
+        claude: {
+          fiveHour: this.settings.claudeFiveHourTokenBudget || undefined,
+          weekly: this.settings.claudeWeeklyTokenBudget || undefined,
+        },
+      },
       now,
     });
   }
