@@ -46,8 +46,8 @@ import { buildPersistedDshState, type DshProviderState,getDshState } from '../ty
 import { buildDshPromptText } from './buildDshPrompt';
 import { buildDshLaunchSpec } from './DshLaunchSpec';
 import { buildDshRuntimeEnv } from './DshRuntimeEnvironment';
-import { findNewestDshSessionDir, getDshHome } from './DshSessionStore';
 import { buildDshUsageInfo, type DshTurnMetadata } from './dshSessionEvents';
+import { findNewestDshSessionDir, getDshHome } from './DshSessionStore';
 import { createDshTailState, tailDshSession } from './dshSessionTail';
 import { DSH_KEEPALIVE_INTERVAL_MS, DSH_KEEPALIVE_MAX_SILENCE_MS } from './keepalive';
 

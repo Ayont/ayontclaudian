@@ -476,6 +476,7 @@ function syncTabGoalBanner(tab: TabData, plugin: ClaudianPlugin): void {
 
   if (goal) {
     banner.setGoal(goal, goalProviderLabel(tab, plugin), goalLoopLabel(tab, plugin));
+    banner.setPaused(plugin.goalLoopPaused === true);
   } else {
     banner.clear();
   }
@@ -1502,11 +1503,24 @@ export function initializeTabUI(
   tab.ui.goalBanner = new GoalBanner({
     mountEl: dom.goalBannerHostEl,
     onClear: () => applyTabGoal(tab, plugin, null),
+    onDone: () => {
+      applyTabGoal(tab, plugin, null);
+      new Notice('🎯 Goal als erreicht markiert.');
+    },
     onEdit: (currentGoal) => {
       dom.inputEl.value = `/goal ${currentGoal}`;
       autoResizeTextarea(dom.inputEl);
       dom.inputEl.focus();
       dom.inputEl.setSelectionRange(dom.inputEl.value.length, dom.inputEl.value.length);
+    },
+    // Same global switch `/goal pause|resume` flips, so the banner and the
+    // command can never disagree about whether the loop is running.
+    onTogglePause: (paused) => {
+      plugin.goalLoopPaused = paused;
+      syncTabGoalBanner(tab, plugin);
+      new Notice(paused
+        ? '⏸️ Goal-Loop pausiert. Fortsetzen über den Banner oder /goal resume.'
+        : '▶️ Goal-Loop fortgesetzt. Die nächste Nachricht arbeitet am Ziel weiter.');
     },
   });
   syncTabGoalBanner(tab, plugin);
@@ -2028,6 +2042,7 @@ export function initializeTabControllers(
       ? plugin.getConversationSync(tab.conversationId)?.goal ?? tab.goal ?? null
       : tab.goal ?? null),
     setActiveGoal: (goal: string | null) => applyTabGoal(tab, plugin, goal),
+    refreshGoalBanner: () => syncTabGoalBanner(tab, plugin),
     ensureServiceInitialized: async () => {
       if (tab.serviceInitialized && tab.lifecycleState === 'bound_active') {
         // The runtime object already exists, but its provider process may still

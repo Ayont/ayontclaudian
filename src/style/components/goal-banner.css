@@ -183,8 +183,21 @@
   overflow: hidden;
 }
 
-/* ---- Clear button ---- */
-.claudian-goal-banner-clear {
+/* ---- Actions: pause/resume · done · clear ----
+   One glass cluster rather than three loose icons, so the controls read as a
+   single instrument and the destructive × is visually last. */
+.claudian-goal-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 2px;
+  border-radius: var(--cl-radius-pill);
+  border: 1px solid var(--cl-accent-line);
+  background: rgba(var(--cl-accent-rgb), 0.07);
+}
+
+.claudian-goal-banner-action {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -193,7 +206,7 @@
   height: 24px;
   padding: 0;
   border: none;
-  border-radius: var(--cl-radius-sm);
+  border-radius: var(--cl-radius-pill);
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
@@ -203,23 +216,64 @@
     transform var(--cl-dur-fast) var(--cl-ease);
 }
 
-.claudian-goal-banner-clear svg {
+.claudian-goal-banner-action svg {
   width: 14px;
   height: 14px;
 }
 
-.claudian-goal-banner-clear:hover {
-  background: rgba(var(--cl-accent-rgb), 0.14);
+.claudian-goal-banner-action:hover {
+  background: rgba(var(--cl-accent-rgb), 0.16);
   color: var(--cl-accent);
 }
 
-.claudian-goal-banner-clear:active {
+.claudian-goal-banner-action:active {
   transform: scale(0.9);
 }
 
-.claudian-goal-banner-clear:focus-visible {
+.claudian-goal-banner-action:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--cl-accent-line);
+}
+
+/* Resume reads as the affirmative action while the loop sits paused. */
+.claudian-goal-banner-action.is-paused {
+  color: var(--cl-accent);
+  background: rgba(var(--cl-accent-rgb), 0.18);
+}
+
+.claudian-goal-banner-action--done:hover {
+  color: var(--color-green);
+  background: rgba(var(--cl-accent-rgb), 0.10);
+}
+
+.claudian-goal-banner-clear:hover {
+  color: var(--color-red);
+}
+
+/* ---- Paused state: the banner stops advertising itself as running ---- */
+.claudian-goal-banner.is-paused {
+  border-color: var(--background-modifier-border);
+  background: var(--cl-surface-raised);
+}
+
+.claudian-goal-banner.is-paused::before {
+  background: var(--background-modifier-border);
+}
+
+.claudian-goal-banner.is-paused .claudian-goal-banner-label {
+  color: var(--text-muted);
+}
+
+.claudian-goal-banner.is-paused .claudian-goal-banner-icon {
+  color: var(--text-muted);
+  background: var(--background-modifier-hover);
+  box-shadow: none;
+}
+
+/* A paused goal must not keep pulsing — that is what "running" looks like. */
+.claudian-goal-banner.is-paused .claudian-goal-banner-icon::after,
+.claudian-goal-banner.is-paused .claudian-goal-banner-loop {
+  animation: none;
 }
 
 /* Respect reduced-motion: drop the pulse + entrance. */

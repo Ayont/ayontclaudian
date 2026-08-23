@@ -146,6 +146,8 @@ export interface InputControllerDeps {
   getActiveGoal?: () => string | null;
   /** Sets (or clears, on null) the tab's standing goal. */
   setActiveGoal?: (goal: string | null) => void;
+  /** Re-renders the goal banner after a change that leaves the goal text intact. */
+  refreshGoalBanner?: () => void;
   /** Returns true if ready. */
   ensureServiceInitialized?: () => Promise<boolean>;
   openConversation?: (conversationId: string) => Promise<void>;
@@ -2691,11 +2693,13 @@ export class InputController {
         const command = parseGoalCommand(args);
         if (command.action === 'pause') {
           this.deps.plugin.goalLoopPaused = true;
+          this.deps.refreshGoalBanner?.();
           new Notice('⏸️ Goal-Loop pausiert. /goal resume setzt fort.');
           break;
         }
         if (command.action === 'resume') {
           this.deps.plugin.goalLoopPaused = false;
+          this.deps.refreshGoalBanner?.();
           new Notice('▶️ Goal-Loop fortgesetzt. Nächste Nachricht arbeitet am Ziel weiter.');
           break;
         }

@@ -193,15 +193,17 @@ describe('projectDshRecord', () => {
 });
 
 describe('projectDshTranscript', () => {
+  // Records are appended in ascending `seq`, which is what makes a monotonic
+  // watermark safe; the fixture order mirrors that.
   it('projects a whole slice in order and advances the watermark', () => {
-    const jsonl = ['', REQUEST_HEADER, REASONING_DELTA, DISPATCH_START, DISPATCH_RESULT, TEXT_DELTA, USAGE].join('\n');
+    const jsonl = ['', REQUEST_HEADER, TEXT_DELTA, REASONING_DELTA, USAGE, DISPATCH_START, DISPATCH_RESULT].join('\n');
 
     const projection = projectDshTranscript(jsonl, 0);
 
     expect(projection.chunks.map((chunk) => chunk.type)).toEqual([
-      'thinking', 'tool_use', 'tool_result', 'text',
+      'text', 'thinking', 'tool_use', 'tool_result',
     ]);
-    expect(projection.lastSeq).toBe(76);
+    expect(projection.lastSeq).toBe(457);
     expect(projection.metadata).toMatchObject({
       model: 'stealth/ox-alpha',
       usage: { inputTokens: 15776, outputTokens: 174 },

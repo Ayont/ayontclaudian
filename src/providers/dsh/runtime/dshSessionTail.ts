@@ -81,8 +81,15 @@ export function decompressZstdFrames(
     while (next <= boundaries.length) {
       end = next < boundaries.length ? boundaries[next] : buffer.length;
       try {
-        decoded = zstdDecompressSync(buffer.subarray(boundaries[index], end));
-        break;
+        const candidate = zstdDecompressSync(buffer.subarray(boundaries[index], end));
+        // A truncated frame does NOT throw — it decodes to an empty (or
+        // newline-less) buffer. Consuming those bytes would silently drop the
+        // records dsh is still writing, so both cases count as incomplete.
+        if (candidate.length > 0 && candidate[candidate.length - 1] === 0x0a) {
+          decoded = candidate;
+          break;
+        }
+        next += 1;
       } catch {
         // Either a false-positive magic inside this frame, or the frame is
         // still being written; try folding in the following boundary.
