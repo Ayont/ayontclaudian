@@ -95,6 +95,32 @@ describe('AcpSessionConfig', () => {
     });
   });
 
+  // The ACP schema calls the field `modelId`; `id` is the legacy spelling.
+  it('normalizes the spec `modelId` field onto the shared select-item shape', () => {
+    expect(extractAcpSessionModelState({
+      models: {
+        availableModels: [
+          {
+            description: '  Provider: OpenRouter  ',
+            modelId: 'openrouter:anthropic/claude-opus-5',
+            name: 'OpenRouter · anthropic/claude-opus-5',
+          },
+          { modelId: '   ', name: 'Dropped' },
+        ],
+        currentModelId: 'openrouter:anthropic/claude-opus-5',
+      },
+    })).toEqual({
+      availableModels: [
+        {
+          description: 'Provider: OpenRouter',
+          id: 'openrouter:anthropic/claude-opus-5',
+          name: 'OpenRouter · anthropic/claude-opus-5',
+        },
+      ],
+      currentModelId: 'openrouter:anthropic/claude-opus-5',
+    });
+  });
+
   it('falls back to ACP session model metadata when the config option has no discovered entries', () => {
     expect(extractAcpSessionModelState({
       configOptions: [

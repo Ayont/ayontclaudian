@@ -1,4 +1,9 @@
-import { formatStatusTooltip, readyWord, stateWord } from '@/features/chat/ui/ProviderStatusBar';
+import {
+  formatRateLimitChipText,
+  formatStatusTooltip,
+  readyWord,
+  stateWord,
+} from '@/features/chat/ui/ProviderStatusBar';
 
 describe('readyWord', () => {
   it('is "aus" when disabled', () => {
@@ -80,5 +85,17 @@ describe('formatStatusTooltip', () => {
         percentage: null, estimated: false,
       }),
     ).toBe('Claude: bereit');
+  });
+});
+
+describe('formatRateLimitChipText', () => {
+  it('shows percent and reset for native windows', () => {
+    expect(formatRateLimitChipText({ label: '5h', percent: 34, resetIn: '1h 30m' }))
+      .toBe('5h: 34% · Reset 1h 30m');
+  });
+
+  it('shows token counts when no native percent exists', () => {
+    expect(formatRateLimitChipText({ label: '5h', percent: null, tokensUsed: 40000, resetIn: '2h' }))
+      .toBe('5h: 40k Tokens · Reset 2h');
   });
 });

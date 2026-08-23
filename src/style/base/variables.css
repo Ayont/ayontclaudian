@@ -27,6 +27,9 @@
   /* Freebuff: warm buffalo amber (#E8A33D), distinct from the DeepSeek blue. */
   --claudian-brand-freebuff: oklch(0.76 0.14 70);
   --claudian-brand-freebuff-rgb: 232, 163, 61;
+  /* Hermes (Nous Research): violet accent, legible on both themes. */
+  --claudian-brand-hermes: oklch(0.62 0.21 296);
+  --claudian-brand-hermes-rgb: 139, 92, 246;
   /* Cline / ClinePass: teal brand used on cline.bot. */
   --claudian-brand-cline: oklch(0.76 0.12 175);
   --claudian-brand-cline-rgb: 0, 201, 167;
@@ -195,6 +198,11 @@ body.theme-light .claudian-container {
 .claudian-container[data-provider="cline"] {
   --claudian-brand: var(--claudian-brand-cline);
   --claudian-brand-rgb: var(--claudian-brand-cline-rgb);
+}
+
+.claudian-container[data-provider="hermes"] {
+  --claudian-brand: var(--claudian-brand-hermes);
+  --claudian-brand-rgb: var(--claudian-brand-hermes-rgb);
 }
 
 /* ── Workspace mode accents ──────────────────────────────────────────────

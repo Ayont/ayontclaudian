@@ -24,7 +24,7 @@ ships via GitHub releases and BRAT.
 - **TDD for behavior changes:** failing test first in the mirrored `tests/` path.
 - Throwaway scripts and handoff notes go in `.context/` (git-ignored), not `dev/`.
 
-## Providers (8)
+## Providers (12)
 
 Every provider is a directory under `src/providers/<id>/` plus two calls in
 `src/providers/index.ts` and one entry in `defaultProviderConfigs.ts`.
@@ -36,11 +36,15 @@ to extend. What differs between providers is the **transport shape**:
 | `claude` | Official Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`). Full-feature reference implementation. |
 | `codex` | `codex app-server` over JSON-RPC, plus JSONL transcript reload |
 | `opencode` | ACP (shared code in `src/providers/acp/`) |
-| `kimi` | `--print` + full-message NDJSON |
+| `hermes` | ACP (`hermes acp`); model catalog + modes come from `session/new`, history from `~/.hermes/state.db` |
+| `cline` | `--print`, plus the `/goal` verification loop (see below) |
+| `kimi` | `--print` + full-message NDJSON, plus an ACP runtime |
 | `vibe` | `--print` + full-message NDJSON |
 | `grok` | `--print` + delta JSON with resume |
+| `dsh` | `--print` |
 | `antigravity` | `agy --print`, single-shot; state recovered by tailing `transcript.jsonl` |
 | `pi` | `--print` |
+| `freebuff` | HTTP + SSE against the local desktop app (no child process) |
 
 `Conversation` carries `providerId` plus opaque, provider-owned `providerState`.
 
@@ -125,6 +129,16 @@ Each of these has cost a real debugging session. They are not theoretical.
    working the moment minification was switched on. If you touch it, keep it
    formatting-agnostic and keep it descending into nested timer calls; the build
    fails loudly when any unsafe site survives.
+7. **An ACP agent can fail by succeeding.** `hermes acp` answers `session/load`
+   for an unknown session with a bare `{}` — not an error — and the next
+   `session/prompt` then returns `stopReason: "refusal"` with no content, which
+   reads as an empty but successful turn. Treat a load response with neither
+   `models` nor `modes` as a miss, and turn an output-less terminal stop reason
+   into a real error (`HermesChatRuntime.loadSession` / `describeUnproductiveStopReason`).
+8. **A prompt preamble can disable the agent's own slash commands.** Hermes only
+   intercepts `/cmd` when the prompt text *starts* with `/`
+   (`acp_adapter/server.py`). Anything prepended — Claudian's vault instructions,
+   a history bootstrap — turns `/compress` into ordinary chat text.
 
 ## Commands
 

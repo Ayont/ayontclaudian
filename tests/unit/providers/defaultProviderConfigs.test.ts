@@ -10,7 +10,9 @@ describe('getBuiltInProviderDefaultConfigs', () => {
     expect(first).toHaveProperty('codex');
     expect(first).toHaveProperty('opencode');
     expect(first).toHaveProperty('pi');
+    expect(first).toHaveProperty('hermes');
     expect(first).not.toBe(second);
+    expect(first.hermes).not.toBe(second.hermes);
     expect(first.claude).not.toBe(second.claude);
     expect(first.codex).not.toBe(second.codex);
     expect(first.opencode).not.toBe(second.opencode);

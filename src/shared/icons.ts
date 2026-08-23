@@ -274,6 +274,40 @@ export const DSH_PROVIDER_ICON: ProviderIconSvg = {
   ],
 };
 
+/**
+ * Hermes (Nous Research): the winged messenger's helm — a rounded cap with two
+ * swept wings. No official vector ships with the CLI, so this is a hand-drawn
+ * monochrome mark that tints to `currentColor` like the other provider glyphs.
+ */
+export const HERMES_PROVIDER_ICON: ProviderIconSvg = {
+  kind: 'composite',
+  viewBox: '0 0 24 24',
+  children: [
+    {
+      tag: 'path',
+      attributes: {
+        d: 'M12 3.2c-3.2 0-5.8 2.5-5.8 5.6v3.4c0 .5.4.9.9.9h1.5v3.5c0 1.7 1.5 3.1 3.4 3.1s3.4-1.4 3.4-3.1v-3.5h1.5c.5 0 .9-.4.9-.9V8.8c0-3.1-2.6-5.6-5.8-5.6Zm0 1.8c2.2 0 4 1.7 4 3.8v2.5h-8V8.8c0-2.1 1.8-3.8 4-3.8Z',
+        fill: 'currentColor',
+        'fill-rule': 'evenodd',
+      },
+    },
+    {
+      tag: 'path',
+      attributes: {
+        d: 'M6.1 9.3 1.6 7.4c-.5-.2-1 .3-.8.8l1 2.3-1 2.3c-.2.5.3 1 .8.8l4.5-1.9V9.3Z',
+        fill: 'currentColor',
+      },
+    },
+    {
+      tag: 'path',
+      attributes: {
+        d: 'M17.9 9.3l4.5-1.9c.5-.2 1 .3.8.8l-1 2.3 1 2.3c.2.5-.3 1-.8.8l-4.5-1.9V9.3Z',
+        fill: 'currentColor',
+      },
+    },
+  ],
+};
+
 export interface CreateProviderIconSvgOptions {
   className?: string;
   dataProvider?: string;

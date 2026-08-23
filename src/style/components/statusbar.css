@@ -93,3 +93,25 @@
   color: var(--status-brand, var(--text-accent));
   font-weight: 600;
 }
+
+/* Rate-limit chips: one per window (native Codex percentages or the local
+   tracker). Warning state only when a native percent crosses 80%. */
+.claudian-statusbar-limits {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.claudian-statusbar-limit {
+  padding: 1px 7px;
+  border-radius: 8px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  background: var(--background-secondary);
+  white-space: nowrap;
+}
+
+.claudian-statusbar-limit.is-warning {
+  color: var(--text-on-accent);
+  background: var(--text-error);
+}

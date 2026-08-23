@@ -141,8 +141,10 @@ export interface AcpSessionModeState {
   currentModeId: AcpSessionModeId;
 }
 
+// Spec field name is `modelId`; `id` is accepted for agents that predate the rename.
 export interface AcpModelInfo {
-  id: string;
+  id?: string;
+  modelId?: string;
   name: string;
   description?: string | null;
 }
@@ -310,6 +312,13 @@ export interface AcpSetSessionModeRequest {
 }
 
 export type AcpSetSessionModeResponse = Record<string, never>;
+
+export interface AcpSetSessionModelRequest {
+  modelId: string;
+  sessionId: AcpSessionId;
+}
+
+export type AcpSetSessionModelResponse = Record<string, never>;
 
 export type AcpSetSessionConfigOptionRequest =
   | {

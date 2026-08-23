@@ -93,6 +93,20 @@ export const CLI_INSTALL_CATALOG: Record<string, CliInstallSpec> = {
     methods: { default: [NPM('freebuff')] },
   },
 
+  // Hermes Agent (Nous Research) — official installer script / PowerShell.
+  hermes: {
+    id: 'hermes',
+    displayName: 'Hermes Agent',
+    binary: 'hermes',
+    docsUrl: 'https://hermes-agent.nousresearch.com/docs/getting-started/quickstart',
+    methods: {
+      darwin: [{ label: 'Installer-Skript', command: 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash' }],
+      linux: [{ label: 'Installer-Skript', command: 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash' }],
+      win32: [{ label: 'PowerShell', command: 'powershell -NoProfile -Command "iex (irm https://hermes-agent.nousresearch.com/install.ps1)"' }],
+      default: [{ label: 'Installer-Skript', command: 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash' }],
+    },
+  },
+
   claude: {
     id: 'claude',
     displayName: 'Claude Code',

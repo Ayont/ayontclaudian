@@ -28,7 +28,30 @@ const PROVIDER_COLOR: Record<string, string> = {
   cline: '#00C9A7',
   dsh: '#4D6BFE',
   freebuff: '#E8A33D',
+  hermes: '#8B5CF6',
 };
+
+/** One rate-limit window chip (see core/budget/rateLimitDisplay). */
+export interface StatusBarRateLimit {
+  label: string;
+  percent?: number | null;
+  tokensUsed?: number | null;
+  resetIn: string;
+}
+
+function formatCompactTokens(tokens: number): string {
+  if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1).replace('.0', '')}M`;
+  if (tokens >= 1000) return `${Math.round(tokens / 1000)}k`;
+  return String(tokens);
+}
+
+/** Chip text like `5h: 34% · Reset 1h 30m`. Pure, for testing. */
+export function formatRateLimitChipText(chip: StatusBarRateLimit): string {
+  const amount = typeof chip.percent === 'number'
+    ? `${chip.percent}%`
+    : `${formatCompactTokens(chip.tokensUsed ?? 0)} Tokens`;
+  return `${chip.label}: ${amount} · Reset ${chip.resetIn}`;
+}
 
 export interface ProviderStatus {
   providerId: string;
@@ -45,6 +68,8 @@ export interface ProviderStatus {
   estimated: boolean;
   /** True when the global auto mode ("double YOLO") is active. */
   autoMode?: boolean;
+  /** Rate-limit windows for THIS provider (native where available). */
+  rateLimits?: StatusBarRateLimit[];
 }
 
 /** Short status word for the ready/enabled state. Pure, for testing. */
@@ -72,6 +97,9 @@ export function formatStatusTooltip(status: ProviderStatus): string {
   if (status.autoMode) {
     parts.push('Auto-Mode aktiv');
   }
+  for (const chip of status.rateLimits ?? []) {
+    parts.push(formatRateLimitChipText(chip));
+  }
   return parts.join(' · ');
 }
 
@@ -83,6 +111,7 @@ export class ProviderStatusBar {
   private pctEl: HTMLElement | null = null;
   private meterFillEl: HTMLElement | null = null;
   private autoEl: HTMLElement | null = null;
+  private limitsEl: HTMLElement | null = null;
 
   constructor(statusBarEl: HTMLElement) {
     this.el = statusBarEl;
@@ -99,6 +128,7 @@ export class ProviderStatusBar {
     const meterEl = this.el.createSpan({ cls: 'claudian-statusbar-meter', attr: { 'aria-hidden': 'true' } });
     this.meterFillEl = meterEl.createSpan({ cls: 'claudian-statusbar-meter-fill' });
     this.autoEl = this.el.createSpan({ cls: 'claudian-statusbar-auto claudian-hidden', text: 'AUTO' });
+    this.limitsEl = this.el.createSpan({ cls: 'claudian-statusbar-limits' });
   }
 
   /** Renders the active provider's status, or hides the bar when none. */
@@ -149,6 +179,20 @@ export class ProviderStatusBar {
     }
 
     this.autoEl?.toggleClass('claudian-hidden', status.autoMode !== true);
+
+    if (this.limitsEl) {
+      this.limitsEl.empty();
+      for (const chip of status.rateLimits ?? []) {
+        const text = formatRateLimitChipText(chip);
+        const chipEl = this.limitsEl.createSpan({
+          cls: 'claudian-statusbar-limit',
+          attr: { 'data-tooltip': text },
+        });
+        chipEl.setText(text);
+        chipEl.toggleClass('is-warning', (chip.percent ?? 0) > 80);
+      }
+      this.limitsEl.toggleClass('claudian-hidden', (status.rateLimits ?? []).length === 0);
+    }
 
     this.el.setAttribute('aria-label', formatStatusTooltip(status));
     this.el.setAttribute('data-tooltip', formatStatusTooltip(status));

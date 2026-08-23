@@ -17,6 +17,7 @@ import { UpdateCoordinator } from './app/update/UpdateCoordinator';
 import type { UpdateSessionState } from './app/update/UpdateSession';
 import { whisperServerManager } from './core/audio/WhisperServerManager';
 import type { SharedAppStorage } from './core/bootstrap/storage';
+import { buildRateLimitChips } from './core/budget/rateLimitDisplay';
 import { type TokenBudgetState,TokenBudgetTracker } from './core/budget/tokenBudget';
 import {
   type ComparisonEntry,
@@ -181,6 +182,7 @@ import {
 import { VaultHealthService } from './features/templates/VaultHealthService';
 import { setLocale } from './i18n/i18n';
 import type { Locale } from './i18n/types';
+import { readLatestCodexRateLimits } from './providers/codex/runtime/rateLimits';
 import { OPENCODE_PLAN_MODE_ID, OPENCODE_SAFE_MODE_ID } from './providers/opencode/modes';
 import { extractUserDisplayContent } from './utils/context';
 import { buildCursorContext } from './utils/editor';
@@ -204,6 +206,9 @@ export default class ClaudianPlugin extends Plugin {
   private conversations: Conversation[] = [];
   private lastKnownTabManagerState: AppTabManagerState | null = null;
   tokenBudgetTracker = new TokenBudgetTracker();
+  private codexRateLimitCache: Awaited<ReturnType<typeof readLatestCodexRateLimits>> = null;
+  private codexRateLimitFetchedAt = 0;
+  private codexRateLimitRefreshing = false;
   private usagePersistTimer: number | null = null;
 
   /**
@@ -2062,6 +2067,34 @@ export default class ClaudianPlugin extends Plugin {
       percentage: usage ? usage.percentage : null,
       estimated: usage ? usage.contextWindowIsAuthoritative === false : false,
       autoMode: this.settings.autoMode === true,
+      rateLimits: this.collectRateLimitChips(providerId),
+    });
+  }
+
+  /** Status-bar limit chips: Codex reports native percentages in its rollout
+   *  transcripts; everyone else gets the honest local tracker window. The
+   *  Codex read is throttled to once a minute — the transcript only grows
+   *  when Codex itself runs. */
+  private collectRateLimitChips(providerId: string) {
+    const now = Date.now();
+    if (now - this.codexRateLimitFetchedAt > 60000 && !this.codexRateLimitRefreshing) {
+      this.codexRateLimitRefreshing = true;
+      this.codexRateLimitFetchedAt = now;
+      try {
+        this.codexRateLimitCache = readLatestCodexRateLimits();
+      } catch {
+        // Missing or unreadable transcripts simply mean no chips.
+      } finally {
+        this.codexRateLimitRefreshing = false;
+      }
+    }
+    const trackerWindows = providerId !== 'codex'
+      ? [this.tokenBudgetTracker.getProviderWindow(providerId)]
+      : [];
+    return buildRateLimitChips({
+      codex: this.codexRateLimitCache,
+      trackerWindows,
+      now,
     });
   }
 

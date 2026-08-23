@@ -10,7 +10,7 @@ import type {
 } from './types';
 
 export interface AcpResolvedSessionModelState {
-  availableModels: AcpModelInfo[];
+  availableModels: SelectItem[];
   currentModelId: string | null;
 }
 
@@ -25,7 +25,9 @@ export interface AcpResolvedSessionThoughtLevelState {
   currentLevel: string | null;
 }
 
-type SelectItem = { description?: string; id: string; name: string };
+export type AcpSelectItem = { description?: string; id: string; name: string };
+
+type SelectItem = AcpSelectItem;
 
 export function flattenAcpSessionConfigSelectOptions(
   options: AcpSessionConfigSelectOptions,
@@ -48,9 +50,23 @@ export function extractAcpSessionModelState(params: {
     return { availableModels: items, currentModelId: current };
   }
   return {
-    availableModels: params.models?.availableModels ?? [],
+    availableModels: (params.models?.availableModels ?? []).flatMap(toSelectItem),
     currentModelId: params.models?.currentModelId ?? current,
   };
+}
+
+function toSelectItem(model: AcpModelInfo): SelectItem[] {
+  const id = (model.modelId ?? model.id ?? '').trim();
+  if (!id) {
+    return [];
+  }
+
+  const description = model.description?.trim();
+  return [{
+    ...(description ? { description } : {}),
+    id,
+    name: model.name?.trim() || id,
+  }];
 }
 
 export function extractAcpSessionModeState(params: {
