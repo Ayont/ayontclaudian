@@ -47,7 +47,8 @@ import { buildDshPromptText } from './buildDshPrompt';
 import { buildDshLaunchSpec } from './DshLaunchSpec';
 import { buildDshRuntimeEnv } from './DshRuntimeEnvironment';
 import { findNewestDshSessionDir, getDshHome } from './DshSessionStore';
-import { tailDshSessionFile } from './dshSessionTail';
+import { buildDshUsageInfo, type DshTurnMetadata } from './dshSessionEvents';
+import { createDshTailState, tailDshSession } from './dshSessionTail';
 import { DSH_KEEPALIVE_INTERVAL_MS, DSH_KEEPALIVE_MAX_SILENCE_MS } from './keepalive';
 
 /**
@@ -195,13 +196,25 @@ export class DshChatRuntime implements ChatRuntime {
     this.activeProcess = proc;
     proc.stdin.end();
 
-    // Live view: the headless runner is stdout-silent by design, but it
-    // writes assistant deltas into its compressed session transcript as they
-    // happen. Tailing that file turns the silent wait into a live stream.
+    // Live view: the headless runner is stdout-silent by design, but it writes
+    // a full record stream into its compressed session transcript as work
+    // happens — assistant deltas, every inner tool dispatch with its result,
+    // retries, compaction and real token counts. Tailing that file turns the
+    // silent wait into the same live view the other providers give.
     let liveStreamedText = false;
-    let tailLastSeq = 0;
+    let tailState = createDshTailState();
     let tailFile: string | null = null;
+    let tailInFlight = false;
+    // Facts recovered from the transcript; they replace the end-of-turn
+    // estimate whenever dsh actually reported them.
+    const liveMetadata: DshTurnMetadata = {};
+    const contextWindow = getDshModelContextWindow(model);
     const tailTimer = window.setInterval(() => {
+      // A slow tick must not queue more work behind itself.
+      if (tailInFlight) {
+        return;
+      }
+      tailInFlight = true;
       void (async () => {
         try {
           if (!tailFile) {
@@ -209,19 +222,22 @@ export class DshChatRuntime implements ChatRuntime {
             if (!found) return;
             tailFile = path.join(found.dir, 'session.jsonl.zstd');
           }
-          const result = await tailDshSessionFile(tailFile, tailLastSeq);
-          tailLastSeq = result.lastSeq;
-          for (const event of result.events) {
-            if (event.kind === 'text') liveStreamedText = true;
-            pendingChunks.push(
-              event.kind === 'text'
-                ? { type: 'text', content: event.text }
-                : { type: 'thinking', content: event.text },
-            );
+          const result = await tailDshSession(tailFile, tailState);
+          tailState = result.state;
+          for (const chunk of result.chunks) {
+            if (chunk.type === 'text') liveStreamedText = true;
+            pendingChunks.push(chunk);
+          }
+          Object.assign(liveMetadata, result.metadata);
+          const usage = buildDshUsageInfo(result.metadata, contextWindow);
+          if (usage) {
+            pendingChunks.push({ type: 'usage', usage });
           }
           if (pendingChunks.length > 0) signal();
         } catch {
           // The live view is best-effort; never fail a turn over it.
+        } finally {
+          tailInFlight = false;
         }
       })();
     }, 800);
@@ -331,22 +347,31 @@ export class DshChatRuntime implements ChatRuntime {
       // Discovery is best-effort; never fail a completed turn over it.
     }
 
-    // Estimated context-window feedback: the headless runner reports no token
-    // usage, so approximate from history + prompt + response.
-    const contextTokens = estimateTokensForTexts([
-      ...(conversationHistory ?? []).map((message) => message.content ?? ''),
-      promptText,
-      responseText,
-    ]);
-    yield {
-      type: 'usage',
-      usage: buildEstimatedUsageInfo({
-        contextTokens,
-        contextWindow: getDshModelContextWindow(model),
-        model: model || undefined,
-      }),
-      sessionId: this.lastSession?.sessionId ?? null,
-    };
+    // Prefer the transcript's own token counts; only fall back to estimating
+    // from history + prompt + response when dsh reported nothing.
+    const measuredUsage = buildDshUsageInfo(liveMetadata, contextWindow);
+    if (measuredUsage) {
+      yield {
+        type: 'usage',
+        usage: measuredUsage,
+        sessionId: this.lastSession?.sessionId ?? null,
+      };
+    } else {
+      const contextTokens = estimateTokensForTexts([
+        ...(conversationHistory ?? []).map((message) => message.content ?? ''),
+        promptText,
+        responseText,
+      ]);
+      yield {
+        type: 'usage',
+        usage: buildEstimatedUsageInfo({
+          contextTokens,
+          contextWindow,
+          model: model || undefined,
+        }),
+        sessionId: this.lastSession?.sessionId ?? null,
+      };
+    }
     yield { type: 'done' };
   }
 

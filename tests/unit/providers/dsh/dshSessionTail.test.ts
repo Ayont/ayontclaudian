@@ -1,42 +1,117 @@
+import { zstdCompressSync } from 'node:zlib';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+
 import {
-  extractNewDshEvents,
-  parseDshSessionLine,
+  createDshTailState,
+  decompressZstdFrames,
+  tailDshSession,
 } from '@/providers/dsh/runtime/dshSessionTail';
 
-const TEXT_LINE = JSON.stringify({
-  type: 'assistant/chunk', seq: 19, time: 1,
-  data: { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: 'Hallo Welt' } },
+const TEXT_DELTA = JSON.stringify({
+  type: 'assistant/chunk', seq: 19,
+  data: { chunk: { type: 'text-delta', text: 'Hallo' } },
 });
-const THINKING_LINE = JSON.stringify({
-  type: 'assistant/chunk', seq: 20, time: 2,
-  data: { turn: 1, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: 'denke nach' } },
-});
-
-describe('parseDshSessionLine', () => {
-  it('maps text and reasoning deltas to stream kinds', () => {
-    expect(parseDshSessionLine(TEXT_LINE)).toEqual([{ seq: 19, kind: 'text', text: 'Hallo Welt' }]);
-    expect(parseDshSessionLine(THINKING_LINE)).toEqual([{ seq: 20, kind: 'thinking', text: 'denke nach' }]);
-  });
-
-  it('ignores structural chunks and broken lines', () => {
-    const blockStart = JSON.stringify({ type: 'assistant/chunk', seq: 5, data: { chunk: { type: 'block-start', index: 0 } } });
-    expect(parseDshSessionLine(blockStart)).toEqual([]);
-    expect(parseDshSessionLine('garbage')).toEqual([]);
-    expect(parseDshSessionLine('')).toEqual([]);
-  });
+const MORE_TEXT = JSON.stringify({
+  type: 'assistant/chunk', seq: 20,
+  data: { chunk: { type: 'text-delta', text: ' Welt' } },
 });
 
-describe('extractNewDshEvents', () => {
-  it('returns only events past the watermark and the new watermark', () => {
-    const jsonl = ['', TEXT_LINE, THINKING_LINE].join('\n');
-    const result = extractNewDshEvents(jsonl, 18);
-    expect(result.events.map((e) => e.seq)).toEqual([19, 20]);
-    expect(result.lastSeq).toBe(20);
+/** dsh appends one INDEPENDENT zstd frame per record batch. */
+function frame(...lines: string[]): Buffer {
+  return zstdCompressSync(Buffer.from(`${lines.join('\n')}\n`, 'utf8'));
+}
+
+describe('decompressZstdFrames', () => {
+  it('spans concatenated frames, which a single decompress call cannot', () => {
+    const buffer = Buffer.concat([frame(TEXT_DELTA), frame(MORE_TEXT)]);
+
+    const { bytesConsumed, text } = decompressZstdFrames(buffer);
+
+    expect(text.split('\n').filter(Boolean)).toEqual([TEXT_DELTA, MORE_TEXT]);
+    expect(bytesConsumed).toBe(buffer.length);
   });
 
-  it('yields nothing when everything is already seen', () => {
-    const result = extractNewDshEvents(TEXT_LINE, 19);
-    expect(result.events).toHaveLength(0);
-    expect(result.lastSeq).toBe(19);
+  // dsh is still writing the tail while the plugin reads it.
+  it('leaves a half-written trailing frame unconsumed so the next tick retries', () => {
+    const complete = frame(TEXT_DELTA);
+    const partial = frame(MORE_TEXT);
+    const buffer = Buffer.concat([complete, partial.subarray(0, partial.length - 6)]);
+
+    const { bytesConsumed, text } = decompressZstdFrames(buffer);
+
+    expect(text.split('\n').filter(Boolean)).toEqual([TEXT_DELTA]);
+    expect(bytesConsumed).toBe(complete.length);
+  });
+
+  it('returns nothing for a buffer with no frame at all', () => {
+    expect(decompressZstdFrames(Buffer.from('not zstd'))).toEqual({ bytesConsumed: 0, text: '' });
+  });
+});
+
+describe('tailDshSession', () => {
+  let dir: string;
+  let file: string;
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-tail-'));
+    file = path.join(dir, 'session.jsonl.zstd');
+  });
+
+  afterEach(() => {
+    fs.rmSync(dir, { force: true, recursive: true });
+  });
+
+  it('projects appended records and remembers the byte offset', async () => {
+    fs.writeFileSync(file, frame(TEXT_DELTA));
+
+    const first = await tailDshSession(file, createDshTailState());
+
+    expect(first.chunks).toEqual([{ type: 'text', content: 'Hallo' }]);
+    expect(first.state.lastSeq).toBe(19);
+    expect(first.state.offset).toBeGreaterThan(0);
+  });
+
+  // The whole point of the offset: a tick must not re-read what it already had.
+  it('reads only what was appended since the last tick', async () => {
+    fs.writeFileSync(file, frame(TEXT_DELTA));
+    const first = await tailDshSession(file, createDshTailState());
+
+    fs.appendFileSync(file, frame(MORE_TEXT));
+    const second = await tailDshSession(file, first.state);
+
+    expect(second.chunks).toEqual([{ type: 'text', content: ' Welt' }]);
+    expect(second.state.lastSeq).toBe(20);
+  });
+
+  it('yields nothing when the transcript did not grow', async () => {
+    fs.writeFileSync(file, frame(TEXT_DELTA));
+    const first = await tailDshSession(file, createDshTailState());
+
+    const second = await tailDshSession(file, first.state);
+
+    expect(second.chunks).toEqual([]);
+    expect(second.state).toEqual(first.state);
+  });
+
+  it('restarts from the beginning when a fresh session reuses the path', async () => {
+    fs.writeFileSync(file, Buffer.concat([frame(TEXT_DELTA), frame(MORE_TEXT)]));
+    const first = await tailDshSession(file, createDshTailState());
+    expect(first.state.lastSeq).toBe(20);
+
+    fs.writeFileSync(file, frame(TEXT_DELTA));
+    const second = await tailDshSession(file, { ...first.state, lastSeq: 0 });
+
+    expect(second.chunks).toEqual([{ type: 'text', content: 'Hallo' }]);
+  });
+
+  // No external `zstd` binary is involved, so a machine without it still gets
+  // the live view; a missing file must stay silent rather than throw.
+  it('stays silent for a missing transcript', async () => {
+    const state = createDshTailState();
+
+    await expect(tailDshSession(path.join(dir, 'nope.zstd'), state))
+      .resolves.toEqual({ chunks: [], metadata: {}, state });
   });
 });
