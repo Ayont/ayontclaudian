@@ -1,6 +1,11 @@
 import type { HookCallbackMatcher } from '@anthropic-ai/claude-agent-sdk';
 
 import {
+  type AuxiliaryCallSource,
+  type CompletedAuxiliaryCall,
+  CONSUME_AUXILIARY_CALL,
+} from '../../../core/auxiliary/AuxiliaryUsageAccounting';
+import {
   buildInlineEditPrompt,
   getInlineEditSystemPrompt,
   parseInlineEditResponse,
@@ -47,9 +52,10 @@ export function createReadOnlyHook(): HookCallbackMatcher {
   };
 }
 
-export class InlineEditService {
+export class InlineEditService implements AuxiliaryCallSource {
   private plugin: ClaudianPlugin;
   private abortController: AbortController | null = null;
+  private completedCall: CompletedAuxiliaryCall | null = null;
   private sessionId: string | null = null;
 
   constructor(plugin: ClaudianPlugin) {
@@ -88,6 +94,7 @@ export class InlineEditService {
     const settings = this.getScopedSettings();
 
     this.abortController = new AbortController();
+    this.completedCall = null;
 
     const hooks = {
       PreToolUse: [createReadOnlyHook()],
@@ -104,6 +111,11 @@ export class InlineEditService {
         providerSettings: settings,
       }, prompt);
 
+      this.completedCall = {
+        outputText: result.text,
+        ...(result.usage ? { usageReports: [result.usage] } : {}),
+      };
+
       this.sessionId = result.sessionId;
       return parseInlineEditResponse(result.text);
     } catch (error) {
@@ -118,5 +130,11 @@ export class InlineEditService {
     if (this.abortController) {
       this.abortController.abort();
     }
+  }
+
+  [CONSUME_AUXILIARY_CALL](): CompletedAuxiliaryCall | null {
+    const completed = this.completedCall;
+    this.completedCall = null;
+    return completed;
   }
 }

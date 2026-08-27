@@ -61,7 +61,7 @@ import { stripCurrentNoteContext } from '../../../utils/context';
 import { getEnhancedPath, getMissingNodeError, parseEnvironmentVariables } from '../../../utils/env';
 import { getVaultPath } from '../../../utils/path';
 import {
-  buildContextFromHistory,
+  buildBoundedContextFromHistory,
   buildPromptWithHistoryContext,
   getLastUserMessage,
   isSessionExpiredError,
@@ -1221,7 +1221,7 @@ export class ClaudianService implements ChatRuntime {
     // Session mismatch recovery: SDK returned a different session ID (context lost)
     // Inject history to restore context without forcing cold-start
     if (this.sessionManager.needsHistoryRebuild() && conversationHistory && conversationHistory.length > 0) {
-      const historyContext = buildContextFromHistory(conversationHistory);
+      const historyContext = buildBoundedContextFromHistory(conversationHistory);
       const actualPrompt = stripCurrentNoteContext(prompt);
       promptToSend = buildPromptWithHistoryContext(historyContext, prompt, actualPrompt, conversationHistory);
       this.sessionManager.clearHistoryRebuild();
@@ -1231,7 +1231,7 @@ export class ClaudianService implements ChatRuntime {
       conversationHistory && conversationHistory.length > 0;
 
     if (noSessionButHasHistory) {
-      const historyContext = buildContextFromHistory(conversationHistory);
+      const historyContext = buildBoundedContextFromHistory(conversationHistory);
       const actualPrompt = stripCurrentNoteContext(prompt);
       promptToSend = buildPromptWithHistoryContext(historyContext, prompt, actualPrompt, conversationHistory);
 
@@ -1347,7 +1347,7 @@ export class ClaudianService implements ChatRuntime {
     prompt: string,
     conversationHistory: ChatMessage[]
   ): { prompt: string; images?: ImageAttachment[] } {
-    const historyContext = buildContextFromHistory(conversationHistory);
+    const historyContext = buildBoundedContextFromHistory(conversationHistory);
     const actualPrompt = stripCurrentNoteContext(prompt);
     const fullPrompt = buildPromptWithHistoryContext(historyContext, prompt, actualPrompt, conversationHistory);
     const lastUserMessage = getLastUserMessage(conversationHistory);

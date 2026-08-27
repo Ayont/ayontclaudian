@@ -11,7 +11,7 @@
  * provider is never handed a giant prompt (which can make the CLI hang for minutes).
  */
 
-import { buildContextFromHistory } from '../../utils/session';
+import { buildBoundedContextFromHistory } from '../../utils/session';
 import type { ChatMessage } from '../types';
 
 /** Floor for the framed bootstrap payload (characters). Keep small + bounded. */
@@ -40,9 +40,6 @@ export function computeBootstrapCharCap(contextWindowTokens?: number): number {
   const budget = Math.round(contextWindowTokens * CHARS_PER_TOKEN * BOOTSTRAP_WINDOW_FRACTION);
   return Math.min(CONTEXT_BOOTSTRAP_CHAR_CAP_MAX, Math.max(CONTEXT_BOOTSTRAP_CHAR_CAP, budget));
 }
-
-/** Note prepended when older turns are dropped to satisfy the char cap. */
-const EARLIER_TURNS_OMITTED_NOTE = '[earlier turns omitted]';
 
 const CONTEXT_OPEN_TAG = '<conversation_context>';
 const CONTEXT_CLOSE_TAG = '</conversation_context>';
@@ -94,34 +91,5 @@ export function buildConversationContextBootstrap(
  * dropping older turns until the formatted text fits within `maxChars`.
  */
 function buildBoundedBody(messages: ChatMessage[], maxChars: number): string {
-  const full = buildContextFromHistory(messages).trim();
-  if (!full) {
-    return '';
-  }
-
-  // Fast path: the whole history already fits.
-  if (full.length <= maxChars) {
-    return full;
-  }
-
-  // Drop oldest messages one at a time (keeping the most recent) until the formatted
-  // tail fits, reserving room for the omitted-turns note.
-  const reserved = EARLIER_TURNS_OMITTED_NOTE.length + 2; // note + blank line
-  const budget = Math.max(0, maxChars - reserved);
-
-  for (let start = 1; start < messages.length; start++) {
-    const tail = buildContextFromHistory(messages.slice(start)).trim();
-    if (!tail) {
-      continue;
-    }
-    if (tail.length <= budget) {
-      return `${EARLIER_TURNS_OMITTED_NOTE}\n\n${tail}`;
-    }
-  }
-
-  // Even the single most-recent renderable turn exceeds the budget: hard-truncate it
-  // so the cap is always honored.
-  const lastTurn = buildContextFromHistory(messages.slice(-1)).trim();
-  const truncated = lastTurn.slice(0, budget).trimEnd();
-  return `${EARLIER_TURNS_OMITTED_NOTE}\n\n${truncated}`;
+  return buildBoundedContextFromHistory(messages, maxChars).trim();
 }

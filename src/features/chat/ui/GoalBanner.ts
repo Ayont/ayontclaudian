@@ -24,8 +24,8 @@ export interface GoalBannerOptions {
   onTogglePause?: (paused: boolean) => void;
 }
 
-const GOAL_LABEL_ACTIVE = 'Goal aktiv';
-const GOAL_LABEL_PAUSED = 'Goal pausiert';
+const GOAL_LABEL_ACTIVE = 'Ziel aktiv';
+const GOAL_LABEL_PAUSED = 'Ziel pausiert';
 
 export class GoalBanner {
   private readonly rootEl: HTMLElement;
@@ -57,7 +57,7 @@ export class GoalBanner {
       bodyEl.addClass('claudian-goal-banner-editable');
       bodyEl.setAttribute('role', 'button');
       bodyEl.setAttribute('tabindex', '0');
-      bodyEl.setAttribute('aria-label', 'Goal bearbeiten');
+      bodyEl.setAttribute('aria-label', 'Ziel bearbeiten');
       bodyEl.addEventListener('click', () => options.onEdit?.(this.currentGoal));
       bodyEl.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -70,7 +70,7 @@ export class GoalBanner {
     const actionsEl = this.rootEl.createDiv({ cls: 'claudian-goal-banner-actions' });
 
     if (options.onTogglePause) {
-      this.pauseEl = this.createAction(actionsEl, 'pause', 'Goal-Loop pausieren');
+      this.pauseEl = this.createAction(actionsEl, 'pause', 'Zielschleife pausieren');
       this.pauseEl.addEventListener('click', (event) => {
         event.stopPropagation();
         options.onTogglePause?.(!this.paused);
@@ -78,7 +78,7 @@ export class GoalBanner {
     }
 
     if (options.onDone) {
-      this.doneEl = this.createAction(actionsEl, 'check', 'Goal als erreicht markieren');
+      this.doneEl = this.createAction(actionsEl, 'check', 'Ziel als erreicht markieren');
       this.doneEl.addClass('claudian-goal-banner-action--done');
       this.doneEl.addEventListener('click', (event) => {
         event.stopPropagation();
@@ -86,7 +86,7 @@ export class GoalBanner {
       });
     }
 
-    const clearEl = this.createAction(actionsEl, 'x', 'Goal löschen');
+    const clearEl = this.createAction(actionsEl, 'x', 'Ziel löschen');
     clearEl.addClass('claudian-goal-banner-clear');
     clearEl.addEventListener('click', (event) => {
       event.stopPropagation();
@@ -131,7 +131,7 @@ export class GoalBanner {
     this.rootEl.toggleClass('is-paused', paused);
     this.labelEl.setText(paused ? GOAL_LABEL_PAUSED : GOAL_LABEL_ACTIVE);
     if (this.pauseEl) {
-      const label = paused ? 'Goal-Loop fortsetzen' : 'Goal-Loop pausieren';
+      const label = paused ? 'Zielschleife fortsetzen' : 'Zielschleife pausieren';
       this.pauseEl.setAttribute('aria-label', label);
       this.pauseEl.setAttribute('data-tooltip', label);
       this.pauseEl.toggleClass('is-paused', paused);

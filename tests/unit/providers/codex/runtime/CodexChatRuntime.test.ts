@@ -744,6 +744,84 @@ describe('CodexChatRuntime', () => {
       expect(startCall).toBeUndefined();
     });
 
+    it('replays bounded visible history when a stale persisted thread must start fresh', async () => {
+      runtime.syncConversationState({
+        sessionId: 'thread-stale',
+        providerState: { threadId: 'thread-stale', sessionFilePath: '/tmp/stale.jsonl' },
+      });
+      captureHandlers();
+      mockTransportRequest.mockImplementation(async (method: string) => {
+        if (method === 'initialize') {
+          return { userAgent: 'test/0.1', codexHome: '/tmp', platformFamily: 'unix', platformOs: 'macos' };
+        }
+        if (method === 'thread/resume') throw new Error('no rollout found for thread id');
+        if (method === 'thread/start') return threadStartResponse('thread-recovered');
+        if (method === 'turn/start') {
+          setTimeout(() => emitNotification('turn/completed', {
+            threadId: 'thread-recovered',
+            turn: { id: 'turn-recovered', items: [], status: 'completed', error: null },
+          }), 0);
+          return turnStartResponse('turn-recovered');
+        }
+        return {};
+      });
+      const history = [
+        { id: 'u1', role: 'user' as const, content: 'Remember project Atlas', timestamp: 1 },
+        { id: 'a1', role: 'assistant' as const, content: 'Atlas uses blue.', timestamp: 2 },
+      ];
+
+      await collectChunks(runtime.query(createTurn('Continue the work'), history));
+
+      const textInput = findCall('turn/start')[1].input
+        .find((input: { type: string }) => input.type === 'text')?.text;
+      expect(textInput).toContain('Remember project Atlas');
+      expect(textInput).toContain('Atlas uses blue.');
+      expect(textInput).toContain('Continue the work');
+    });
+
+    it('replays bounded history when a full context forces an automatic fresh-thread retry', async () => {
+      captureHandlers();
+      let threadStarts = 0;
+      let turnStarts = 0;
+      mockTransportRequest.mockImplementation(async (method: string) => {
+        if (method === 'initialize') {
+          return { userAgent: 'test/0.1', codexHome: '/tmp', platformFamily: 'unix', platformOs: 'macos' };
+        }
+        if (method === 'thread/start') {
+          threadStarts += 1;
+          return threadStartResponse(threadStarts === 1 ? 'thread-full' : 'thread-fresh');
+        }
+        if (method === 'turn/start') {
+          turnStarts += 1;
+          if (turnStarts === 1) throw new Error('ran out of room in the model context window');
+          setTimeout(() => emitNotification('turn/completed', {
+            threadId: 'thread-fresh',
+            turn: { id: 'turn-fresh', items: [], status: 'completed', error: null },
+          }), 0);
+          return turnStartResponse('turn-fresh');
+        }
+        return {};
+      });
+      const history = [
+        { id: 'u1', role: 'user' as const, content: 'Important earlier decision', timestamp: 1 },
+        { id: 'a1', role: 'assistant' as const, content: 'Keep the API stable.', timestamp: 2 },
+      ];
+
+      const chunks = await collectChunks(runtime.query(createTurn('Implement it now'), history));
+      const retryCall = mockTransportRequest.mock.calls
+        .filter((call: any[]) => call[0] === 'turn/start')[1];
+      const textInput = retryCall[1].input
+        .find((input: { type: string }) => input.type === 'text')?.text;
+
+      expect(textInput).toContain('Important earlier decision');
+      expect(textInput).toContain('Keep the API stable.');
+      expect(textInput).toContain('Implement it now');
+      expect(chunks).toContainEqual(expect.objectContaining({
+        type: 'notice',
+        level: 'warning',
+      }));
+    });
+
     it('skips resume when thread is already loaded in this daemon', async () => {
       // First query starts a new thread
       await collectChunks(runtime.query(createTurn()));

@@ -30,6 +30,23 @@ describe('buildDshPromptText', () => {
     expect(prompt).toContain('Was ist geblieben?');
   });
 
+  it('bounds replayed history while preserving the newest turns', () => {
+    const history = [
+      message('user', `veralteter Anfang ${'x'.repeat(30_000)}`),
+      message('assistant', 'alte Antwort'),
+      message('user', 'neueste relevante Frage'),
+      message('assistant', 'neueste relevante Antwort'),
+    ];
+
+    const prompt = buildDshPromptText(request('Weiter'), history);
+
+    expect(prompt).toContain('[earlier turns omitted]');
+    expect(prompt).toContain('neueste relevante Frage');
+    expect(prompt).toContain('neueste relevante Antwort');
+    expect(prompt).not.toContain('veralteter Anfang');
+    expect(prompt.length).toBeLessThan(25_000);
+  });
+
   it('appends the current note reference when one is set', () => {
     const prompt = buildDshPromptText(request('check', { currentNotePath: 'Notes/todo.md' }), []);
     expect(prompt).toContain('todo.md');

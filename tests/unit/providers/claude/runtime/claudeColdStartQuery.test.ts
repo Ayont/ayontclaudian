@@ -97,6 +97,35 @@ describe('runColdStartQuery', () => {
 
       expect(result.text).toBe('answer');
     });
+
+    it('returns provider-reported usage for auxiliary accounting', async () => {
+      sdkMock.setMockMessages([
+        {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'answer' }],
+            usage: {
+              cache_creation_input_tokens: 3,
+              cache_read_input_tokens: 5,
+              input_tokens: 11,
+              output_tokens: 7,
+            },
+          },
+          parent_tool_use_id: null,
+        },
+      ]);
+
+      const result = await runColdStartQuery(createConfig({ model: 'claude-sonnet-4-5' }), 'hi');
+
+      expect(result.usage).toEqual(expect.objectContaining({
+        cacheCreationInputTokens: 3,
+        cacheReadInputTokens: 5,
+        contextTokens: 19,
+        inputTokens: 11,
+        model: 'claude-sonnet-4-5',
+        reportType: 'final',
+      }));
+    });
   });
 
   describe('infrastructure errors', () => {

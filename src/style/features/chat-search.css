@@ -70,6 +70,7 @@
 }
 
 .claudian-chat-search-btn {
+  appearance: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -133,5 +134,16 @@
   .claudian-search-flash {
     animation: none;
     box-shadow: 0 0 0 2px var(--interactive-accent);
+  }
+}
+
+@media (pointer: coarse) {
+  .claudian-chat-search {
+    padding-block: 6px;
+  }
+
+  .claudian-chat-search-btn {
+    width: 44px;
+    height: 44px;
   }
 }

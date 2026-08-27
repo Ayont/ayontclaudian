@@ -72,6 +72,10 @@ describe('ClaudianPlugin', () => {
     (plugin.loadData as jest.Mock).mockResolvedValue({});
   });
 
+  afterEach(() => {
+    plugin.onunload();
+  });
+
   describe('onload', () => {
     it('should initialize settings with defaults', async () => {
       await plugin.onload();
@@ -120,6 +124,50 @@ describe('ClaudianPlugin', () => {
       await plugin.onload();
 
       expect(() => plugin.onunload()).not.toThrow();
+    });
+
+    it('cancels delayed update checks before they can run against an unloaded plugin', async () => {
+      jest.useFakeTimers();
+      try {
+        const pluginUpdate = jest.spyOn(plugin, 'checkAndOfferPluginUpdate')
+          .mockResolvedValue(null);
+        const providerUpdates = jest.spyOn(
+          plugin as unknown as { offerProviderUpdates(): Promise<void> },
+          'offerProviderUpdates',
+        ).mockResolvedValue(undefined);
+
+        await plugin.onload();
+        plugin.onunload();
+        await jest.advanceTimersByTimeAsync(20_000);
+
+        expect(pluginUpdate).not.toHaveBeenCalled();
+        expect(providerUpdates).not.toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('does not re-arm usage persistence when an auxiliary call finishes after unload', async () => {
+      jest.useFakeTimers();
+      try {
+        await plugin.onload();
+        plugin.onunload();
+        mockApp.vault.adapter.write.mockClear();
+
+        plugin.recordAuxiliaryUsage({
+          inputTexts: ['Prüfe das Ziel.'],
+          outputText: '{"done":true}',
+          providerId: 'claude',
+        });
+        await jest.advanceTimersByTimeAsync(6_000);
+
+        expect(mockApp.vault.adapter.write).not.toHaveBeenCalledWith(
+          '.claudian/usage.json',
+          expect.any(String),
+        );
+      } finally {
+        jest.useRealTimers();
+      }
     });
   });
 

@@ -1,7 +1,13 @@
-import { Component, setIcon } from 'obsidian';
+import { Component, Notice, setIcon, TFile } from 'obsidian';
 
 import type ClaudianPlugin from '../../../main';
-import type { LiveDocument, LiveDocumentTheme } from '../rendering/LiveDocumentRenderer';
+import {
+  type LiveDocument,
+  liveDocumentIdentity,
+  type LiveDocumentTheme,
+  openLiveDocumentPreview,
+  parseLiveDocument,
+} from '../rendering/LiveDocumentRenderer';
 import {
   attachmentKindLabel,
   attachmentPeekMode,
@@ -9,10 +15,23 @@ import {
 } from './file-drop/attachmentMeta';
 
 const EMPTY_COPY = 'Erstellte Dokumente und Uploads erscheinen hier.';
+const DOCUMENT_FOLDER_PREFIX = '.claudian/documents/';
+const FULLSCREEN_MEDIA_QUERY = '(max-width: 768px)';
+let nextPanelId = 1;
 
 function isChatImageUpload(upload: LibraryUpload): boolean {
   if (upload.relPath.startsWith('data:image')) return true;
   return attachmentTypeMeta(upload.name).kind === 'image';
+}
+
+function documentExcerpt(document: LiveDocument): string {
+  return document.body
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/[*_`~>]/g, '')
+    .replace(/\[|\]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120);
 }
 
 export interface LibraryUpload {
@@ -23,21 +42,31 @@ export interface LibraryUpload {
 
 type LibraryItem =
   | { id: string; type: 'upload'; name: string; relPath: string; previewSrc?: string }
-  | { id: string; type: 'live'; liveDocument: LiveDocument; theme: LiveDocumentTheme };
+  | {
+    id: string;
+    type: 'live';
+    liveDocument: LiveDocument;
+    theme: LiveDocumentTheme;
+    vaultPath?: string;
+  };
 
-/**
- * Right-side library of created documents and uploaded files.
- * This is a history, not a vault-file loader — it never dumps the active note.
- */
+/** Persistent, non-destructive library of generated documents and uploads. */
 export class FilePreviewPanel {
   private panelEl: HTMLElement | null = null;
-  private toggleBtn: HTMLElement | null = null;
+  private toggleBtn: HTMLButtonElement | null = null;
+  private closeBtn: HTMLButtonElement | null = null;
   private titleEl: HTMLElement | null = null;
   private countEl: HTMLElement | null = null;
   private contentEl: HTMLElement | null = null;
   private isOpen = false;
+  private isFullscreen = false;
+  private destroyed = false;
+  private previouslyFocused: HTMLElement | null = null;
+  private fullscreenQuery: MediaQueryList | null = null;
+  private refreshPromise: Promise<void> | null = null;
   private readonly host = new Component();
   private readonly items: LibraryItem[] = [];
+  private readonly panelId = `claudian-document-library-${nextPanelId++}`;
 
   constructor(
     private readonly containerEl: HTMLElement,
@@ -46,27 +75,43 @@ export class FilePreviewPanel {
 
   render(): void {
     this.host.load();
-    this.toggleBtn = this.containerEl.createDiv({ cls: 'claudian-preview-toggle' });
+    this.toggleBtn = this.containerEl.createEl('button', {
+      cls: 'claudian-preview-toggle',
+      attr: {
+        type: 'button',
+        'aria-label': 'Dokumentbibliothek öffnen',
+        'aria-expanded': 'false',
+        'aria-controls': this.panelId,
+      },
+    });
     setIcon(this.toggleBtn, 'panel-right');
-    this.toggleBtn.setAttribute('aria-label', 'Speicher öffnen');
     this.toggleBtn.addEventListener('click', () => this.toggle());
 
     this.panelEl = this.containerEl.createDiv({ cls: 'claudian-preview-panel' });
+    this.panelEl.setAttribute('id', this.panelId);
+    this.panelEl.setAttribute('role', 'region');
+    this.panelEl.setAttribute('aria-label', 'Dokumentbibliothek');
+    this.panelEl.setAttribute('tabindex', '-1');
+    this.panelEl.addEventListener('keydown', this.handlePanelKeydown);
 
     const header = this.panelEl.createDiv({ cls: 'claudian-preview-header' });
     const brand = header.createDiv({ cls: 'claudian-preview-brand' });
     setIcon(brand.createSpan({ cls: 'claudian-preview-header-icon' }), 'library');
     const titles = brand.createDiv({ cls: 'claudian-preview-titles' });
-    this.titleEl = titles.createEl('span', { cls: 'claudian-preview-title', text: 'Speicher' });
+    this.titleEl = titles.createEl('span', { cls: 'claudian-preview-title', text: 'Bibliothek' });
     titles.createEl('span', { cls: 'claudian-preview-subtitle', text: 'Dokumente & Uploads' });
     this.countEl = header.createSpan({ cls: 'claudian-preview-count claudian-hidden', text: '0' });
-    const closeBtn = header.createEl('button', { cls: 'claudian-preview-close' });
-    setIcon(closeBtn, 'x');
-    closeBtn.setAttribute('aria-label', 'Speicher schließen');
-    closeBtn.addEventListener('click', () => this.close());
+    this.closeBtn = header.createEl('button', {
+      cls: 'claudian-preview-close',
+      attr: { type: 'button', 'aria-label': 'Dokumentbibliothek schließen' },
+    });
+    setIcon(this.closeBtn, 'x');
+    this.closeBtn.addEventListener('click', () => this.close());
 
     this.contentEl = this.panelEl.createDiv({ cls: 'claudian-preview-content' });
+    this.configureFullscreenMode();
     this.renderLibrary();
+    void this.refreshVaultDocuments();
   }
 
   toggle(): void {
@@ -76,48 +121,161 @@ export class FilePreviewPanel {
 
   open(): void {
     if (!this.panelEl) return;
+    const opening = !this.isOpen;
+    if (opening) {
+      const activeElement = this.containerEl.ownerDocument?.activeElement as HTMLElement | null;
+      this.previouslyFocused = activeElement && typeof activeElement.focus === 'function'
+        ? activeElement
+        : null;
+    }
     this.isOpen = true;
     this.panelEl.addClass('is-open');
     this.containerEl.addClass('claudian-preview-open');
     this.toggleBtn?.addClass('claudian-preview-toggle--active');
-    this.toggleBtn?.setAttribute('aria-label', 'Speicher schließen');
+    this.toggleBtn?.setAttribute('aria-label', 'Dokumentbibliothek schließen');
+    this.toggleBtn?.setAttribute('aria-expanded', 'true');
+    if (this.toggleBtn) {
+      this.toggleBtn.disabled = true;
+      this.toggleBtn.setAttribute('aria-hidden', 'true');
+    }
+    this.updatePanelSemantics();
     this.renderLibrary();
+    void this.refreshVaultDocuments();
+    if (opening) this.closeBtn?.focus();
   }
 
-  close(): void {
+  close(restoreFocus = true): void {
     if (!this.panelEl) return;
+    const focusTarget = this.previouslyFocused;
+    this.previouslyFocused = null;
     this.isOpen = false;
     this.panelEl.removeClass('is-open');
     this.containerEl.removeClass('claudian-preview-open');
     this.toggleBtn?.removeClass('claudian-preview-toggle--active');
-    this.toggleBtn?.setAttribute('aria-label', 'Speicher öffnen');
+    this.toggleBtn?.setAttribute('aria-label', 'Dokumentbibliothek öffnen');
+    this.toggleBtn?.setAttribute('aria-expanded', 'false');
+    if (this.toggleBtn) {
+      this.toggleBtn.disabled = false;
+      this.toggleBtn.removeAttribute('aria-hidden');
+    }
+    this.updatePanelSemantics();
+    if (!restoreFocus) return;
+    if (focusTarget && focusTarget.isConnected !== false) focusTarget.focus();
+    else this.toggleBtn?.focus();
+  }
+
+  private readonly handlePanelKeydown = (event: KeyboardEvent): void => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      this.close();
+      return;
+    }
+    if (event.key !== 'Tab' || !this.isOpen || !this.isFullscreen || !this.panelEl) return;
+
+    const focusable = Array.from(this.panelEl.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [contenteditable="true"], [tabindex]:not([tabindex="-1"])',
+    )).filter((element) => (
+      element.getAttribute('aria-hidden') !== 'true'
+      && element.getAttribute('hidden') === null
+    ));
+    if (focusable.length === 0) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.panelEl.focus();
+      return;
+    }
+
+    const activeElement = this.containerEl.ownerDocument?.activeElement;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && (activeElement === first || !focusable.includes(activeElement as HTMLElement))) {
+      event.preventDefault();
+      event.stopPropagation();
+      last.focus();
+    } else if (!event.shiftKey && (activeElement === last || !focusable.includes(activeElement as HTMLElement))) {
+      event.preventDefault();
+      event.stopPropagation();
+      first.focus();
+    }
+  };
+
+  private configureFullscreenMode(): void {
+    const ownerWindow = this.containerEl.ownerDocument?.defaultView;
+    if (!ownerWindow || typeof ownerWindow.matchMedia !== 'function') return;
+    this.fullscreenQuery = ownerWindow.matchMedia(FULLSCREEN_MEDIA_QUERY);
+    this.isFullscreen = this.fullscreenQuery.matches;
+    if (typeof this.fullscreenQuery.addEventListener === 'function') {
+      this.fullscreenQuery.addEventListener('change', this.handleFullscreenChange);
+    } else {
+      this.fullscreenQuery.addListener(this.handleFullscreenChange);
+    }
+    this.updatePanelSemantics();
+  }
+
+  private readonly handleFullscreenChange = (event: MediaQueryListEvent): void => {
+    this.isFullscreen = event.matches;
+    this.updatePanelSemantics();
+  };
+
+  private updatePanelSemantics(): void {
+    if (!this.panelEl) return;
+    if (this.isOpen && this.isFullscreen) {
+      this.panelEl.setAttribute('role', 'dialog');
+      this.panelEl.setAttribute('aria-modal', 'true');
+    } else {
+      this.panelEl.setAttribute('role', 'region');
+      this.panelEl.removeAttribute('aria-modal');
+    }
+  }
+
+  private releaseFullscreenMode(): void {
+    if (!this.fullscreenQuery) return;
+    if (typeof this.fullscreenQuery.removeEventListener === 'function') {
+      this.fullscreenQuery.removeEventListener('change', this.handleFullscreenChange);
+    } else {
+      this.fullscreenQuery.removeListener(this.handleFullscreenChange);
+    }
+    this.fullscreenQuery = null;
   }
 
   rememberUpload(upload: LibraryUpload): void {
-    if (isChatImageUpload(upload)) {
-      return;
-    }
-    if (this.items.some((item) => item.type === 'upload' && item.relPath === upload.relPath)) {
-      return;
-    }
-    this.items.unshift({
-      id: `upload:${upload.relPath}`,
-      type: 'upload',
-      name: upload.name,
-      relPath: upload.relPath,
-      previewSrc: upload.previewSrc,
-    });
-    if (this.isOpen) this.renderLibrary();
+    if (isChatImageUpload(upload)) return;
+    const id = `upload:${upload.relPath}`;
+    const existingIndex = this.items.findIndex((item) => item.id === id);
+    if (existingIndex >= 0) this.items.splice(existingIndex, 1);
+    this.items.unshift({ id, type: 'upload', ...upload });
+    this.renderLibrary();
   }
 
-  rememberLiveDocument(document: LiveDocument, theme?: LiveDocumentTheme): void {
-    const id = `live:${document.title}`;
+  /** Adds or updates a document without opening the panel. */
+  rememberLiveDocument(
+    document: LiveDocument,
+    theme?: LiveDocumentTheme,
+    options?: { vaultPath?: string; preserveTheme?: boolean },
+  ): void {
+    const id = `live:${liveDocumentIdentity(document)}`;
+    const existingIndex = this.items.findIndex((item) => item.id === id);
+    const existing = existingIndex >= 0 ? this.items[existingIndex] : undefined;
+    if (existingIndex >= 0) this.items.splice(existingIndex, 1);
+    // A vault path belongs to the exact document snapshot discovered at that path.
+    // Streaming/in-memory updates must open their current body, not an older saved file.
+    const vaultPath = options?.vaultPath;
     this.items.unshift({
       id,
       type: 'live',
       liveDocument: document,
-      theme: theme ?? document.theme,
+      theme: options?.preserveTheme && existing?.type === 'live'
+        ? existing.theme
+        : (theme ?? document.theme),
+      ...(vaultPath ? { vaultPath } : {}),
     });
+    this.renderLibrary();
+  }
+
+  /** Explicit dock action: remember the document and reveal the library. */
+  async dockLiveDocument(document: LiveDocument, theme?: LiveDocumentTheme): Promise<void> {
+    this.rememberLiveDocument(document, theme);
     this.open();
   }
 
@@ -125,16 +283,46 @@ export class FilePreviewPanel {
   async dockFile(filePath: string): Promise<void> {
     const name = filePath.split('/').pop() ?? filePath;
     this.rememberUpload({ name, relPath: filePath });
+    this.open();
   }
 
-  async dockLiveDocument(document: LiveDocument, theme?: LiveDocumentTheme): Promise<void> {
-    this.rememberLiveDocument(document, theme);
+  /** Read-only discovery of documents saved through the explicit Save action. */
+  async refreshVaultDocuments(): Promise<void> {
+    if (this.refreshPromise) return this.refreshPromise;
+    this.refreshPromise = this.loadVaultDocuments().finally(() => {
+      this.refreshPromise = null;
+    });
+    return this.refreshPromise;
+  }
+
+  private async loadVaultDocuments(): Promise<void> {
+    const vault = this.plugin.app.vault;
+    if (typeof vault.getFiles !== 'function') return;
+    const files = vault.getFiles()
+      .filter((file): file is TFile =>
+        file instanceof TFile
+        && file.path.startsWith(DOCUMENT_FOLDER_PREFIX)
+        && file.extension.toLowerCase() === 'md')
+      .sort((a, b) => (a.stat?.mtime ?? 0) - (b.stat?.mtime ?? 0) || a.path.localeCompare(b.path));
+    const read = typeof vault.cachedRead === 'function'
+      ? (file: TFile) => vault.cachedRead(file)
+      : (file: TFile) => vault.read(file);
+
+    for (const file of files) {
+      try {
+        const document = parseLiveDocument(await read(file));
+        if (document) this.rememberLiveDocument(document, document.theme, { vaultPath: file.path });
+      } catch {
+        // One malformed or temporarily unavailable file must not hide the rest.
+      }
+    }
+    if (!this.destroyed) this.renderLibrary();
   }
 
   private renderLibrary(): void {
-    if (!this.contentEl) return;
+    if (!this.contentEl || this.destroyed) return;
     this.contentEl.empty();
-    this.setTitle('Speicher');
+    this.titleEl?.setText('Bibliothek');
     if (this.countEl) {
       this.countEl.setText(String(this.items.length));
       this.countEl.toggleClass('claudian-hidden', this.items.length === 0);
@@ -146,46 +334,85 @@ export class FilePreviewPanel {
     }
 
     const library = this.contentEl.createDiv({ cls: 'claudian-preview-library' });
-    for (const item of this.items) {
-      this.renderCard(library, item);
-    }
+    for (const item of this.items) this.renderCard(library, item);
   }
 
   private renderCard(parent: HTMLElement, item: LibraryItem): void {
     if (item.type === 'live') {
-      const card = parent.createDiv({ cls: 'claudian-preview-card claudian-preview-card--live' });
+      const card = parent.createEl('button', {
+        cls: `claudian-preview-card claudian-preview-card--live${item.vaultPath ? ' claudian-preview-card--vault' : ''}`,
+        attr: {
+          type: 'button',
+          'aria-label': `${item.liveDocument.title} öffnen`,
+          'data-library-id': item.id,
+        },
+      });
       const peek = card.createDiv({ cls: 'claudian-preview-card-peek' });
-      peek.createSpan({ cls: 'claudian-preview-card-live-label', text: 'Live' });
+      peek.createSpan({
+        cls: 'claudian-preview-card-live-label',
+        text: item.vaultPath ? 'Vault' : 'Live',
+      });
       peek.createEl('strong', { text: item.liveDocument.title });
-      card.createSpan({ cls: 'claudian-preview-card-name', text: item.liveDocument.title });
+      const excerpt = documentExcerpt(item.liveDocument);
+      if (excerpt) peek.createEl('p', { cls: 'claudian-preview-card-excerpt', text: excerpt });
+      const footer = card.createDiv({ cls: 'claudian-preview-card-footer' });
+      footer.createSpan({ cls: 'claudian-preview-card-name', text: item.liveDocument.title });
+      footer.createSpan({ cls: 'claudian-preview-card-action', text: 'Öffnen' });
+      card.addEventListener('click', () => void this.openItem(item));
       return;
     }
 
     const meta = attachmentTypeMeta(item.name);
     const peekMode = attachmentPeekMode(item.name);
-    const card = parent.createDiv({
+    const card = parent.createEl('button', {
       cls: `claudian-preview-card claudian-preview-card--${meta.kind}`,
+      attr: {
+        type: 'button',
+        'aria-label': `${item.name} öffnen`,
+        'data-library-id': item.id,
+      },
     });
     const peek = card.createDiv({ cls: 'claudian-preview-card-peek' });
     const resourcePath = item.previewSrc ?? this.resolveResourcePath(item.relPath);
 
-    if (peekMode === 'iframe' && resourcePath) {
-      const iframe = peek.createEl('iframe', {
-        cls: 'claudian-preview-card-pdf',
-        attr: { src: resourcePath, sandbox: 'allow-same-origin', tabindex: '-1', title: item.name },
-      });
-      iframe.addClass('claudian-preview-card-pdf');
-    } else if (peekMode === 'thumb' && resourcePath) {
+    if (peekMode === 'thumb' && resourcePath) {
       peek.createEl('img', {
         cls: 'claudian-preview-card-image',
-        attr: { src: resourcePath, alt: item.name },
+        attr: { src: resourcePath, alt: '' },
       });
     } else {
       setIcon(peek.createSpan({ cls: 'claudian-preview-card-icon' }), meta.icon);
       peek.createSpan({ cls: 'claudian-preview-card-kind', text: attachmentKindLabel(meta.kind) });
     }
 
-    card.createSpan({ cls: 'claudian-preview-card-name', text: item.name });
+    const footer = card.createDiv({ cls: 'claudian-preview-card-footer' });
+    footer.createSpan({ cls: 'claudian-preview-card-name', text: item.name });
+    footer.createSpan({ cls: 'claudian-preview-card-action', text: 'Öffnen' });
+    card.addEventListener('click', () => void this.openItem(item));
+  }
+
+  private async openItem(item: LibraryItem): Promise<void> {
+    try {
+      if (item.type === 'live' && !item.vaultPath) {
+        await openLiveDocumentPreview(this.plugin.app, this.host, item.liveDocument, item.theme);
+        return;
+      }
+
+      const path = item.type === 'live' ? item.vaultPath : item.relPath;
+      if (!path) return;
+      const file = this.plugin.app.vault.getAbstractFileByPath(path);
+      if (file instanceof TFile) {
+        await this.plugin.app.workspace.getLeaf(false).openFile(file);
+        return;
+      }
+      if (typeof this.plugin.app.workspace.openLinkText === 'function') {
+        await this.plugin.app.workspace.openLinkText(path, '', false);
+        return;
+      }
+      new Notice(`Datei konnte nicht geöffnet werden: ${path}`);
+    } catch {
+      new Notice('Der Bibliothekseintrag konnte nicht geöffnet werden.');
+    }
   }
 
   private resolveResourcePath(relPath: string): string | null {
@@ -196,17 +423,17 @@ export class FilePreviewPanel {
     }
   }
 
-  private setTitle(title: string): void {
-    this.titleEl?.setText(title);
-  }
-
   destroy(): void {
-    this.close();
+    this.destroyed = true;
+    this.close(false);
+    this.releaseFullscreenMode();
+    this.panelEl?.removeEventListener('keydown', this.handlePanelKeydown);
     this.host.unload();
     this.panelEl?.remove();
     this.toggleBtn?.remove();
     this.panelEl = null;
     this.toggleBtn = null;
+    this.closeBtn = null;
     this.contentEl = null;
     this.titleEl = null;
     this.countEl = null;

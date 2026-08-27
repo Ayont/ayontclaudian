@@ -127,6 +127,16 @@ describe('buildConversationContextBootstrap', () => {
     expect(out).toContain('[earlier turns omitted]');
   });
 
+  it('preserves the conclusion of one oversized latest turn', () => {
+    const out = buildConversationContextBootstrap([
+      assistantMsg(`BEGIN-${'z'.repeat(500)}-FINAL-CONCLUSION`),
+    ], { maxChars: 150 });
+
+    expect(out).toContain('Assistant: BEGIN-');
+    expect(out).toContain('FINAL-CONCLUSION');
+    expect(out).toContain('[message middle omitted]');
+  });
+
   it('returns empty string when maxChars is zero or negative', () => {
     const msgs = [userMsg('hi'), assistantMsg('yo')];
     expect(buildConversationContextBootstrap(msgs, { maxChars: 0 })).toBe('');

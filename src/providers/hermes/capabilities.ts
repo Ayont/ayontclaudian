@@ -12,6 +12,7 @@ import { HERMES_PROVIDER_ID } from './settings';
  */
 export const HERMES_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({
   providerId: HERMES_PROVIDER_ID,
+  promptDelivery: 'native-system',
   supportsPersistentRuntime: true,
   supportsNativeHistory: true,
   supportsPlanMode: false,

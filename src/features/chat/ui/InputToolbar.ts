@@ -39,6 +39,16 @@ function runToolbarAction(action: () => Promise<void>, failureMessage: string): 
   });
 }
 
+function describeDirectoryValidationError(error?: string): string {
+  if (error === 'Path does not exist') return 'Pfad existiert nicht';
+  if (error === 'Permission denied') return 'Zugriff verweigert';
+  if (error === 'Path exists but is not a directory') return 'Pfad ist kein Ordner';
+  if (error?.startsWith('Cannot access path:')) {
+    return `Pfad kann nicht gelesen werden:${error.slice('Cannot access path:'.length)}`;
+  }
+  return error || 'Pfad konnte nicht geprüft werden';
+}
+
 export interface ToolbarSettings {
   model: string;
   thinkingBudget: string;
@@ -79,7 +89,7 @@ export interface ToolbarCallbacks {
 
 export class ModelSelector {
   private container: HTMLElement;
-  private buttonEl: HTMLElement | null = null;
+  private buttonEl: HTMLButtonElement | null = null;
   private callbacks: ToolbarCallbacks;
 
   constructor(parentEl: HTMLElement, callbacks: ToolbarCallbacks) {
@@ -105,18 +115,13 @@ export class ModelSelector {
   private render() {
     this.container.empty();
 
-    this.buttonEl = this.container.createDiv({ cls: 'claudian-model-btn' });
-    this.buttonEl.setAttribute('role', 'button');
-    this.buttonEl.setAttribute('tabindex', '0');
+    this.buttonEl = this.container.createEl('button', {
+      cls: 'claudian-model-btn',
+      attr: { type: 'button', 'aria-haspopup': 'dialog' },
+    });
     this.buttonEl.addEventListener('click', (event) => {
       event.stopPropagation();
       this.openModal();
-    });
-    this.buttonEl.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        this.openModal();
-      }
     });
     this.updateDisplay();
   }
@@ -143,7 +148,7 @@ export class ModelSelector {
         runToolbarAction(async () => {
           await this.callbacks.onModelChange(modelValue);
           this.updateDisplay();
-        }, 'Failed to change model');
+        }, 'Modell konnte nicht gewechselt werden.');
       },
     ).open();
   }
@@ -157,6 +162,7 @@ export class ModelSelector {
     const displayModel = modelInfo || models[0];
 
     this.buttonEl.empty();
+    this.buttonEl.removeAttribute('title');
 
     // Toggle auto-style class
     this.buttonEl.toggleClass('is-auto', currentModel === AUTO_MODEL_VALUE);
@@ -179,7 +185,9 @@ export class ModelSelector {
     }
 
     const labelEl = this.buttonEl.createSpan({ cls: 'claudian-model-label' });
-    labelEl.setText(displayModel?.label || 'Unknown');
+    const displayLabel = displayModel?.label || 'Unbekannt';
+    labelEl.setText(displayLabel);
+    this.buttonEl.setAttribute('aria-label', `Modell wählen. Aktuell: ${displayLabel}`);
     if (displayModel?.group) {
       this.buttonEl.createSpan({ cls: 'claudian-model-provider-name', text: displayModel.group });
     }
@@ -247,7 +255,7 @@ function sortModelOptions(models: ProviderUIOption[], currentModelValue: string)
 export class ModeSelector {
   private container: HTMLElement;
   private labelEl: HTMLElement | null = null;
-  private toggleEl: HTMLElement | null = null;
+  private toggleEl: HTMLButtonElement | null = null;
   private callbacks: ToolbarCallbacks;
 
   constructor(parentEl: HTMLElement, callbacks: ToolbarCallbacks) {
@@ -264,10 +272,13 @@ export class ModeSelector {
     this.container.empty();
 
     this.labelEl = this.container.createSpan({ cls: 'claudian-mode-label' });
-    this.toggleEl = this.container.createDiv({ cls: 'claudian-toggle-switch' });
+    this.toggleEl = this.container.createEl('button', {
+      cls: 'claudian-toggle-switch',
+      attr: { type: 'button', role: 'switch' },
+    });
 
     this.toggleEl.addEventListener('click', () => {
-      runToolbarAction(() => this.toggle(), 'Failed to change mode');
+      runToolbarAction(() => this.toggle(), 'Modus konnte nicht gewechselt werden.');
     });
 
     this.updateDisplay();
@@ -310,7 +321,13 @@ export class ModeSelector {
       this.toggleEl.removeClass('active');
     }
 
-    const titleParts = [`${inactive.label} <-> ${active.label}`];
+    this.toggleEl.setAttribute('aria-checked', String(isActive));
+    this.toggleEl.setAttribute(
+      'aria-label',
+      `Modus: ${currentOption.label}. Wechseln zu ${isActive ? inactive.label : active.label}`,
+    );
+
+    const titleParts = [`${inactive.label} ↔ ${active.label}`];
     if (currentOption.description) {
       titleParts.push(currentOption.description);
     }
@@ -354,13 +371,13 @@ export class ThinkingBudgetSelector {
     // Effort selector (for adaptive thinking models)
     this.effortEl = this.container.createDiv({ cls: 'claudian-thinking-effort' });
     const effortLabel = this.effortEl.createSpan({ cls: 'claudian-thinking-label-text' });
-    effortLabel.setText('Effort:');
+    effortLabel.setText('Aufwand:');
     this.effortGearsEl = this.effortEl.createDiv({ cls: 'claudian-thinking-gears' });
 
     // Legacy budget selector (for custom models)
     this.budgetEl = this.container.createDiv({ cls: 'claudian-thinking-budget' });
     const budgetLabel = this.budgetEl.createSpan({ cls: 'claudian-thinking-label-text' });
-    budgetLabel.setText('Thinking:');
+    budgetLabel.setText('Denken:');
     this.budgetGearsEl = this.budgetEl.createDiv({ cls: 'claudian-thinking-gears' });
 
     this.updateDisplay();
@@ -381,23 +398,32 @@ export class ThinkingBudgetSelector {
     // The collapsed pill reflects the active effort; ultracode gets a distinct
     // gradient + workflow icon so its multi-agent mode reads at a glance.
     this.effortGearsEl.toggleClass('is-ultracode', isUltracode);
-    const currentEl = this.effortGearsEl.createDiv({ cls: 'claudian-thinking-current' });
-    const currentLabel = currentInfo?.label || options[0]?.label || 'High';
+    const currentEl = this.effortGearsEl.createEl('button', {
+      cls: 'claudian-thinking-current',
+      attr: { type: 'button', 'aria-haspopup': 'menu' },
+    });
+    const currentLabel = currentInfo?.label || options[0]?.label || 'Hoch';
+    currentEl.setAttribute('aria-label', `Denkaufwand: ${currentLabel}`);
     if (isUltracode) {
       // Ultracode pill: workflow icon + label + a "Workflows" badge.
       const iconEl = currentEl.createSpan({ cls: 'claudian-thinking-current-icon' });
       setIcon(iconEl, 'workflow');
       currentEl.createSpan({ cls: 'claudian-thinking-current-text', text: currentLabel });
-      currentEl.createSpan({ cls: 'claudian-thinking-current-badge', text: 'Workflows' });
+      currentEl.createSpan({ cls: 'claudian-thinking-current-badge', text: 'Abläufe' });
     } else {
       currentEl.setText(currentLabel);
     }
 
     const optionsEl = this.effortGearsEl.createDiv({ cls: 'claudian-thinking-options' });
+    optionsEl.setAttribute('role', 'menu');
+    optionsEl.setAttribute('aria-label', 'Denkaufwand wählen');
 
     for (const effort of [...options].reverse()) {
       const optIsUltracode = effort.value === 'ultracode';
-      const gearEl = optionsEl.createDiv({ cls: 'claudian-thinking-gear' });
+      const gearEl = optionsEl.createEl('button', {
+        cls: 'claudian-thinking-gear',
+        attr: { type: 'button', role: 'menuitemradio' },
+      });
       gearEl.toggleClass('is-ultracode', optIsUltracode);
 
       const headEl = gearEl.createDiv({ cls: 'claudian-thinking-gear-head' });
@@ -414,13 +440,14 @@ export class ThinkingBudgetSelector {
       if (effort.value === currentEffort) {
         gearEl.addClass('selected');
       }
+      gearEl.setAttribute('aria-checked', String(effort.value === currentEffort));
 
       gearEl.addEventListener('click', (e) => {
         e.stopPropagation();
         runToolbarAction(async () => {
           await this.callbacks.onEffortLevelChange(effort.value);
           this.updateDisplay();
-        }, 'Failed to change effort level');
+        }, 'Denkaufwand konnte nicht geändert werden.');
       });
     }
   }
@@ -436,27 +463,41 @@ export class ThinkingBudgetSelector {
     const options: ProviderReasoningOption[] = uiConfig.getReasoningOptions(model, settings);
     const currentBudgetInfo = options.find(b => b.value === currentBudget);
 
-    const currentEl = this.budgetGearsEl.createDiv({ cls: 'claudian-thinking-current' });
-    currentEl.setText(currentBudgetInfo?.label || options[0]?.label || 'Off');
+    const currentLabel = currentBudgetInfo?.label || options[0]?.label || 'Aus';
+    this.budgetGearsEl.createEl('button', {
+      cls: 'claudian-thinking-current',
+      text: currentLabel,
+      attr: {
+        type: 'button',
+        'aria-haspopup': 'menu',
+        'aria-label': `Denkbudget: ${currentLabel}`,
+      },
+    });
 
     const optionsEl = this.budgetGearsEl.createDiv({ cls: 'claudian-thinking-options' });
+    optionsEl.setAttribute('role', 'menu');
+    optionsEl.setAttribute('aria-label', 'Denkbudget wählen');
 
     for (const budget of [...options].reverse()) {
-      const gearEl = optionsEl.createDiv({ cls: 'claudian-thinking-gear' });
-      gearEl.setText(budget.label);
+      const gearEl = optionsEl.createEl('button', {
+        cls: 'claudian-thinking-gear',
+        text: budget.label,
+        attr: { type: 'button', role: 'menuitemradio' },
+      });
       const tokens = budget.tokens ?? 0;
-      gearEl.setAttribute('title', tokens > 0 ? `${tokens.toLocaleString('en-US')} tokens` : 'Disabled');
+      gearEl.setAttribute('title', tokens > 0 ? `${tokens.toLocaleString('de-DE')} Token` : 'Deaktiviert');
 
       if (budget.value === currentBudget) {
         gearEl.addClass('selected');
       }
+      gearEl.setAttribute('aria-checked', String(budget.value === currentBudget));
 
       gearEl.addEventListener('click', (e) => {
         e.stopPropagation();
         runToolbarAction(async () => {
           await this.callbacks.onThinkingBudgetChange(budget.value);
           this.updateDisplay();
-        }, 'Failed to change thinking budget');
+        }, 'Denkbudget konnte nicht geändert werden.');
       });
     }
   }
@@ -502,7 +543,7 @@ export class ThinkingBudgetSelector {
 
 export class PermissionToggle {
   private container: HTMLElement;
-  private toggleEl: HTMLElement | null = null;
+  private toggleEl: HTMLButtonElement | null = null;
   private labelEl: HTMLElement | null = null;
   private callbacks: ToolbarCallbacks;
   private visible = true;
@@ -522,12 +563,15 @@ export class PermissionToggle {
     this.container.empty();
 
     this.labelEl = this.container.createSpan({ cls: 'claudian-permission-label' });
-    this.toggleEl = this.container.createDiv({ cls: 'claudian-toggle-switch' });
+    this.toggleEl = this.container.createEl('button', {
+      cls: 'claudian-toggle-switch',
+      attr: { type: 'button', role: 'switch' },
+    });
 
     this.updateDisplay();
 
     this.toggleEl.addEventListener('click', () => {
-      runToolbarAction(() => this.toggle(), 'Failed to change permission mode');
+      runToolbarAction(() => this.toggle(), 'Berechtigungsmodus konnte nicht geändert werden.');
     });
   }
 
@@ -562,6 +606,8 @@ export class PermissionToggle {
       this.labelEl.setText(planLabel);
       this.labelEl.addClass('plan-active');
       this.labelEl.removeClass('auto-active');
+      this.toggleEl.setAttribute('aria-checked', 'false');
+      this.toggleEl.setAttribute('aria-label', `Berechtigungsmodus: ${planLabel}`);
     } else {
       this.toggleEl.removeClass('claudian-hidden');
       this.labelEl.removeClass('plan-active');
@@ -582,6 +628,9 @@ export class PermissionToggle {
         this.labelEl.removeClass('auto-active');
         this.labelEl.setText(toggleConfig.inactiveLabel);
       }
+      const isEnabled = mode === toggleConfig.activeValue;
+      this.toggleEl.setAttribute('aria-checked', String(isEnabled));
+      this.toggleEl.setAttribute('aria-label', `Berechtigungsmodus: ${this.labelEl.textContent ?? ''}`);
     }
   }
 
@@ -622,7 +671,7 @@ export class PermissionToggle {
 
 export class ServiceTierToggle {
   private container: HTMLElement;
-  private buttonEl: HTMLElement | null = null;
+  private buttonEl: HTMLButtonElement | null = null;
   private iconEl: HTMLElement | null = null;
   private labelEl: HTMLElement | null = null;
   private callbacks: ToolbarCallbacks;
@@ -637,10 +686,10 @@ export class ServiceTierToggle {
   private render() {
     this.container.empty();
 
-    this.buttonEl = this.container.createDiv({ cls: 'claudian-service-tier-button' });
-    this.buttonEl.setAttribute('role', 'button');
-    this.buttonEl.setAttribute('tabindex', '0');
-    this.buttonEl.setAttribute('aria-label', 'Speed');
+    this.buttonEl = this.container.createEl('button', {
+      cls: 'claudian-service-tier-button',
+      attr: { type: 'button', 'aria-label': 'Schnellmodus' },
+    });
     this.iconEl = this.buttonEl.createSpan({ cls: 'claudian-service-tier-icon' });
     setIcon(this.iconEl, 'zap');
     this.labelEl = this.buttonEl.createSpan({ cls: 'claudian-service-tier-label' });
@@ -648,13 +697,10 @@ export class ServiceTierToggle {
     this.updateDisplay();
 
     this.buttonEl.addEventListener('click', () => {
-      runToolbarAction(() => this.toggle().then(() => undefined), 'Speed konnte nicht umgeschaltet werden');
-    });
-    this.buttonEl.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        runToolbarAction(() => this.toggle().then(() => undefined), 'Speed konnte nicht umgeschaltet werden');
-      }
+      runToolbarAction(
+        () => this.toggle().then(() => undefined),
+        'Schnellmodus konnte nicht umgeschaltet werden.',
+      );
     });
   }
 
@@ -688,20 +734,20 @@ export class ServiceTierToggle {
     this.buttonEl.toggleClass('active', isActive);
     this.buttonEl.toggleClass('is-cooldown', this.runtimeState === 'cooldown');
     this.buttonEl.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-    this.buttonEl.setAttribute('aria-label', toggleConfig.activeLabel);
+    this.buttonEl.setAttribute('aria-label', `Schnellmodus: ${isActive ? 'ein' : 'aus'}`);
     this.labelEl?.setText(toggleConfig.activeLabel);
 
     if (this.runtimeState === 'cooldown') {
-      this.container.setAttribute('title', 'Speed-Limit erreicht. Fallback auf Standard-Tempo.');
+      this.container.setAttribute('title', 'Schnelllimit erreicht. Rückfall auf Standardtempo.');
     } else if (isActive) {
       this.container.setAttribute(
         'title',
-        toggleConfig.description ?? 'Speed an. Klicken zum Ausschalten.',
+        toggleConfig.description ?? 'Schnellmodus aktiv. Zum Ausschalten klicken.',
       );
     } else {
       this.container.setAttribute(
         'title',
-        toggleConfig.description ?? 'Speed: schnelleres Tempo, höhere Kosten.',
+        toggleConfig.description ?? 'Schnellmodus: höheres Tempo und höhere Kosten.',
       );
     }
   }
@@ -731,6 +777,7 @@ export type AddExternalContextResult =
 
 export class ExternalContextSelector {
   private container: HTMLElement;
+  private triggerEl: HTMLButtonElement | null = null;
   private iconEl: HTMLElement | null = null;
   private badgeEl: HTMLElement | null = null;
   private dropdownEl: HTMLElement | null = null;
@@ -783,7 +830,7 @@ export class ExternalContextSelector {
     // If invalid paths were removed, notify user and save updated list
     if (invalidPaths.length > 0) {
       const pathNames = invalidPaths.map(p => this.shortenPath(p)).join(', ');
-      new Notice(`Removed ${invalidPaths.length} invalid external context path(s): ${pathNames}`, 5000);
+      new Notice(`${invalidPaths.length} ungültige externe Kontextpfade entfernt: ${pathNames}`, 5000);
       this.onPersistenceChangeCallback?.([...this.persistentPaths]);
     }
   }
@@ -794,7 +841,7 @@ export class ExternalContextSelector {
     } else {
       // Validate path still exists before persisting
       if (!isValidDirectoryPath(path)) {
-        new Notice(`Cannot persist "${this.shortenPath(path)}" - directory no longer exists`, 4000);
+        new Notice(`„${this.shortenPath(path)}“ kann nicht dauerhaft gespeichert werden: Ordner nicht gefunden.`, 4000);
         return;
       }
       this.persistentPaths.add(path);
@@ -847,7 +894,7 @@ export class ExternalContextSelector {
   addExternalContext(pathInput: string): AddExternalContextResult {
     const trimmed = pathInput?.trim();
     if (!trimmed) {
-      return { success: false, error: 'No path provided. Usage: /add-dir /absolute/path' };
+      return { success: false, error: 'Kein Pfad angegeben. Verwendung: /add-dir /absoluter/pfad' };
     }
 
     // Strip surrounding quotes if present (e.g., "/path/with spaces")
@@ -862,13 +909,13 @@ export class ExternalContextSelector {
     const normalizedPath = normalizePathForFilesystem(expandedPath);
 
     if (!path.isAbsolute(normalizedPath)) {
-      return { success: false, error: 'Path must be absolute. Usage: /add-dir /absolute/path' };
+      return { success: false, error: 'Der Pfad muss absolut sein. Verwendung: /add-dir /absoluter/pfad' };
     }
 
     // Validate path exists and is a directory with specific error messages
     const validation = validateDirectoryPath(normalizedPath);
     if (!validation.valid) {
-      return { success: false, error: `${validation.error}: ${pathInput}` };
+      return { success: false, error: `${describeDirectoryValidationError(validation.error)}: ${pathInput}` };
     }
 
     // Check for duplicate (normalized comparison for cross-platform support)
@@ -911,17 +958,20 @@ export class ExternalContextSelector {
   private render() {
     this.container.empty();
 
-    const iconWrapper = this.container.createDiv({ cls: 'claudian-external-context-icon-wrapper' });
+    this.triggerEl = this.container.createEl('button', {
+      cls: 'claudian-external-context-icon-wrapper',
+      attr: { type: 'button', 'aria-label': 'Externen Kontext hinzufügen' },
+    });
 
-    this.iconEl = iconWrapper.createDiv({ cls: 'claudian-external-context-icon' });
+    this.iconEl = this.triggerEl.createDiv({ cls: 'claudian-external-context-icon' });
     setIcon(this.iconEl, 'folder');
 
-    this.badgeEl = iconWrapper.createDiv({ cls: 'claudian-external-context-badge' });
+    this.badgeEl = this.triggerEl.createDiv({ cls: 'claudian-external-context-badge' });
 
     this.updateDisplay();
 
     // Click to open native folder picker
-    iconWrapper.addEventListener('click', (e) => {
+    this.triggerEl.addEventListener('click', (e) => {
       e.stopPropagation();
       void this.openFolderPicker();
     });
@@ -974,8 +1024,8 @@ export class ExternalContextSelector {
     const shortNew = this.shortenPath(newPath);
     const shortExisting = this.shortenPath(conflict.path);
     return conflict.type === 'parent'
-      ? `Cannot add "${shortNew}" - it's inside existing path "${shortExisting}"`
-      : `Cannot add "${shortNew}" - it contains existing path "${shortExisting}"`;
+      ? `„${shortNew}“ liegt im bereits hinzugefügten Pfad „${shortExisting}“.`
+      : `„${shortNew}“ enthält den bereits hinzugefügten Pfad „${shortExisting}“.`;
   }
 
   private renderDropdown() {
@@ -989,6 +1039,7 @@ export class ExternalContextSelector {
 
     // Path list
     const listEl = this.dropdownEl.createDiv({ cls: 'claudian-external-context-list' });
+    listEl.setAttribute('role', 'list');
 
     if (this.externalContextPaths.length === 0) {
       const emptyEl = listEl.createDiv({ cls: 'claudian-external-context-empty' });
@@ -1005,20 +1056,30 @@ export class ExternalContextSelector {
 
         // Lock toggle button
         const isPersistent = this.persistentPaths.has(pathStr);
-        const lockBtn = itemEl.createSpan({ cls: 'claudian-external-context-lock' });
+        const lockBtn = itemEl.createEl('button', {
+          cls: 'claudian-external-context-lock',
+          attr: { type: 'button', 'aria-pressed': String(isPersistent) },
+        });
         if (isPersistent) {
           lockBtn.addClass('locked');
         }
         setIcon(lockBtn, isPersistent ? 'lock' : 'unlock');
-        lockBtn.setAttribute('title', isPersistent ? 'Persistent (click to make session-only)' : 'Session-only (click to persist)');
+        const persistenceLabel = isPersistent
+          ? 'Dauerhaft gespeichert. Nur für diese Sitzung verwenden'
+          : 'Nur für diese Sitzung. Dauerhaft speichern';
+        lockBtn.setAttribute('title', persistenceLabel);
+        lockBtn.setAttribute('aria-label', persistenceLabel);
         lockBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           this.togglePersistence(pathStr);
         });
 
-        const removeBtn = itemEl.createSpan({ cls: 'claudian-external-context-remove' });
+        const removeBtn = itemEl.createEl('button', {
+          cls: 'claudian-external-context-remove',
+          attr: { type: 'button', 'aria-label': `${displayPath} entfernen` },
+        });
         setIcon(removeBtn, 'x');
-        removeBtn.setAttribute('title', 'Remove path');
+        removeBtn.setAttribute('title', 'Pfad entfernen');
         removeBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           this.removePath(pathStr);
@@ -1052,13 +1113,15 @@ export class ExternalContextSelector {
   }
 
   updateDisplay() {
-    if (!this.iconEl || !this.badgeEl) return;
+    if (!this.iconEl || !this.badgeEl || !this.triggerEl) return;
 
     const count = this.externalContextPaths.length;
 
     if (count > 0) {
       this.iconEl.addClass('active');
-      this.iconEl.setAttribute('title', `${count} external context${count > 1 ? 's' : ''} (click to add more)`);
+      const label = `${count} externe${count === 1 ? 'r Kontext' : ' Kontexte'}. Weiteren Ordner hinzufügen`;
+      this.triggerEl.setAttribute('title', label);
+      this.triggerEl.setAttribute('aria-label', label);
 
       // Show badge only when more than 1 path
       if (count > 1) {
@@ -1069,7 +1132,8 @@ export class ExternalContextSelector {
       }
     } else {
       this.iconEl.removeClass('active');
-      this.iconEl.setAttribute('title', 'Add external contexts (click)');
+      this.triggerEl.setAttribute('title', 'Externen Kontext hinzufügen');
+      this.triggerEl.setAttribute('aria-label', 'Externen Kontext hinzufügen');
       this.badgeEl.removeClass('visible');
     }
   }
@@ -1077,6 +1141,7 @@ export class ExternalContextSelector {
 
 export class McpServerSelector {
   private container: HTMLElement;
+  private triggerEl: HTMLButtonElement | null = null;
   private iconEl: HTMLElement | null = null;
   private badgeEl: HTMLElement | null = null;
   private dropdownEl: HTMLElement | null = null;
@@ -1084,6 +1149,12 @@ export class McpServerSelector {
   private enabledServers: Set<string> = new Set();
   private onChangeCallback: ((enabled: Set<string>) => void) | null = null;
   private visible = true;
+  private dropdownOpen = false;
+
+  private readonly handleDocumentPointerDown = (event: Event): void => {
+    if (!this.dropdownOpen || this.container.contains(event.target as Node)) return;
+    this.closeDropdown(false);
+  };
 
   constructor(parentEl: HTMLElement) {
     this.container = parentEl.createDiv({ cls: 'claudian-mcp-selector' });
@@ -1093,6 +1164,7 @@ export class McpServerSelector {
   setVisible(visible: boolean): void {
     this.visible = visible;
     if (!visible) {
+      this.closeDropdown(false);
       this.container.addClass('claudian-hidden');
     } else {
       this.updateDisplay();
@@ -1138,6 +1210,14 @@ export class McpServerSelector {
     this.renderDropdown();
   }
 
+  closeMenu(): void {
+    this.closeDropdown(false);
+  }
+
+  destroy(): void {
+    this.closeDropdown(false);
+  }
+
   setEnabledServers(names: string[]): void {
     this.enabledServers = new Set(names);
     this.pruneEnabledServers();
@@ -1163,17 +1243,46 @@ export class McpServerSelector {
   private render() {
     this.container.empty();
 
-    const iconWrapper = this.container.createDiv({ cls: 'claudian-mcp-selector-icon-wrapper' });
+    this.triggerEl = this.container.createEl('button', {
+      cls: 'claudian-mcp-selector-icon-wrapper',
+      attr: {
+        type: 'button',
+        'aria-haspopup': 'menu',
+        'aria-expanded': 'false',
+        'aria-label': 'MCP-Server verwalten',
+      },
+    });
 
-    this.iconEl = iconWrapper.createDiv({ cls: 'claudian-mcp-selector-icon' });
+    this.iconEl = this.triggerEl.createDiv({ cls: 'claudian-mcp-selector-icon' });
     appendMcpIcon(this.iconEl);
 
-    this.badgeEl = iconWrapper.createDiv({ cls: 'claudian-mcp-selector-badge' });
+    this.badgeEl = this.triggerEl.createDiv({ cls: 'claudian-mcp-selector-badge' });
 
     this.updateDisplay();
 
     this.dropdownEl = this.container.createDiv({ cls: 'claudian-mcp-selector-dropdown' });
+    this.dropdownEl.setAttribute('role', 'menu');
+    this.dropdownEl.setAttribute('aria-label', 'MCP-Server');
+    this.dropdownEl.addEventListener('keydown', (event) => this.handleMenuKeydown(event));
     this.renderDropdown();
+
+    this.triggerEl.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (this.dropdownOpen) {
+        this.closeDropdown();
+      } else {
+        this.openDropdown();
+      }
+    });
+
+    this.container.addEventListener('focusout', (event: FocusEvent) => {
+      if (!this.dropdownOpen || this.container.contains(event.relatedTarget as Node)) return;
+      const ownerWindow = this.container.ownerDocument.defaultView ?? window;
+      ownerWindow.setTimeout(() => {
+        const active = this.container.ownerDocument.activeElement;
+        if (this.dropdownOpen && !this.container.contains(active)) this.closeDropdown(false);
+      }, 0);
+    });
 
     // Re-render dropdown content on hover (CSS handles visibility)
     this.container.addEventListener('mouseenter', () => {
@@ -1198,7 +1307,7 @@ export class McpServerSelector {
 
     if (servers.length === 0) {
       const emptyEl = listEl.createDiv({ cls: 'claudian-mcp-selector-empty' });
-      emptyEl.setText(allServers.length === 0 ? 'No MCP servers configured' : 'All MCP servers disabled');
+      emptyEl.setText(allServers.length === 0 ? 'Keine MCP-Server konfiguriert' : 'Alle MCP-Server sind deaktiviert');
       return;
     }
 
@@ -1207,8 +1316,66 @@ export class McpServerSelector {
     }
   }
 
+  private openDropdown(): void {
+    if (!this.dropdownEl || !this.triggerEl) return;
+    this.dropdownOpen = true;
+    this.dropdownEl.addClass('visible');
+    this.triggerEl.setAttribute('aria-expanded', 'true');
+    this.container.ownerDocument.addEventListener?.('pointerdown', this.handleDocumentPointerDown);
+    this.getMenuItems()[0]?.focus();
+  }
+
+  private closeDropdown(restoreFocus = true): void {
+    this.dropdownOpen = false;
+    this.dropdownEl?.removeClass('visible');
+    this.triggerEl?.setAttribute('aria-expanded', 'false');
+    this.container.ownerDocument.removeEventListener?.('pointerdown', this.handleDocumentPointerDown);
+    if (restoreFocus) this.triggerEl?.focus();
+  }
+
+  private getMenuItems(): HTMLButtonElement[] {
+    return Array.from(
+      this.dropdownEl?.querySelectorAll<HTMLButtonElement>('.claudian-mcp-selector-item') ?? [],
+    );
+  }
+
+  private handleMenuKeydown(event: KeyboardEvent): void {
+    if (!this.dropdownOpen) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      this.closeDropdown();
+      return;
+    }
+
+    const items = this.getMenuItems();
+    if (items.length === 0) return;
+    const targetIndex = items.findIndex((item) =>
+      item === event.target || item.contains(event.target as Node));
+    let nextIndex: number | null = null;
+    if (event.key === 'ArrowDown') {
+      nextIndex = targetIndex < 0 ? 0 : (targetIndex + 1) % items.length;
+    } else if (event.key === 'ArrowUp') {
+      nextIndex = targetIndex < 0 ? items.length - 1 : (targetIndex - 1 + items.length) % items.length;
+    } else if (event.key === 'Home') {
+      nextIndex = 0;
+    } else if (event.key === 'End') {
+      nextIndex = items.length - 1;
+    }
+    if (nextIndex === null) return;
+    event.preventDefault();
+    items[nextIndex]?.focus();
+  }
+
   private renderServerItem(listEl: HTMLElement, server: ManagedMcpServer) {
-    const itemEl = listEl.createDiv({ cls: 'claudian-mcp-selector-item' });
+    const itemEl = listEl.createEl('button', {
+      cls: 'claudian-mcp-selector-item',
+      attr: {
+        type: 'button',
+        role: 'menuitemcheckbox',
+        'aria-checked': String(this.enabledServers.has(server.name)),
+      },
+    });
     itemEl.dataset.serverName = server.name;
 
     const isEnabled = this.enabledServers.has(server.name);
@@ -1232,11 +1399,10 @@ export class McpServerSelector {
     if (server.contextSaving) {
       const csEl = infoEl.createSpan({ cls: 'claudian-mcp-selector-cs-badge' });
       csEl.setText('@');
-      csEl.setAttribute('title', 'Context-saving: can also enable via @' + server.name);
+      csEl.setAttribute('title', `Kontextsparend: auch über @${server.name} aktivierbar`);
     }
 
-    // Click to toggle (use mousedown for more reliable capture)
-    itemEl.addEventListener('mousedown', (e) => {
+    itemEl.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
       this.toggleServer(server.name, itemEl);
@@ -1252,6 +1418,7 @@ export class McpServerSelector {
 
     // Update item visually in-place (immediate feedback)
     const isEnabled = this.enabledServers.has(name);
+    itemEl.setAttribute('aria-checked', String(isEnabled));
     const checkEl = itemEl.querySelector<HTMLElement>('.claudian-mcp-selector-check');
 
     if (isEnabled) {
@@ -1268,13 +1435,14 @@ export class McpServerSelector {
 
   updateDisplay() {
     this.pruneEnabledServers();
-    if (!this.iconEl || !this.badgeEl) return;
+    if (!this.iconEl || !this.badgeEl || !this.triggerEl) return;
 
     const count = this.enabledServers.size;
     const hasServers = (this.mcpManager?.getServers().length || 0) > 0;
 
     // Show/hide container based on whether there are servers and visibility
     if (!hasServers || !this.visible) {
+      this.closeDropdown(false);
       this.container.addClass('claudian-hidden');
       return;
     }
@@ -1282,7 +1450,9 @@ export class McpServerSelector {
 
     if (count > 0) {
       this.iconEl.addClass('active');
-      this.iconEl.setAttribute('title', `${count} MCP server${count > 1 ? 's' : ''} enabled (click to manage)`);
+      const label = `${count} MCP-Server aktiviert. Server verwalten`;
+      this.triggerEl.setAttribute('title', label);
+      this.triggerEl.setAttribute('aria-label', label);
 
       // Show badge only when more than 1
       if (count > 1) {
@@ -1293,7 +1463,8 @@ export class McpServerSelector {
       }
     } else {
       this.iconEl.removeClass('active');
-      this.iconEl.setAttribute('title', 'Mcp servers (click to enable)');
+      this.triggerEl.setAttribute('title', 'MCP-Server verwalten');
+      this.triggerEl.setAttribute('aria-label', 'MCP-Server verwalten');
       this.badgeEl.removeClass('visible');
     }
   }
@@ -1397,9 +1568,9 @@ export class ContextUsageMeter {
     }
 
     // Set tooltip with detailed usage
-    let tooltip = `${approximate ? 'Estimated · ' : ''}${this.formatTokens(usage.contextTokens)} / ${this.formatTokens(usage.contextWindow)}`;
+    let tooltip = `${approximate ? 'Geschätzt · ' : ''}${this.formatTokens(usage.contextTokens)} / ${this.formatTokens(usage.contextWindow)}`;
     if (usage.percentage > 80) {
-      tooltip += ' (Approaching limit, run `/compact` to continue)';
+      tooltip += ' (Limit fast erreicht – mit `/compact` fortfahren)';
     }
     this.container.setAttribute('data-tooltip', tooltip);
   }

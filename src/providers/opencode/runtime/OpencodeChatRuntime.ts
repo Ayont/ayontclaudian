@@ -416,6 +416,7 @@ export class OpencodeChatRuntime implements ChatRuntime {
         contextWindow: this.contextUsage,
         model: this.getActiveDisplayModel(queryOptions),
         promptUsage: this.promptUsage,
+        reportType: 'final',
       });
       if (usage) {
         activeTurn.queue.push({ sessionId, type: 'usage', usage });
@@ -1201,6 +1202,7 @@ export class OpencodeChatRuntime implements ChatRuntime {
           contextWindow: normalized.usage,
           model: this.getActiveDisplayModel(),
           promptUsage: this.promptUsage,
+          reportType: 'snapshot',
         });
         if (usage) {
           this.activeTurn.queue.push({

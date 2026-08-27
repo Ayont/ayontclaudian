@@ -968,6 +968,7 @@ describe('transformSDKMessage', () => {
             contextWindow: 200000,
             contextTokens: 16,
             percentage: 0,
+            reportType: 'snapshot',
           },
         },
       ]);
@@ -1041,6 +1042,7 @@ describe('transformSDKMessage', () => {
             contextWindow: 200000,
             contextTokens: 10,
             percentage: 0,
+            reportType: 'snapshot',
           },
         },
       ]);
@@ -1101,6 +1103,7 @@ describe('transformSDKMessage', () => {
             contextWindow: 200000,
             contextTokens: 10,
             percentage: 0,
+            reportType: 'final',
           },
         },
       ]);
@@ -1602,6 +1605,57 @@ describe('transformSDKMessage', () => {
   });
 
   describe('assistant message usage extraction', () => {
+    it('emits cumulative tool-loop snapshots and one authoritative final usage', () => {
+      const usageState = createTransformUsageState();
+      const firstAssistant = msg({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        message: {
+          content: [{ type: 'tool_use', id: 'tool-1', name: 'Read', input: {} }],
+          usage: { input_tokens: 100, cache_read_input_tokens: 20 },
+        },
+      });
+      const secondAssistant = msg({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        message: {
+          content: [{ type: 'text', text: 'Done' }],
+          usage: { input_tokens: 250, cache_read_input_tokens: 30 },
+        },
+      });
+      const success = msg({ type: 'result', subtype: 'success' });
+
+      const chunks = [firstAssistant, secondAssistant, success]
+        .flatMap(message => [...transformSDKMessage(message, { usageState })])
+        .filter(chunk => chunk.type === 'usage');
+
+      expect(chunks).toEqual([
+        expect.objectContaining({ usage: expect.objectContaining({ contextTokens: 120, reportType: 'snapshot' }) }),
+        expect.objectContaining({ usage: expect.objectContaining({ contextTokens: 400, reportType: 'snapshot' }) }),
+        expect.objectContaining({ usage: expect.objectContaining({ contextTokens: 400, reportType: 'final' }) }),
+      ]);
+    });
+
+    it('does not emit authoritative final usage for a failed result', () => {
+      const usageState = createTransformUsageState();
+      const assistant = msg({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        message: {
+          content: [{ type: 'text', text: 'Partial' }],
+          usage: { input_tokens: 100 },
+        },
+      });
+      const failure = msg({ type: 'result', subtype: 'error_max_turns' });
+
+      const chunks = [assistant, failure]
+        .flatMap(message => [...transformSDKMessage(message, { usageState })])
+        .filter(chunk => chunk.type === 'usage');
+
+      expect(chunks).toHaveLength(1);
+      expect((chunks[0] as any).usage.reportType).toBe('snapshot');
+    });
+
     it('yields usage info from main agent assistant message', () => {
       const message = msg({
         type: 'assistant',
@@ -1662,6 +1716,7 @@ describe('transformSDKMessage', () => {
         contextWindow: 200000,
         contextTokens: 1500,
         percentage: 1,
+        reportType: 'snapshot',
       });
     });
 
@@ -1810,6 +1865,7 @@ describe('transformSDKMessage', () => {
             contextWindow: 200000,
             contextTokens: 0,
             percentage: 0,
+            reportType: 'snapshot',
           },
         },
       ]);

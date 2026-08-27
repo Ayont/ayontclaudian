@@ -6,6 +6,7 @@ import { FreebuffTitleGenerationService } from './auxiliary/FreebuffTitleGenerat
 import { FREEBUFF_PROVIDER_CAPABILITIES } from './capabilities';
 import { freebuffSettingsReconciler } from './env/FreebuffSettingsReconciler';
 import { FreebuffConversationHistoryService } from './history/FreebuffConversationHistoryService';
+import { FreebuffAuxQueryRunner } from './runtime/FreebuffAuxQueryRunner';
 import { FreebuffChatRuntime } from './runtime/FreebuffChatRuntime';
 import { getFreebuffProviderSettings } from './settings';
 import { freebuffChatUIConfig } from './ui/FreebuffChatUIConfig';
@@ -22,6 +23,7 @@ export const freebuffProviderRegistration: ProviderRegistration = {
   blankTabOrder: 18,
   capabilities: FREEBUFF_PROVIDER_CAPABILITIES,
   chatUIConfig: freebuffChatUIConfig,
+  createAuxQueryRunner: (plugin) => new FreebuffAuxQueryRunner(plugin),
   createInlineEditService: (plugin) => new FreebuffInlineEditService(plugin),
   createInstructionRefineService: (plugin) => new FreebuffInstructionRefineService(plugin),
   createRuntime: ({ plugin }) => new FreebuffChatRuntime(plugin),

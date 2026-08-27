@@ -107,7 +107,24 @@
   color: var(--doc-accent);
 }
 
+.claudian-live-document-action:focus-visible {
+  outline: 2px solid var(--doc-accent);
+  outline-offset: 2px;
+}
+
 .claudian-live-document-action svg { width: 15px; height: 15px; }
+
+.claudian-live-document-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 .claudian-live-document-viewport {
   overflow: auto;
@@ -245,6 +262,15 @@
 .claudian-live-document-body pre {
   border: 1px solid var(--doc-rule);
   background: color-mix(in srgb, var(--doc-ink) 5%, var(--doc-paper));
+}
+
+.claudian-live-document-render-error {
+  margin: 0;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--color-red) 38%, var(--doc-rule));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-red) 8%, var(--doc-paper));
+  color: var(--doc-ink);
 }
 
 .claudian-live-document-footer {

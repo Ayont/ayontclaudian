@@ -580,7 +580,11 @@ export class PiChatRuntime implements ChatRuntime {
       await this.updateTurnMetadataFromSessionFile(turnStartLeafId);
       const usage = await this.fetchUsage(queryOptions).catch(() => null);
       if (usage) {
-        activeTurn.queue.push({ sessionId: this.sessionId, type: 'usage', usage });
+        activeTurn.queue.push({
+          sessionId: this.sessionId,
+          type: 'usage',
+          usage: { ...usage, reportType: 'final' },
+        });
       }
       activeTurn.queue.push({ type: 'done' });
     } catch (error) {

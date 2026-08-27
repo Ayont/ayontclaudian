@@ -3,6 +3,7 @@ import { CLINE_PROVIDER_ID } from './settings';
 
 export const CLINE_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({
   providerId: CLINE_PROVIDER_ID,
+  promptDelivery: 'session-preamble',
   supportsPersistentRuntime: true,
   supportsNativeHistory: true,
   supportsPlanMode: true,

@@ -91,9 +91,16 @@ describe('formatActivityOffset', () => {
 });
 
 describe('StreamStatusBar DOM updates', () => {
+  const bars: StreamStatusBar[] = [];
+
+  afterEach(() => {
+    for (const bar of bars.splice(0)) bar.destroy();
+  });
+
   function createBar(): { parent: any; bar: StreamStatusBar } {
     const parent = createMockEl();
     const bar = new StreamStatusBar(parent, { now: () => 1000 });
+    bars.push(bar);
     return { parent, bar };
   }
 

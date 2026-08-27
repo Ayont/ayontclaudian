@@ -1,4 +1,8 @@
-import { buildSystemPrompt, computeSystemPromptKey } from '@/core/prompt/mainAgent';
+import {
+  buildSystemPrompt,
+  buildTurnOutputContract,
+  computeSystemPromptKey,
+} from '@/core/prompt/mainAgent';
 import {
   DEFAULT_WORKSPACE_MODE,
   getWorkspaceModeClass,
@@ -54,33 +58,32 @@ describe('getWorkspaceModeInstructions', () => {
   });
 });
 
-describe('buildSystemPrompt workspace mode wiring', () => {
+describe('turn output contract workspace mode wiring', () => {
   it('defaults to CODE mode', () => {
-    const prompt = buildSystemPrompt({});
+    const prompt = buildTurnOutputContract({ text: 'Hilf mir.' });
     expect(prompt).toContain('Active Workspace Mode: CODE');
     expect(prompt).not.toContain('Active Workspace Mode: WORK');
   });
 
   it('switches the section in WORK mode', () => {
-    const prompt = buildSystemPrompt({ workspaceMode: 'work' });
+    const prompt = buildTurnOutputContract({ text: 'Hilf mir.' }, { workspaceMode: 'work' });
     expect(prompt).toContain('Active Workspace Mode: WORK');
     expect(prompt).not.toContain('Active Workspace Mode: CODE');
   });
 
-  it('keeps custom instructions after the mode section', () => {
+  it('keeps custom instructions in the base prompt without duplicating the mode', () => {
     const prompt = buildSystemPrompt({ customPrompt: 'Meine Regeln', workspaceMode: 'work' });
-    expect(prompt.indexOf('Active Workspace Mode: WORK')).toBeLessThan(
-      prompt.indexOf('Meine Regeln'),
-    );
+    expect(prompt).toContain('Meine Regeln');
+    expect(prompt).not.toContain('Active Workspace Mode:');
   });
 });
 
 describe('computeSystemPromptKey workspace mode wiring', () => {
-  it('changes the key when the mode changes (cache/restart invalidation)', () => {
+  it('does not restart a persistent runtime when only the turn-scoped mode changes', () => {
     const base = { mediaFolder: 'm', customPrompt: 'c', vaultPath: '/v', userName: 'n' };
     const codeKey = computeSystemPromptKey({ ...base, workspaceMode: 'code' });
     const workKey = computeSystemPromptKey({ ...base, workspaceMode: 'work' });
-    expect(codeKey).not.toBe(workKey);
+    expect(codeKey).toBe(workKey);
   });
 
   it('treats the default and explicit code mode as the same key', () => {

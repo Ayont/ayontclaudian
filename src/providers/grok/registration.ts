@@ -6,6 +6,7 @@ import { GrokTitleGenerationService } from './auxiliary/GrokTitleGenerationServi
 import { GROK_PROVIDER_CAPABILITIES } from './capabilities';
 import { grokSettingsReconciler } from './env/GrokSettingsReconciler';
 import { GrokConversationHistoryService } from './history/GrokConversationHistoryService';
+import { GrokAuxQueryRunner } from './runtime/GrokAuxQueryRunner';
 import { GrokChatRuntime } from './runtime/GrokChatRuntime';
 import { getGrokProviderSettings } from './settings';
 import { grokChatUIConfig } from './ui/GrokChatUIConfig';
@@ -14,6 +15,7 @@ export const grokProviderRegistration: ProviderRegistration = {
   blankTabOrder: 16,
   capabilities: GROK_PROVIDER_CAPABILITIES,
   chatUIConfig: grokChatUIConfig,
+  createAuxQueryRunner: (plugin) => new GrokAuxQueryRunner(plugin),
   createInlineEditService: (plugin) => new GrokInlineEditService(plugin),
   createInstructionRefineService: (plugin) => new GrokInstructionRefineService(plugin),
   createRuntime: ({ plugin }) => new GrokChatRuntime(plugin),

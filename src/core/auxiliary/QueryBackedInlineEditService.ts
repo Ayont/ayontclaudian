@@ -9,10 +9,17 @@ import type {
   InlineEditResult,
   InlineEditService,
 } from '../providers/types';
+import type { UsageInfo } from '../types';
+import {
+  type AuxiliaryCallSource,
+  type CompletedAuxiliaryCall,
+  CONSUME_AUXILIARY_CALL,
+} from './AuxiliaryUsageAccounting';
 import type { AuxQueryRunner } from './AuxQueryRunner';
 
-export class QueryBackedInlineEditService implements InlineEditService {
+export class QueryBackedInlineEditService implements InlineEditService, AuxiliaryCallSource {
   private abortController: AbortController | null = null;
+  private completedCall: CompletedAuxiliaryCall | null = null;
   private hasConversation = false;
   private modelOverride: string | undefined;
 
@@ -50,15 +57,28 @@ export class QueryBackedInlineEditService implements InlineEditService {
     this.abortController = null;
   }
 
+  [CONSUME_AUXILIARY_CALL](): CompletedAuxiliaryCall | null {
+    const completed = this.completedCall;
+    this.completedCall = null;
+    return completed;
+  }
+
   private async sendMessage(prompt: string): Promise<InlineEditResult> {
     this.abortController = new AbortController();
+    this.completedCall = null;
+    const usageReports: UsageInfo[] = [];
 
     try {
       const text = await this.runner.query({
         abortController: this.abortController,
         model: this.modelOverride,
+        onUsage: (usage) => usageReports.push(usage),
         systemPrompt: getInlineEditSystemPrompt(),
       }, prompt);
+      this.completedCall = {
+        outputText: text,
+        ...(usageReports.length > 0 ? { usageReports } : {}),
+      };
       this.hasConversation = true;
       return parseInlineEditResponse(text);
     } catch (error) {

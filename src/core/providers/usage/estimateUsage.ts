@@ -37,6 +37,7 @@ export function buildEstimatedUsageInfo(params: {
   contextTokens: number;
   contextWindow: number;
   model?: string;
+  reportType?: UsageInfo['reportType'];
 }): UsageInfo {
   const contextTokens = Math.max(0, Math.round(params.contextTokens));
   const contextWindow = params.contextWindow;
@@ -52,5 +53,6 @@ export function buildEstimatedUsageInfo(params: {
     contextWindowIsAuthoritative: false,
     percentage,
     ...(params.model ? { model: params.model } : {}),
+    ...(params.reportType ? { reportType: params.reportType } : {}),
   };
 }

@@ -2,6 +2,7 @@ import type { Options } from '@anthropic-ai/claude-agent-sdk';
 import { query as agentQuery } from '@anthropic-ai/claude-agent-sdk';
 
 import { ProviderSettingsCoordinator } from '../../../core/providers/ProviderSettingsCoordinator';
+import type { UsageInfo } from '../../../core/types';
 import type ClaudianPlugin from '../../../main';
 import { getEnhancedPath, getMissingNodeError, parseEnvironmentVariables } from '../../../utils/env';
 import { getVaultPath } from '../../../utils/path';
@@ -10,6 +11,10 @@ import {
   getClaudeProviderSettings,
   resolveClaudeSettingSources,
 } from '../settings';
+import {
+  createTransformUsageState,
+  transformSDKMessage,
+} from '../stream/transformClaudeMessage';
 import {
   resolveEffortLevel,
   toApiEffortLevel,
@@ -43,6 +48,8 @@ export interface ColdStartQueryConfig {
 export interface ColdStartQueryResult {
   text: string;
   sessionId: string | null;
+  /** Final provider-reported prompt usage when the SDK supplied it. */
+  usage?: UsageInfo;
 }
 
 export async function runColdStartQuery(
@@ -127,6 +134,8 @@ export async function runColdStartQuery(
   const response = agentQuery({ prompt, options });
   let responseText = '';
   let sessionId: string | null = null;
+  let usage: UsageInfo | undefined;
+  const usageState = createTransformUsageState();
 
   for await (const message of response) {
     if (config.abortController?.signal.aborted) {
@@ -142,6 +151,18 @@ export async function runColdStartQuery(
       sessionId = message.session_id;
     }
 
+    for (const event of transformSDKMessage(message, {
+      intendedModel: selectedModel,
+      usageState,
+    })) {
+      if (event.type === 'usage' && event.usage.reportType === 'final') {
+        usage = {
+          ...event.usage,
+          model: selectedModel,
+        };
+      }
+    }
+
     const text = extractAssistantText(message);
     if (text) {
       responseText += text;
@@ -149,5 +170,9 @@ export async function runColdStartQuery(
     }
   }
 
-  return { text: responseText, sessionId };
+  return {
+    text: responseText,
+    sessionId,
+    ...(usage ? { usage } : {}),
+  };
 }

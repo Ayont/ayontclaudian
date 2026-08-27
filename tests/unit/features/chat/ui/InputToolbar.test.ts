@@ -203,6 +203,8 @@ describe('ModelSelector', () => {
     const label = btn?.querySelector('.claudian-model-label');
     expect(label).not.toBeNull();
     expect(label?.textContent).toBe('Sonnet');
+    expect(btn?.tagName).toBe('BUTTON');
+    expect(btn?.getAttribute('aria-haspopup')).toBe('dialog');
   });
 
   it('should display first model when current model not found', () => {
@@ -342,6 +344,13 @@ describe('ModeSelector', () => {
     expect(callbacks.onModeChange).toHaveBeenCalledWith('plan');
   });
 
+  it('renders the mode toggle as an announced switch', () => {
+    const toggle = parentEl.querySelector('.claudian-toggle-switch');
+    expect(toggle?.tagName).toBe('BUTTON');
+    expect(toggle?.getAttribute('role')).toBe('switch');
+    expect(toggle?.getAttribute('aria-checked')).toBe('true');
+  });
+
   it('should show the active style when the configured active mode is selected', () => {
     callbacks.getSettings.mockReturnValue({
       model: 'sonnet',
@@ -453,6 +462,7 @@ describe('ThinkingBudgetSelector', () => {
         'Effizient — Token-sparend, kurze Aufgaben',
         'Ausgewogen — moderate Einsparung',
       ]));
+      expect(gears.every((gear: { tagName: string }) => gear.tagName === 'BUTTON')).toBe(true);
     });
   });
 
@@ -533,14 +543,14 @@ describe('ThinkingBudgetSelector', () => {
       const options = parentEl.querySelector('.claudian-thinking-options');
       const gears = options?.children || [];
       const highGear = gears.find((g: any) => g.textContent === 'High');
-      expect(highGear?.getAttribute('title')).toContain('16,000 tokens');
+      expect(highGear?.getAttribute('title')).toContain('16.000 Token');
     });
 
-    it('should set title as Disabled for off budget', () => {
+    it('should set a German title for a disabled budget', () => {
       const options = parentEl.querySelector('.claudian-thinking-options');
       const gears = options?.children || [];
       const offGear = gears.find((g: any) => g.textContent === 'Off');
-      expect(offGear?.getAttribute('title')).toBe('Disabled');
+      expect(offGear?.getAttribute('title')).toBe('Deaktiviert');
     });
   });
 });
@@ -559,6 +569,13 @@ describe('PermissionToggle', () => {
   it('should create a container with permission-toggle class', () => {
     const container = parentEl.querySelector('.claudian-permission-toggle');
     expect(container).not.toBeNull();
+  });
+
+  it('renders permission mode as a native switch', () => {
+    const toggle = parentEl.querySelector('.claudian-toggle-switch');
+    expect(toggle?.tagName).toBe('BUTTON');
+    expect(toggle?.getAttribute('role')).toBe('switch');
+    expect(toggle?.getAttribute('aria-checked')).toBe('false');
   });
 
   it('should display Safe label when in normal mode', () => {
@@ -756,6 +773,7 @@ describe('ServiceTierToggle', () => {
     expect(button?.hasClass('active')).toBe(false);
     expect(icon).not.toBeNull();
     expect(container?.getAttribute('title')).toBe('1.5x speed, 2x credits');
+    expect(button?.tagName).toBe('BUTTON');
   });
 
   it('renders the Speed label next to the bolt', () => {
@@ -792,13 +810,13 @@ describe('ServiceTierToggle', () => {
     const button = parentEl.querySelector('.claudian-service-tier-button');
     const container = parentEl.querySelector('.claudian-service-tier-toggle');
     expect(button?.hasClass('is-cooldown')).toBe(true);
-    expect(container?.getAttribute('title')).toContain('Speed-Limit');
+    expect(container?.getAttribute('title')).toContain('Schnelllimit');
   });
 
-  it('toggles from the keyboard with Enter', async () => {
+  it('uses native keyboard semantics', () => {
     const button = parentEl.querySelector('.claudian-service-tier-button');
-    await button?.dispatchEvent({ type: 'keydown', key: 'Enter', preventDefault() {} });
-    expect(callbacks.onServiceTierChange).toHaveBeenCalledWith('fast');
+    expect(button?.tagName).toBe('BUTTON');
+    expect(button?.getAttribute('type')).toBe('button');
   });
 
   it('reports availability from the provider toggle config', () => {
@@ -868,6 +886,65 @@ describe('McpServerSelector', () => {
     expect(container).not.toBeNull();
   });
 
+  it('opens its menu from a native disclosure button', () => {
+    const trigger = parentEl.querySelector('.claudian-mcp-selector-icon-wrapper');
+    const dropdown = parentEl.querySelector('.claudian-mcp-selector-dropdown');
+    expect(trigger?.tagName).toBe('BUTTON');
+    expect(trigger?.getAttribute('aria-expanded')).toBe('false');
+
+    trigger?.dispatchEvent({ type: 'click', stopPropagation: jest.fn() });
+
+    expect(trigger?.getAttribute('aria-expanded')).toBe('true');
+    expect(dropdown?.hasClass('visible')).toBe(true);
+  });
+
+  it('moves focus into the menu and closes it with Escape', () => {
+    selector.setMcpManager(createMockMcpManager([
+      { name: 'server1', enabled: true },
+      { name: 'server2', enabled: true },
+    ]));
+    const trigger = parentEl.querySelector('.claudian-mcp-selector-icon-wrapper');
+    const firstItem = parentEl.querySelector('.claudian-mcp-selector-item');
+    firstItem.focus = jest.fn();
+    trigger.focus = jest.fn();
+
+    trigger.dispatchEvent({ type: 'click', stopPropagation: jest.fn() });
+    expect(firstItem.focus).toHaveBeenCalledTimes(1);
+
+    const dropdown = parentEl.querySelector('.claudian-mcp-selector-dropdown');
+    dropdown.dispatchEvent({
+      type: 'keydown',
+      key: 'Escape',
+      preventDefault: jest.fn(),
+      stopPropagation: jest.fn(),
+    });
+
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(dropdown.hasClass('visible')).toBe(false);
+    expect(trigger.focus).toHaveBeenCalledTimes(1);
+  });
+
+  it('supports arrow-key navigation between menu items', () => {
+    selector.setMcpManager(createMockMcpManager([
+      { name: 'server1', enabled: true },
+      { name: 'server2', enabled: true },
+    ]));
+    const trigger = parentEl.querySelector('.claudian-mcp-selector-icon-wrapper');
+    trigger.dispatchEvent({ type: 'click', stopPropagation: jest.fn() });
+    const items = parentEl.querySelectorAll('.claudian-mcp-selector-item');
+    items[1].focus = jest.fn();
+    const dropdown = parentEl.querySelector('.claudian-mcp-selector-dropdown');
+
+    dropdown.dispatchEvent({
+      type: 'keydown',
+      key: 'ArrowDown',
+      target: items[0],
+      preventDefault: jest.fn(),
+    });
+
+    expect(items[1].focus).toHaveBeenCalledTimes(1);
+  });
+
   it('should return empty set of enabled servers initially', () => {
     expect(selector.getEnabledServers().size).toBe(0);
   });
@@ -887,13 +964,13 @@ describe('McpServerSelector', () => {
   it('should show empty message when all servers are disabled', () => {
     selector.setMcpManager(createMockMcpManager([{ name: 'test', enabled: false }]));
     const empty = parentEl.querySelector('.claudian-mcp-selector-empty');
-    expect(empty?.textContent).toBe('All MCP servers disabled');
+    expect(empty?.textContent).toBe('Alle MCP-Server sind deaktiviert');
   });
 
   it('should show no servers message when no servers configured', () => {
     selector.setMcpManager(createMockMcpManager([]));
     const empty = parentEl.querySelector('.claudian-mcp-selector-empty');
-    expect(empty?.textContent).toBe('No MCP servers configured');
+    expect(empty?.textContent).toBe('Keine MCP-Server konfiguriert');
   });
 
   it('should add mentioned servers', () => {
@@ -1079,7 +1156,7 @@ describe('ContextUsageMeter', () => {
   it('should add compact reminder to tooltip when usage > 80%', () => {
     meter.update(makeUsage({ contextTokens: 170000, contextWindow: 200000, percentage: 85 }));
     const container = parentEl.querySelector('.claudian-context-meter');
-    expect(container?.getAttribute('data-tooltip')).toBe('170k / 200k (Approaching limit, run `/compact` to continue)');
+    expect(container?.getAttribute('data-tooltip')).toBe('170k / 200k (Limit fast erreicht – mit `/compact` fortfahren)');
   });
 
   it('should not add compact reminder to tooltip when usage ≤ 80%', () => {
@@ -1148,7 +1225,7 @@ describe('McpServerSelector - toggle and badges', () => {
     expect(csBadge).toBeNull();
   });
 
-  it('should toggle server on mousedown and update display', () => {
+  it('should toggle a native server button on click and update display', () => {
     const onChange = jest.fn();
     selector.setOnChange(onChange);
 
@@ -1156,21 +1233,21 @@ describe('McpServerSelector - toggle and badges', () => {
       { name: 'server1', enabled: true },
     ]));
 
-    // Find the server item and trigger mousedown
+    // Find the server item and trigger click
     const item = parentEl.querySelector('.claudian-mcp-selector-item');
     expect(item).not.toBeNull();
+    expect(item?.tagName).toBe('BUTTON');
 
-    // Simulate mousedown to enable
-    const mousedownHandlers = item._eventListeners?.get('mousedown');
-    expect(mousedownHandlers).toBeDefined();
-    mousedownHandlers![0]({ preventDefault: jest.fn(), stopPropagation: jest.fn() });
+    const clickHandlers = item._eventListeners?.get('click');
+    expect(clickHandlers).toBeDefined();
+    clickHandlers![0]({ preventDefault: jest.fn(), stopPropagation: jest.fn() });
 
     expect(selector.getEnabledServers().has('server1')).toBe(true);
     expect(onChange).toHaveBeenCalled();
 
     // Toggle again to disable
     onChange.mockClear();
-    mousedownHandlers![0]({ preventDefault: jest.fn(), stopPropagation: jest.fn() });
+    clickHandlers![0]({ preventDefault: jest.fn(), stopPropagation: jest.fn() });
 
     expect(selector.getEnabledServers().has('server1')).toBe(false);
     expect(onChange).toHaveBeenCalled();

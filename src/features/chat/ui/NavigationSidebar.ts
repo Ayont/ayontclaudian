@@ -12,10 +12,10 @@ import {
  */
 export class NavigationSidebar {
   private container: HTMLElement;
-  private topBtn: HTMLElement;
-  private prevBtn: HTMLElement;
-  private nextBtn: HTMLElement;
-  private bottomBtn: HTMLElement;
+  private topBtn: HTMLButtonElement;
+  private prevBtn: HTMLButtonElement;
+  private nextBtn: HTMLButtonElement;
+  private bottomBtn: HTMLButtonElement;
   private scrollHandler: () => void = () => {};
   private pendingVisibilityFrame: ScheduledAnimationFrame | null = null;
   private isVisible: boolean | null = null;
@@ -25,21 +25,25 @@ export class NavigationSidebar {
     private messagesEl: HTMLElement
   ) {
     this.container = this.parentEl.createDiv({ cls: 'claudian-nav-sidebar' });
+    this.container.setAttribute('role', 'navigation');
+    this.container.setAttribute('aria-label', 'Chat-Navigation');
 
     // Create buttons
-    this.topBtn = this.createButton('claudian-nav-btn-top', 'chevrons-up', 'Scroll to top');
-    this.prevBtn = this.createButton('claudian-nav-btn-prev', 'chevron-up', 'Previous message');
-    this.nextBtn = this.createButton('claudian-nav-btn-next', 'chevron-down', 'Next message');
-    this.bottomBtn = this.createButton('claudian-nav-btn-bottom', 'chevrons-down', 'Scroll to bottom');
+    this.topBtn = this.createButton('claudian-nav-btn-top', 'chevrons-up', 'Zum Anfang');
+    this.prevBtn = this.createButton('claudian-nav-btn-prev', 'chevron-up', 'Vorherige Nachricht');
+    this.nextBtn = this.createButton('claudian-nav-btn-next', 'chevron-down', 'Nächste Nachricht');
+    this.bottomBtn = this.createButton('claudian-nav-btn-bottom', 'chevrons-down', 'Zum Ende');
 
     this.setupEventListeners();
     this.applyVisibility();
   }
 
-  private createButton(cls: string, icon: string, label: string): HTMLElement {
-    const btn = this.container.createDiv({ cls: `claudian-nav-btn ${cls}` });
+  private createButton(cls: string, icon: string, label: string): HTMLButtonElement {
+    const btn = this.container.createEl('button', {
+      cls: `claudian-nav-btn ${cls}`,
+      attr: { type: 'button', 'aria-label': label, title: label },
+    });
     setIcon(btn, icon);
-    btn.setAttribute('aria-label', label);
     return btn;
   }
 
@@ -79,6 +83,8 @@ export class NavigationSidebar {
     if (this.isVisible === isScrollable) return;
     this.isVisible = isScrollable;
     this.container.classList.toggle('visible', isScrollable);
+    this.container.setAttribute('aria-hidden', String(!isScrollable));
+    this.container.inert = !isScrollable;
   }
 
   /**

@@ -1,4 +1,4 @@
-import { Notice, setIcon, type TFile } from 'obsidian';
+import { Notice, setIcon, TFile } from 'obsidian';
 
 import {
   type BuiltInCommand,
@@ -20,6 +20,10 @@ import {
   loadMemoryNotes,
   rankMemoryNotes,
 } from '../../../core/memory/memoryService';
+import {
+  applyTurnOutputContract,
+  resolveTurnOutputSurface,
+} from '../../../core/prompt/mainAgent';
 import { ProviderRegistry } from '../../../core/providers/ProviderRegistry';
 import {
   DEFAULT_CHAT_PROVIDER_ID,
@@ -39,11 +43,13 @@ import type {
   ApprovalCallbackOptions,
   ApprovalDecisionOption,
   ChatTurnRequest,
+  OutputSurface,
   PreparedChatTurn,
 } from '../../../core/runtime/types';
 import { finishRunTimeline, recordRunTimelineChunk, startRunTimeline } from '../../../core/timeline/runTimeline';
 import { TOOL_EXIT_PLAN_MODE } from '../../../core/tools/toolNames';
 import type { ApprovalDecision, ChatMessage, ExitPlanModeDecision, ImageAttachment, StreamChunk } from '../../../core/types';
+import { normalizeWorkspaceMode } from '../../../core/workspace/workspaceMode';
 import type { TemplateContext } from '../../../features/templates/PromptTemplateService';
 import type { VaultHealthResult } from '../../../features/templates/VaultHealthService';
 import type ClaudianPlugin from '../../../main';
@@ -141,7 +147,8 @@ export interface InputControllerDeps {
    * when this conversation was switched to a different provider. Returns falsy when there
    * is no pending bootstrap (the normal same-provider case).
    */
-  consumePendingContextBootstrap?: () => string | null | undefined;
+  consumePendingContextBootstrap?: () =>
+    string | null | undefined | Promise<string | null | undefined>;
   /** Reads the tab's active standing goal (provider-agnostic), if any. */
   getActiveGoal?: () => string | null;
   /** Sets (or clears, on null) the tab's standing goal. */
@@ -322,6 +329,7 @@ export class InputController {
     canvasContextOverride?: CanvasSelectionContext | null;
     content?: string;
     images?: ChatMessage['images'];
+    outputSurface?: OutputSurface;
     turnRequestOverride?: ChatTurnRequest;
   }): Promise<void> {
     const {
@@ -466,6 +474,7 @@ export class InputController {
         content,
         images,
         attachments: stagedAttachments,
+        outputSurface: options?.outputSurface,
         editorContextOverride: editorContext,
         browserContextOverride: browserContext,
         canvasContextOverride: canvasContext,
@@ -524,6 +533,7 @@ export class InputController {
     const images = imageOverride ?? imageContextManager?.getAttachedImages() ?? [];
     const imagesForMessage = images.length > 0 ? [...images] : undefined;
     const isCompact = /^\/compact(\s|$)/i.test(content);
+    const isRawProviderCommand = /^\/[a-z][\w-]*(?:\s|$)/i.test(content);
 
     // Only clear images if we consumed user input (not for programmatic content override).
     // Keep staged copies so images remain available for reuse after sending.
@@ -540,6 +550,7 @@ export class InputController {
         content,
         images: imagesForMessage,
         attachments: stagedAttachments,
+        outputSurface: options?.outputSurface,
         editorContextOverride: options?.editorContextOverride,
         browserContextOverride: options?.browserContextOverride,
         canvasContextOverride: options?.canvasContextOverride,
@@ -547,6 +558,10 @@ export class InputController {
     const { displayContent } = turnSubmission;
     // `turnRequest` may be reassigned below to prepend a one-shot cross-provider bootstrap.
     let turnRequest = turnSubmission.turnRequest;
+    turnRequest = {
+      ...turnRequest,
+      outputSurface: resolveTurnOutputSurface(displayContent, turnRequest.outputSurface),
+    };
 
     // CRITICAL: decouple THIS turn's image base64 from the message objects that
     // get persisted. The pre-send `save()` (below) clears `img.data = ''` on the
@@ -562,14 +577,14 @@ export class InputController {
     // memory/RAG lookups below instead of running as a separate sequential
     // await afterward. All three only prepend independent context blocks, so
     // the final prepend order (graph, rag, memory, prompt) is unaffected.
-    const graphNotePath = !options?.turnRequestOverride
+    const graphNotePath = !isRawProviderCommand && !options?.turnRequestOverride
       ? (fileContextManager?.getCurrentNotePath() ?? null)
       : null;
     const graphContextPromise: Promise<string> = graphNotePath
       ? buildLinkedNoteContext(plugin.app, graphNotePath).catch(() => '')
       : Promise.resolve('');
 
-    if (!options?.turnRequestOverride && plugin.settings.memoryEnabled !== false && plugin.app?.vault) {
+    if (!isRawProviderCommand && !options?.turnRequestOverride && plugin.settings.memoryEnabled !== false && plugin.app?.vault) {
       const memoryFolder = plugin.settings.memoryFolder ?? '.claudian/memory';
       // Use the cached store so the always-on auto-recall doesn't re-scan every
       // vault markdown file on each turn. Falls back to a direct load if the store
@@ -656,6 +671,7 @@ export class InputController {
       timestamp: Date.now(),
       toolCalls: [],
       contentBlocks: [],
+      outputSurface: turnRequest.outputSurface,
       ...this.buildAgentStamp(),
     };
     state.addMessage(assistantMsg);
@@ -691,12 +707,13 @@ export class InputController {
     // Without this clone, any LATER provider-emitted user_message_start event
     // would create a new user bubble whose images are already 0-byte — so the
     // chat history would render broken/empty thumbnails for those turns.
-    this.pendingProviderUserMessages = [{
+    const initialProviderUserMessage = {
       displayContent,
       images: imagesForMessage
         ? imagesForMessage.map((img) => ({ ...img }))
         : undefined,
-    }];
+    };
+    this.pendingProviderUserMessages = [initialProviderUserMessage];
     this.sawInitialProviderUserMessage = false;
     this.awaitingProviderAssistantStart = true;
 
@@ -817,7 +834,9 @@ export class InputController {
       // The snapshot was already built + stashed at switch time (switchBoundTabProvider),
       // so we reuse it verbatim instead of rebuilding. Consumed exactly once; no-op on
       // normal same-provider turns.
-      const pendingBootstrap = this.deps.consumePendingContextBootstrap?.();
+      const pendingBootstrap = isRawProviderCommand
+        ? null
+        : await this.deps.consumePendingContextBootstrap?.();
       if (pendingBootstrap) {
         turnRequest = {
           ...turnRequest,
@@ -826,11 +845,19 @@ export class InputController {
             : pendingBootstrap,
         };
       }
+      const providerHistory = pendingBootstrap ? [] : previousMessages;
 
       // Standing goal: re-inject the framed objective into the sent prompt for ANY
       // provider so it stays in view each turn. Only the sent/persisted text carries
       // it — the displayed user bubble keeps the raw `displayContent`.
-      const activeGoal = this.deps.getActiveGoal?.() ?? null;
+      if (!isRawProviderCommand) {
+        turnRequest = applyTurnOutputContract(turnRequest, {
+          mediaFolder: plugin.settings.mediaFolder,
+          workspaceMode: normalizeWorkspaceMode(plugin.settings.workspaceMode),
+        });
+      }
+
+      const activeGoal = isRawProviderCommand ? null : (this.deps.getActiveGoal?.() ?? null);
       if (activeGoal) {
         turnRequest = { ...turnRequest, text: applyGoalPrefix(turnRequest.text, activeGoal) };
       }
@@ -863,7 +890,7 @@ export class InputController {
         let imageNotSupportedThisAttempt = false;
 
         try {
-          for await (const chunk of agentService.query(preparedTurn, previousMessages)) {
+          for await (const chunk of agentService.query(preparedTurn, providerHistory)) {
             // Ping the watchdog on every chunk — resets the hang timer.
             this.pingStreamWatchdog();
 
@@ -946,6 +973,19 @@ export class InputController {
           retryAttempt += 1;
           state.cancelRequested = false;
           this.watchdogTimedOut = false;
+          // Every retry starts a fresh provider stream for the SAME visible
+          // turn. Re-arm the initial boundary suppression so provider-emitted
+          // user/assistant start events cannot create duplicate bubbles or
+          // expose the transport-only prepared prompt. Preserve any queued
+          // steer boundaries behind the initial turn.
+          this.pendingProviderUserMessages = [
+            initialProviderUserMessage,
+            ...this.pendingProviderUserMessages.filter(
+              (pending) => pending !== initialProviderUserMessage,
+            ),
+          ];
+          this.sawInitialProviderUserMessage = false;
+          this.awaitingProviderAssistantStart = true;
           try { agentService.cancel(); } catch { /* best-effort */ }
           await streamController.appendText(
             `\n\n> 🔄 *Keine Antwort — automatischer Neuversuch ${retryAttempt}/${InputController.MAX_AUTO_RETRIES}…*\n`,
@@ -1301,6 +1341,7 @@ export class InputController {
     images?: ChatMessage['images'];
     /** Staged file chips whose `@relPath` refs are appended invisibly. */
     attachments?: { name: string; relPath: string }[];
+    outputSurface?: OutputSurface;
     editorContextOverride?: EditorSelectionContext | null;
     browserContextOverride?: BrowserSelectionContext | null;
     canvasContextOverride?: CanvasSelectionContext | null;
@@ -1357,6 +1398,7 @@ export class InputController {
       displayContent,
       turnRequest: {
         text: textWithAttachments,
+        outputSurface: options.outputSurface,
         images: options.images,
         currentNotePath: shouldSendCurrentNote && currentNotePath ? currentNotePath : undefined,
         editorSelection: editorContext,
@@ -1898,10 +1940,10 @@ export class InputController {
     if (currentNotePath) {
       try {
         const file = this.deps.plugin.app.vault.getAbstractFileByPath(currentNotePath);
-        if (file && 'extension' in file) {
-          ctx.noteContent = await this.deps.plugin.app.vault.read(file as TFile);
+        if (file instanceof TFile) {
+          ctx.noteContent = await this.deps.plugin.app.vault.read(file);
           ctx.noteTitle = file.name.replace(/\.md$/, '');
-          const cache = this.deps.plugin.app.metadataCache.getFileCache(file as TFile);
+          const cache = this.deps.plugin.app.metadataCache.getFileCache(file);
           ctx.noteTags = cache?.tags?.map((tag) => tag.tag) ?? [];
         }
       } catch {
@@ -2881,11 +2923,8 @@ export class InputController {
           return;
         }
         await this.sendMessage({
-          content:
-            'Create a polished live document for the following request. Return the complete result in one '
-            + '`claudian-document` block using the best matching theme. Keep assumptions explicit and use '
-            + '[To be completed] for missing facts.\n\n'
-            + request,
+          content: request,
+          outputSurface: 'live-document',
         });
         break;
       }
@@ -2896,12 +2935,8 @@ export class InputController {
           return;
         }
         await this.sendMessage({
-          content:
-            'Erstelle direkt nutzbare Klartext-E-Mail-Vorlagen für den folgenden Wunsch. Wenn kein bestimmter Ton '
-            + 'genannt ist, liefere die vier Varianten kurz, geschäftlich, freundlich und Support als direkt '
-            + 'aufeinanderfolgende `claudian-email`-Blöcke; sie erscheinen gemeinsam in einem Auswahlfenster. '
-            + 'Markiere fehlende Angaben mit klaren Platzhaltern und verwende keine Markdown-Formatierung.\n\n'
-            + request,
+          content: request,
+          outputSurface: 'email',
         });
         break;
       }
@@ -2912,12 +2947,8 @@ export class InputController {
           return;
         }
         await this.sendMessage({
-          content:
-            'Erzeuge jetzt wirklich ein Bild für die folgende Anforderung. Verwende ein verfügbares '
-            + 'Bildgenerierungs-Tool oder verbundenes MCP, speichere das Ergebnis im Vault und schließe '
-            + 'mit genau einem `claudian-image`-Block ab, der Titel, exakten Prompt, lokalen Pfad, Alt-Text '
-            + 'und Provider enthält. Behaupte keine Generierung, wenn kein echtes Ergebnis vorliegt.\n\n'
-            + request,
+          content: request,
+          outputSurface: 'image',
         });
         break;
       }
@@ -2928,13 +2959,8 @@ export class InputController {
           return;
         }
         await this.sendMessage({
-          content:
-            'Erstelle einen vollständigen, produktionsreifen Agent-Skill für den folgenden Wunsch. '
-            + 'Gib das Ergebnis als EINEN `claudian-skill`-Block aus: gültige SKILL.md mit '
-            + 'kebab-case `name`, einer trigger-reichen `description` („Use when …") und einem klaren, '
-            + 'imperativen Body (Overview, When to use, Workflow, Examples, Guardrails). Nutze Progressive '
-            + 'Disclosure und markiere fehlende Angaben mit [To be completed].\n\n'
-            + request,
+          content: request,
+          outputSurface: 'skill',
         });
         break;
       }
@@ -2955,6 +2981,7 @@ export class InputController {
                 `Analysiere die dekodierte Cisco-Packet-Tracer-Topologie in @${inspection.xmlPath}. `
                 + `Erstelle eine genaue Netzwerkkarte, nenne die ${inspection.deviceCount} erkannten Geräte und liefere `
                 + 'konkrete Packet-Tracer-Konfigurations- und Testschritte.',
+              outputSurface: 'network-map',
             });
           } catch (error) {
             new Notice(`Packet Tracer konnte nicht gelesen werden: ${error instanceof Error ? error.message : String(error)}`);
@@ -2982,11 +3009,8 @@ export class InputController {
           return;
         }
         await this.sendMessage({
-          content:
-            'Plane ein Cisco Packet Tracer Lab für diese Anforderung. Liefere eine exakte Geräte- und Verkabelungsliste, '
-            + 'eine network-map-Topologie, vollständige Cisco-CLI-Konfigurationen pro Gerät, IP/VLAN-Plan, Testfälle und '
-            + 'eine Schrittfolge zum manuellen Aufbau in Packet Tracer. Erfinde keine nicht genannten Anforderungen.\n\n'
-            + request,
+          content: `Cisco Packet Tracer Lab: ${request}`,
+          outputSurface: 'network-map',
         });
         break;
       }

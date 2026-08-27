@@ -35,9 +35,22 @@ export interface MessageAttachment {
   relPath: string;
 }
 
+export type OutputSurface =
+  | 'chat'
+  | 'live-document'
+  | 'email'
+  | 'network-map'
+  | 'image'
+  | 'skill';
+
 /** Content block for preserving streaming order in messages. */
 export type ContentBlock =
-  | { type: 'text'; content: string }
+  | {
+    type: 'text';
+    content: string;
+    /** Specialized presentation owned by this semantic text block. */
+    outputSurface?: OutputSurface;
+  }
   | { type: 'tool_use'; toolId: string }
   | { type: 'thinking'; content: string; durationSeconds?: number }
   | { type: 'subagent'; subagentId: string; mode?: SubagentMode }
@@ -53,6 +66,8 @@ export interface ChatMessage {
   timestamp: number;
   toolCalls?: ToolCallInfo[];
   contentBlocks?: ContentBlock[];
+  /** Presentation target selected for this assistant response. */
+  outputSurface?: OutputSurface;
   currentNote?: string;
   images?: ImageAttachment[];
   /** Staged file attachments (video/PDF/…) shown as media cards in the chat. */
@@ -104,6 +119,12 @@ export interface Conversation {
    * OWN session and never resumes another provider's id ("session not found").
    */
   providerSessions?: Record<string, ProviderSessionSnapshot>;
+  /**
+   * Bounded, sanitized history snapshot awaiting one-shot delivery after a
+   * cross-provider switch. Persisted so a reload before the target's first
+   * turn cannot silently discard the handoff context.
+   */
+  pendingContextBootstrap?: string | null;
   /** Standing objective set via `/goal`; re-injected into every turn for any provider. */
   goal?: string | null;
   /** Per-chat workspace mode (Code/Work). Falls back to the global default. */
@@ -159,6 +180,8 @@ export interface SessionMetadata {
   providerState?: Record<string, unknown>;
   /** Per-provider native session snapshots (see {@link Conversation.providerSessions}). */
   providerSessions?: Record<string, ProviderSessionSnapshot>;
+  /** One-shot cross-provider context handoff awaiting its first target turn. */
+  pendingContextBootstrap?: string | null;
   /** Standing objective set via `/goal` (see {@link Conversation.goal}). */
   goal?: string | null;
   /** Per-chat workspace mode (see {@link Conversation.workspaceMode}). */
@@ -201,7 +224,13 @@ export type StreamChunk =
    */
   | { type: 'keepalive' }
   | { type: 'done' }
-  | { type: 'usage'; usage: UsageInfo; sessionId?: string | null }
+  | {
+      type: 'usage';
+      usage: UsageInfo;
+      sessionId?: string | null;
+      /** Account this report without replacing the visible context-window snapshot. */
+      contextDisplay?: 'preserve';
+    }
   | { type: 'context_compacted' }
   | {
       type: 'background_task_started';
@@ -260,6 +289,17 @@ export interface UsageInfo {
   contextWindowIsAuthoritative?: boolean;
   contextTokens: number;
   percentage: number;
+  /**
+   * Accounting semantics for streamed usage reports.
+   *
+   * - `delta`: newly consumed tokens since the preceding report; every delta is counted.
+   * - `snapshot`: a cumulative in-progress view for the context meter; never counted.
+   * - `final`: the complete measurement for one assistant turn; counted at most once.
+   *
+   * Omitted values retain the legacy additive behavior for providers that emit a
+   * single usage report and have not migrated to explicit semantics yet.
+   */
+  reportType?: 'delta' | 'snapshot' | 'final';
   /**
    * True when this usage object restates a snapshot that was already emitted (and
    * therefore already counted), only with a corrected `contextWindow`/`percentage`.

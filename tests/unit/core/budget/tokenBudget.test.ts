@@ -78,6 +78,25 @@ describe('TokenBudgetTracker', () => {
     expect(tracker.getState().dailyTotal).toBe(0);
   });
 
+  it('never accounts cumulative snapshots when called outside the chat controller', () => {
+    const tracker = new TokenBudgetTracker();
+
+    tracker.trackUsage({ ...makeUsage(100), reportType: 'snapshot' }, 'opencode');
+    tracker.trackUsage({ ...makeUsage(100), isRestatedSnapshot: true }, 'claude');
+
+    expect(tracker.getState().dailyTotal).toBe(0);
+    expect(tracker.getState().events).toBeUndefined();
+  });
+
+  it('accounts explicit deltas and final reports', () => {
+    const tracker = new TokenBudgetTracker();
+
+    tracker.trackUsage({ ...makeUsage(40), reportType: 'delta' }, 'provider');
+    tracker.trackUsage({ ...makeUsage(60), reportType: 'final' }, 'provider');
+
+    expect(tracker.getState().dailyTotal).toBe(100);
+  });
+
   // ── Rehydration from disk (.claudian/usage.json) ─────────────────────
 
   // Regression: sessionTotal used to be restored verbatim, which turned a

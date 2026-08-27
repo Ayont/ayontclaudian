@@ -16,6 +16,7 @@ import {
   type AcpRequestPermissionResponse,
   AcpSessionUpdateNormalizer,
   AcpSubprocess,
+  buildAcpUsageInfo,
   extractAcpSessionModelState,
 } from '../../acp';
 import { decodeHermesModelId, isHermesModelSelectionId } from '../models';
@@ -102,13 +103,22 @@ export class HermesAuxQueryRunner implements AuxQueryRunner {
       }
 
       const systemPrompt = config.systemPrompt.trim();
-      await this.connection.prompt({
+      const response = await this.connection.prompt({
         prompt: [{ type: 'text', text: systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt }],
         sessionId,
       });
 
       if (config.abortController?.signal.aborted) {
         throw new Error('Cancelled');
+      }
+
+      const usage = buildAcpUsageInfo({
+        model: config.model ?? this.currentModelId ?? undefined,
+        promptUsage: response.usage,
+        reportType: 'final',
+      });
+      if (usage) {
+        config.onUsage?.(usage);
       }
 
       return accumulatedText;

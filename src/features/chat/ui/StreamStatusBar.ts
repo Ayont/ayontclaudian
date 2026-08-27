@@ -155,7 +155,7 @@ export class StreamStatusBar {
     this.cancelButton.setAttribute('aria-label', 'Antwort abbrechen');
     this.cancelButton.setAttribute('title', 'Antwort abbrechen (Esc)');
     setIcon(this.cancelButton.createSpan({ cls: 'claudian-stream-status-cancel-icon' }), 'square');
-    this.cancelButton.createSpan({ cls: 'claudian-stream-status-cancel-label', text: 'Stop' });
+    this.cancelButton.createSpan({ cls: 'claudian-stream-status-cancel-label', text: 'Stopp' });
     this.cancelButton.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();

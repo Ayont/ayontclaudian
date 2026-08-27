@@ -16,6 +16,10 @@ import { PluginUpdater, type UpdateInfo } from './app/update/PluginUpdater';
 import { UpdateCoordinator } from './app/update/UpdateCoordinator';
 import type { UpdateSessionState } from './app/update/UpdateSession';
 import { whisperServerManager } from './core/audio/WhisperServerManager';
+import {
+  type AuxiliaryUsageRecord,
+  buildAuxiliaryUsageReport,
+} from './core/auxiliary/AuxiliaryUsageAccounting';
 import type { SharedAppStorage } from './core/bootstrap/storage';
 import { buildRateLimitChips } from './core/budget/rateLimitDisplay';
 import { type TokenBudgetState,TokenBudgetTracker } from './core/budget/tokenBudget';
@@ -109,6 +113,7 @@ import { ProviderWorkspaceRegistry } from './core/providers/ProviderWorkspaceReg
 import type { ProviderId } from './core/providers/types';
 import type { AppTabManagerState } from './core/providers/types';
 import { DEFAULT_CHAT_PROVIDER_ID } from './core/providers/types';
+import { TurnUsageCollector } from './core/providers/usage/TurnUsageCollector';
 import { chooseBestAutoModel } from './core/routing/autoModelRoute';
 import {
   AUTO_MODEL_VALUE,
@@ -223,6 +228,10 @@ export default class ClaudianPlugin extends Plugin {
   /** Global pause switch for the goal harness loop (/goal pause|resume). */
   goalLoopPaused = false;
   private usagePersistTimer: number | null = null;
+  private pluginUpdateStartupTimer: number | null = null;
+  private providerUpdateStartupTimer: number | null = null;
+  private sessionCompactionTimer: number | null = null;
+  private unloaded = false;
 
   /**
    * Loads persisted token-usage events from `.claudian/usage.json`.
@@ -255,11 +264,45 @@ export default class ClaudianPlugin extends Plugin {
 
   /** Debounced persist of the usage state (called after every tracked turn). */
   persistTokenUsage(): void {
+    // Auxiliary/provider promises can settle after Obsidian has already torn
+    // this plugin instance down. Never let that stale instance schedule a new
+    // disk write that could overwrite usage loaded by a freshly enabled one.
+    if (this.unloaded) return;
     if (this.usagePersistTimer) window.clearTimeout(this.usagePersistTimer);
     this.usagePersistTimer = window.setTimeout(() => {
       this.usagePersistTimer = null;
+      if (this.unloaded) return;
       void this.writeTokenUsage();
     }, 5000);
+  }
+
+  private commitCollectedUsage(
+    collector: TurnUsageCollector,
+    providerId: ProviderId,
+    model: string,
+  ): void {
+    const reports = collector.accountingReports();
+    if (reports.length === 0) return;
+    for (const report of reports) {
+      this.tokenBudgetTracker.trackUsage(
+        report.model ? report : { ...report, model },
+        providerId,
+      );
+    }
+    this.persistTokenUsage();
+  }
+
+  /**
+   * Records one completed hidden provider call (title, refine, inline edit, or
+   * provider-specific verifier) at the same persistence boundary as chat turns.
+   * The accounting helper prefers provider telemetry and otherwise marks its
+   * text-derived estimate as non-authoritative.
+   */
+  recordAuxiliaryUsage(record: AuxiliaryUsageRecord): void {
+    const usage = buildAuxiliaryUsageReport(record);
+    if (!usage) return;
+    this.tokenBudgetTracker.trackUsage(usage, record.providerId);
+    this.persistTokenUsage();
   }
 
   /**
@@ -307,6 +350,7 @@ export default class ClaudianPlugin extends Plugin {
   turnUndoService!: TurnUndoService;
 
   async onload() {
+    this.unloaded = false;
     await this.loadSettings();
     await this.initializeClaudianOSServices();
 
@@ -734,7 +778,7 @@ export default class ClaudianPlugin extends Plugin {
           new Notice('No active image.');
           return;
         }
-        const result = await this.visionService.analyzeImage(file as TFile);
+        const result = await this.visionService.analyzeImage(file);
         new Notice(result.description.slice(0, 200));
       },
     });
@@ -816,10 +860,20 @@ export default class ClaudianPlugin extends Plugin {
     // In-app updater: notify once shortly after load if a GitHub release is newer.
     this.pluginUpdater = new PluginUpdater(this);
     this.updateCoordinator.setPluginUpdater(this.pluginUpdater);
-    window.setTimeout(() => {
+    if (this.pluginUpdateStartupTimer !== null) {
+      window.clearTimeout(this.pluginUpdateStartupTimer);
+    }
+    this.pluginUpdateStartupTimer = window.setTimeout(() => {
+      this.pluginUpdateStartupTimer = null;
+      if (this.unloaded) return;
       void this.checkAndOfferPluginUpdate({ notifyIfCurrent: false });
     }, 12_000);
-    window.setTimeout(() => {
+    if (this.providerUpdateStartupTimer !== null) {
+      window.clearTimeout(this.providerUpdateStartupTimer);
+    }
+    this.providerUpdateStartupTimer = window.setTimeout(() => {
+      this.providerUpdateStartupTimer = null;
+      if (this.unloaded) return;
       void this.offerProviderUpdates();
     }, 18_000);
     // Background CLI auto-update cycle (mode + interval are user-configurable).
@@ -846,7 +900,13 @@ export default class ClaudianPlugin extends Plugin {
     if (typeof this.app.workspace?.onLayoutReady !== 'function') return;
 
     this.app.workspace.onLayoutReady(() => {
-      window.setTimeout(() => {
+      if (this.unloaded) return;
+      if (this.sessionCompactionTimer !== null) {
+        window.clearTimeout(this.sessionCompactionTimer);
+      }
+      this.sessionCompactionTimer = window.setTimeout(() => {
+        this.sessionCompactionTimer = null;
+        if (this.unloaded) return;
         void this.storage.sessions.compactOversizedMetadata?.()
           .then((reclaimed: number) => {
             if (reclaimed > 0) {
@@ -981,6 +1041,19 @@ export default class ClaudianPlugin extends Plugin {
   }
 
   onunload(): void {
+    this.unloaded = true;
+    if (this.pluginUpdateStartupTimer !== null) {
+      window.clearTimeout(this.pluginUpdateStartupTimer);
+      this.pluginUpdateStartupTimer = null;
+    }
+    if (this.providerUpdateStartupTimer !== null) {
+      window.clearTimeout(this.providerUpdateStartupTimer);
+      this.providerUpdateStartupTimer = null;
+    }
+    if (this.sessionCompactionTimer !== null) {
+      window.clearTimeout(this.sessionCompactionTimer);
+      this.sessionCompactionTimer = null;
+    }
     // Stop the warm whisper-server background process (if voice input ever
     // started one this session) — otherwise it would keep running after the
     // plugin unloads.
@@ -1133,6 +1206,7 @@ export default class ClaudianPlugin extends Plugin {
     prompt: string,
   ): Promise<ComparisonOutcome> {
     const runtime = ProviderRegistry.createChatRuntime({ plugin: this, providerId });
+    const usageCollector = new TurnUsageCollector();
     try {
       const ready = await runtime.ensureReady();
       if (!ready) {
@@ -1143,12 +1217,15 @@ export default class ClaudianPlugin extends Plugin {
       for await (const chunk of runtime.query(prepared, [], { model })) {
         if (chunk.type === 'text') {
           text += chunk.content;
+        } else if (chunk.type === 'usage') {
+          usageCollector.observe(chunk.usage);
         } else if (chunk.type === 'error') {
           return { text, error: chunk.content };
         }
       }
       return { text };
     } finally {
+      this.commitCollectedUsage(usageCollector, providerId, model);
       try {
         runtime.cleanup();
       } catch {
@@ -1288,6 +1365,7 @@ export default class ClaudianPlugin extends Plugin {
     const model = modelOverride ?? this.getTabModel(providerId);
 
     const runtime = ProviderRegistry.createChatRuntime({ plugin: this, providerId });
+    const usageCollector = new TurnUsageCollector();
     try {
       const ready = await runtime.ensureReady();
       if (!ready) {
@@ -1299,12 +1377,15 @@ export default class ClaudianPlugin extends Plugin {
         if (chunk.type === 'text') {
           text += chunk.content;
           onChunk?.(chunk.content);
+        } else if (chunk.type === 'usage') {
+          usageCollector.observe(chunk.usage);
         } else if (chunk.type === 'error') {
           throw new Error(chunk.content);
         }
       }
       return text;
     } finally {
+      this.commitCollectedUsage(usageCollector, providerId, model);
       try {
         runtime.cleanup();
       } catch {
@@ -1353,6 +1434,7 @@ export default class ClaudianPlugin extends Plugin {
 
     const model = this.getTabModel(providerId);
     const runtime = ProviderRegistry.createChatRuntime({ plugin: this, providerId });
+    const usageCollector = new TurnUsageCollector();
     try {
       const ready = await runtime.ensureReady();
       if (!ready) {
@@ -1365,6 +1447,8 @@ export default class ClaudianPlugin extends Plugin {
       for await (const chunk of runtime.query(prepared, [], { model })) {
         if (chunk.type === 'text') {
           text += chunk.content;
+        } else if (chunk.type === 'usage') {
+          usageCollector.observe(chunk.usage);
         } else if (chunk.type === 'error') {
           throw new Error(chunk.content);
         }
@@ -1374,6 +1458,7 @@ export default class ClaudianPlugin extends Plugin {
       }
       return text;
     } finally {
+      this.commitCollectedUsage(usageCollector, providerId, model);
       try {
         runtime.cleanup();
       } catch {
@@ -2429,6 +2514,7 @@ export default class ClaudianPlugin extends Plugin {
         sessionId: resumeSessionId,
         providerState: meta.providerState,
         providerSessions: meta.providerSessions,
+        pendingContextBootstrap: meta.pendingContextBootstrap,
         goal: meta.goal,
         workspaceMode: meta.workspaceMode,
         pinned: meta.pinned,

@@ -11,6 +11,7 @@ import type { ProviderCapabilities } from '../../core/providers/types';
  */
 export const DSH_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({
   providerId: 'dsh',
+  promptDelivery: 'stateless-turn',
   supportsPersistentRuntime: true,
   supportsNativeHistory: false,
   supportsPlanMode: false,

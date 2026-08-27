@@ -229,7 +229,7 @@ export class DshChatRuntime implements ChatRuntime {
             pendingChunks.push(chunk);
           }
           Object.assign(liveMetadata, result.metadata);
-          const usage = buildDshUsageInfo(result.metadata, contextWindow);
+          const usage = buildDshUsageInfo(result.metadata, contextWindow, 'snapshot');
           if (usage) {
             pendingChunks.push({ type: 'usage', usage });
           }
@@ -349,7 +349,7 @@ export class DshChatRuntime implements ChatRuntime {
 
     // Prefer the transcript's own token counts; only fall back to estimating
     // from history + prompt + response when dsh reported nothing.
-    const measuredUsage = buildDshUsageInfo(liveMetadata, contextWindow);
+    const measuredUsage = buildDshUsageInfo(liveMetadata, contextWindow, 'final');
     if (measuredUsage) {
       yield {
         type: 'usage',
@@ -368,6 +368,7 @@ export class DshChatRuntime implements ChatRuntime {
           contextTokens,
           contextWindow,
           model: model || undefined,
+          reportType: 'final',
         }),
         sessionId: this.lastSession?.sessionId ?? null,
       };

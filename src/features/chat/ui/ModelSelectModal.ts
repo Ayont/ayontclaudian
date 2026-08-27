@@ -1,6 +1,6 @@
 import { type App, Modal } from 'obsidian';
 
-import { type GroupedModelOption,groupModelOptions } from '../../../core/providers/modelOptionGroups';
+import { type GroupedModelOption, groupModelOptions } from '../../../core/providers/modelOptionGroups';
 import type { ProviderUIOption } from '../../../core/providers/types';
 import { AUTO_MODEL_VALUE } from '../../../core/routing/modelRouterRules';
 import { createProviderIconSvg } from '../../../shared/icons';
@@ -28,7 +28,7 @@ export class ModelSelectModal extends Modal {
 
     const summary = frame.createDiv({ cls: 'claudian-model-select-summary' });
     const providerCount = new Set(this.models.map((model) => model.providerId).filter(Boolean)).size;
-    summary.createSpan({ text: `${this.models.length} Modelle · ${providerCount} Provider` });
+    summary.createSpan({ text: `${this.models.length} Modelle · ${providerCount} Anbieter` });
     summary.createSpan({ cls: 'claudian-model-select-summary-hint', text: 'Esc zum Schließen' });
 
     const searchContainer = frame.createDiv({ cls: 'claudian-model-select-search' });
@@ -37,6 +37,7 @@ export class ModelSelectModal extends Modal {
       placeholder: 'Modelle durchsuchen…',
       cls: 'claudian-model-select-search-input',
     });
+    this.searchInput.setAttribute('aria-label', 'Modelle durchsuchen');
     this.searchInput.addEventListener('input', (event) => {
       this.filter = (event.target as HTMLInputElement).value.toLowerCase();
       this.renderList();
@@ -88,7 +89,20 @@ export class ModelSelectModal extends Modal {
       : family.variants.length === 0 && family.primaryValue === this.currentModel
         ? this.currentModel
         : null;
-    const optionEl = this.listEl.createDiv({ cls: 'claudian-model-select-option' });
+    const hasVariants = family.variants.length > 1;
+    const optionEl = hasVariants
+      ? this.listEl.createDiv({ cls: 'claudian-model-select-option' })
+      : this.listEl.createEl('button', {
+        cls: 'claudian-model-select-option',
+        attr: {
+          type: 'button',
+          'aria-pressed': String(selectedValue !== null),
+        },
+      });
+    if (hasVariants) {
+      optionEl.setAttribute('role', 'group');
+      optionEl.setAttribute('aria-label', family.familyLabel);
+    }
     if (family.providerId) optionEl.dataset.provider = family.providerId;
     if (selectedValue) optionEl.addClass('is-selected');
     if (family.primaryValue === AUTO_MODEL_VALUE) optionEl.addClass('is-auto');
@@ -114,7 +128,11 @@ export class ModelSelectModal extends Modal {
         const chip = chips.createEl('button', {
           cls: 'claudian-model-select-effort',
           text: variant.label,
-          attr: { type: 'button' },
+          attr: {
+            type: 'button',
+            'aria-pressed': String(variant.value === this.currentModel),
+            'aria-label': `${family.familyLabel}: ${variant.label}`,
+          },
         });
         if (variant.value === this.currentModel) chip.addClass('is-active');
         chip.addEventListener('click', (event) => {
@@ -135,10 +153,12 @@ export class ModelSelectModal extends Modal {
       checkEl.setText('✓');
     }
 
-    optionEl.addEventListener('click', () => {
-      this.onSelect(selectedValue ?? family.primaryValue);
-      this.close();
-    });
+    if (!hasVariants) {
+      optionEl.addEventListener('click', () => {
+        this.onSelect(selectedValue ?? family.primaryValue);
+        this.close();
+      });
+    }
   }
 
   onClose(): void {

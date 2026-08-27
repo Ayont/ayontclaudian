@@ -16,12 +16,24 @@ const SECTIONS = [
   'provider-capabilities',
   'feature-map',
   'workflow-live',
+  'live-document',
+  'document-library-mobile',
+  'artifact-gallery',
+  'usage-sparkline',
 ] as const;
 
 test.beforeEach(async ({ page }) => {
   await page.goto(HARNESS_URL);
   // Let fonts/layout settle for stable screenshots.
   await page.waitForLoadState('networkidle');
+});
+
+test('320px project exposes a coarse touch pointer', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'w320');
+  await expect.poll(() => page.evaluate(() => ({
+    coarse: matchMedia('(pointer: coarse)').matches,
+    touchPoints: navigator.maxTouchPoints,
+  }))).toEqual({ coarse: true, touchPoints: 1 });
 });
 
 for (const section of SECTIONS) {

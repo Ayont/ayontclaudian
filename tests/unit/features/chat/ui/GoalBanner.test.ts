@@ -120,21 +120,21 @@ describe('GoalBanner actions', () => {
 
     const root = mount.querySelector('.claudian-goal-banner');
     expect(root?.hasClass('is-paused')).toBe(true);
-    expect(mount.querySelector('.claudian-goal-banner-label')?.textContent).toBe('Goal pausiert');
+    expect(mount.querySelector('.claudian-goal-banner-label')?.textContent).toBe('Ziel pausiert');
 
     banner.setPaused(false);
     expect(root?.hasClass('is-paused')).toBe(false);
-    expect(mount.querySelector('.claudian-goal-banner-label')?.textContent).toBe('Goal aktiv');
+    expect(mount.querySelector('.claudian-goal-banner-label')?.textContent).toBe('Ziel aktiv');
   });
 
   it('keeps the pause button label in sync for screen readers', () => {
     const { actions, banner } = createFullBanner();
 
-    expect(actions[0].getAttribute('aria-label')).toBe('Goal-Loop pausieren');
+    expect(actions[0].getAttribute('aria-label')).toBe('Zielschleife pausieren');
 
     banner.setPaused(true);
 
-    expect(actions[0].getAttribute('aria-label')).toBe('Goal-Loop fortsetzen');
+    expect(actions[0].getAttribute('aria-label')).toBe('Zielschleife fortsetzen');
     expect(actions[0].hasClass('is-paused')).toBe(true);
   });
 });

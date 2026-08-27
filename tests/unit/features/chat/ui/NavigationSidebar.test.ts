@@ -173,6 +173,19 @@ class MockElement {
     return el;
   }
 
+  createEl(tagName: string, options?: { cls?: string; text?: string; attr?: Record<string, string> }): MockElement {
+    const el = new MockElement(tagName);
+    if (options?.cls) el.className = options.cls;
+    if (options?.text) el.textContent = options.text;
+    if (options?.attr) {
+      for (const [key, value] of Object.entries(options.attr)) {
+        el.setAttribute(key, value);
+      }
+    }
+    this.appendChild(el);
+    return el;
+  }
+
   querySelector(selector: string): MockElement | null {
     return this.querySelectorAll(selector)[0] || null;
   }
@@ -225,6 +238,21 @@ describe('NavigationSidebar', () => {
     parentEl.appendChild(messagesEl);
   });
 
+  it('renders native navigation buttons with German labels', () => {
+    const sidebar = new NavigationSidebar(parentEl as any, messagesEl as any);
+    const container = parentEl.children[1];
+
+    expect(container.getAttribute('aria-label')).toBe('Chat-Navigation');
+    expect(container.children.every((child: MockElement) => child.tagName === 'BUTTON')).toBe(true);
+    expect(container.children.map((child: MockElement) => child.getAttribute('aria-label'))).toEqual([
+      'Zum Anfang',
+      'Vorherige Nachricht',
+      'Nächste Nachricht',
+      'Zum Ende',
+    ]);
+    sidebar.destroy();
+  });
+
   afterEach(() => {
     sidebar?.destroy();
     if (originalWindow === undefined) {
@@ -269,10 +297,10 @@ describe('NavigationSidebar', () => {
       const container = parentEl.querySelector('.claudian-nav-sidebar');
       const buttons = container!.children;
 
-      expect(buttons[0].getAttribute('aria-label')).toBe('Scroll to top');
-      expect(buttons[1].getAttribute('aria-label')).toBe('Previous message');
-      expect(buttons[2].getAttribute('aria-label')).toBe('Next message');
-      expect(buttons[3].getAttribute('aria-label')).toBe('Scroll to bottom');
+      expect(buttons[0].getAttribute('aria-label')).toBe('Zum Anfang');
+      expect(buttons[1].getAttribute('aria-label')).toBe('Vorherige Nachricht');
+      expect(buttons[2].getAttribute('aria-label')).toBe('Nächste Nachricht');
+      expect(buttons[3].getAttribute('aria-label')).toBe('Zum Ende');
     });
 
     it('should set correct icons on buttons', () => {

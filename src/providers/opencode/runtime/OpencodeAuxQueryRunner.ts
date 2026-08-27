@@ -14,6 +14,7 @@ import {
   type AcpRequestPermissionResponse,
   AcpSessionUpdateNormalizer,
   AcpSubprocess,
+  buildAcpUsageInfo,
   extractAcpSessionModelState,
 } from '../../acp';
 import { decodeOpencodeModelId } from '../models';
@@ -125,13 +126,22 @@ export class OpencodeAuxQueryRunner implements AuxQueryRunner {
         throw new Error('Cancelled');
       }
 
-      await this.connection.prompt({
+      const response = await this.connection.prompt({
         prompt: [{ type: 'text', text: prompt }],
         sessionId,
       });
 
       if (config.abortController?.signal.aborted) {
         throw new Error('Cancelled');
+      }
+
+      const usage = buildAcpUsageInfo({
+        model: config.model ?? this.currentModelId ?? undefined,
+        promptUsage: response.usage,
+        reportType: 'final',
+      });
+      if (usage) {
+        config.onUsage?.(usage);
       }
 
       return accumulatedText;

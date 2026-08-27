@@ -11,6 +11,7 @@ import type { ProviderCapabilities } from '../../core/providers/types';
  */
 export const FREEBUFF_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({
   providerId: 'freebuff',
+  promptDelivery: 'session-preamble',
   supportsPersistentRuntime: true,
   supportsNativeHistory: false,
   supportsPlanMode: false,

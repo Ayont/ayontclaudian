@@ -1,8 +1,11 @@
+import type { ChatTurnRequest, OutputSurface } from '../runtime/types';
 import {
   DEFAULT_WORKSPACE_MODE,
   getWorkspaceModeInstructions,
   type WorkspaceMode,
 } from '../workspace/workspaceMode';
+
+const SYSTEM_PROMPT_VERSION = 'presentation-contract-v3';
 
 export interface SystemPromptSettings {
   mediaFolder?: string;
@@ -429,23 +432,387 @@ function getAppendixSections(appendices?: string[]): string {
   return `\n\n${sections.join('\n\n')}`;
 }
 
+export interface TurnOutputContractOptions {
+  /** Full reference manuals are reserved for diagnostics; chat uses compact contracts. */
+  detailedSurfaceInstructions?: boolean;
+  mediaFolder?: string;
+  workspaceMode?: WorkspaceMode;
+}
+
+function getCompactWorkspaceInstructions(mode: WorkspaceMode): string {
+  return mode === 'work'
+    ? '## Active Workspace Mode: WORK\nLead with clear vault-ready knowledge work. Code requests still remain normal chat.'
+    : '## Active Workspace Mode: CODE\nLead with concrete engineering action, precise edits and verification. Artifact requests still remain available.';
+}
+
+function getCompactAutoMemoryInstructions(): string {
+  return 'Memory: only for a new durable cross-session fact, append at most one final `claudian-memory` fence (topic, tags, then 1-3 German sentences). Never store secrets or ephemeral task state; most answers need none.';
+}
+
+function getCompactNetworkInstructions(): string {
+  return [
+    '## Network-map surface',
+    'Include one canonical `network-map` fence once at least one real connection is known:',
+    '```network-map',
+    'Internet -- WAN --> FortiGate 60F',
+    'FortiGate 60F -- port2 / trunk --> Core Switch',
+    'Core Switch -- VLAN 20 --> Server',
+    '```',
+    'Keep prose and commands outside. Use exact confirmed device/interface/VLAN/subnet names, at most 12 nodes; never invent topology. Mark uncertainty with `?` and state with `up`, `warning`, `down`, or `unreachable`. If findings change, emit an updated complete map; the UI keeps only the newest frame.',
+  ].join('\n');
+}
+
+function getCompactLiveDocumentInstructions(): string {
+  return [
+    '## Live-document surface',
+    'Put the complete deliverable in one editable Markdown fence; commentary stays outside:',
+    '```claudian-document',
+    '---',
+    'title: Project proposal',
+    'subtitle: Optional subtitle',
+    'author: Optional author',
+    'date: 2026-07-10',
+    'type: Proposal',
+    'theme: editorial',
+    '---',
+    '# Project proposal',
+    '## Executive summary',
+    'Document content...',
+    '```',
+    'Themes: `editorial`, `business`, `minimal`, `warm`, `technical`. Use clear structure. Never invent facts, names, dates, prices or legal claims; write `[To be completed]` for missing facts. No raw HTML. Use four backticks for the outer fence when the body contains triple-backtick code.',
+  ].join('\n');
+}
+
+function getCompactEmailInstructions(): string {
+  return [
+    '## Email surface',
+    'Return ready-to-send plain text in one or more adjacent blocks:',
+    '```claudian-email',
+    '---',
+    'subject: Concise subject',
+    'to: "[Recipient]"',
+    'preheader: Optional preview',
+    'template: concise',
+    '---',
+    'Hello [Name],',
+    '',
+    'Email body.',
+    '',
+    'Best regards',
+    '[Sender]',
+    '```',
+    'Templates: `concise`, `business`, `friendly`, `follow-up`, `sales`, `support`. Preserve language and tone; never invent personal data, and mark gaps as `[Placeholders]`. No Markdown headings, bold, tables or HTML in the body. Without a requested tone, emit adjacent concise, business, friendly and support variants; otherwise only the requested variant.',
+  ].join('\n');
+}
+
+function getCompactImageInstructions(): string {
+  return [
+    '## Image surface',
+    'Use a real image-generation tool, then emit exactly one result card:',
+    '```claudian-image',
+    '---',
+    'title: Campaign visual',
+    'prompt: Exact generation prompt',
+    'path: attachments/campaign-visual.png',
+    'alt: Accessible description',
+    'provider: Image generation',
+    '---',
+    '```',
+    'Never claim success without a real local path or returned HTTPS URL. Prefer a vault-relative path and preserve the exact prompt. Do not emit this block for ordinary image analysis.',
+  ].join('\n');
+}
+
+function getCompactSkillInstructions(): string {
+  return [
+    '## Skill surface',
+    'Emit one complete skill and keep explanation outside:',
+    '```claudian-skill',
+    '---',
+    'name: pdf-form-filler',
+    'description: Fill and validate PDF forms. Use when the user asks to fill, flatten, merge, or verify a PDF form.',
+    '---',
+    '# PDF Form Filler',
+    '## Overview',
+    'Outcome and scope.',
+    '## When to use',
+    '- Concrete triggers.',
+    '## Workflow',
+    '1. Imperative, deterministic steps.',
+    '## Examples',
+    'Input -> action -> output.',
+    '## Guardrails',
+    '- Safe failures and prohibitions.',
+    '```',
+    '`name` is kebab-case (max 64). `description` is trigger-rich, third person, contains "Use when", and stays below 1024 chars. Use progressive disclosure for long references/scripts, explicit assumptions and `[To be completed]` for missing facts.',
+  ].join('\n');
+}
+
+function getCompactPacketTracerInstructions(): string {
+  return 'Packet Tracer: add a buildable device/port/cable inventory, IP/VLAN table, per-device Cisco CLI and verification commands. Use real decoded XML names when present; never claim an encrypted `.pkt` was decoded without readable XML.';
+}
+
+const CREATION_WORD_PATTERNS = [
+  /^creat(?:e|es|ed|ing)$/,
+  /^generat(?:e|es|ed|ing)$/,
+  /^mak(?:e|es|ing)$/,
+  /^made$/,
+  /^draft(?:s|ed|ing)?$/,
+  /^writ(?:e|es|ing|ten)$/,
+  /^compos(?:e|es|ed|ing)$/,
+  /^rewrit(?:e|es|ing|ten)$/,
+  /^structur(?:e|es|ed|ing)$/,
+  /^erstell(?:e|en|st|t)?$/,
+  /^entw(?:irf|erfe|erfen)$/,
+  /^schreib(?:e|en|st|t)?$/,
+  /^formulier(?:e|en|st|t)?$/,
+  /^verfass(?:e|en|st|t)?$/,
+  /^strukturier(?:e|en|st|t)?$/,
+  /^überarbeit(?:e|en|est|et)?$/,
+  /^umschreib(?:e|en|st|t)?$/,
+  /^generier(?:e|en|st|t)?$/,
+  /^erzeug(?:e|en|st|t)?$/,
+  /^mach(?:e|en|st|t)?$/,
+];
+
+const ENGINEERING_WORDS = new Set([
+  'bug', 'bugs', 'class', 'code', 'component', 'css', 'function', 'hook',
+  'implementation', 'implementierung', 'javascript', 'klasse', 'komponente',
+  'parser', 'renderer', 'sourcecode', 'stylesheet', 'test', 'tests', 'typescript',
+  'funktion', 'quellcode',
+]);
+
+const STRONG_DOCUMENT_WORDS = new Set([
+  'angebot', 'bericht', 'brief', 'briefing', 'dokumentation', 'handbuch',
+  'konzept', 'letter', 'policy', 'projektplan', 'proposal', 'report',
+  'richtlinie', 'sop', 'zusammenfassung',
+]);
+
+function includesAny(source: string, terms: readonly string[]): boolean {
+  return terms.some((term) => source.includes(term));
+}
+
+function includesBoundedIntentTerm(source: string, term: string): boolean {
+  const escaped = term.trim()
+    .split(/\s+/)
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('\\s+');
+  return new RegExp(
+    `(?:^|[^\\p{L}\\p{N}_])${escaped}(?:s|es|e|en)?(?=$|[^\\p{L}\\p{N}_]|\\d)`,
+    'iu',
+  ).test(source);
+}
+
+function tokenizeIntent(source: string): string[] {
+  return source.match(/[\p{L}\p{N}_]+/gu) ?? [];
+}
+
+function hasCreationIntent(source: string, words: readonly string[]): boolean {
+  const informationalLead = /^(?:wie|how)\b|^(?:(?:kann|könnte|soll)\s+ich|can\s+i|should\s+i)\b/i;
+  const explanatoryHowTo = /\b(?:erklär\p{L}*|beschreib\p{L}*|explain\p{L}*|describe\p{L}*)\b[^.!?]*\b(?:wie|how)\b/iu;
+  if (informationalLead.test(source.trim()) || explanatoryHowTo.test(source)) {
+    return false;
+  }
+  return words.some((word) => CREATION_WORD_PATTERNS.some((pattern) => pattern.test(word)));
+}
+
+function hasEngineeringContext(words: readonly string[]): boolean {
+  return words.some((word) => ENGINEERING_WORDS.has(word));
+}
+
+function isRawProviderCommand(text: string): boolean {
+  return /^\s*\/[a-z][\w-]*(?:\s|$)/i.test(text);
+}
+
+export function resolveTurnOutputSurface(
+  text: string,
+  requestedSurface?: OutputSurface,
+): OutputSurface {
+  if (requestedSurface && requestedSurface !== 'chat') return requestedSurface;
+
+  const source = text.toLocaleLowerCase('de-DE');
+  const words = tokenizeIntent(source);
+  const create = hasCreationIntent(source, words);
+
+  // Explicit document nouns remain authoritative even when their subject is a
+  // renderer or codebase ("Schreib ein Handbuch für den Renderer"). Generic
+  // feature words such as "Dokument-System" do not qualify on their own.
+  if (create && words.some((word) => STRONG_DOCUMENT_WORDS.has(word))) {
+    return 'live-document';
+  }
+
+  const explicitEmail = create && (
+    includesAny(source, ['mailvorlage', 'mail template'])
+    || /\b(?:e-mail|email)\s+(?:an|to|für|for)\b/i.test(source)
+  );
+  if (explicitEmail) return 'email';
+
+  if (create && includesAny(source, ['agent skill', 'agent-skill', 'skill.md', 'skill für', 'skill for'])) {
+    return 'skill';
+  }
+
+  // Code/renderer/parser requests are implementation work even when they also
+  // contain words such as image, document or firewall. This conservative gate
+  // prevents ordinary debugging answers from being forced into artifact views.
+  if (hasEngineeringContext(words)) return 'chat';
+
+  const emailNoun = includesAny(source, ['e-mail', 'email', 'mailvorlage', 'mail template']);
+  const replyAction = words.some((word) =>
+    /^(?:antwort(?:e|en|est|et)|beantwort(?:e|en|est|et)|repl(?:y|ies|ied|ying))$/.test(word));
+  const replyRecipient = includesAny(source, ['kunde', 'customer', 'ticket', 'empfänger', 'recipient']);
+  const customerReplyDraft = create && replyRecipient && includesAny(source, ['antwort', 'reply']);
+  if ((emailNoun && (create || replyAction)) || (replyRecipient && replyAction) || customerReplyDraft) {
+    return 'email';
+  }
+
+  if (create && includesAny(source, [
+    'bild', 'image', 'grafik', 'illustration', 'visual', 'kampagnenmotiv', 'logo',
+  ])) {
+    return 'image';
+  }
+
+  if (create && includesAny(source, [
+    'dokument', 'document', 'bericht', 'report', 'angebot', 'proposal', 'konzept',
+    'briefing', 'handbuch', 'sop', 'richtlinie', 'policy', 'projektplan', 'notiz',
+    'meeting summary', 'zusammenfassung', 'letter', 'brief',
+  ])) {
+    return 'live-document';
+  }
+
+  const highConfidenceNetworkTerms = [
+    'fortigate', 'fortinet', 'opnsense', 'pfsense', 'packet tracer', 'vlan',
+    'subnet', 'ipsec', 'firewall', 'topologie', 'topology',
+  ];
+  const genericNetworkTerms = [
+    'router', 'routing', 'switch', 'gateway', 'wan', ' lan ', 'vpn', 'dhcp',
+    'dns', 'netzwerk', 'network', 'uplink', 'trunk',
+  ];
+  const explicitTopologyTerms = [
+    'topologie', 'topology', 'netzplan', 'netzwerkplan', 'network map',
+    'netzwerkdiagramm', 'network diagram',
+  ];
+  const operationalNetworkPatterns = [
+    /^analysier/, /^diagnos/, /^prüf/, /^test/, /^troubleshoot/,
+    /^konfigurier/, /^richt(?:e|en|est|et)$/, /^verbind/,
+    /^fehler/, /^problem/, /^störung/, /^ausfall/,
+    /^port\d*$/, /^interface$/, /^trunk$/, /^uplink$/,
+  ];
+  const topologyActionPatterns = [/^zeichn/, /^visualisier/, /^zeig/];
+  const highConfidenceMatches = highConfidenceNetworkTerms
+    .filter((term) => includesBoundedIntentTerm(source, term)).length;
+  const genericMatches = genericNetworkTerms
+    .filter((term) => includesBoundedIntentTerm(source, term)).length;
+  const networkEntityCount = highConfidenceMatches + genericMatches;
+  const operationalNetworkIntent = words.some((word) =>
+    operationalNetworkPatterns.some((pattern) => pattern.test(word)))
+    || includesAny(source, ['geht nicht', 'funktioniert nicht', 'nicht erreichbar'])
+    || (
+      words.includes('nicht')
+      && words.some((word) => /^(?:funktionier|geh|erreich)/.test(word))
+    );
+  const explicitTopologyRequest = includesAny(source, explicitTopologyTerms)
+    && (create || words.some((word) => topologyActionPatterns.some((pattern) => pattern.test(word))));
+  const containsTopologyData = /(?:-->|--|\bvlan\s*\d+|\bport\d+|\b\d{1,3}(?:\.\d{1,3}){3}\/\d{1,2}\b)/i.test(source);
+  if (
+    explicitTopologyRequest
+    || (networkEntityCount >= 2 && (operationalNetworkIntent || containsTopologyData))
+  ) {
+    return 'network-map';
+  }
+
+  return 'chat';
+}
+
+function hasVideoReference(text: string): boolean {
+  return /(?:^|[\s@/])[^\s]+\.(?:mp4|mov|webm|mkv|m4v)(?:\s|$)/i.test(text);
+}
+
+function hasImageReference(request: ChatTurnRequest): boolean {
+  return (request.images?.length ?? 0) > 0
+    || /(?:^|[\s@/])[^\s]+\.(?:png|jpe?g|gif|webp)(?:\s|$)/i.test(request.text);
+}
+
+function asksForDesktopControl(text: string): boolean {
+  const source = text.toLocaleLowerCase('de-DE');
+  const action = includesAny(source, [
+    'klick', 'öffne', 'schließe', 'tippe', 'steuere', 'maus', 'screenshot',
+    'click', 'open the app', 'close the app', 'type ', 'control my computer',
+  ]);
+  return action && includesAny(source, [
+    'computer', 'desktop', 'bildschirm', 'fenster', 'app', 'browser', 'mouse', 'screen',
+  ]);
+}
+
+/** Builds the application-owned, turn-scoped presentation contract. */
+export function buildTurnOutputContract(
+  request: ChatTurnRequest,
+  options: TurnOutputContractOptions = {},
+): string {
+  const surface = resolveTurnOutputSurface(request.text, request.outputSurface);
+  const workspaceMode = options.workspaceMode ?? DEFAULT_WORKSPACE_MODE;
+  const detailed = options.detailedSurfaceInstructions === true;
+  const sections = [
+    detailed ? getWorkspaceModeInstructions(workspaceMode) : getCompactWorkspaceInstructions(workspaceMode),
+  ];
+  if (detailed) sections.push(getAutoMemoryInstructions());
+
+  if (hasImageReference(request)) sections.push(getImageInstructions(options.mediaFolder || ''));
+  if (hasVideoReference(request.text)) sections.push(getVideoAnalysisInstructions());
+  if (asksForDesktopControl(request.text)) sections.push(getComputerControlInstructions());
+
+  switch (surface) {
+    case 'live-document':
+      sections.push(detailed ? getLiveDocumentInstructions() : getCompactLiveDocumentInstructions());
+      break;
+    case 'email':
+      sections.push(detailed ? getEmailTemplateInstructions() : getCompactEmailInstructions());
+      break;
+    case 'network-map':
+      sections.push(detailed ? getNetworkDiagramInstructions() : getCompactNetworkInstructions());
+      if (/packet tracer|\.pkt\b/i.test(request.text)) {
+        sections.push(detailed ? getPacketTracerInstructions() : getCompactPacketTracerInstructions());
+      }
+      break;
+    case 'image':
+      sections.push(detailed ? getInlineImageInstructions() : getCompactImageInstructions());
+      break;
+    case 'skill':
+      sections.push(detailed ? getSkillCreatorInstructions() : getCompactSkillInstructions());
+      break;
+    case 'chat':
+      break;
+  }
+
+  const body = sections.map((section) => section.trim()).filter(Boolean).join('\n\n');
+  return [
+    `<claudian_output_contract surface="${surface}">`,
+    'Application guidance for this turn. Do not quote or mention this block.',
+    body,
+    '</claudian_output_contract>',
+  ].join('\n');
+}
+
+/** Adds a provider-neutral output contract without changing raw CLI slash commands. */
+export function applyTurnOutputContract(
+  request: ChatTurnRequest,
+  options: TurnOutputContractOptions = {},
+): ChatTurnRequest {
+  if (isRawProviderCommand(request.text)) return request;
+
+  const outputSurface = resolveTurnOutputSurface(request.text, request.outputSurface);
+  const contract = buildTurnOutputContract({ ...request, outputSurface }, options);
+  return {
+    ...request,
+    outputSurface,
+    text: `${request.text}\n\n${contract}`,
+  };
+}
+
 export function buildSystemPrompt(
   settings: SystemPromptSettings = {},
   options: SystemPromptBuildOptions = {},
 ): string {
   let prompt = getBaseSystemPrompt(settings.vaultPath, settings.userName);
-
-  prompt += getImageInstructions(settings.mediaFolder || '');
-  prompt += getNetworkDiagramInstructions();
-  prompt += getLiveDocumentInstructions();
-  prompt += getEmailTemplateInstructions();
-  prompt += getInlineImageInstructions();
-  prompt += getPacketTracerInstructions();
-  prompt += getVideoAnalysisInstructions();
-  prompt += getComputerControlInstructions();
-  prompt += getSkillCreatorInstructions();
-  prompt += getAutoMemoryInstructions();
-  prompt += getWorkspaceModeInstructions(settings.workspaceMode ?? DEFAULT_WORKSPACE_MODE);
+  prompt += `\n\n${getCompactAutoMemoryInstructions()}`;
   prompt += getAppendixSections(options.appendices);
 
   if (settings.customPrompt?.trim()) {
@@ -465,13 +832,10 @@ export function computeSystemPromptKey(
     .join('||');
 
   const parts = [
-    settings.mediaFolder || '',
+    SYSTEM_PROMPT_VERSION,
     settings.customPrompt || '',
     settings.vaultPath || '',
     (settings.userName || '').trim(),
-    // Mode is part of the key: switching Code↔Work must invalidate cached
-    // system prompts / restart persistent queries so the new section applies.
-    settings.workspaceMode ?? DEFAULT_WORKSPACE_MODE,
   ];
 
   if (appendixKey) {

@@ -42,7 +42,7 @@ export function describeChangeCount(count: number): string {
   if (count === 0) {
     return 'Keine Änderungen';
   }
-  return count === 1 ? '1 changed file' : `${count} changed files`;
+  return count === 1 ? '1 geänderte Datei' : `${count} geänderte Dateien`;
 }
 
 type FeedbackKind = 'success' | 'error';
@@ -102,52 +102,48 @@ export class CommitBar {
 
     const input = row.createEl('input', {
       cls: 'claudian-commit-bar-input',
-      attr: { type: 'text', placeholder: 'Commit-Nachricht…', dir: 'auto' },
+      attr: {
+        type: 'text',
+        placeholder: 'Commit-Nachricht…',
+        dir: 'auto',
+        'aria-label': 'Commit-Nachricht',
+      },
     });
     this.inputEl = input as HTMLInputElement;
     this.inputEl.addEventListener('input', this.boundInput);
 
-    this.suggestBtn = row.createDiv({ cls: 'claudian-commit-bar-suggest' });
-    this.suggestBtn.setAttribute('role', 'button');
-    this.suggestBtn.setAttribute('tabindex', '0');
-    this.suggestBtn.setAttribute('title', 'Nachricht aus Änderungen vorschlagen');
+    this.suggestBtn = row.createEl('button', {
+      cls: 'claudian-commit-bar-suggest',
+      attr: {
+        type: 'button',
+        title: 'Nachricht aus Änderungen vorschlagen',
+        'aria-label': 'Commit-Nachricht aus Änderungen vorschlagen',
+      },
+    });
     const suggestIcon = this.suggestBtn.createSpan({ cls: 'claudian-commit-bar-suggest-icon' });
     setIcon(suggestIcon, 'sparkles');
     this.suggestBtn.addEventListener('click', () => this.applySuggestion());
-    this.suggestBtn.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        this.applySuggestion();
-      }
-    });
 
     const actions = this.container.createDiv({ cls: 'claudian-commit-bar-actions' });
 
-    this.commitBtn = actions.createDiv({ cls: 'claudian-commit-bar-btn claudian-commit-bar-commit' });
-    this.commitBtn.setAttribute('role', 'button');
-    this.commitBtn.setAttribute('tabindex', '0');
-    this.commitBtn.setText('Commit');
+    this.commitBtn = actions.createEl('button', {
+      cls: 'claudian-commit-bar-btn claudian-commit-bar-commit',
+      text: 'Commit',
+      attr: { type: 'button' },
+    });
     this.commitBtn.addEventListener('click', () => this.runCommit(false));
-    this.commitBtn.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        this.runCommit(false);
-      }
-    });
 
-    this.pushBtn = actions.createDiv({ cls: 'claudian-commit-bar-btn claudian-commit-bar-push' });
-    this.pushBtn.setAttribute('role', 'button');
-    this.pushBtn.setAttribute('tabindex', '0');
-    this.pushBtn.setText('Commit & Push');
-    this.pushBtn.addEventListener('click', () => this.runCommit(true));
-    this.pushBtn.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        this.runCommit(true);
-      }
+    this.pushBtn = actions.createEl('button', {
+      cls: 'claudian-commit-bar-btn claudian-commit-bar-push',
+      text: 'Commit & Push',
+      attr: { type: 'button' },
     });
+    this.pushBtn.addEventListener('click', () => this.runCommit(true));
 
     this.feedbackEl = this.container.createDiv({ cls: 'claudian-commit-bar-feedback claudian-hidden' });
+    this.feedbackEl.setAttribute('role', 'status');
+    this.feedbackEl.setAttribute('aria-live', 'polite');
+    this.feedbackEl.setAttribute('aria-atomic', 'true');
   }
 
   /**
@@ -200,7 +196,7 @@ export class CommitBar {
   /** Syncs the branch label + change count from current state. */
   private updateDisplay(): void {
     if (this.branchEl) {
-      this.branchEl.setText(this.branch ?? 'detached');
+      this.branchEl.setText(this.branch ?? 'ohne Branch');
     }
     if (this.countEl) {
       this.countEl.setText(describeChangeCount(this.files.length));
@@ -272,6 +268,7 @@ export class CommitBar {
     }
     el.toggleClass('claudian-commit-bar-disabled', disabled);
     el.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+    (el as HTMLButtonElement).disabled = disabled;
   }
 
   /** Fills the input with a suggested message derived from current changes. */
@@ -340,7 +337,7 @@ export class CommitBar {
         this.inputEl.value = '';
       }
       await this.refresh();
-      this.showFeedback('success', withPush ? 'Committed & gepusht' : 'Committed');
+      this.showFeedback('success', withPush ? 'Commit erstellt und gepusht' : 'Commit erstellt');
     } catch (error) {
       this.setRunning(false);
       const detail = error instanceof Error ? error.message : 'Unbekannter Fehler';

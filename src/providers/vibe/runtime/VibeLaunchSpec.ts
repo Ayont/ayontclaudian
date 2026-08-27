@@ -29,6 +29,8 @@ export interface BuildVibeLaunchSpecParams {
   sessionId?: string | null;
   maxTurns?: number;
   maxTokens?: number;
+  /** Adds Vibe's workspace-trust bypass. Disable for hidden/read-only auxiliary work. */
+  trustWorkspace?: boolean;
 }
 
 export interface VibeLaunchSpec {
@@ -61,7 +63,11 @@ function vibeAgentForMode(mode: VibePermissionMode, preferred?: string, agentFil
 
 export function buildVibeLaunchSpec(params: BuildVibeLaunchSpecParams): VibeLaunchSpec {
   const agentPreset = vibeAgentForMode(params.permissionMode, params.agent, params.agentFile);
-  const args = ['--output', 'streaming', '--trust', '--agent', agentPreset];
+  const args = ['--output', 'streaming'];
+  if (params.trustWorkspace !== false) {
+    args.push('--trust');
+  }
+  args.push('--agent', agentPreset);
 
   // YOLO is a separate flag on 2.20 and is what actually skips tool prompts.
   if (params.permissionMode === 'yolo') {
@@ -101,6 +107,7 @@ export function buildVibeLaunchSpec(params: BuildVibeLaunchSpecParams): VibeLaun
       model: model ?? '',
       permissionMode: params.permissionMode,
       sessionId: sessionId ?? null,
+      trustWorkspace: params.trustWorkspace !== false,
     }),
   };
 }

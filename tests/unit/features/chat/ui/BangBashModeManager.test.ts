@@ -1,3 +1,5 @@
+import { Notice } from 'obsidian';
+
 import { BangBashModeManager } from '@/features/chat/ui/BangBashModeManager';
 
 function createWrapper() {
@@ -296,6 +298,7 @@ describe('BangBashModeManager', () => {
   });
 
   it('should not produce unhandled rejection when onSubmit throws', async () => {
+    jest.clearAllMocks();
     const wrapper = createWrapper();
     const inputEl = { value: '', placeholder: 'Ask...' } as any;
     const callbacks = {
@@ -316,6 +319,7 @@ describe('BangBashModeManager', () => {
 
     // Should not throw, error is caught internally
     expect(callbacks.onSubmit).toHaveBeenCalledWith('bad-command');
+    expect(Notice).toHaveBeenCalledWith('Befehl fehlgeschlagen: boom');
     expect(manager.isActive()).toBe(false);
   });
 });

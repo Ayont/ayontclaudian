@@ -55,6 +55,7 @@ const showInsertion = StateEffect.define<{
 const hideInlineEdit = StateEffect.define<null>();
 
 let activeController: InlineEditController | null = null;
+let nextInlineEditStatusId = 1;
 
 class InputWidget extends WidgetType {
   constructor(private controller: InlineEditController) {
@@ -282,7 +283,7 @@ export class InlineEditModal {
     }
 
     if (!editorView) {
-      new Notice('Inline edit unavailable: could not access the active editor. Try reopening the note.');
+      new Notice('Inline-Bearbeitung nicht verfügbar: Der aktive Editor konnte nicht geöffnet werden. Bitte öffne die Notiz erneut.');
       return { decision: 'reject' };
     }
 
@@ -307,6 +308,7 @@ class InlineEditController {
   private inputEl: HTMLInputElement | null = null;
   private spinnerEl: HTMLElement | null = null;
   private agentReplyEl: HTMLElement | null = null;
+  private errorEl: HTMLElement | null = null;
   private containerEl: HTMLElement | null = null;
   private editedText: string | null = null;
   private insertedText: string | null = null;
@@ -357,7 +359,7 @@ class InlineEditController {
     this.resolvedProviderId = providerId;
     this.mentionDataProvider = new VaultMentionDataProvider(this.app, {
       onFileLoadError: () => {
-        new Notice('Failed to load vault files. Vault @-mentions may be unavailable.');
+        new Notice('Vault-Dateien konnten nicht geladen werden. @-Erwähnungen aus dem Vault sind eventuell nicht verfügbar.');
       },
     });
     this.mentionDataProvider.initializeInBackground();
@@ -469,10 +471,14 @@ class InlineEditController {
     const ownerDocument = this.getOwnerDocument();
     const container = ownerDocument.createElement('div');
     container.className = 'claudian-inline-input-container';
+    container.setAttribute('role', 'region');
+    container.setAttribute('aria-label', 'Inline-Bearbeitung');
     this.containerEl = container;
 
     this.agentReplyEl = ownerDocument.createElement('div');
     this.agentReplyEl.className = 'claudian-inline-agent-reply claudian-hidden';
+    this.agentReplyEl.setAttribute('role', 'status');
+    this.agentReplyEl.setAttribute('aria-live', 'polite');
     container.appendChild(this.agentReplyEl);
 
     const inputWrap = ownerDocument.createElement('div');
@@ -482,13 +488,28 @@ class InlineEditController {
     this.inputEl = ownerDocument.createElement('input');
     this.inputEl.type = 'text';
     this.inputEl.className = 'claudian-inline-input';
-    this.inputEl.placeholder = this.mode === 'cursor' ? 'Insert instructions...' : 'Edit instructions...';
+    this.inputEl.placeholder = this.mode === 'cursor'
+      ? 'Text an dieser Stelle einfügen …'
+      : 'Auswahl bearbeiten …';
+    this.inputEl.setAttribute('aria-label', 'Anweisung für die Inline-Bearbeitung');
+    this.inputEl.setAttribute('aria-busy', 'false');
     this.inputEl.spellcheck = false;
     inputWrap.appendChild(this.inputEl);
 
     this.spinnerEl = ownerDocument.createElement('div');
     this.spinnerEl.className = 'claudian-inline-spinner claudian-hidden';
+    this.spinnerEl.setAttribute('role', 'status');
+    this.spinnerEl.setAttribute('aria-live', 'polite');
+    this.spinnerEl.setAttribute('aria-label', 'Änderung wird erstellt');
+    this.spinnerEl.setAttribute('aria-hidden', 'true');
     inputWrap.appendChild(this.spinnerEl);
+
+    this.errorEl = ownerDocument.createElement('div');
+    this.errorEl.id = `claudian-inline-error-${nextInlineEditStatusId++}`;
+    this.errorEl.className = 'claudian-inline-error claudian-hidden';
+    this.errorEl.setAttribute('role', 'alert');
+    this.errorEl.setAttribute('aria-live', 'assertive');
+    container.appendChild(this.errorEl);
 
     const inlineCatalog = ProviderWorkspaceRegistry.getCommandCatalog(this.resolvedProviderId);
     this.slashCommandDropdown = new SlashCommandDropdown(
@@ -527,7 +548,10 @@ class InlineEditController {
     );
 
     this.inputEl.addEventListener('keydown', (e) => this.handleKeydown(e));
-    this.inputEl.addEventListener('input', () => this.mentionDropdown?.handleInputChange());
+    this.inputEl.addEventListener('input', () => {
+      this.clearError();
+      this.mentionDropdown?.handleInputChange();
+    });
 
     window.setTimeout(() => this.inputEl?.focus(), 50);
     return container;
@@ -544,8 +568,10 @@ class InlineEditController {
 
     const actionsEl = ownerDocument.createElement('div');
     actionsEl.className = 'claudian-inline-preview-actions';
-    actionsEl.appendChild(this.createPreviewActionButton('Reject', 'reject', () => this.reject()));
-    actionsEl.appendChild(this.createPreviewActionButton('Accept', 'accept', () => this.accept()));
+    actionsEl.setAttribute('role', 'group');
+    actionsEl.setAttribute('aria-label', 'Änderung prüfen');
+    actionsEl.appendChild(this.createPreviewActionButton('Verwerfen', 'reject', () => this.reject()));
+    actionsEl.appendChild(this.createPreviewActionButton('Übernehmen', 'accept', () => this.accept()));
     previewEl.appendChild(actionsEl);
 
     void this.renderMarkdownDiffPreview(bodyEl, diffOps);
@@ -562,7 +588,10 @@ class InlineEditController {
     button.type = 'button';
     button.className = `claudian-inline-preview-action ${variant}`;
     button.textContent = label;
-    button.title = variant === 'accept' ? 'Accept (enter)' : 'Reject (esc)';
+    const shortcut = variant === 'accept' ? 'Eingabe' : 'Esc';
+    button.title = variant === 'accept' ? 'Übernehmen (Eingabe)' : 'Verwerfen (Esc)';
+    button.setAttribute('aria-label', `Änderung ${variant === 'accept' ? 'übernehmen' : 'verwerfen'} (${shortcut})`);
+    button.setAttribute('aria-keyshortcuts', variant === 'accept' ? 'Enter' : 'Escape');
     button.addEventListener('click', (event) => {
       event.preventDefault?.();
       event.stopPropagation?.();
@@ -635,59 +664,71 @@ class InlineEditController {
 
     this.removeSelectionListeners();
 
-    this.inputEl.disabled = true;
-    this.spinnerEl.removeClass('claudian-hidden');
+    this.setGenerating(true);
 
     const contextFiles = this.resolveContextFilesFromMessage(userMessage);
 
-    let result;
-    if (this.isConversing) {
-      result = await this.inlineEditService.continueConversation(userMessage, contextFiles);
-    } else {
-      if (this.mode === 'cursor') {
-        result = await this.inlineEditService.editText({
-          mode: 'cursor',
-          instruction: userMessage,
-          notePath: this.notePath,
-          cursorContext: this.cursorContext as CursorContext,
-          contextFiles,
-        });
+    try {
+      let result;
+      if (this.isConversing) {
+        result = await this.inlineEditService.continueConversation(userMessage, contextFiles);
       } else {
-        const lineCount = this.selectedText.split(/\r?\n/).length;
-        result = await this.inlineEditService.editText({
-          mode: 'selection',
-          instruction: userMessage,
-          notePath: this.notePath,
-          selectedText: this.selectedText,
-          startLine: this.startLine,
-          lineCount,
-          contextFiles,
-        });
+        if (this.mode === 'cursor') {
+          result = await this.inlineEditService.editText({
+            mode: 'cursor',
+            instruction: userMessage,
+            notePath: this.notePath,
+            cursorContext: this.cursorContext as CursorContext,
+            contextFiles,
+          });
+        } else {
+          const lineCount = this.selectedText.split(/\r?\n/).length;
+          result = await this.inlineEditService.editText({
+            mode: 'selection',
+            instruction: userMessage,
+            notePath: this.notePath,
+            selectedText: this.selectedText,
+            startLine: this.startLine,
+            lineCount,
+            contextFiles,
+          });
+        }
       }
-    }
 
-    this.spinnerEl.addClass('claudian-hidden');
+      this.setGenerating(false);
 
-    if (result.success) {
-      if (result.editedText !== undefined) {
-        this.editedText = result.editedText;
-        this.showDiffInPlace();
-      } else if (result.insertedText !== undefined) {
-        this.insertedText = result.insertedText;
-        this.showInsertionInPlace();
-      } else if (result.clarification) {
-        this.showAgentReply(result.clarification);
-        this.isConversing = true;
-        this.inputEl.disabled = false;
-        this.inputEl.value = '';
-        this.inputEl.placeholder = 'Reply to continue...';
-        this.inputEl.focus();
+      if (result.success) {
+        if (result.editedText !== undefined) {
+          this.editedText = result.editedText;
+          this.showDiffInPlace();
+        } else if (result.insertedText !== undefined) {
+          this.insertedText = result.insertedText;
+          this.showInsertionInPlace();
+        } else if (result.clarification) {
+          this.showAgentReply(result.clarification);
+          this.isConversing = true;
+          this.inputEl.value = '';
+          this.inputEl.placeholder = 'Antwort eingeben …';
+          this.inputEl.focus();
+        } else {
+          this.handleError('Keine Antwort vom Agenten erhalten.');
+        }
       } else {
-        this.handleError('No response from agent');
+        this.handleError(result.error || 'Bearbeitung fehlgeschlagen. Bitte erneut versuchen.');
       }
-    } else {
-      this.handleError(result.error || 'Error - try again');
+    } catch {
+      this.setGenerating(false);
+      this.handleError('Bearbeitung fehlgeschlagen. Bitte erneut versuchen.');
     }
+  }
+
+  private setGenerating(isGenerating: boolean): void {
+    if (!this.inputEl || !this.spinnerEl) return;
+    if (isGenerating) this.clearError();
+    this.inputEl.disabled = isGenerating;
+    this.inputEl.setAttribute('aria-busy', isGenerating ? 'true' : 'false');
+    this.spinnerEl.toggleClass('claudian-hidden', !isGenerating);
+    this.spinnerEl.setAttribute('aria-hidden', isGenerating ? 'false' : 'true');
   }
 
   private showAgentReply(message: string) {
@@ -709,12 +750,27 @@ class InlineEditController {
 
   private handleError(errorMessage: string) {
     if (!this.inputEl) return;
-    this.inputEl.disabled = false;
-    this.inputEl.placeholder = errorMessage;
     this.updatePositionsFromEditor();
     this.updateHighlight();
     this.attachSelectionListeners();
+    if (!this.inputEl) return;
+    this.inputEl.disabled = false;
+    this.inputEl.setAttribute('aria-busy', 'false');
+    this.inputEl.setAttribute('aria-invalid', 'true');
+    if (this.errorEl) {
+      this.errorEl.setText(errorMessage);
+      this.errorEl.removeClass('claudian-hidden');
+      this.inputEl.setAttribute('aria-errormessage', this.errorEl.id);
+    }
+    this.inputEl.placeholder = errorMessage;
     this.inputEl.focus();
+  }
+
+  private clearError(): void {
+    this.inputEl?.removeAttribute('aria-invalid');
+    this.inputEl?.removeAttribute('aria-errormessage');
+    this.errorEl?.addClass('claudian-hidden');
+    this.errorEl?.setText('');
   }
 
   private showDiffInPlace() {
@@ -786,9 +842,11 @@ class InlineEditController {
 
       this.cleanup();
       this.editor.replaceRange(textToInsert, from, to);
+      this.focusEditor();
       this.resolve({ decision: 'accept', editedText: textToInsert });
     } else {
       this.cleanup();
+      this.focusEditor();
       this.resolve({ decision: 'reject' });
     }
   }
@@ -796,6 +854,7 @@ class InlineEditController {
   reject() {
     this.cleanup({ keepSelectionHighlight: true });
     this.restoreSelectionHighlight();
+    this.focusEditor();
     this.resolve({ decision: 'reject' });
   }
 
@@ -839,6 +898,12 @@ class InlineEditController {
     showSelectionHighlight(this.editorView, this.selFrom, this.selTo);
   }
 
+  private focusEditor(): void {
+    if (typeof this.editorView.focus === 'function') {
+      this.editorView.focus();
+    }
+  }
+
   private handleKeydown(e: KeyboardEvent) {
     if (this.mentionDropdown?.handleKeydown(e)) {
       return;
@@ -859,7 +924,7 @@ class InlineEditController {
       const vaultPath = getVaultPath(this.app);
       return normalizePathForVaultUtil(rawPath, vaultPath);
     } catch {
-      new Notice('Failed to attach file: invalid path');
+      new Notice('Datei konnte nicht angehängt werden: ungültiger Pfad.');
       return null;
     }
   }

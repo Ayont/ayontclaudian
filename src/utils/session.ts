@@ -6,7 +6,7 @@
 
 import { stripGoalBlocks } from '../core/conversation/goalPrompt';
 import type { ChatMessage, ToolCallInfo } from '../core/types';
-import { extractUserQuery, formatCurrentNote } from './context';
+import { extractUserDisplayContent, extractUserQuery, formatCurrentNote } from './context';
 
 // ============================================
 // Session Recovery
@@ -55,6 +55,11 @@ export function isSessionExpiredError(error: unknown): boolean {
 // ============================================
 // History Reconstruction
 // ============================================
+
+/** Roughly six thousand tokens of replayed history at four characters/token. */
+export const HISTORY_CONTEXT_CHAR_CAP = 24_000;
+const EARLIER_TURNS_OMITTED_NOTE = '[earlier turns omitted]';
+const MESSAGE_MIDDLE_OMITTED_NOTE = '[message middle omitted]';
 
 /**
  * Formats tool input for inclusion in rebuilt context.
@@ -179,9 +184,23 @@ export function buildContextFromHistory(messages: ChatMessage[]): string {
 
     const role = message.role === 'user' ? 'User' : 'Assistant';
     const lines: string[] = [];
-    // Strip framed standing-goal blocks from prior turns: the goal is re-injected
-    // fresh into the current turn, so keeping it per-turn here just wastes tokens.
-    const content = stripGoalBlocks(message.content ?? '').trim();
+    // Persisted user messages may contain the complete provider transport prompt
+    // (RAG, memory, output manuals and the standing goal). Replaying that internal
+    // payload on every stateless turn both leaks UI-only metadata and multiplies
+    // token usage. Prefer the exact visible text saved with the message, then use
+    // the shared display sanitizer for older conversations that predate it.
+    const rawContent = message.content ?? '';
+    let content: string;
+    if (message.role === 'user') {
+      const extractedDisplay = extractUserDisplayContent(rawContent);
+      content = message.displayContent !== undefined
+        ? message.displayContent.trim()
+        : extractedDisplay !== undefined
+          ? extractedDisplay.trim()
+          : stripGoalBlocks(rawContent).trim();
+    } else {
+      content = stripGoalBlocks(rawContent).trim();
+    }
     const contextLine = formatContextLine(message);
 
     const userPayload = contextLine
@@ -214,6 +233,59 @@ export function buildContextFromHistory(messages: ChatMessage[]): string {
   return parts.join('\n\n');
 }
 
+/**
+ * Builds prompt-safe history without allowing long conversations to grow every
+ * subsequent stateless provider turn without bound. Recent turns win; the full
+ * context is returned unchanged when it already fits.
+ */
+export function buildBoundedContextFromHistory(
+  messages: ChatMessage[],
+  maxChars = HISTORY_CONTEXT_CHAR_CAP,
+): string {
+  if (maxChars <= 0 || messages.length === 0) {
+    return '';
+  }
+
+  const full = buildContextFromHistory(messages).trim();
+  if (full.length <= maxChars) {
+    return full;
+  }
+
+  const prefix = `${EARLIER_TURNS_OMITTED_NOTE}\n\n`;
+  if (prefix.length >= maxChars) {
+    return prefix.slice(0, maxChars);
+  }
+
+  const bodyBudget = maxChars - prefix.length;
+  for (let start = 1; start < messages.length; start += 1) {
+    const tail = buildContextFromHistory(messages.slice(start)).trim();
+    if (tail && tail.length <= bodyBudget) {
+      return `${prefix}${tail}`;
+    }
+  }
+
+  // A single recent renderable message can itself exceed the cap. Keep its
+  // beginning (including the role marker) and enforce the hard boundary.
+  for (let start = messages.length - 1; start >= 0; start -= 1) {
+    const latest = buildContextFromHistory(messages.slice(start)).trim();
+    if (latest) {
+      const middleMarker = `\n\n${MESSAGE_MIDDLE_OMITTED_NOTE}\n\n`;
+      if (bodyBudget <= middleMarker.length + 2) {
+        return `${prefix}${latest.slice(0, bodyBudget).trimEnd()}`;
+      }
+      const remaining = bodyBudget - middleMarker.length;
+      const headLength = Math.ceil(remaining / 2);
+      const tailLength = remaining - headLength;
+      return prefix
+        + latest.slice(0, headLength).trimEnd()
+        + middleMarker
+        + latest.slice(-tailLength).trimStart();
+    }
+  }
+
+  return '';
+}
+
 export function getLastUserMessage(messages: ChatMessage[]): ChatMessage | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i].role === 'user') {
@@ -235,17 +307,56 @@ export function buildPromptWithHistoryContext(
 ): string {
   if (!historyContext) return prompt;
 
-  const lastUserMessage = getLastUserMessage(conversationHistory);
+  const lastUserIndex = findLastUserMessageIndex(conversationHistory);
+  const lastUserMessage = lastUserIndex >= 0 ? conversationHistory[lastUserIndex] : undefined;
 
-  // Compare actual user queries, not XML-wrapped versions
+  // Compare actual user queries, not XML-wrapped transport versions.
   const lastUserQuery = lastUserMessage?.displayContent
+    ?? extractUserDisplayContent(lastUserMessage?.content ?? '')
     ?? extractUserQuery(lastUserMessage?.content ?? '');
   const currentUserQuery = extractUserQuery(actualPrompt);
+  const pendingDuplicate = Boolean(
+    lastUserMessage
+    && lastUserQuery.trim() === currentUserQuery.trim()
+    && !hasCompletedAssistantReplyAfter(conversationHistory, lastUserIndex + 1),
+  );
 
-  const shouldAppendPrompt = !lastUserMessage ||
-    lastUserQuery.trim() !== currentUserQuery.trim();
+  if (pendingDuplicate && lastUserMessage) {
+    // InputController persists the visible user bubble before starting the
+    // provider. Remove that sanitized duplicate, then append the fully prepared
+    // turn exactly once. Returning `historyContext` alone used to discard RAG,
+    // current-note, standing-goal, and output-surface envelopes on cold starts.
+    const priorHistory = buildBoundedContextFromHistory(
+      conversationHistory.filter((_, index) => index !== lastUserIndex),
+    );
+    const preparedPrompt = restoreMissingCurrentNote(prompt, lastUserMessage);
+    return priorHistory ? `${priorHistory}\n\nUser: ${preparedPrompt}` : preparedPrompt;
+  }
 
-  return shouldAppendPrompt
-    ? `${historyContext}\n\nUser: ${prompt}`
-    : historyContext;
+  return `${historyContext}\n\nUser: ${prompt}`;
+}
+
+function restoreMissingCurrentNote(prompt: string, message: ChatMessage): string {
+  if (!message.currentNote || /<current_note(?:\s|>)/.test(prompt)) {
+    return prompt;
+  }
+  return `${prompt}\n\n${formatCurrentNote(message.currentNote)}`;
+}
+
+function findLastUserMessageIndex(messages: ChatMessage[]): number {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index].role === 'user') return index;
+  }
+  return -1;
+}
+
+function hasCompletedAssistantReplyAfter(messages: ChatMessage[], startIndex: number): boolean {
+  return messages.slice(startIndex).some((message) => {
+    if (message.role !== 'assistant' || message.isInterrupt) return false;
+    return Boolean(
+      message.content?.trim()
+      || message.toolCalls?.length
+      || message.contentBlocks?.some((block) => block.type === 'thinking'),
+    );
+  });
 }

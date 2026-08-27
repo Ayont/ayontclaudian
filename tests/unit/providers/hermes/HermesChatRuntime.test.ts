@@ -320,13 +320,17 @@ describe('turn outcomes', () => {
   it('reports a refusal with no output as an error and invalidates the session', async () => {
     const runtime = new HermesChatRuntime(createMockPlugin());
     const connection = createMockConnection({
-      prompt: jest.fn().mockResolvedValue({ stopReason: 'refusal' }),
+      prompt: jest.fn().mockResolvedValue({
+        stopReason: 'refusal',
+        usage: { inputTokens: 100, outputTokens: 1, totalTokens: 101 },
+      }),
     });
     primeSession(runtime, connection);
 
     const chunks = await collect(runtime);
 
     expect(chunks.some((chunk) => chunk.type === 'error')).toBe(true);
+    expect(chunks.some((chunk) => chunk.type === 'usage' && chunk.usage.reportType === 'final')).toBe(false);
     expect(runtime.consumeSessionInvalidation()).toBe(true);
     // The dead session is dropped so the next turn starts a fresh one.
     expect(runtime.getSessionId()).toBeNull();
@@ -386,7 +390,13 @@ describe('turn outcomes', () => {
 
     const usageChunks = (await collect(runtime)).filter((chunk) => chunk.type === 'usage');
 
-    expect(usageChunks.length).toBeGreaterThan(0);
+    expect(usageChunks).toHaveLength(2);
+    expect(usageChunks[0]).toMatchObject({
+      usage: {
+        contextTokens: 16_761,
+        reportType: 'snapshot',
+      },
+    });
     expect(usageChunks[usageChunks.length - 1]).toMatchObject({
       usage: {
         cacheReadInputTokens: 6784,
@@ -394,6 +404,8 @@ describe('turn outcomes', () => {
         contextWindow: 1_048_576,
         contextWindowIsAuthoritative: true,
         inputTokens: 16122,
+        outputTokens: 5,
+        reportType: 'final',
       },
     });
   });

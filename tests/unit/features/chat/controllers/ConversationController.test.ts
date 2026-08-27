@@ -666,6 +666,7 @@ describe('ConversationController', () => {
         const header = dropdown.children[0];
         const searchInput = header.querySelector('.claudian-history-search-input');
         expect(searchInput).toBeTruthy();
+        expect(searchInput?.getAttribute('aria-label')).toBe('Verlauf durchsuchen');
       });
 
       it('filters conversations by title via the search box', () => {
@@ -764,6 +765,12 @@ describe('ConversationController', () => {
         const items = list.children;
         const activeItem = items.find((item: any) => item.hasClass('active'));
         expect(activeItem).toBeDefined();
+        const content = activeItem.querySelector('.claudian-history-item-content');
+        expect(content.tagName).toBe('BUTTON');
+        expect(content.disabled).toBe(true);
+        expect(content.getAttribute('aria-current')).toBe('true');
+        expect(activeItem.querySelector('.claudian-history-item-date')?.textContent)
+          .toBe('Aktuelle Unterhaltung');
       });
 
       it('should show loading indicator for pending title generation', () => {
@@ -777,6 +784,8 @@ describe('ConversationController', () => {
         const item = list.children[0];
         const loadingEl = item.querySelector('.claudian-action-loading');
         expect(loadingEl).toBeTruthy();
+        expect(loadingEl?.getAttribute('role')).toBe('status');
+        expect(loadingEl?.getAttribute('aria-live')).toBe('polite');
       });
 
       it('should show regenerate button for failed title generation', () => {
@@ -824,6 +833,8 @@ describe('ConversationController', () => {
         // conv-2 is the non-current one (sorted second by lastResponseAt)
         const otherItem = list.children[1];
         const content = otherItem.querySelector('.claudian-history-item-content');
+        expect(content?.tagName).toBe('BUTTON');
+        expect(content?.getAttribute('type')).toBe('button');
         const listeners = content?._eventListeners?.get('click');
         expect(listeners).toBeDefined();
         expect(listeners!.length).toBe(1);
@@ -959,11 +970,11 @@ describe('ConversationController', () => {
 
         const menu = (Menu as typeof Menu & { instances: Array<{ items: Array<{ title: string }> }> }).instances[0];
         expect(menu.items.map(item => item.title)).toEqual([
-          'Open in new tab',
-          'Open in background tab',
-          'Rename',
+          'In neuem Tab öffnen',
+          'Im Hintergrund-Tab öffnen',
+          'Umbenennen',
           'Als Notiz exportieren',
-          'Delete',
+          'Löschen',
         ]);
       });
 
@@ -992,10 +1003,10 @@ describe('ConversationController', () => {
 
         const menu = (Menu as typeof Menu & { instances: Array<{ items: Array<{ title: string }> }> }).instances[0];
         expect(menu.items.map(item => item.title)).toEqual([
-          'Switch to open session',
-          'Rename',
+          'Zum geöffneten Tab wechseln',
+          'Umbenennen',
           'Als Notiz exportieren',
-          'Delete',
+          'Löschen',
         ]);
       });
     });
@@ -1166,11 +1177,11 @@ describe('ConversationController', () => {
 
   describe('Greeting Time Branches', () => {
     it.each([
-      { name: 'morning (5-12)', hour: 9, day: 1, patterns: ['morning', 'Coffee'] },
-      { name: 'afternoon (12-18)', hour: 14, day: 2, patterns: ['afternoon'] },
-      { name: 'evening (18-22)', hour: 20, day: 3, patterns: ['evening', 'Evening', 'your day'] },
-      { name: 'night owl (22+)', hour: 23, day: 4, patterns: ['night owl', 'Evening'] },
-      { name: 'early morning night owl (0-4)', hour: 2, day: 0, patterns: ['night owl', 'Evening'] },
+      { name: 'morning (5-12)', hour: 9, day: 1, patterns: ['Guten Morgen', 'Kaffee'] },
+      { name: 'afternoon (12-18)', hour: 14, day: 2, patterns: ['Guten Tag'] },
+      { name: 'evening (18-22)', hour: 20, day: 3, patterns: ['Guten Abend', 'Abend', 'dein Tag'] },
+      { name: 'night owl (22+)', hour: 23, day: 4, patterns: ['Nachteule', 'Abend'] },
+      { name: 'early morning night owl (0-4)', hour: 2, day: 0, patterns: ['Nachteule', 'Abend'] },
     ])('should include $name greetings', ({ hour, day, patterns }) => {
       jest.spyOn(Date.prototype, 'getHours').mockReturnValue(hour);
       jest.spyOn(Date.prototype, 'getDay').mockReturnValue(day);

@@ -24,7 +24,14 @@ import {
   TOOL_WRITE,
 } from '../../../core/tools/toolNames';
 import { extractToolResultContent } from '../../../core/tools/toolResultContent';
-import type { ChatMessage, StreamChunk, SubagentInfo, ToolCallInfo } from '../../../core/types';
+import type {
+  ChatMessage,
+  ContentBlock,
+  OutputSurface,
+  StreamChunk,
+  SubagentInfo,
+  ToolCallInfo,
+} from '../../../core/types';
 import type { SDKToolUseResult } from '../../../core/types/diff';
 import type ClaudianPlugin from '../../../main';
 import {
@@ -38,6 +45,11 @@ import { hasStreamingMathDelimiters } from '../../../utils/markdownMath';
 import { getVaultPath, normalizePathForVault } from '../../../utils/path';
 import { FLAVOR_TEXTS } from '../constants';
 import type { MessageRenderer, RenderContentOptions } from '../rendering/MessageRenderer';
+import {
+  resolveRichOutputSurface,
+  shouldContinueRichOutputAcrossTool,
+  splitCompletedRichOutput,
+} from '../rendering/RichOutputFences';
 import { resolveSubagentLifecycleAdapter } from '../rendering/subagentLifecycleResolution';
 import {
   createSubagentBlock,
@@ -148,6 +160,12 @@ export class StreamController {
   private isThinkingRenderRunning = false;
   private pendingToolOutputFrames = new Map<string, ScheduledAnimationFrame>();
   private pendingScrollFrame: ScheduledAnimationFrame | null = null;
+  /** Assistant message whose explicit final usage report was already budgeted. */
+  private finalUsageMessageId: string | null = null;
+  /** Text block held open while a rich fence is interrupted by tool events. */
+  private activeRichTextBlock: Extract<ContentBlock, { type: 'text' }> | null = null;
+  private activeRichMessageId: string | null = null;
+  private currentTextOutputSurface: OutputSurface | undefined;
 
   // Smoothed cost of the last text/thinking render, feeding getRenderBudgetDelay.
   // Tracked separately because a thinking block and an answer block rarely cost
@@ -201,7 +219,7 @@ export class StreamController {
         // Flush pending tools before rendering new content type
         this.flushPendingTools();
         if (state.currentTextEl) {
-          await this.finalizeCurrentTextBlock(msg);
+          await this.finalizeCurrentTextBlock(msg, { preserveRichOutput: true });
         }
         await this.appendThinking(chunk.content);
         break;
@@ -218,7 +236,7 @@ export class StreamController {
           await this.finalizeCurrentThinkingBlock(msg);
         }
         msg.content += chunk.content;
-        await this.appendText(chunk.content);
+        await this.appendText(chunk.content, msg.outputSurface);
         break;
 
       case 'tool_use': {
@@ -230,7 +248,7 @@ export class StreamController {
         if (state.currentThinkingState) {
           await this.finalizeCurrentThinkingBlock(msg);
         }
-        await this.finalizeCurrentTextBlock(msg);
+        await this.finalizeCurrentTextBlock(msg, { preserveRichOutput: true });
 
         if (isSubagentToolName(chunk.name)) {
           // Flush pending tools before Agent
@@ -376,21 +394,28 @@ export class StreamController {
         ) {
           break;
         }
-        // Skip usage updates when subagents ran (SDK reports cumulative usage including subagents)
-        if (this.deps.subagentManager.subagentsSpawnedThisStream > 0) {
-          break;
-        }
         if (!state.ignoreUsageUpdates) {
           const activeModel = this.getActiveProviderModel();
-          state.usage = activeModel && !chunk.usage.model
+          const reportedUsage = activeModel && !chunk.usage.model
             ? { ...chunk.usage, model: activeModel }
             : chunk.usage;
-          // A restated snapshot still updates the UI (it carries the corrected
-          // context window) but was already counted when first emitted — adding it
-          // again would double every Claude turn in the budget and rate-limit window.
-          if (!state.usage.isRestatedSnapshot) {
-            this.deps.plugin.tokenBudgetTracker?.trackUsage(state.usage, this.getActiveProviderId());
+          if (chunk.contextDisplay !== 'preserve') {
+            state.usage = reportedUsage;
+          }
+          // Snapshots update the context meter only. Explicit final reports are
+          // idempotent per assistant message; deltas and legacy single reports
+          // remain additive. Claude's older restatement flag maps to snapshot
+          // semantics until its provider contract migrates to `reportType`.
+          const isSnapshot = reportedUsage.reportType === 'snapshot'
+            || reportedUsage.isRestatedSnapshot === true;
+          const isDuplicateFinal = reportedUsage.reportType === 'final'
+            && this.finalUsageMessageId === msg.id;
+          if (!isSnapshot && !isDuplicateFinal) {
+            this.deps.plugin.tokenBudgetTracker?.trackUsage(reportedUsage, this.getActiveProviderId());
             this.deps.plugin.persistTokenUsage?.();
+            if (reportedUsage.reportType === 'final') {
+              this.finalUsageMessageId = msg.id;
+            }
           }
         }
         break;
@@ -520,10 +545,17 @@ export class StreamController {
     return this.deps.plugin.settings.expandFileEditsByDefault === true;
   }
 
-  private getStreamingRenderOptions(content: string): RenderContentOptions | undefined {
-    return this.shouldDeferMathRendering() && hasStreamingMathDelimiters(content)
-      ? { deferMath: true }
-      : undefined;
+  private getStreamingRenderOptions(
+    content: string,
+    outputSurface = this.currentTextOutputSurface,
+  ): RenderContentOptions | undefined {
+    const deferMath = this.shouldDeferMathRendering() && hasStreamingMathDelimiters(content);
+    const richSurface = outputSurface && outputSurface !== 'chat' ? outputSurface : undefined;
+    if (!deferMath && !richSurface) return undefined;
+    return {
+      ...(deferMath ? { deferMath: true } : {}),
+      ...(richSurface ? { outputSurface: richSurface } : {}),
+    };
   }
 
   private capturePlanFilePath(input: Record<string, unknown>): void {
@@ -829,7 +861,7 @@ export class StreamController {
   // Text Block Management
   // ============================================
 
-  async appendText(text: string): Promise<void> {
+  async appendText(text: string, outputSurface?: OutputSurface): Promise<void> {
     const { state } = this.deps;
     if (!state.currentContentEl) return;
 
@@ -838,26 +870,117 @@ export class StreamController {
     if (!state.currentTextEl) {
       state.currentTextEl = state.currentContentEl.createDiv({ cls: 'claudian-text-block' });
       state.currentTextContent = '';
+      this.currentTextOutputSurface = outputSurface;
+    } else if (!this.currentTextOutputSurface && outputSurface) {
+      this.currentTextOutputSurface = outputSurface;
     }
 
     state.currentTextContent += text;
     void this.scheduleCurrentTextRender();
   }
 
-  async finalizeCurrentTextBlock(msg?: ChatMessage): Promise<void> {
+  async finalizeCurrentTextBlock(
+    msg?: ChatMessage,
+    options?: { preserveRichOutput?: boolean },
+  ): Promise<void> {
     const { state, renderer } = this.deps;
     await this.flushPendingTextRender();
 
     if (msg && state.currentTextContent) {
+      const requestedOutputSurface = this.currentTextOutputSurface ?? msg.outputSurface;
       if (
         state.currentTextEl
         && this.shouldDeferMathRendering()
         && hasStreamingMathDelimiters(state.currentTextContent)
       ) {
-        await renderer.renderContent(state.currentTextEl, state.currentTextContent);
+        if (requestedOutputSurface && requestedOutputSurface !== 'chat') {
+          await renderer.renderContent(
+            state.currentTextEl,
+            state.currentTextContent,
+            { outputSurface: requestedOutputSurface },
+          );
+        } else {
+          await renderer.renderContent(state.currentTextEl, state.currentTextContent);
+        }
       }
-      msg.contentBlocks = msg.contentBlocks || [];
-      msg.contentBlocks.push({ type: 'text', content: state.currentTextContent });
+      const resolvedSurface = resolveRichOutputSurface(
+        state.currentTextContent,
+        requestedOutputSurface,
+      );
+      const canReuseActiveBlock = this.activeRichTextBlock
+        && this.activeRichMessageId === msg.id;
+      const completedSplit = canReuseActiveBlock && resolvedSurface
+        ? splitCompletedRichOutput(state.currentTextContent, resolvedSurface)
+        : null;
+      const hasOrderedRemainder = completedSplit?.remainder.trim().length
+        ? true
+        : false;
+      const semanticContent = hasOrderedRemainder
+        ? completedSplit!.semanticContent
+        : state.currentTextContent;
+      let textBlock: Extract<ContentBlock, { type: 'text' }>;
+      if (canReuseActiveBlock) {
+        textBlock = this.activeRichTextBlock!;
+        textBlock.content = semanticContent;
+        if (resolvedSurface) textBlock.outputSurface = resolvedSurface;
+      } else {
+        textBlock = {
+          type: 'text',
+          content: state.currentTextContent,
+          ...(resolvedSurface ? { outputSurface: resolvedSurface } : {}),
+        };
+        msg.contentBlocks = msg.contentBlocks || [];
+        msg.contentBlocks.push(textBlock);
+      }
+
+      if (hasOrderedRemainder) {
+        const remainder = completedSplit!.remainder;
+        if (state.currentTextEl) {
+          await renderer.renderContent(
+            state.currentTextEl,
+            semanticContent,
+            { outputSurface: resolvedSurface! },
+          );
+          renderer.addTextCopyButton(state.currentTextEl, semanticContent);
+        }
+
+        const remainderSurface = resolveRichOutputSurface(remainder);
+        const remainderBlock: Extract<ContentBlock, { type: 'text' }> = {
+          type: 'text',
+          content: remainder,
+          ...(remainderSurface ? { outputSurface: remainderSurface } : {}),
+        };
+        msg.contentBlocks = msg.contentBlocks || [];
+        msg.contentBlocks.push(remainderBlock);
+        if (state.currentContentEl) {
+          const remainderEl = state.currentContentEl.createDiv({ cls: 'claudian-text-block' });
+          if (remainderSurface) {
+            await renderer.renderContent(remainderEl, remainder, { outputSurface: remainderSurface });
+          } else {
+            await renderer.renderContent(remainderEl, remainder);
+          }
+          renderer.addTextCopyButton(remainderEl, remainder);
+        }
+
+        this.activeRichTextBlock = null;
+        this.activeRichMessageId = null;
+        state.currentTextEl = null;
+        state.currentTextContent = '';
+        this.currentTextOutputSurface = undefined;
+        return;
+      }
+
+      const preserveRichOutput = options?.preserveRichOutput === true
+        && resolvedSurface !== undefined
+        && shouldContinueRichOutputAcrossTool(state.currentTextContent, resolvedSurface);
+      if (preserveRichOutput) {
+        this.activeRichTextBlock = textBlock;
+        this.activeRichMessageId = msg.id;
+        return;
+      }
+
+      this.activeRichTextBlock = null;
+      this.activeRichMessageId = null;
       // Copy button added here (not during streaming) to match history-loaded messages
       if (state.currentTextEl) {
         renderer.addTextCopyButton(state.currentTextEl, state.currentTextContent);
@@ -865,6 +988,7 @@ export class StreamController {
     }
     state.currentTextEl = null;
     state.currentTextContent = '';
+    this.currentTextOutputSurface = undefined;
   }
 
   private scheduleCurrentTextRender(): Promise<void> {
@@ -1759,6 +1883,9 @@ export class StreamController {
     state.currentContentEl = null;
     state.currentTextEl = null;
     state.currentTextContent = '';
+    this.currentTextOutputSurface = undefined;
+    this.activeRichTextBlock = null;
+    this.activeRichMessageId = null;
     state.currentThinkingState = null;
     this.deps.subagentManager.resetStreamingState();
     state.pendingTools.clear();

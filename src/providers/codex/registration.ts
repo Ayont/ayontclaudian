@@ -7,6 +7,7 @@ import { CODEX_PROVIDER_CAPABILITIES } from './capabilities';
 import { codexSettingsReconciler } from './env/CodexSettingsReconciler';
 import { CodexConversationHistoryService } from './history/CodexConversationHistoryService';
 import { codexSubagentLifecycleAdapter } from './normalization/codexSubagentNormalization';
+import { CodexAuxQueryRunner } from './runtime/CodexAuxQueryRunner';
 import { CodexChatRuntime } from './runtime/CodexChatRuntime';
 import { getCodexProviderSettings } from './settings';
 import { codexChatUIConfig } from './ui/CodexChatUIConfig';
@@ -19,6 +20,7 @@ export const codexProviderRegistration: ProviderRegistration = {
   environmentKeyPatterns: [/^OPENAI_/i, /^CODEX_/i],
   chatUIConfig: codexChatUIConfig,
   settingsReconciler: codexSettingsReconciler,
+  createAuxQueryRunner: (plugin) => new CodexAuxQueryRunner(plugin),
   createRuntime: ({ plugin }) => new CodexChatRuntime(plugin),
   createTitleGenerationService: (plugin) => new CodexTitleGenerationService(plugin),
   createInstructionRefineService: (plugin) => new CodexInstructionRefineService(plugin),

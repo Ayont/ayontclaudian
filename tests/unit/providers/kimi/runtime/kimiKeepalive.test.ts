@@ -117,6 +117,7 @@ describe('KimiChatRuntime keepalive heartbeat', () => {
     await drain;
 
     expect(rest.map((chunk) => chunk.type)).toEqual(['usage', 'done']);
+    expect(rest[0]).toMatchObject({ usage: { reportType: 'final' } });
     expect(jest.getTimerCount()).toBe(0);
   });
 
@@ -144,5 +145,6 @@ describe('KimiChatRuntime keepalive heartbeat', () => {
       rest.push(remaining);
     }
     expect(rest.map((item) => item.type)).toEqual(['usage', 'done']);
+    expect(rest[0]).toMatchObject({ usage: { reportType: 'final' } });
   });
 });

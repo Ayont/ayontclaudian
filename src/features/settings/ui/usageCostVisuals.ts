@@ -27,14 +27,17 @@ export function buildSparklinePoints(
   height = SPARK_HEIGHT,
 ): { x: number; y: number }[] {
   if (series.length === 0) return [];
-  if (series.length === 1) return [{ x: 0, y: height / 2 }, { x: width, y: height / 2 }];
+  const safeSeries = series.map((value) => (
+    Number.isFinite(value) ? Math.max(0, value) : 0
+  ));
+  if (safeSeries.length === 1) return [{ x: 0, y: height / 2 }, { x: width, y: height / 2 }];
 
-  const max = Math.max(...series);
-  const step = width / (series.length - 1);
+  const max = Math.max(...safeSeries);
+  const step = width / (safeSeries.length - 1);
   // A flat-zero series would divide by zero; render it as a baseline instead.
   const scale = max > 0 ? (height - 2) / max : 0;
 
-  return series.map((value, index) => ({
+  return safeSeries.map((value, index) => ({
     x: Number((index * step).toFixed(2)),
     y: Number((height - 1 - value * scale).toFixed(2)),
   }));

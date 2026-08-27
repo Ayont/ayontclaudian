@@ -37,6 +37,7 @@ import type {
   SlashCommand,
   StreamChunk,
   ToolCallInfo,
+  UsageInfo,
 } from '../../../core/types';
 import type ClaudianPlugin from '../../../main';
 import { getVaultPath } from '../../../utils/path';
@@ -83,6 +84,10 @@ export class ClineChatRuntime implements ChatRuntime {
 
   private activeProcess: ChildProcessWithoutNullStreams | null = null;
   private activeSpawnSpec: WindowsCmdShimSpawnSpec | null = null;
+  private activeGoalVerifier: {
+    abortController: AbortController;
+    runner: ClineAuxQueryRunner;
+  } | null = null;
   private cancelled = false;
   private currentTurnMetadata: ChatTurnMetadata = {};
   private isResumeRetry = false;
@@ -152,6 +157,9 @@ export class ClineChatRuntime implements ChatRuntime {
     conversationHistory?: ChatMessage[],
     queryOptions?: ChatRuntimeQueryOptions,
   ): AsyncGenerator<StreamChunk> {
+    this.stopActiveGoalVerifier();
+    this.activeGoalVerifier = null;
+    this.cancelled = false;
     const settings = getClineProviderSettings(
       this.plugin.settings as unknown as Record<string, unknown>,
     );
@@ -164,7 +172,6 @@ export class ClineChatRuntime implements ChatRuntime {
       return;
     }
 
-    this.cancelled = false;
     yield {
       type: 'notice',
       content: `🎯 Goal-Loop aktiv — bis zu ${settings.goalLoopMaxIterations} Durchläufe bis das Ziel erreicht ist.`,
@@ -180,7 +187,12 @@ export class ClineChatRuntime implements ChatRuntime {
             promptOverride: prompt,
           }),
         verify: settings.goalLoopVerification === 'verifier'
-          ? (goalText, work) => this.verifyGoalProgress(goalText, work, queryOptions?.model)
+          ? (goalText, work, signal) => this.verifyGoalProgress(
+              goalText,
+              work,
+              queryOptions?.model,
+              signal,
+            )
           : null,
         isCancelled: () => this.cancelled,
         maxIterations: settings.goalLoopMaxIterations,
@@ -196,7 +208,6 @@ export class ClineChatRuntime implements ChatRuntime {
     overrides?: { echoUserMessage?: boolean; promptOverride?: string },
   ): AsyncGenerator<StreamChunk> {
     this.currentTurnMetadata = {};
-    this.cancelled = false;
     const isRetry = this.isResumeRetry || this.isSignatureRetry;
     const isSignatureRetry = this.isSignatureRetry;
     this.isResumeRetry = false;
@@ -354,6 +365,7 @@ export class ClineChatRuntime implements ChatRuntime {
               ? Math.min(100, Math.max(0, Math.round((contextTokens / contextWindow) * 100)))
               : 0,
             model: model || undefined,
+            reportType: 'final',
           },
         };
         return;
@@ -570,6 +582,7 @@ export class ClineChatRuntime implements ChatRuntime {
             contextTokens,
             contextWindow: getClineModelContextWindow(model),
             model: model || undefined,
+            reportType: 'final',
           }),
           sessionId: this.sessionId,
         };
@@ -591,6 +604,7 @@ export class ClineChatRuntime implements ChatRuntime {
 
   cancel(): void {
     this.cancelled = true;
+    this.stopActiveGoalVerifier();
     if (this.activeProcess) {
       terminateSpawnedProcess(this.activeProcess, 'SIGTERM', spawn, this.activeSpawnSpec);
       this.activeProcess = null;
@@ -599,6 +613,8 @@ export class ClineChatRuntime implements ChatRuntime {
   }
 
   resetSession(): void {
+    this.stopActiveGoalVerifier();
+    this.activeGoalVerifier = null;
     this.sessionId = null;
     this.sessionInvalidated = false;
     this.isSignatureRetry = false;
@@ -699,22 +715,62 @@ export class ClineChatRuntime implements ChatRuntime {
     goal: string,
     work: string,
     model?: string,
+    signal?: AbortSignal,
   ): Promise<GoalVerdict | null> {
     const runner = new ClineAuxQueryRunner(this.plugin);
+    const abortController = new AbortController();
+    const activeVerifier = { abortController, runner };
+    this.activeGoalVerifier = activeVerifier;
+    const abort = (): void => {
+      abortController.abort();
+      runner.reset();
+    };
+    if (signal?.aborted) abort();
+    signal?.addEventListener('abort', abort, { once: true });
+    const settingsBag = this.plugin.settings as unknown as Record<string, unknown>;
+    const selectedModel = model?.trim()
+      || resolveClineModelSelection(
+        settingsBag,
+        typeof settingsBag.model === 'string' ? settingsBag.model : '',
+      )
+      || undefined;
+    const systemPrompt = 'Du bist ein strenger Prüfer und antwortest ausschließlich mit JSON.';
+    const prompt = buildGoalVerificationPrompt(goal, work);
+    const usageReports: UsageInfo[] = [];
     try {
       const raw = await runner.query(
         {
-          model,
-          systemPrompt: 'Du bist ein strenger Prüfer und antwortest ausschließlich mit JSON.',
+          abortController,
+          model: selectedModel,
+          onUsage: (usage) => usageReports.push(usage),
+          systemPrompt,
         },
-        buildGoalVerificationPrompt(goal, work),
+        prompt,
       );
+      this.plugin.recordAuxiliaryUsage({
+        inputTexts: [systemPrompt, prompt],
+        model: selectedModel,
+        outputText: raw,
+        providerId: CLINE_PROVIDER_ID,
+        ...(usageReports.length > 0 ? { usageReports } : {}),
+      });
       return parseGoalVerdict(raw);
     } catch {
       return null;
     } finally {
+      signal?.removeEventListener('abort', abort);
       runner.reset();
+      if (this.activeGoalVerifier === activeVerifier) {
+        this.activeGoalVerifier = null;
+      }
     }
+  }
+
+  private stopActiveGoalVerifier(): void {
+    const activeVerifier = this.activeGoalVerifier;
+    if (!activeVerifier) return;
+    activeVerifier.abortController.abort();
+    activeVerifier.runner.reset();
   }
 
   private formatError(message: string, stderr: string): string {

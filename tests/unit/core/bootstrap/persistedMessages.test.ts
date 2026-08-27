@@ -69,6 +69,23 @@ describe('toPersistedMessage', () => {
     expect(toPersistedMessages([message])).toEqual([message]);
   });
 
+  it('preserves the turn and semantic-block output surfaces for reload rendering', () => {
+    const message = {
+      id: 'rich-output',
+      role: 'assistant',
+      content: '```claudian-document\n# Plan\n```',
+      timestamp: 0,
+      outputSurface: 'live-document',
+      contentBlocks: [{
+        type: 'text',
+        content: '```claudian-document\n# Plan\n```',
+        outputSurface: 'live-document',
+      }],
+    } as ChatMessage;
+
+    expect(toPersistedMessage(message)).toEqual(message);
+  });
+
   it('shrinks a realistic transcript by more than an order of magnitude', () => {
     const messages = Array.from({ length: 10 }, (_, index) => ({
       id: `m-${index}`,

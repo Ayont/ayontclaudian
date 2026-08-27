@@ -136,6 +136,7 @@ export class SessionStorage {
       providerSessions: conversation.providerSessions && Object.keys(conversation.providerSessions).length > 0
         ? conversation.providerSessions
         : undefined,
+      pendingContextBootstrap: conversation.pendingContextBootstrap || undefined,
       goal: conversation.goal ?? undefined,
       workspaceMode: conversation.workspaceMode,
       pinned: conversation.pinned || undefined,

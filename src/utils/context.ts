@@ -17,7 +17,7 @@ const CURRENT_NOTE_SUFFIX_REGEX = /\n\n<current_note>\n[\s\S]*?<\/current_note>$
  * Matches: current_note, editor_selection (with attributes), editor_cursor (with attributes),
  * context_files, canvas_selection, browser_selection
  */
-export const XML_CONTEXT_PATTERN = /\n\n<(?:vault_context|memory_context|graph_context|current_note|editor_selection|editor_cursor|context_files|canvas_selection|browser_selection)[\s>]/;
+export const XML_CONTEXT_PATTERN = /\n\n<(?:vault_context|memory_context|graph_context|current_note|editor_selection|editor_cursor|context_files|canvas_selection|browser_selection|claudian_output_contract)[\s>]/;
 const BRACKET_CONTEXT_PATTERN = /\n\[(?:Current note|Editor selection from|Browser selection from|Canvas selection from)\b/;
 const VAULT_CONTEXT_PATTERN = /<vault_context>\s*([\s\S]*?)\s*<\/vault_context>/i;
 const MEMORY_CONTEXT_PATTERN = /<memory_context>\s*([\s\S]*?)\s*<\/memory_context>/i;
@@ -27,9 +27,14 @@ const INJECTED_CONTEXT_PATTERN = /<(vault_context|memory_context|graph_context)>
 // Codex persists image attachments as provider-internal XML before the human
 // prompt. These tags are transport metadata, never user-authored chat text.
 const INTERNAL_IMAGE_TAG_PATTERN = /<image\b(?=[^>]*\bname=\[Image\s+#\d+\])(?=[^>]*\bpath=(?:"[^"]*"|'[^']*'))[^>]*>(?:\s*<\/image>)?\s*/gi;
+const INTERNAL_PROMPT_ENVELOPE_PATTERN = /<(standing_goal|claudian_output_contract|claudian_system_preamble|conversation_context|goal_loop_work_so_far|goal_loop)\b[^>]*>[\s\S]*?<\/\1>\s*/gi;
 
 export function stripInternalImageTags(text: string): string {
   return text.replace(INTERNAL_IMAGE_TAG_PATTERN, '').trim();
+}
+
+export function stripInternalPromptEnvelopes(text: string): string {
+  return text.replace(INTERNAL_PROMPT_ENVELOPE_PATTERN, '').trim();
 }
 
 export interface VaultContextPrompt {
@@ -116,13 +121,14 @@ export function extractVaultContextPrompt(text: string): VaultContextPrompt | un
  */
 export function extractInjectedContextPrompt(text: string): InjectedContextPrompt | undefined {
   if (!text) return undefined;
-  const vaultMatch = text.match(VAULT_CONTEXT_PATTERN);
-  const memoryMatch = text.match(MEMORY_CONTEXT_PATTERN);
-  const graphMatch = text.match(GRAPH_CONTEXT_PATTERN);
+  const sanitizedText = stripInternalPromptEnvelopes(text);
+  const vaultMatch = sanitizedText.match(VAULT_CONTEXT_PATTERN);
+  const memoryMatch = sanitizedText.match(MEMORY_CONTEXT_PATTERN);
+  const graphMatch = sanitizedText.match(GRAPH_CONTEXT_PATTERN);
   if (!vaultMatch && !memoryMatch && !graphMatch) return undefined;
 
   const withoutInjectedContext = stripInternalImageTags(
-    text.replace(INJECTED_CONTEXT_PATTERN, ''),
+    sanitizedText.replace(INJECTED_CONTEXT_PATTERN, ''),
   );
   const userContent = (extractContentBeforeXmlContext(withoutInjectedContext)
     ?? withoutInjectedContext).replace(ATTACHED_FILE_PATTERN, "");
@@ -139,24 +145,25 @@ export function extractUserDisplayContent(text: string): string | undefined {
   if (!text) return undefined;
 
   const withoutImageTags = stripInternalImageTags(text);
-  const removedImageTransport = withoutImageTags !== text.trim();
+  const withoutInternalEnvelopes = stripInternalPromptEnvelopes(withoutImageTags);
+  const removedInternalTransport = withoutInternalEnvelopes !== text.trim();
 
-  const injectedContext = extractInjectedContextPrompt(withoutImageTags);
+  const injectedContext = extractInjectedContextPrompt(withoutInternalEnvelopes);
   if (injectedContext) {
     return injectedContext.userContent;
   }
 
-  const xmlDisplayContent = extractContentBeforeXmlContext(withoutImageTags);
+  const xmlDisplayContent = extractContentBeforeXmlContext(withoutInternalEnvelopes);
   if (xmlDisplayContent !== undefined) {
     return xmlDisplayContent;
   }
 
-  const bracketMatch = withoutImageTags.match(BRACKET_CONTEXT_PATTERN);
+  const bracketMatch = withoutInternalEnvelopes.match(BRACKET_CONTEXT_PATTERN);
   if (bracketMatch?.index !== undefined) {
-    return withoutImageTags.substring(0, bracketMatch.index).trim();
+    return withoutInternalEnvelopes.substring(0, bracketMatch.index).trim();
   }
 
-  return removedImageTransport ? withoutImageTags : undefined;
+  return removedInternalTransport ? withoutInternalEnvelopes : undefined;
 }
 
 /**
@@ -169,19 +176,21 @@ export function extractUserDisplayContent(text: string): string | undefined {
 export function extractUserQuery(prompt: string): string {
   if (!prompt) return '';
 
-  const injectedContext = extractInjectedContextPrompt(prompt);
+  const sanitizedPrompt = stripInternalPromptEnvelopes(prompt);
+
+  const injectedContext = extractInjectedContextPrompt(sanitizedPrompt);
   if (injectedContext) {
     return injectedContext.userContent;
   }
 
   // Try to extract content before XML context
-  const extracted = extractContentBeforeXmlContext(prompt);
+  const extracted = extractContentBeforeXmlContext(sanitizedPrompt);
   if (extracted !== undefined) {
     return extracted;
   }
 
   // No XML context - return the whole prompt stripped of any remaining tags
-  return stripInternalImageTags(prompt)
+  return stripInternalImageTags(sanitizedPrompt)
     .replace(/<current_note>[\s\S]*?<\/current_note>\s*/g, '')
     .replace(/<editor_selection[\s\S]*?<\/editor_selection>\s*/g, '')
     .replace(/<editor_cursor[\s\S]*?<\/editor_cursor>\s*/g, '')

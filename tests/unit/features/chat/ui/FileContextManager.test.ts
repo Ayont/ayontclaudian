@@ -209,6 +209,8 @@ describe('FileContextManager', () => {
 
     const removeEl = findByClass(containerEl, 'claudian-file-chip-remove');
     expect(removeEl).toBeDefined();
+    expect(removeEl?.tagName).toBe('BUTTON');
+    expect(findByClass(containerEl, 'claudian-file-chip-open')?.tagName).toBe('BUTTON');
 
     removeEl!.click();
 
@@ -869,7 +871,7 @@ describe('FileContextManager', () => {
       expect(openCallback).toBeDefined();
 
       await openCallback('notes/missing.md');
-      expect(NoticeMock).toHaveBeenCalledWith(expect.stringContaining('Could not open file'));
+      expect(NoticeMock).toHaveBeenCalledWith('Datei konnte nicht geöffnet werden: notes/missing.md');
       manager.destroy();
     });
   });

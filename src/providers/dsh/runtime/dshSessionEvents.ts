@@ -291,6 +291,7 @@ export function projectDshTranscript(jsonl: string, lastSeq: number): DshProject
 export function buildDshUsageInfo(
   metadata: DshTurnMetadata,
   contextWindow: number,
+  reportType?: UsageInfo['reportType'],
 ): UsageInfo | null {
   if (!metadata.usage) {
     return null;
@@ -307,6 +308,7 @@ export function buildDshUsageInfo(
     inputTokens: metadata.usage.inputTokens,
     outputTokens: metadata.usage.outputTokens,
     ...(metadata.model ? { model: metadata.model } : {}),
+    ...(reportType ? { reportType } : {}),
     percentage: contextWindow > 0
       ? Math.min(100, Math.max(0, Math.round((contextTokens / contextWindow) * 100)))
       : 0,

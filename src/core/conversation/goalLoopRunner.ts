@@ -1,3 +1,4 @@
+import { escapePromptXmlClosingTags } from '../../utils/promptXml';
 import type { StreamChunk } from '../types';
 import {
   buildGoalContinuationPrompt,
@@ -33,7 +34,15 @@ export interface GoalLoopRunnerDeps {
    * verification (marker-only mode). Resolving to null means "no usable verdict"
    * — the loop then trusts the agent's own marker.
    */
-  verify: ((goal: string, work: string) => Promise<GoalVerdict | null>) | null;
+  verify: ((goal: string, work: string, signal: AbortSignal) => Promise<GoalVerdict | null>) | null;
+  /** Usage emitted by an otherwise hidden verifier query. */
+  drainVerificationChunks?: () => StreamChunk[];
+  /** Hard deadline for one verifier request. Defaults to 90 seconds. */
+  verificationTimeoutMs?: number;
+  /** Bounded grace period for an aborted verifier to release its transport. */
+  verificationAbortGraceMs?: number;
+  /** Replays bounded work into continuations for transports without native session memory. */
+  replayAccumulatedWork?: boolean;
   /** True once the user cancelled the turn. */
   isCancelled: () => boolean;
   maxIterations: number;
@@ -48,6 +57,14 @@ export interface GoalLoopRunnerResult {
 const MARKER_ONLY_LINE = new RegExp(
   `^[*_\`>\\s-]*(?:${GOAL_DONE_MARKER}|${GOAL_CONTINUE_MARKER})[*_\`\\s]*$`,
 );
+
+const TURN_OUTPUT_CONTRACT_PATTERN = /<claudian_output_contract\b[^>]*>[\s\S]*?<\/claudian_output_contract>/i;
+const MAX_ACCUMULATED_WORK_CHARS = 12_000;
+const ACCUMULATED_WORK_HEAD_CHARS = 3_000;
+
+function extractTurnOutputContract(prompt: string): string {
+  return prompt.match(TURN_OUTPUT_CONTRACT_PATTERN)?.[0]?.trim() ?? '';
+}
 
 /**
  * Drops a buffered trailing line when it is nothing but a control marker.
@@ -69,6 +86,21 @@ function appendWork(previous: string, iteration: number, text: string): string {
   return `${previous}${previous ? '\n\n' : ''}### Durchlauf ${iteration}\n${trimmed}`;
 }
 
+function buildAccumulatedWorkContext(work: string): string {
+  if (!work.trim()) return '';
+  const omission = '\n\n[Frühere Arbeit gekürzt]\n\n';
+  const bounded = work.length <= MAX_ACCUMULATED_WORK_CHARS
+    ? work
+    : work.slice(0, ACCUMULATED_WORK_HEAD_CHARS)
+      + omission
+      + work.slice(-(MAX_ACCUMULATED_WORK_CHARS - ACCUMULATED_WORK_HEAD_CHARS - omission.length));
+  return [
+    '<goal_loop_work_so_far>',
+    escapePromptXmlClosingTags(bounded, 'goal_loop_work_so_far'),
+    '</goal_loop_work_so_far>',
+  ].join('\n');
+}
+
 export async function* runGoalLoopRunner(params: {
   goal: string;
   initialPrompt: string;
@@ -76,6 +108,7 @@ export async function* runGoalLoopRunner(params: {
 }): AsyncGenerator<StreamChunk, GoalLoopRunnerResult> {
   const { goal, initialPrompt, deps } = params;
   const maxIterations = Math.max(1, deps.maxIterations);
+  const turnOutputContract = extractTurnOutputContract(initialPrompt);
 
   let work = '';
   let previousIterationText = '';
@@ -84,11 +117,19 @@ export async function* runGoalLoopRunner(params: {
   let stop: GoalLoopStopReason = 'max-iterations';
 
   while (iteration < maxIterations) {
+    if (deps.isCancelled()) {
+      stop = 'cancelled';
+      break;
+    }
     iteration += 1;
 
+    const continuation = buildGoalContinuationPrompt(goal, verdict, iteration, maxIterations);
+    const accumulatedWork = iteration > 1 && deps.replayAccumulatedWork
+      ? buildAccumulatedWorkContext(work)
+      : '';
     const body = iteration === 1
       ? initialPrompt
-      : buildGoalContinuationPrompt(goal, verdict, iteration, maxIterations);
+      : [continuation, accumulatedWork, turnOutputContract].filter(Boolean).join('\n\n');
     const prompt = `${body}\n\n${buildGoalLoopDirective(goal, iteration, maxIterations)}`;
 
     if (iteration > 1) {
@@ -97,6 +138,11 @@ export async function* runGoalLoopRunner(params: {
         content: `🔁 Goal-Loop · Durchlauf ${iteration}/${maxIterations}${verdict?.nextStep ? ` — ${verdict.nextStep}` : ''}`,
         level: 'info',
       };
+      if (deps.isCancelled()) {
+        iteration -= 1;
+        stop = 'cancelled';
+        break;
+      }
     }
 
     let iterationText = '';
@@ -150,7 +196,22 @@ export async function* runGoalLoopRunner(params: {
     }
 
     const marker = detectGoalMarker(iterationText);
-    verdict = yield* resolveVerdict({ deps, goal, work, marker });
+    const resolution = yield* resolveVerdict({ deps, goal, work, marker });
+    verdict = resolution.verdict;
+
+    // Cancellation can arrive while the hidden verifier is running. Re-check
+    // before interpreting its result. This also lets an explicit user cancel
+    // win over a deadline that fired while the verifier transport was using its
+    // bounded abort grace period.
+    if (deps.isCancelled()) {
+      stop = 'cancelled';
+      break;
+    }
+
+    if (resolution.verificationTimedOut) {
+      stop = 'verification-timeout';
+      break;
+    }
 
     if (verdict?.done) {
       stop = 'achieved';
@@ -187,26 +248,61 @@ async function* resolveVerdict(params: {
   goal: string;
   work: string;
   marker: 'done' | 'continue' | null;
-}): AsyncGenerator<StreamChunk, GoalVerdict | null> {
+}): AsyncGenerator<StreamChunk, VerdictResolution> {
   const { deps, goal, work, marker } = params;
 
   if (marker === 'continue') {
-    return { done: false, reason: 'Der Agent meldet offene Arbeit.', nextStep: '', confidence: 0.9 };
+    return {
+      verdict: { done: false, reason: 'Der Agent meldet offene Arbeit.', nextStep: '', confidence: 0.9 },
+      verificationTimedOut: false,
+    };
   }
 
   if (deps.verify) {
-    const verified = yield* awaitWithKeepalive(deps.verify(goal, work));
-    if (verified) return verified;
+    const verification = yield* awaitWithKeepalive(
+      (signal) => deps.verify!(goal, work, signal),
+      deps.verificationTimeoutMs,
+      deps.verificationAbortGraceMs,
+    );
+    for (const chunk of deps.drainVerificationChunks?.() ?? []) {
+      yield chunk;
+    }
+    if (verification.timedOut) {
+      return { verdict: null, verificationTimedOut: true };
+    }
+    if (verification.verdict) {
+      return { verdict: verification.verdict, verificationTimedOut: false };
+    }
   }
 
   if (marker === 'done') {
-    return { done: true, reason: 'Der Agent meldet das Ziel als erreicht.', nextStep: '', confidence: 0.6 };
+    return {
+      verdict: { done: true, reason: 'Der Agent meldet das Ziel als erreicht.', nextStep: '', confidence: 0.6 },
+      verificationTimedOut: false,
+    };
   }
-  return { done: false, reason: 'Kein Abschluss-Signal erkannt.', nextStep: '', confidence: 0.4 };
+  return {
+    verdict: { done: false, reason: 'Kein Abschluss-Signal erkannt.', nextStep: '', confidence: 0.4 },
+    verificationTimedOut: false,
+  };
 }
 
 /** Keepalive cadence during the verifier call — well inside the chat watchdog's window. */
 const VERIFY_KEEPALIVE_INTERVAL_MS = 20_000;
+/** Hard ceiling so a verifier cannot keep a goal turn alive forever. */
+export const GOAL_VERIFICATION_TIMEOUT_MS = 90_000;
+/** Time allowed for an aborted isolated runner to tear down its transport. */
+export const GOAL_VERIFICATION_ABORT_GRACE_MS = 2_000;
+
+interface VerdictResolution {
+  verdict: GoalVerdict | null;
+  verificationTimedOut: boolean;
+}
+
+interface VerificationAwaitResult {
+  verdict: GoalVerdict | null;
+  timedOut: boolean;
+}
 
 /**
  * Awaits the verifier while emitting keepalives.
@@ -218,28 +314,61 @@ const VERIFY_KEEPALIVE_INTERVAL_MS = 20_000;
  * fall back to the agent's own marker.
  */
 async function* awaitWithKeepalive(
-  promise: Promise<GoalVerdict | null>,
-): AsyncGenerator<StreamChunk, GoalVerdict | null> {
+  verify: (signal: AbortSignal) => Promise<GoalVerdict | null>,
+  timeoutMs = GOAL_VERIFICATION_TIMEOUT_MS,
+  abortGraceMs = GOAL_VERIFICATION_ABORT_GRACE_MS,
+): AsyncGenerator<StreamChunk, VerificationAwaitResult> {
+  const controller = new AbortController();
   let settled = false;
   let result: GoalVerdict | null = null;
+  let timedOut = false;
 
-  const task = promise.then(
+  const normalizedTimeoutMs = Number.isFinite(timeoutMs) && timeoutMs > 0
+    ? timeoutMs
+    : GOAL_VERIFICATION_TIMEOUT_MS;
+
+  const task = Promise.resolve().then(() => verify(controller.signal)).then(
     (value) => { result = value; settled = true; },
     () => { result = null; settled = true; },
   );
 
-  while (!settled) {
+  let resolveDeadline: (() => void) | null = null;
+  const deadline = new Promise<void>((resolve) => {
+    resolveDeadline = resolve;
+  });
+  const deadlineId = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+    resolveDeadline?.();
+  }, normalizedTimeoutMs);
+
+  while (!settled && !timedOut) {
     let timeoutId = 0;
     const tick = new Promise<void>((resolve) => {
       timeoutId = window.setTimeout(resolve, VERIFY_KEEPALIVE_INTERVAL_MS);
     });
-    await Promise.race([task, tick]);
+    await Promise.race([task, tick, deadline]);
     window.clearTimeout(timeoutId);
-    if (!settled) {
+    if (!settled && !timedOut) {
       yield { type: 'keepalive' };
     }
   }
 
+  window.clearTimeout(deadlineId);
+  if (timedOut) {
+    const normalizedAbortGraceMs = Number.isFinite(abortGraceMs) && abortGraceMs >= 0
+      ? abortGraceMs
+      : GOAL_VERIFICATION_ABORT_GRACE_MS;
+    if (!settled && normalizedAbortGraceMs > 0) {
+      let graceId = 0;
+      const grace = new Promise<void>((resolve) => {
+        graceId = window.setTimeout(resolve, normalizedAbortGraceMs);
+      });
+      await Promise.race([task, grace]);
+      window.clearTimeout(graceId);
+    }
+    return { verdict: null, timedOut: true };
+  }
   await task;
-  return result;
+  return { verdict: result, timedOut: false };
 }

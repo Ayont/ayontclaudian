@@ -12,10 +12,9 @@ import {
 } from '../../../utils/windowsCmdShim';
 import {
   deleteAntigravityConversationDir,
-  discoverNewestConversationId,
   readAntigravityTranscript,
-  snapshotBrainConversationIds,
 } from '../history/AntigravityBrainStore';
+import { createAgyNdjsonBuffer } from '../normalization/streamEvents';
 import { isAssistantTextEvent, parseTranscript, stripAgyTrailingRecap } from '../normalization/transcript';
 import { ANTIGRAVITY_PROVIDER_ID, getAntigravityProviderSettings } from '../settings';
 import { buildAntigravityLaunchSpec } from './AntigravityLaunchSpec';
@@ -75,10 +74,6 @@ export class AntigravityAuxQueryRunner implements AuxQueryRunner {
       prompt: fullPrompt,
     });
 
-    // Snapshot existing conversations so we can identify the fresh one this aux
-    // run creates — its transcript is the only output source under non-TTY.
-    const previousBrainIds = snapshotBrainConversationIds();
-
     const resolvedSpawnSpec = resolveWindowsCmdShimSpawnSpec(launchSpec);
     const proc = spawn(resolvedSpawnSpec.command, resolvedSpawnSpec.args, {
       cwd,
@@ -97,8 +92,25 @@ export class AntigravityAuxQueryRunner implements AuxQueryRunner {
 
     let stdout = '';
     let stderr = '';
+    let ownedConversationId: string | null = null;
+    let streamResponse = '';
+    let sawStreamEvent = false;
+    const streamBuffer = createAgyNdjsonBuffer();
+    const ingestEvents = (events: ReturnType<typeof streamBuffer.push>): void => {
+      for (const event of events) {
+        sawStreamEvent = true;
+        if (event.conversationId) {
+          ownedConversationId ??= event.conversationId;
+        }
+        if (event.kind === 'result' && event.response) {
+          streamResponse = event.response;
+        }
+      }
+    };
     proc.stdout.on('data', (chunk: Buffer | string) => {
-      stdout += typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
+      const text = typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
+      stdout += text;
+      ingestEvents(streamBuffer.push(text));
     });
     proc.stderr.on('data', (chunk: Buffer | string) => {
       stderr += typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
@@ -116,6 +128,7 @@ export class AntigravityAuxQueryRunner implements AuxQueryRunner {
         proc.on('error', reject);
         proc.on('exit', (exitCode) => resolve(exitCode));
       });
+      ingestEvents(streamBuffer.flush());
 
       if (config.abortController?.signal.aborted) {
         throw new Error('Cancelled');
@@ -132,7 +145,9 @@ export class AntigravityAuxQueryRunner implements AuxQueryRunner {
       // text from the fresh conversation's transcript, falling back to stdout
       // for the rare TTY case.
       await sleep(ANTIGRAVITY_AUX_SETTLE_MS);
-      const text = stdout.trim() || this.recoverFinalTextFromTranscript(previousBrainIds);
+      const text = streamResponse.trim()
+        || this.recoverFinalTextFromTranscript(ownedConversationId)
+        || (sawStreamEvent ? '' : stdout.trim());
       config.onTextChunk?.(text);
       return text;
     } finally {
@@ -140,18 +155,23 @@ export class AntigravityAuxQueryRunner implements AuxQueryRunner {
       if (this.activeProcess === proc) {
         this.activeProcess = null;
       }
+
+      // The stream's own conversation id is the only reliable ownership proof.
+      // Directory recency is global and can point at a concurrently created
+      // visible chat, so legacy runs without stream metadata are left intact.
+      if (ownedConversationId) {
+        deleteAntigravityConversationDir(ownedConversationId);
+      }
     }
   }
 
   /**
    * Recovers the final assistant text for a one-shot aux run from the freshly
-   * created conversation's transcript. Only a conversation created by this run
-   * (absent from `previousBrainIds`) is read or deleted — never a pre-existing
-   * chat conversation. Returns `''` when no fresh conversation was produced.
+   * created conversation's transcript. Cleanup is owned by query()'s finally
+   * block so stdout, errors, aborts, and non-zero exits share the same guarantee.
    */
-  private recoverFinalTextFromTranscript(previousBrainIds: ReadonlySet<string>): string {
-    const conversationId = discoverNewestConversationId(previousBrainIds);
-    if (!conversationId || previousBrainIds.has(conversationId)) {
+  private recoverFinalTextFromTranscript(conversationId: string | null): string {
+    if (!conversationId) {
       return '';
     }
     const buffer = readAntigravityTranscript(conversationId);
@@ -165,7 +185,6 @@ export class AntigravityAuxQueryRunner implements AuxQueryRunner {
         }
       }
     }
-    deleteAntigravityConversationDir(conversationId);
     return finalText;
   }
 

@@ -107,9 +107,115 @@ describe('MultiAgentService', () => {
 
     expect(saved.length).toBeGreaterThanOrEqual(2);
     expect(saved.at(-1)?.status).toBe('completed');
+    expect(saved.at(-1)?.completedAt).toEqual(expect.any(Number));
     expect(events.some((e) => e.type === 'started')).toBe(true);
     expect(events.some((e) => e.type === 'agent-done' && e.agentId === 'a')).toBe(true);
     expect(events.some((e) => e.type === 'completed')).toBe(true);
+  });
+
+  it('persists a failed synthesis as a retryable mission error and rejects the run', async () => {
+    const service = new MultiAgentService();
+    service.registerAgent({ id: 'a', name: 'A', role: 'a', systemPrompt: 'A' });
+
+    const saved: MissionState[] = [];
+    const events: Array<{ type: string }> = [];
+    const storage = {
+      saveMission: async (state: MissionState) => { saved.push(state); },
+      appendEvent: async (_taskId: string, event: { type: string }) => { events.push(event); },
+      flushMission: async () => {},
+    } as unknown as MissionStateStorage;
+
+    await expect(service.runMission(
+      { id: 'm-synthesis-error', prompt: 'x', agents: ['a'] },
+      { execute: async () => 'specialist result' },
+      { synthesize: async () => { throw new Error('Synthese nicht erreichbar'); } },
+      undefined,
+      undefined,
+      { storage },
+    )).rejects.toThrow('Synthese nicht erreichbar');
+
+    expect(saved.at(-1)).toMatchObject({
+      status: 'error',
+      overall: 80,
+      synthesis: { status: 'error', error: 'Synthese nicht erreichbar' },
+    });
+    expect(saved.at(-1)?.completedAt).toBeUndefined();
+    expect(events.some((event) => event.type === 'completed')).toBe(false);
+    expect(events.at(-1)?.type).toBe('error');
+    expect(service.isMissionActive('m-synthesis-error')).toBe(false);
+  });
+
+  it('runMission does not resolve before the final persistence flush finishes', async () => {
+    const service = new MultiAgentService();
+    service.registerAgent({ id: 'a', name: 'A', role: 'a', systemPrompt: 'A' });
+
+    let releaseFlush: (() => void) | undefined;
+    let signalFlushStarted: (() => void) | undefined;
+    const flushStarted = new Promise<void>((resolve) => { signalFlushStarted = resolve; });
+    const storage = {
+      saveMission: async () => {},
+      appendEvent: async () => {},
+      flushMission: async () => {
+        signalFlushStarted?.();
+        await new Promise<void>((resolve) => { releaseFlush = resolve; });
+      },
+    } as unknown as MissionStateStorage;
+
+    const run = service.runMission(
+      { id: 'm-flush', prompt: 'x', agents: ['a'] },
+      { execute: async () => 'result' },
+      undefined,
+      undefined,
+      undefined,
+      { storage },
+    );
+    let settled = false;
+    void run.then(() => { settled = true; });
+
+    await flushStarted;
+    expect(settled).toBe(false);
+    releaseFlush?.();
+    await run;
+    expect(settled).toBe(true);
+  });
+
+  it('does not resume a mission that is still active in this process', async () => {
+    const service = new MultiAgentService();
+    service.registerAgent({ id: 'a', name: 'A', role: 'a', systemPrompt: 'A' });
+
+    let releaseAgent: (() => void) | undefined;
+    let signalAgentStarted: (() => void) | undefined;
+    const agentStarted = new Promise<void>((resolve) => { signalAgentStarted = resolve; });
+    const running = service.runMission(
+      { id: 'm-active', prompt: 'x', agents: ['a'] },
+      {
+        execute: async () => {
+          signalAgentStarted?.();
+          await new Promise<void>((resolve) => { releaseAgent = resolve; });
+          return 'done';
+        },
+      },
+    );
+    await agentStarted;
+
+    expect(service.isMissionActive('m-active')).toBe(true);
+    await expect(service.resumeMission(
+      {
+        taskId: 'm-active',
+        prompt: 'x',
+        agentIds: ['a'],
+        status: 'running',
+        overall: 10,
+        agents: [{ agentId: 'a', status: 'running', progress: 10 }],
+        createdAt: 1,
+        updatedAt: 2,
+      },
+      { execute: async () => 'duplicate' },
+    )).rejects.toThrow('already active');
+
+    releaseAgent?.();
+    await running;
+    expect(service.isMissionActive('m-active')).toBe(false);
   });
 
   it('resumeMission reuses done agents and re-runs errored agents', async () => {
@@ -129,20 +235,31 @@ describe('MultiAgentService', () => {
       ],
       createdAt: 1,
       updatedAt: 2,
+      completedAt: 2,
     };
 
     const executed: string[] = [];
+    const resumedStates: MissionState[] = [];
+    const storage = {
+      saveMission: async (mission: MissionState) => { resumedStates.push(mission); },
+      appendEvent: async () => {},
+      flushMission: async () => {},
+    } as unknown as MissionStateStorage;
+    let clock = 10;
     const outcome = await service.resumeMission(
       state,
       { execute: async (agent) => { executed.push(agent.id); return `rerun-${agent.id}`; } },
       undefined,
       undefined,
-      undefined,
+      () => (clock += 1),
+      { storage },
     );
 
     expect(executed).toEqual(['b']);
     expect(outcome.results.find((r) => r.agentId === 'a')?.output).toBe('kept-a');
     expect(outcome.results.find((r) => r.agentId === 'b')?.output).toBe('rerun-b');
+    expect(resumedStates.find((mission) => mission.status === 'running')?.completedAt).toBeUndefined();
+    expect(resumedStates.at(-1)?.completedAt).toBeGreaterThan(2);
   });
 
   it('resumeMission runs synthesis when enough agents succeed', async () => {

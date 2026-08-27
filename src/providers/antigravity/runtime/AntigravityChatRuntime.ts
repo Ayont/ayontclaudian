@@ -3,6 +3,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
+import { buildPrintRetryPromptWithHistory } from '../../../core/conversation/printRetryHistory';
 import { expandProviderCommandInput } from '../../../core/providers/commands/expandProviderCommandInput';
 import { getRuntimeEnvironmentText } from '../../../core/providers/providerEnvironment';
 import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorkspaceRegistry';
@@ -240,6 +241,14 @@ export class AntigravityChatRuntime implements ChatRuntime {
       // Keep the unexpanded prompt on any catalog failure.
     }
 
+    if (isRetry) {
+      prompt = buildPrintRetryPromptWithHistory({
+        prompt,
+        actualPrompt: turn.request.text,
+        conversationHistory,
+      });
+    }
+
     // Stage image / file attachments to a temp dir and reference them via @path
     // so agy (filesystem-based, multimodal) can read them — verified to work for
     // both text and images. The dir is exposed via --add-dir and removed after.
@@ -337,12 +346,16 @@ export class AntigravityChatRuntime implements ChatRuntime {
     let emittedAnyTextFromStream = false;
     let emittedAnyToolFromStream = false;
     let sawStreamJson = false;
+    let sawFailedStreamResult = false;
     const contextWindow = getAntigravityContextWindow(selectedModel ?? '');
     const streamToolUseEmitted = new Set<number>();
 
     const ingestStreamEvents = (events: ReturnType<typeof streamBuffer.push>): void => {
       for (const event of events) {
         sawStreamJson = true;
+        if (event.kind === 'result' && event.status.toUpperCase() !== 'SUCCESS') {
+          sawFailedStreamResult = true;
+        }
         if (event.kind === 'init' && event.conversationId) {
           this.conversationId = event.conversationId;
           this.transcriptPath = getAntigravityTranscriptPath(event.conversationId);
@@ -410,15 +423,18 @@ export class AntigravityChatRuntime implements ChatRuntime {
 
     // Fallback estimate when stream-json is unavailable (older agy, or the
     // turn produced no `result.usage`). stream-json reports real token counts.
-    const buildUsageChunk = (): StreamChunk => ({
+    const buildUsageChunk = (reportType: 'snapshot' | 'final'): StreamChunk => ({
       type: 'usage',
       usage: buildEstimatedUsageInfo({
         contextTokens: estimateTokensForTexts([
-          ...(conversationHistory ?? []).map((message) => message.content ?? ''),
+          ...(isRetry
+            ? []
+            : (conversationHistory ?? []).map((message) => message.content ?? '')),
           prompt,
           responseText,
         ]),
         contextWindow,
+        reportType,
       }),
       sessionId: this.conversationId,
     });
@@ -497,7 +513,7 @@ export class AntigravityChatRuntime implements ChatRuntime {
         // and stream-json has not already reported real usage.
         if (!haveAuthoritativeUsage && responseText.length !== lastUsageLen) {
           lastUsageLen = responseText.length;
-          yield buildUsageChunk();
+          yield buildUsageChunk('snapshot');
         }
         if (settled.done) {
           exited = settled.value;
@@ -576,8 +592,8 @@ export class AntigravityChatRuntime implements ChatRuntime {
       }
 
       this.currentTurnMetadata.wasSent = true;
-      if (!haveAuthoritativeUsage) {
-        yield buildUsageChunk();
+      if (!haveAuthoritativeUsage && !sawFailedStreamResult) {
+        yield buildUsageChunk('final');
       }
       yield { type: 'done' };
     } finally {

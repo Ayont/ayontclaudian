@@ -8,6 +8,7 @@ export {
   type ImageAttachment,
   type ImageMediaType,
   type MessageAttachment,
+  type OutputSurface,
   type SessionMetadata,
   type StreamChunk,
   type UsageInfo,

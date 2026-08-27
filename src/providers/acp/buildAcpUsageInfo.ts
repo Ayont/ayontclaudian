@@ -5,6 +5,7 @@ export interface BuildAcpUsageInfoParams {
   contextWindow?: AcpUsageUpdate | null;
   model?: string;
   promptUsage?: AcpUsage | null;
+  reportType?: UsageInfo['reportType'];
 }
 
 export function buildAcpUsageInfo(params: BuildAcpUsageInfoParams): UsageInfo | null {
@@ -28,7 +29,9 @@ export function buildAcpUsageInfo(params: BuildAcpUsageInfoParams): UsageInfo | 
     contextWindowIsAuthoritative: Boolean(contextWindow),
     inputTokens: promptUsage?.inputTokens ?? 0,
     model: params.model,
+    ...(promptUsage ? { outputTokens: promptUsage.outputTokens } : {}),
     percentage: computePercentage(contextTokens, contextWindowSize),
+    ...(params.reportType ? { reportType: params.reportType } : {}),
   };
 }
 

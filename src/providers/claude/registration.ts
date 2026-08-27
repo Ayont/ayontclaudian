@@ -6,6 +6,7 @@ import { TitleGenerationService as ClaudeTitleGenerationService } from './auxili
 import { CLAUDE_PROVIDER_CAPABILITIES } from './capabilities';
 import { claudeSettingsReconciler } from './env/ClaudeSettingsReconciler';
 import { ClaudeConversationHistoryService } from './history/ClaudeConversationHistoryService';
+import { ClaudeAuxQueryRunner } from './runtime/ClaudeAuxQueryRunner';
 import { ClaudianService as ClaudeChatRuntime } from './runtime/ClaudeChatRuntime';
 import { ClaudeTaskResultInterpreter } from './runtime/ClaudeTaskResultInterpreter';
 import { claudeChatUIConfig } from './ui/ClaudeChatUIConfig';
@@ -18,6 +19,7 @@ export const claudeProviderRegistration: ProviderRegistration = {
   environmentKeyPatterns: [/^ANTHROPIC_/i, /^CLAUDE_/i],
   chatUIConfig: claudeChatUIConfig,
   settingsReconciler: claudeSettingsReconciler,
+  createAuxQueryRunner: (plugin) => new ClaudeAuxQueryRunner(plugin),
   createRuntime: ({ plugin }) => {
     const workspace = getClaudeWorkspaceServices();
     const resolvedMcpManager = workspace?.mcpManager;

@@ -140,8 +140,11 @@ interface PromptUsageSnapshot {
 
 export interface TransformUsageState {
   clear(): void;
+  beginPrompt(): void;
   mergePromptUsage(usage: MessageUsage): PromptUsageSnapshot;
+  commitPromptUsage(usage?: MessageUsage): PromptUsageSnapshot;
   getPromptUsage(): PromptUsageSnapshot;
+  hasObservedUsage(): boolean;
   hasEmitted(promptUsage: PromptUsageSnapshot): boolean;
   markEmitted(promptUsage: PromptUsageSnapshot): void;
 }
@@ -458,6 +461,18 @@ function mergePromptUsage(
   };
 }
 
+function addPromptUsage(
+  current: PromptUsageSnapshot,
+  next: PromptUsageSnapshot,
+): PromptUsageSnapshot {
+  return {
+    inputTokens: current.inputTokens + next.inputTokens,
+    cacheCreationInputTokens: current.cacheCreationInputTokens + next.cacheCreationInputTokens,
+    cacheReadInputTokens: current.cacheReadInputTokens + next.cacheReadInputTokens,
+    contextTokens: current.contextTokens + next.contextTokens,
+  };
+}
+
 function samePromptUsage(a: PromptUsageSnapshot, b: PromptUsageSnapshot): boolean {
   return a.inputTokens === b.inputTokens
     && a.cacheCreationInputTokens === b.cacheCreationInputTokens
@@ -465,9 +480,15 @@ function samePromptUsage(a: PromptUsageSnapshot, b: PromptUsageSnapshot): boolea
     && a.contextTokens === b.contextTokens;
 }
 
-function buildUsageInfo(promptUsage: PromptUsageSnapshot, options?: TransformOptions): UsageInfo {
+function buildUsageInfo(
+  promptUsage: PromptUsageSnapshot,
+  options?: TransformOptions,
+  reportType?: UsageInfo['reportType'],
+  authoritativeContextWindow?: number,
+): UsageInfo {
   const model = options?.intendedModel ?? 'sonnet';
-  const contextWindow = getContextWindowSize(model, options?.customContextLimits);
+  const contextWindow = authoritativeContextWindow
+    ?? getContextWindowSize(model, options?.customContextLimits);
   const percentage = Math.min(100, Math.max(0, Math.round((promptUsage.contextTokens / contextWindow) * 100)));
 
   return {
@@ -476,28 +497,61 @@ function buildUsageInfo(promptUsage: PromptUsageSnapshot, options?: TransformOpt
     cacheCreationInputTokens: promptUsage.cacheCreationInputTokens,
     cacheReadInputTokens: promptUsage.cacheReadInputTokens,
     contextWindow,
+    ...(authoritativeContextWindow ? { contextWindowIsAuthoritative: true } : {}),
     contextTokens: promptUsage.contextTokens,
     percentage,
+    ...(reportType ? { reportType } : {}),
   };
 }
 
 export function createTransformUsageState(): TransformUsageState {
-  let promptUsage: PromptUsageSnapshot = { ...EMPTY_PROMPT_USAGE };
+  let currentPromptUsage: PromptUsageSnapshot = { ...EMPTY_PROMPT_USAGE };
+  let cumulativePromptUsage: PromptUsageSnapshot = { ...EMPTY_PROMPT_USAGE };
+  let currentObserved = false;
+  let observedUsage = false;
   let lastEmittedPromptUsage: PromptUsageSnapshot | null = null;
+
+  const commitCurrent = (): void => {
+    if (!currentObserved) return;
+    cumulativePromptUsage = addPromptUsage(cumulativePromptUsage, currentPromptUsage);
+    currentPromptUsage = { ...EMPTY_PROMPT_USAGE };
+    currentObserved = false;
+  };
 
   return {
     clear(): void {
-      promptUsage = { ...EMPTY_PROMPT_USAGE };
+      currentPromptUsage = { ...EMPTY_PROMPT_USAGE };
+      cumulativePromptUsage = { ...EMPTY_PROMPT_USAGE };
+      currentObserved = false;
+      observedUsage = false;
       lastEmittedPromptUsage = null;
     },
 
+    beginPrompt(): void {
+      commitCurrent();
+      currentPromptUsage = { ...EMPTY_PROMPT_USAGE };
+      currentObserved = false;
+    },
+
     mergePromptUsage(usage: MessageUsage): PromptUsageSnapshot {
-      promptUsage = mergePromptUsage(promptUsage, usage);
-      return promptUsage;
+      currentPromptUsage = mergePromptUsage(currentPromptUsage, usage);
+      currentObserved = true;
+      observedUsage = true;
+      return addPromptUsage(cumulativePromptUsage, currentPromptUsage);
+    },
+
+    commitPromptUsage(usage?: MessageUsage): PromptUsageSnapshot {
+      if (usage) this.mergePromptUsage(usage);
+      commitCurrent();
+      return { ...cumulativePromptUsage };
     },
 
     getPromptUsage(): PromptUsageSnapshot {
-      return { ...promptUsage };
+      return addPromptUsage(cumulativePromptUsage, currentPromptUsage);
+    },
+
+    hasObservedUsage(): boolean {
+      return observedUsage;
     },
 
     hasEmitted(nextPromptUsage: PromptUsageSnapshot): boolean {
@@ -513,20 +567,23 @@ export function createTransformUsageState(): TransformUsageState {
 function maybeEmitUsageFromPromptUsage(
   promptUsage: PromptUsageSnapshot,
   options?: TransformOptions,
-  behavior: { emitZeroUsage?: boolean } = {},
+  behavior: { emitZeroUsage?: boolean; reportType?: UsageInfo['reportType']; force?: boolean; contextWindow?: number } = {},
 ): StreamChunk | null {
   if (promptUsage.contextTokens <= 0) {
     return behavior.emitZeroUsage
-      ? { type: 'usage', usage: buildUsageInfo(promptUsage, options) }
+      ? { type: 'usage', usage: buildUsageInfo(promptUsage, options, behavior.reportType, behavior.contextWindow) }
       : null;
   }
 
-  if (options?.usageState?.hasEmitted(promptUsage)) {
+  if (!behavior.force && options?.usageState?.hasEmitted(promptUsage)) {
     return null;
   }
 
   options?.usageState?.markEmitted(promptUsage);
-  return { type: 'usage', usage: buildUsageInfo(promptUsage, options) };
+  return {
+    type: 'usage',
+    usage: buildUsageInfo(promptUsage, options, behavior.reportType, behavior.contextWindow),
+  };
 }
 
 /**
@@ -599,8 +656,11 @@ export function* transformSDKMessage(
       const usage = (message.message as { usage?: MessageUsage } | undefined)?.usage;
       if (parentToolUseId === null && usage) {
         if (options?.usageState) {
-          const promptUsage = options.usageState.mergePromptUsage(usage);
-          const usageChunk = maybeEmitUsageFromPromptUsage(promptUsage, options, { emitZeroUsage: true });
+          const promptUsage = options.usageState.commitPromptUsage(usage);
+          const usageChunk = maybeEmitUsageFromPromptUsage(promptUsage, options, {
+            emitZeroUsage: true,
+            reportType: 'snapshot',
+          });
           if (usageChunk) {
             yield usageChunk;
           }
@@ -654,7 +714,7 @@ export function* transformSDKMessage(
       const parentToolUseId = message.parent_tool_use_id ?? null;
       const event = message.event;
       if (parentToolUseId === null && event?.type === 'message_start') {
-        options?.usageState?.clear();
+        options?.usageState?.beginPrompt();
         const usage = (event.message as { usage?: MessageUsage } | undefined)?.usage;
         if (usage && hasPromptUsageField(usage)) {
           if (options?.usageState) {
@@ -673,7 +733,9 @@ export function* transformSDKMessage(
           const shouldEmitDeltaUsage = previousPromptUsage.contextTokens <= 0
             || options.usageState.hasEmitted(previousPromptUsage);
           if (shouldEmitDeltaUsage) {
-            const usageChunk = maybeEmitUsageFromPromptUsage(promptUsage, options);
+            const usageChunk = maybeEmitUsageFromPromptUsage(promptUsage, options, {
+              reportType: 'snapshot',
+            });
             if (usageChunk) {
               yield usageChunk;
             }
@@ -732,30 +794,40 @@ export function* transformSDKMessage(
           content: 'Speed-Limit erreicht. Claude läuft jetzt mit Standard-Tempo weiter.',
         };
       }
-      if (options?.usageState) {
-        const usageChunk = maybeEmitUsageFromPromptUsage(options.usageState.getPromptUsage(), options);
-        if (usageChunk) {
-          yield usageChunk;
-        }
-        options.usageState.clear();
-      }
       if (isResultErrorShape(message) && shouldSurfaceResultError(message)) {
         yield {
           type: 'error',
           content: describeResultError(message),
         };
       }
+      {
+        let authoritativeContextWindow: number | undefined;
+        if ('modelUsage' in message && message.modelUsage) {
+          const modelUsage = message.modelUsage as Record<string, { contextWindow?: number }>;
+          const selectedEntry = selectContextWindowEntry(modelUsage, options?.intendedModel);
+          if (selectedEntry) {
+            authoritativeContextWindow = selectedEntry.contextWindow;
+            yield { type: 'context_window', contextWindow: selectedEntry.contextWindow };
+          }
+        }
 
+        if (options?.usageState) {
+          const promptUsage = options.usageState.commitPromptUsage();
+          if (message.subtype === 'success' && options.usageState.hasObservedUsage()) {
+            const usageChunk = maybeEmitUsageFromPromptUsage(promptUsage, options, {
+              contextWindow: authoritativeContextWindow,
+              emitZeroUsage: true,
+              force: true,
+              reportType: 'final',
+            });
+            if (usageChunk) yield usageChunk;
+          }
+          options.usageState.clear();
+        }
+      }
       // Usage is now extracted from assistant messages for accuracy (excludes subagent tokens)
       // Result message usage is aggregated across main + subagents, causing inaccurate spikes
 
-      if ('modelUsage' in message && message.modelUsage) {
-        const modelUsage = message.modelUsage as Record<string, { contextWindow?: number }>;
-        const selectedEntry = selectContextWindowEntry(modelUsage, options?.intendedModel);
-        if (selectedEntry) {
-          yield { type: 'context_window', contextWindow: selectedEntry.contextWindow };
-        }
-      }
       break;
 
     default:

@@ -63,8 +63,9 @@ export class ClaudianView extends ItemView {
   private chatTitleEl: HTMLElement | null = null;
   private headerActionsEl: HTMLElement | null = null;
   private headerActionsContent: HTMLElement | null = null;
-  private newTabButtonEl: HTMLElement | null = null;
-  private pluginUpdateButtonEl: HTMLElement | null = null;
+  private newTabButtonEl: HTMLButtonElement | null = null;
+  private pluginUpdateButtonEl: HTMLButtonElement | null = null;
+  private historyButtonEl: HTMLButtonElement | null = null;
   private updateDock: UpdateDock | null = null;
   private unsubscribeUpdates: (() => void) | null = null;
 
@@ -292,8 +293,8 @@ export class ClaudianView extends ItemView {
     }
   }
 
-  /** Right-click menu on a mode segment: pin/unpin a model for that mode. */
-  private openModeModelMenu(mode: WorkspaceMode, anchor: MouseEvent): void {
+  /** Context menu on a mode segment: pin/unpin a model for that mode. */
+  private openModeModelMenu(mode: WorkspaceMode, anchor: MouseEvent | HTMLElement): void {
     const meta = getWorkspaceModeMeta(mode);
     const pinned = this.plugin.settings.workspaceModeModels?.[mode]?.trim() || null;
     const menu = new Menu();
@@ -339,7 +340,15 @@ export class ClaudianView extends ItemView {
           }),
       );
     }
-    menu.showAtMouseEvent(anchor);
+    if ('clientX' in anchor) {
+      menu.showAtMouseEvent(anchor);
+      return;
+    }
+    const rect = anchor.getBoundingClientRect();
+    menu.showAtPosition(
+      { x: rect.left, y: rect.bottom },
+      anchor.ownerDocument,
+    );
   }
 
   /**
@@ -473,27 +482,43 @@ export class ClaudianView extends ItemView {
     this.headerActionsContent.className = 'claudian-header-actions';
 
     // New tab button (plus icon)
-    this.newTabButtonEl = this.headerActionsContent.createDiv({ cls: 'claudian-header-btn claudian-new-tab-btn' });
+    this.newTabButtonEl = this.headerActionsContent.createEl('button', {
+      cls: 'claudian-header-btn claudian-new-tab-btn',
+      attr: {
+        'aria-label': 'Neuer Tab',
+        title: 'Neuen Tab öffnen',
+        type: 'button',
+      },
+    });
     setIcon(this.newTabButtonEl, 'square-plus');
-    this.newTabButtonEl.setAttribute('aria-label', 'Neuer Tab');
     this.newTabButtonEl.addEventListener('click', () => {
       void this.createNewTab().catch(() => new Notice('Tab konnte nicht erstellt werden.'));
     });
 
-    this.pluginUpdateButtonEl = this.headerActionsContent.createDiv({
+    this.pluginUpdateButtonEl = this.headerActionsContent.createEl('button', {
       cls: 'claudian-header-btn claudian-update-btn claudian-hidden',
+      attr: {
+        'aria-label': 'Plugin-Update installieren',
+        title: 'Plugin-Update installieren',
+        type: 'button',
+      },
     });
     setIcon(this.pluginUpdateButtonEl, 'download');
-    this.pluginUpdateButtonEl.setAttribute('aria-label', 'Plugin-Update installieren');
     this.pluginUpdateButtonEl.addEventListener('click', () => {
       this.plugin.installPendingPluginUpdate();
     });
     this.setPluginUpdateAvailable(this.plugin.getPendingPluginUpdate());
 
     // New conversation button (square-pen icon - new conversation in current tab)
-    const newBtn = this.headerActionsContent.createDiv({ cls: 'claudian-header-btn' });
+    const newBtn = this.headerActionsContent.createEl('button', {
+      cls: 'claudian-header-btn',
+      attr: {
+        'aria-label': 'Neue Unterhaltung',
+        title: 'Neue Unterhaltung starten',
+        type: 'button',
+      },
+    });
     setIcon(newBtn, 'square-pen');
-    newBtn.setAttribute('aria-label', 'Neue Unterhaltung');
     newBtn.addEventListener('click', () => {
       void (async () => {
         await this.tabManager?.createNewConversation();
@@ -503,20 +528,36 @@ export class ClaudianView extends ItemView {
 
     // History dropdown
     const historyContainer = this.headerActionsContent.createDiv({ cls: 'claudian-history-container' });
-    const historyBtn = historyContainer.createDiv({ cls: 'claudian-header-btn' });
-    setIcon(historyBtn, 'history');
-    historyBtn.setAttribute('aria-label', 'Chat-Verlauf');
+    this.historyButtonEl = historyContainer.createEl('button', {
+      cls: 'claudian-header-btn',
+      attr: {
+        'aria-expanded': 'false',
+        'aria-haspopup': 'dialog',
+        'aria-label': 'Chat-Verlauf',
+        title: 'Chat-Verlauf öffnen',
+        type: 'button',
+      },
+    });
+    setIcon(this.historyButtonEl, 'history');
 
     this.historyDropdown = historyContainer.createDiv({ cls: 'claudian-history-menu' });
+    this.historyDropdown.setAttribute('role', 'dialog');
+    this.historyDropdown.setAttribute('aria-label', 'Chat-Verlauf');
 
-    historyBtn.addEventListener('click', (e) => {
+    this.historyButtonEl.addEventListener('click', (e) => {
       e.stopPropagation();
       this.toggleHistoryDropdown();
     });
 
-    const shortcutBtn = this.headerActionsContent.createDiv({ cls: 'claudian-header-btn' });
+    const shortcutBtn = this.headerActionsContent.createEl('button', {
+      cls: 'claudian-header-btn',
+      attr: {
+        'aria-label': 'Tastenkürzel',
+        title: 'Tastenkürzel anzeigen',
+        type: 'button',
+      },
+    });
     setIcon(shortcutBtn, 'keyboard');
-    shortcutBtn.setAttribute('aria-label', 'Tastenkürzel');
     shortcutBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       this.shortcutOverlay?.toggle();
@@ -701,6 +742,7 @@ export class ClaudianView extends ItemView {
 
     const canCreateTab = this.tabManager.canCreateTab();
     this.newTabButtonEl.toggleClass('claudian-hidden', !canCreateTab);
+    this.newTabButtonEl.disabled = !canCreateTab;
     if (canCreateTab) {
       this.newTabButtonEl.removeAttribute('aria-disabled');
       this.newTabButtonEl.removeAttribute('aria-hidden');
@@ -789,11 +831,21 @@ export class ClaudianView extends ItemView {
 
     const isVisible = this.historyDropdown.hasClass('visible');
     if (isVisible) {
-      this.historyDropdown.removeClass('visible');
+      this.closeHistoryDropdown();
     } else {
       this.updateHistoryDropdown();
       this.historyDropdown.addClass('visible');
+      this.historyButtonEl?.setAttribute('aria-expanded', 'true');
+      this.historyDropdown.querySelector<HTMLElement>('.claudian-history-search-input')?.focus();
     }
+  }
+
+  private closeHistoryDropdown(restoreFocus = true): boolean {
+    if (!this.historyDropdown?.hasClass('visible')) return false;
+    this.historyDropdown.removeClass('visible');
+    this.historyButtonEl?.setAttribute('aria-expanded', 'false');
+    if (restoreFocus) this.historyButtonEl?.focus();
+    return true;
   }
 
   private updateHistoryDropdown(): void {
@@ -815,7 +867,7 @@ export class ClaudianView extends ItemView {
 
   private async openHistoryConversation(conversationId: string): Promise<void> {
     await this.tabManager?.openConversation(conversationId);
-    this.historyDropdown?.removeClass('visible');
+    this.closeHistoryDropdown(false);
   }
 
   private async openHistoryConversationInNewTab(
@@ -826,7 +878,7 @@ export class ClaudianView extends ItemView {
       preferNewTab: true,
       activate,
     });
-    this.historyDropdown?.removeClass('visible');
+    this.closeHistoryDropdown(false);
   }
 
   private getHistoryConversationOpenState(conversationId: string): HistoryConversationOpenState {
@@ -861,7 +913,7 @@ export class ClaudianView extends ItemView {
 
     // Document-level click to close dropdowns
     this.registerDomEvent(activeDocument, 'click', () => {
-      this.historyDropdown?.removeClass('visible');
+      this.closeHistoryDropdown(false);
     });
 
     // View-level Shift+Tab to toggle plan mode (works from any focused element)
@@ -875,6 +927,11 @@ export class ClaudianView extends ItemView {
       if (e.key === 'Escape' && this.shortcutOverlay?.isOpen()) {
         e.preventDefault();
         this.shortcutOverlay.close();
+        return;
+      }
+      if (e.key === 'Escape' && this.closeHistoryDropdown()) {
+        e.preventDefault();
+        e.stopPropagation();
         return;
       }
       if (e.key === 'Tab' && e.shiftKey && !e.isComposing) {
@@ -903,6 +960,7 @@ export class ClaudianView extends ItemView {
     this.scope = new Scope(this.app.scope);
     this.scope.register([], 'Escape', (e: KeyboardEvent) => {
       if (e.isComposing) return;
+      if (this.closeHistoryDropdown()) return false;
       if (!e.defaultPrevented) {
         const activeTab = this.tabManager?.getActiveTab();
         if (activeTab?.state.isStreaming) {

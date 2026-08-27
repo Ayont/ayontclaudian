@@ -31,6 +31,10 @@ ClaudianView (lifecycle + assembly)
 │   └── BangBashService
 ├── Rendering
 │   ├── MessageRenderer
+│   ├── RichOutputFences
+│   ├── LiveDocumentRenderer
+│   ├── EmailTemplateRenderer
+│   ├── NetworkMapRenderer
 │   ├── ToolCallRenderer
 │   ├── ThinkingBlockRenderer
 │   ├── WriteEditRenderer
@@ -68,6 +72,10 @@ User Input
 
 The feature layer consumes provider-neutral `StreamChunk` values. Providers own prompt encoding, history/session fallback, and task-result interpretation.
 
+`InputController` also resolves an application-owned `OutputSurface` for every
+ordinary turn. The value is persisted on the assistant message and semantic text
+blocks; it is not inferred again from rendered prose after reload.
+
 ## Controllers
 
 | Controller | Responsibility |
@@ -85,6 +93,10 @@ The feature layer consumes provider-neutral `StreamChunk` values. Providers own 
 | Renderer | Handles |
 |----------|---------|
 | `MessageRenderer` | Main message orchestration, rewind/fork affordances, interrupt markers |
+| `RichOutputFences` | Fence inspection, tool-boundary continuity, fallback wrapping, map canonicalization |
+| `LiveDocumentRenderer` | Editable document canvas plus explicit save/dock actions |
+| `EmailTemplateRenderer` | Plain-text mail variants and copy/save controls |
+| `NetworkMapRenderer` | Explicit `network-map` topology fences only |
 | `ToolCallRenderer` | Tool blocks and tool state |
 | `ThinkingBlockRenderer` | Thinking / reasoning summaries |
 | `WriteEditRenderer` | File writes and edits with diff previews |
@@ -127,10 +139,20 @@ for await (const chunk of runtime.query(preparedTurn, history)) {
 - Scroll-to-bottom re-enables it
 - Resets to the saved setting on a new query
 
+### Rich Output Continuity
+
+- Specialized output is opt-in through `OutputSurface`; ordinary explanations remain `chat`.
+- A document, email, skill, or network-map fence may stay open across thinking and tool chunks. `StreamController` keeps one semantic text block and preserves later prose order.
+- Progressive maps are snapshots of one topology. Persist and render only the newest canonical frame.
+- Document/email turns have a deterministic fenced fallback when a provider ignores the requested format. Network maps never infer topology from prose.
+- `MessageRenderer` rehydrates assistant documents into the per-tab document library without writing to the vault. Only an explicit save action creates `.claudian/documents` files.
+- Re-rendering identical content must remain idempotent; do not rebuild the full Markdown subtree or re-discover the same document on every frame.
+
 ## Gotchas
 
 - `ClaudianView.onClose()` must abort active tabs and dispose runtimes
 - `ChatState` is per-tab; `TabManager` coordinates tab-level operations such as fork targets and provider-aware command catalogs
+- Never derive a specialized surface from a loose substring such as `document`, `firewall`, or `image`; classification requires creation/operational intent or an explicit surface command
 - Title generation runs concurrently per conversation and routes by the global title-generation model selection, not by the active chat tab provider
 - `/compact`
   - Claude skips context injection so the provider recognizes the built-in command and persists the compaction boundary

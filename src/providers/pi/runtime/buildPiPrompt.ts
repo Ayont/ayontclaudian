@@ -4,7 +4,7 @@ import { appendBrowserContext } from '../../../utils/browser';
 import { appendCanvasContext } from '../../../utils/canvas';
 import { appendCurrentNote } from '../../../utils/context';
 import { appendEditorContext } from '../../../utils/editor';
-import { buildContextFromHistory, buildPromptWithHistoryContext } from '../../../utils/session';
+import { buildBoundedContextFromHistory, buildPromptWithHistoryContext } from '../../../utils/session';
 
 export interface PiPromptImage {
   data: string;
@@ -35,7 +35,7 @@ export function buildPiPromptText(
   }
 
   if (conversationHistory.length > 0) {
-    const historyContext = buildContextFromHistory(conversationHistory);
+    const historyContext = buildBoundedContextFromHistory(conversationHistory);
     prompt = buildPromptWithHistoryContext(
       historyContext,
       prompt,

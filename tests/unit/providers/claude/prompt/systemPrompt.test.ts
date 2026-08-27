@@ -5,6 +5,7 @@ jest.mock('@/utils/date', () => ({
 import { getInlineEditSystemPrompt } from '@/core/prompt/inlineEdit';
 import {
   buildSystemPrompt,
+  buildTurnOutputContract,
   computeSystemPromptKey,
 } from '@/core/prompt/mainAgent';
 
@@ -44,42 +45,15 @@ describe('systemPrompt', () => {
       expect(prompt).not.toContain('### Skills');
     });
 
-    it('should teach every provider the live network-map syntax', () => {
+    it('keeps optional presentation manuals out of the persistent base prompt', () => {
       const prompt = buildSystemPrompt();
 
-      expect(prompt).toContain('## Live Network Diagrams');
-      expect(prompt).toContain('```network-map');
-      expect(prompt).toContain('FortiGate 60F -- port2 / trunk --> Core Switch');
-      expect(prompt).toContain('Never invent missing topology');
-    });
-
-    it('should teach every provider the live document canvas syntax', () => {
-      const prompt = buildSystemPrompt();
-
-      expect(prompt).toContain('## Live Document Builder');
-      expect(prompt).toContain('```claudian-document');
-      expect(prompt).toContain('theme: editorial');
-      expect(prompt).toContain('[To be completed]');
-    });
-
-    it('should teach every provider the compact email-template syntax', () => {
-      const prompt = buildSystemPrompt();
-
-      expect(prompt).toContain('## Live Email Templates');
-      expect(prompt).toContain('```claudian-email');
-      expect(prompt).toContain('template: concise');
-      expect(prompt).toContain('no slash command is required');
-      expect(prompt).toContain('ONE selectable plain-text email editor');
-      expect(prompt).toContain('emit four adjacent blocks');
-      expect(prompt).toContain('do not use Markdown headings');
-    });
-
-    it('should give Packet Tracer lab instructions to every provider', () => {
-      const prompt = buildSystemPrompt();
-
-      expect(prompt).toContain('## Cisco Packet Tracer Labs');
-      expect(prompt).toContain('device/port/cable inventory');
-      expect(prompt).toContain('Packet Tracer XML');
+      expect(prompt).not.toContain('## Live Network Diagrams');
+      expect(prompt).not.toContain('## Live Document Builder');
+      expect(prompt).not.toContain('## Live Email Templates');
+      expect(prompt).not.toContain('## Cisco Packet Tracer Labs');
+      expect(prompt).not.toContain('## Desktop Control');
+      expect(prompt.length).toBeLessThan(8_000);
     });
 
   });
@@ -115,30 +89,30 @@ describe('systemPrompt', () => {
 
   describe('media folder instructions', () => {
     it('should use vault root path when mediaFolder is empty', () => {
-      const prompt = buildSystemPrompt({ mediaFolder: '' });
+      const prompt = buildTurnOutputContract({ text: 'Analysiere @image.jpg' }, { mediaFolder: '' });
       expect(prompt).toContain('Located in media folder: `.`');
       expect(prompt).toContain('Read file_path="image.jpg"');
     });
 
     it('should use vault root path when mediaFolder is whitespace only', () => {
-      const prompt = buildSystemPrompt({ mediaFolder: '   ' });
+      const prompt = buildTurnOutputContract({ text: 'Analysiere @image.jpg' }, { mediaFolder: '   ' });
       expect(prompt).toContain('Located in media folder: `.`');
     });
 
     it('should use custom mediaFolder path when provided', () => {
-      const prompt = buildSystemPrompt({ mediaFolder: 'attachments' });
+      const prompt = buildTurnOutputContract({ text: 'Analysiere @image.jpg' }, { mediaFolder: 'attachments' });
       expect(prompt).toContain('Located in media folder: `./attachments`');
       expect(prompt).toContain('Read file_path="attachments/image.jpg"');
     });
 
     it('should handle mediaFolder with special characters', () => {
-      const prompt = buildSystemPrompt({ mediaFolder: '- attachments' });
+      const prompt = buildTurnOutputContract({ text: 'Analysiere @image.jpg' }, { mediaFolder: '- attachments' });
       expect(prompt).toContain('Located in media folder: `./- attachments`');
       expect(prompt).toContain('Read file_path="- attachments/image.jpg"');
     });
 
     it('should include external image handling instructions', () => {
-      const prompt = buildSystemPrompt({ mediaFolder: 'media' });
+      const prompt = buildTurnOutputContract({ text: 'Analysiere @image.jpg' }, { mediaFolder: 'media' });
       expect(prompt).toContain('WebFetch does NOT support images');
       expect(prompt).toContain('Download to media folder');
       expect(prompt).toContain('curl');
@@ -184,8 +158,7 @@ describe('systemPrompt', () => {
 
       const key = computeSystemPromptKey(settings);
 
-      // The trailing segment is the workspace mode (Code/Work switch).
-      expect(key).toBe('attachments::Be helpful::/vault::Alice::code');
+      expect(key).toBe('presentation-contract-v3::Be helpful::/vault::Alice');
     });
 
     it('handles empty or undefined values', () => {
@@ -196,7 +169,7 @@ describe('systemPrompt', () => {
         userName: '',
       });
 
-      expect(key).toBe('::::::::code');
+      expect(key).toBe('presentation-contract-v3::::::');
     });
   });
 });

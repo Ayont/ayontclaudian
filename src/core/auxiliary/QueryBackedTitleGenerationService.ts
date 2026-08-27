@@ -8,6 +8,12 @@ import type {
   TitleGenerationResult,
   TitleGenerationService,
 } from '../providers/types';
+import type { UsageInfo } from '../types';
+import {
+  type AuxiliaryCallSource,
+  type CompletedAuxiliaryCall,
+  CONSUME_AUXILIARY_CALL,
+} from './AuxiliaryUsageAccounting';
 import type { AuxQueryRunner } from './AuxQueryRunner';
 
 interface ActiveGeneration {
@@ -20,8 +26,9 @@ export interface QueryBackedTitleGenerationServiceOptions {
   resolveModel?: () => string | undefined;
 }
 
-export class QueryBackedTitleGenerationService implements TitleGenerationService {
+export class QueryBackedTitleGenerationService implements TitleGenerationService, AuxiliaryCallSource {
   private readonly activeGenerations = new Map<string, ActiveGeneration>();
+  private readonly completedCalls = new Map<string, CompletedAuxiliaryCall>();
 
   constructor(private readonly options: QueryBackedTitleGenerationServiceOptions) {}
 
@@ -30,6 +37,7 @@ export class QueryBackedTitleGenerationService implements TitleGenerationService
     userMessage: string,
     callback: TitleGenerationCallback,
   ): Promise<void> {
+    this.completedCalls.delete(conversationId);
     const existing = this.activeGenerations.get(conversationId);
     if (existing) {
       existing.abortController.abort();
@@ -40,13 +48,19 @@ export class QueryBackedTitleGenerationService implements TitleGenerationService
     const runner = this.options.createRunner();
     const generation = { abortController, runner };
     this.activeGenerations.set(conversationId, generation);
+    const usageReports: UsageInfo[] = [];
 
     try {
       const text = await runner.query({
         abortController,
         model: this.options.resolveModel?.(),
+        onUsage: (usage) => usageReports.push(usage),
         systemPrompt: TITLE_GENERATION_SYSTEM_PROMPT,
       }, buildTitleGenerationPrompt(userMessage));
+      this.completedCalls.set(conversationId, {
+        outputText: text,
+        ...(usageReports.length > 0 ? { usageReports } : {}),
+      });
       const title = parseTitleGenerationResponse(text);
       await this.safeCallback(
         callback,
@@ -74,6 +88,15 @@ export class QueryBackedTitleGenerationService implements TitleGenerationService
       active.runner.reset();
     }
     this.activeGenerations.clear();
+  }
+
+  [CONSUME_AUXILIARY_CALL](operationKey?: string): CompletedAuxiliaryCall | null {
+    if (!operationKey) {
+      return null;
+    }
+    const completed = this.completedCalls.get(operationKey) ?? null;
+    this.completedCalls.delete(operationKey);
+    return completed;
   }
 
   private async safeCallback(

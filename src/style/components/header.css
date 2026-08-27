@@ -103,11 +103,17 @@
 }
 
 .claudian-header-btn {
+  appearance: none;
   display: flex;
   align-items: center;
   justify-content: center;
+  margin: 0;
   padding: var(--cl-space-1);
+  border: 0;
   border-radius: var(--cl-radius-sm);
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
   cursor: pointer;
   color: var(--text-faint);
   transition: color var(--cl-dur-fast) var(--cl-ease),
@@ -153,6 +159,13 @@
 
 .claudian-update-btn:not(.claudian-hidden) {
   animation: cl-tab-pulse 1.8s var(--cl-ease) infinite;
+}
+
+@media (pointer: coarse) {
+  .claudian-header-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

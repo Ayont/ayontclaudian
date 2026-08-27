@@ -8,7 +8,7 @@ import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceReg
 import { ChatState } from '@/features/chat/state/ChatState';
 import {
   activateTab,
-  createTab,
+  createTab as createTabBase,
   deactivateTab,
   destroyTab,
   getBlankTabModelOptions,
@@ -27,6 +27,20 @@ import {
   DEFAULT_CODEX_PRIMARY_MODEL_LABEL,
 } from '@/providers/codex/types/models';
 import * as envUtils from '@/utils/env';
+
+const createdTabs = new Set<ReturnType<typeof createTabBase>>();
+const createTab = (...args: Parameters<typeof createTabBase>): ReturnType<typeof createTabBase> => {
+  const tab = createTabBase(...args);
+  createdTabs.add(tab);
+  return tab;
+};
+
+afterEach(() => {
+  for (const tab of createdTabs) {
+    tab.ui.streamStatusBar?.destroy();
+  }
+  createdTabs.clear();
+});
 
 // Mock ResizeObserver (not available in jsdom)
 const resizeObserverInstances: MockResizeObserver[] = [];
@@ -3591,12 +3605,50 @@ describe('Tab - Cross-Provider Model Switch (bound tab)', () => {
       providerId: 'codex',
       sessionId: null,
       providerSessions: expect.objectContaining({ claude: expect.anything() }),
+      pendingContextBootstrap: expect.stringContaining('<conversation_context>'),
     }));
     // A one-shot context bootstrap was armed for the next turn.
     expect(typeof tab.pendingContextBootstrap).toBe('string');
     expect(tab.pendingContextBootstrap).toContain('<conversation_context>');
     // Prior messages remain visible.
     expect(tab.state.messages).toHaveLength(2);
+  });
+
+  it('restores a persisted bootstrap after reload and consumes it exactly once', async () => {
+    const persistedConversation = {
+      id: 'conv-reloaded',
+      providerId: 'codex',
+      title: 'Reloaded switch',
+      createdAt: 1,
+      updatedAt: 2,
+      sessionId: null,
+      messages: [],
+      pendingContextBootstrap: '<conversation_context>prior turns</conversation_context>',
+    };
+    const updateConversation = jest.fn().mockResolvedValue(undefined);
+    const plugin = createMockPlugin({
+      getConversationSync: jest.fn().mockReturnValue(persistedConversation),
+      updateConversation,
+    });
+    const options = createMockOptions({ plugin });
+    const tab = createTab(options);
+    initializeTabUI(tab, plugin);
+    initializeTabControllers(tab, plugin, {} as any, options.mcpManager);
+    tab.conversationId = persistedConversation.id;
+    const expectedBootstrap = persistedConversation.pendingContextBootstrap;
+
+    const { InputController } = jest.requireMock('@/features/chat/controllers/InputController') as {
+      InputController: jest.Mock;
+    };
+    const config = InputController.mock.calls[InputController.mock.calls.length - 1][0];
+
+    await expect(config.consumePendingContextBootstrap()).resolves.toBe(
+      expectedBootstrap,
+    );
+    expect(updateConversation).toHaveBeenCalledWith(persistedConversation.id, {
+      pendingContextBootstrap: null,
+    });
+    await expect(config.consumePendingContextBootstrap()).resolves.toBeNull();
   });
 
   it('allows same-provider model change on bound tab', async () => {

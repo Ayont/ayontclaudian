@@ -1,7 +1,14 @@
 import type ClaudianPlugin from '../../main';
+import {
+  withInlineEditUsage,
+  withInstructionRefineUsage,
+  withTitleGenerationUsage,
+} from '../auxiliary/AuxiliaryUsageAccounting';
 import { withGoalLoop } from '../conversation/goalLoopRuntime';
 import { AUTO_MODEL_VALUE } from '../routing/modelRouterRules';
 import type { ChatRuntime } from '../runtime/ChatRuntime';
+import { withProviderPromptDelivery } from './providerPromptDelivery';
+import { ProviderSettingsCoordinator } from './ProviderSettingsCoordinator';
 import {
   type CreateChatRuntimeOptions,
   DEFAULT_CHAT_PROVIDER_ID,
@@ -51,7 +58,13 @@ export class ProviderRegistry {
 
   static createChatRuntime(options: CreateChatRuntimeOptions): ChatRuntime {
     const providerId = options.providerId ?? DEFAULT_CHAT_PROVIDER_ID;
-    const runtime = this.getProviderRegistration(providerId).createRuntime(options);
+    const registration = this.getProviderRegistration(providerId);
+    const runtime = withProviderPromptDelivery(registration.createRuntime(options), {
+      plugin: options.plugin,
+      // Production capabilities declare this explicitly. The fallback keeps
+      // third-party/test registrations compatible until they opt into delivery.
+      policy: registration.capabilities.promptDelivery ?? 'native-system',
+    });
     // Cline ships its own goal loop inside the runtime; everyone else gets the
     // shared harness loop wrapped around the query boundary.
     if (providerId === 'cline') {
@@ -59,8 +72,12 @@ export class ProviderRegistry {
     }
     const settings = options.plugin.settings as Record<string, unknown> | undefined;
     return withGoalLoop(runtime, {
+      createVerifierRunner: registration.createAuxQueryRunner
+        ? () => registration.createAuxQueryRunner!(options.plugin)
+        : undefined,
       isPaused: () => options.plugin.goalLoopPaused === true,
       maxIterations: settings?.goalLoopMaxIterations as number | undefined,
+      replayAccumulatedWork: registration.capabilities.promptDelivery === 'stateless-turn',
     });
   }
 
@@ -68,7 +85,12 @@ export class ProviderRegistry {
     if (!providerId) {
       return new RoutedTitleGenerationService(plugin);
     }
-    return this.getProviderRegistration(providerId).createTitleGenerationService(plugin);
+    const service = this.getProviderRegistration(providerId).createTitleGenerationService(plugin);
+    return withTitleGenerationUsage(service, {
+      getDefaultModel: () => this.resolveAuxiliaryModel(plugin, providerId, true),
+      plugin,
+      providerId,
+    });
   }
 
   static resolveTitleGenerationProviderId(settings: Record<string, unknown>): ProviderId {
@@ -87,11 +109,21 @@ export class ProviderRegistry {
   }
 
   static createInstructionRefineService(plugin: ClaudianPlugin, providerId: ProviderId = DEFAULT_CHAT_PROVIDER_ID): InstructionRefineService {
-    return this.getProviderRegistration(providerId).createInstructionRefineService(plugin);
+    const service = this.getProviderRegistration(providerId).createInstructionRefineService(plugin);
+    return withInstructionRefineUsage(service, {
+      getDefaultModel: () => this.resolveAuxiliaryModel(plugin, providerId, false),
+      plugin,
+      providerId,
+    });
   }
 
   static createInlineEditService(plugin: ClaudianPlugin, providerId: ProviderId = DEFAULT_CHAT_PROVIDER_ID): InlineEditService {
-    return this.getProviderRegistration(providerId).createInlineEditService(plugin);
+    const service = this.getProviderRegistration(providerId).createInlineEditService(plugin);
+    return withInlineEditUsage(service, {
+      getDefaultModel: () => this.resolveAuxiliaryModel(plugin, providerId, false),
+      plugin,
+      providerId,
+    });
   }
 
   static getConversationHistoryService(
@@ -248,6 +280,27 @@ export class ProviderRegistry {
     });
 
     return [autoOption, ...providerOptions];
+  }
+
+  private static resolveAuxiliaryModel(
+    plugin: ClaudianPlugin,
+    providerId: ProviderId,
+    preferTitleModel: boolean,
+  ): string | undefined {
+    const settings = plugin.settings as unknown as Record<string, unknown>;
+    const titleModel = preferTitleModel && typeof settings.titleGenerationModel === 'string'
+      ? settings.titleGenerationModel.trim()
+      : '';
+    if (titleModel && this.getChatUIConfig(providerId).ownsModel(titleModel, settings)) {
+      return titleModel;
+    }
+
+    const providerSettings = ProviderSettingsCoordinator.getProviderSettingsSnapshot(
+      settings,
+      providerId,
+    );
+    const model = providerSettings.model;
+    return typeof model === 'string' && model.trim() ? model.trim() : undefined;
   }
 }
 

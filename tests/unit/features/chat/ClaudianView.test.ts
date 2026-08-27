@@ -56,6 +56,34 @@ describe('ClaudianView tab controls', () => {
     expect(newTabButtonEl.getAttribute('aria-disabled')).toBeNull();
     expect(newTabButtonEl.getAttribute('aria-hidden')).toBeNull();
   });
+
+  it('builds every header action as a labelled native button', () => {
+    const view = Object.create(ClaudianView.prototype) as any;
+    view.containerEl = createMockEl();
+    view.containerEl.ownerDocument.createDocumentFragment = () => createMockEl('fragment');
+    view.plugin = {
+      settings: {},
+      getPendingPluginUpdate: jest.fn().mockReturnValue(null),
+      installPendingPluginUpdate: jest.fn(),
+    };
+    view.createNewTab = jest.fn().mockResolvedValue(undefined);
+    view.updateHistoryDropdown = jest.fn();
+    view.tabManager = { createNewConversation: jest.fn().mockResolvedValue(undefined) };
+    view.shortcutOverlay = { toggle: jest.fn() };
+
+    const nav = view.buildNavRowContent();
+    const buttons = Array.from(nav.querySelectorAll('.claudian-header-btn')) as HTMLElement[];
+
+    expect(buttons).toHaveLength(5);
+    for (const button of buttons) {
+      expect(button.tagName).toBe('BUTTON');
+      expect(button.getAttribute('type')).toBe('button');
+      expect(button.getAttribute('aria-label')).toBeTruthy();
+      expect(button.getAttribute('title')).toBeTruthy();
+    }
+    const historyButton = buttons.find((button) => button.getAttribute('aria-label') === 'Chat-Verlauf');
+    expect(historyButton?.getAttribute('aria-expanded')).toBe('false');
+  });
 });
 
 describe('ClaudianView Escape handling', () => {
@@ -205,6 +233,23 @@ describe('ClaudianView Escape handling', () => {
     const result = escapeHandler.func({ key: 'Escape', isComposing: false } as KeyboardEvent);
 
     expect(cancelStreaming).toHaveBeenCalledTimes(1);
+    expect(result).toBe(false);
+  });
+
+  it('closes the open history popup before cancelling a stream', () => {
+    const { cancelStreaming, view } = createEscapeHarness({ isStreaming: true });
+    view.historyDropdown.addClass('visible');
+    view.historyButtonEl = createMockEl('button');
+    view.historyButtonEl.focus = jest.fn();
+
+    view.wireEventHandlers();
+    const escapeHandler = view.scope.handlers.find((handler: any) => handler.key === 'Escape');
+    const result = escapeHandler.func({ key: 'Escape', isComposing: false } as KeyboardEvent);
+
+    expect(view.historyDropdown.hasClass('visible')).toBe(false);
+    expect(view.historyButtonEl.getAttribute('aria-expanded')).toBe('false');
+    expect(view.historyButtonEl.focus).toHaveBeenCalledTimes(1);
+    expect(cancelStreaming).not.toHaveBeenCalled();
     expect(result).toBe(false);
   });
 

@@ -533,7 +533,7 @@ describe('StatusPanel', () => {
       ]);
 
       const header = containerEl.querySelector('.claudian-status-panel-header');
-      expect(header?.getAttribute('aria-label')).toBe('Expand task list - 1 of 2 completed');
+      expect(header?.getAttribute('aria-label')).toBe('Aufgabenliste ausklappen – 1 von 2 erledigt');
     });
 
     it('should hide status icons from screen readers', () => {

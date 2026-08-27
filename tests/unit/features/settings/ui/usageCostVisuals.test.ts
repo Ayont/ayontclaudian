@@ -29,6 +29,16 @@ describe('buildSparklinePoints', () => {
     expect(buildSparklinePoints([5], 100, 20)).toHaveLength(2);
     expect(buildSparklinePoints([])).toEqual([]);
   });
+
+  test('sanitizes invalid and negative measurements instead of emitting broken SVG geometry', () => {
+    const points = buildSparklinePoints([Number.NaN, Number.POSITIVE_INFINITY, -5, 10], 100, 20);
+
+    expect(points).toHaveLength(4);
+    expect(points.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y))).toBe(true);
+    expect(points[3].y).toBeLessThan(points[0].y);
+    expect(points[0].y).toBe(points[1].y);
+    expect(points[1].y).toBe(points[2].y);
+  });
 });
 
 describe('path builders', () => {

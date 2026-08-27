@@ -190,6 +190,7 @@ export function usageFromAgyStream(usage: AgyStreamUsage, contextWindow: number)
     contextWindow,
     contextWindowIsAuthoritative: false,
     percentage,
+    reportType: 'final',
   };
 }
 
@@ -221,7 +222,7 @@ export function mapAgyStreamEventToChunks(
   if (event.kind === 'step_update' && event.textDelta) {
     return [{ type: 'text', content: event.textDelta }];
   }
-  if (event.kind === 'result' && event.usage) {
+  if (event.kind === 'result' && event.status.toUpperCase() === 'SUCCESS' && event.usage) {
     return [
       {
         type: 'usage',

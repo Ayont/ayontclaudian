@@ -55,8 +55,8 @@ describe('suggestCommitMessage', () => {
 describe('describeChangeCount', () => {
   test('handles zero, singular, and plural', () => {
     expect(describeChangeCount(0)).toBe('Keine Änderungen');
-    expect(describeChangeCount(1)).toBe('1 changed file');
-    expect(describeChangeCount(3)).toBe('3 changed files');
+    expect(describeChangeCount(1)).toBe('1 geänderte Datei');
+    expect(describeChangeCount(3)).toBe('3 geänderte Dateien');
   });
 });
 
@@ -104,7 +104,19 @@ describe('CommitBar', () => {
     const bar = findByClass(parent, 'claudian-commit-bar');
     expect(bar.hasClass('claudian-hidden')).toBe(false);
     expect(findByClass(parent, 'claudian-commit-bar-branch-name').textContent).toBe('main');
-    expect(findByClass(parent, 'claudian-commit-bar-count').textContent).toBe('1 changed file');
+    expect(findByClass(parent, 'claudian-commit-bar-count').textContent).toBe('1 geänderte Datei');
+  });
+
+  test('uses native buttons and a live feedback region', async () => {
+    const parent = createMockEl();
+    const git = createMockGit();
+    new CommitBar(parent, git as never);
+    await flush();
+
+    expect(findByClass(parent, 'claudian-commit-bar-suggest').tagName).toBe('BUTTON');
+    expect(findByClass(parent, 'claudian-commit-bar-commit').tagName).toBe('BUTTON');
+    expect(findByClass(parent, 'claudian-commit-bar-push').tagName).toBe('BUTTON');
+    expect(findByClass(parent, 'claudian-commit-bar-feedback').getAttribute('aria-live')).toBe('polite');
   });
 
   test('commit is disabled with an empty message and enabled once typed', async () => {

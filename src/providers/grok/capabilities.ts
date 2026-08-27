@@ -14,6 +14,7 @@ import type { ProviderCapabilities } from '../../core/providers/types';
  */
 export const GROK_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({
   providerId: 'grok',
+  promptDelivery: 'session-preamble',
   supportsPersistentRuntime: true,
   supportsNativeHistory: true,
   supportsPlanMode: true,

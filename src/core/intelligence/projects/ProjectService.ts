@@ -1,4 +1,4 @@
-import type { TFile, Vault } from 'obsidian';
+import { TFile, type Vault } from 'obsidian';
 
 function normalizePath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/^\//, '').replace(/\/$/, '');
@@ -68,8 +68,8 @@ export class ProjectService {
   async getProject(id: string): Promise<ClaudianProject | null> {
     const path = normalizePath(`${PROJECTS_FOLDER}/${id}.md`);
     const file = this.vault.getAbstractFileByPath(path);
-    if (!file) return null;
-    const raw = await this.vault.cachedRead(file as TFile).catch(() => '');
+    if (!(file instanceof TFile)) return null;
+    const raw = await this.vault.cachedRead(file).catch(() => '');
     return this.parseProject(id, raw);
   }
 

@@ -14,17 +14,20 @@
 }
 
 .claudian-nav-sidebar.visible {
-    opacity: 0.15;
+    opacity: 0.62;
     pointer-events: auto;
 }
 
-.claudian-nav-sidebar.visible:hover {
+.claudian-nav-sidebar.visible:hover,
+.claudian-nav-sidebar.visible:focus-within {
     opacity: 1;
 }
 
 .claudian-nav-btn {
+    appearance: none;
     width: 32px;
     height: 32px;
+    padding: 0;
     border-radius: 16px;
     background: var(--background-primary);
     border: 1px solid var(--background-modifier-border);
@@ -43,6 +46,13 @@
     transform: scale(1.05);
 }
 
+.claudian-nav-btn:focus-visible {
+    outline: 2px solid var(--interactive-accent);
+    outline-offset: 2px;
+    color: var(--text-normal);
+    opacity: 1;
+}
+
 .claudian-nav-btn svg {
     width: 18px;
     height: 18px;
@@ -55,4 +65,12 @@
 
 .claudian-nav-btn-bottom {
     margin-top: 4px;
+}
+
+@media (pointer: coarse) {
+    .claudian-nav-btn {
+        width: 44px;
+        height: 44px;
+        border-radius: 22px;
+    }
 }

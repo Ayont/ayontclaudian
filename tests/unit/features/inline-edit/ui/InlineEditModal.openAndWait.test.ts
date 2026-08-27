@@ -84,7 +84,7 @@ describe('InlineEditModal - openAndWait', () => {
 
     const noticeMock = Notice as unknown as jest.Mock;
     expect(noticeMock).toHaveBeenCalledWith(
-      'Inline edit unavailable: could not access the active editor. Try reopening the note.'
+      'Inline-Bearbeitung nicht verfügbar: Der aktive Editor konnte nicht geöffnet werden. Bitte öffne die Notiz erneut.'
     );
   });
 
@@ -142,6 +142,7 @@ describe('InlineEditModal - openAndWait', () => {
           },
         },
         dispatch,
+        focus: jest.fn(),
         dom: {
           ownerDocument: (global as any).document,
           addEventListener: jest.fn(),
@@ -170,14 +171,61 @@ describe('InlineEditModal - openAndWait', () => {
       const modal = new InlineEditModal(app, plugin, editor, view, editContext, 'note.md');
       const resultPromise = modal.openAndWait();
 
+      expect(widgetRef.inputEl.placeholder).toBe('Text an dieser Stelle einfügen …');
+      expect(widgetRef.inputEl.getAttribute('aria-label')).toBe('Anweisung für die Inline-Bearbeitung');
+      expect(widgetRef.spinnerEl.getAttribute('role')).toBe('status');
+      expect(widgetRef.spinnerEl.getAttribute('aria-live')).toBe('polite');
+
       expect(mentionDropdownCtor).toHaveBeenCalled();
       const callbacks = mentionDropdownCtor.mock.calls[0]?.[2];
       expect(callbacks).toBeDefined();
       expect(callbacks.getCachedVaultFolders()).toEqual([{ name: 'src', path: 'src' }]);
       expect(getFoldersSpy).toHaveBeenCalledTimes(1);
 
+      let resolveEdit!: (result: { success: true; clarification: string }) => void;
+      const pendingEdit = new Promise<{ success: true; clarification: string }>((resolve) => {
+        resolveEdit = resolve;
+      });
+      widgetRef.inlineEditService = {
+        editText: jest.fn().mockReturnValue(pendingEdit),
+        continueConversation: jest.fn(),
+        cancel: jest.fn(),
+        resetConversation: jest.fn(),
+      };
+      widgetRef.inputEl.value = 'Bitte ergänzen';
+      const generation = widgetRef.generate();
+
+      expect(widgetRef.inputEl.disabled).toBe(true);
+      expect(widgetRef.inputEl.getAttribute('aria-busy')).toBe('true');
+      expect(widgetRef.spinnerEl.getAttribute('aria-hidden')).toBe('false');
+
+      resolveEdit({ success: true, clarification: 'Welche Details?' });
+      await generation;
+
+      expect(widgetRef.inputEl.disabled).toBe(false);
+      expect(widgetRef.inputEl.getAttribute('aria-busy')).toBe('false');
+      expect(widgetRef.spinnerEl.getAttribute('aria-hidden')).toBe('true');
+      expect(widgetRef.inputEl.placeholder).toBe('Antwort eingeben …');
+
+      widgetRef.inlineEditService.continueConversation.mockRejectedValue(new Error('transport down'));
+      widgetRef.inputEl.value = 'Mehr Details';
+      await widgetRef.generate();
+
+      expect(widgetRef.inputEl.disabled).toBe(false);
+      expect(widgetRef.inputEl.getAttribute('aria-busy')).toBe('false');
+      expect(widgetRef.inputEl.placeholder).toBe('Bearbeitung fehlgeschlagen. Bitte erneut versuchen.');
+      expect(widgetRef.inputEl.getAttribute('aria-invalid')).toBe('true');
+      expect(widgetRef.inputEl.getAttribute('aria-errormessage')).toBe(widgetRef.errorEl.id);
+      expect(widgetRef.errorEl.getAttribute('role')).toBe('alert');
+      expect(widgetRef.errorEl.textContent).toBe('Bearbeitung fehlgeschlagen. Bitte erneut versuchen.');
+
+      widgetRef.inputEl.dispatchEvent({ type: 'input' });
+      expect(widgetRef.inputEl.getAttribute('aria-invalid')).toBeNull();
+      expect(widgetRef.errorEl.hasClass('claudian-hidden')).toBe(true);
+
       widgetRef?.reject();
       await expect(resultPromise).resolves.toEqual({ decision: 'reject' });
+      expect(editorView.focus).toHaveBeenCalledTimes(1);
 
       getEditorViewSpy.mockRestore();
       getFoldersSpy.mockRestore();
@@ -523,7 +571,7 @@ describe('InlineEditModal - openAndWait', () => {
       const noticeMock = Notice as unknown as jest.Mock;
       expect(noticeMock).toHaveBeenCalledTimes(1);
       expect(noticeMock).toHaveBeenCalledWith(
-        'Failed to load vault files. Vault @-mentions may be unavailable.'
+        'Vault-Dateien konnten nicht geladen werden. @-Erwähnungen aus dem Vault sind eventuell nicht verfügbar.'
       );
 
       widgetRef.reject();
@@ -1317,8 +1365,10 @@ describe('InlineEditModal - openAndWait', () => {
 
       expect(actionBar).not.toBeNull();
       expect(actionButtons).toHaveLength(2);
-      expect(actionButtons[0].textContent).toBe('Reject');
-      expect(actionButtons[1].textContent).toBe('Accept');
+      expect(actionButtons[0].textContent).toBe('Verwerfen');
+      expect(actionButtons[0].getAttribute('aria-label')).toBe('Änderung verwerfen (Esc)');
+      expect(actionButtons[1].textContent).toBe('Übernehmen');
+      expect(actionButtons[1].getAttribute('aria-label')).toBe('Änderung übernehmen (Eingabe)');
 
       actionButtons[0].click();
       actionButtons[1].click();

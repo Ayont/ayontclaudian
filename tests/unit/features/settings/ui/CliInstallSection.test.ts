@@ -1,4 +1,7 @@
-import { describeProviderInstallStatus } from '@/features/settings/ui/CliInstallSection';
+import {
+  applyCliProgressVisual,
+  describeProviderInstallStatus,
+} from '@/features/settings/ui/CliInstallSection';
 
 describe('describeProviderInstallStatus', () => {
   it('highlights a detected CLI update', () => {
@@ -45,5 +48,40 @@ describe('describeProviderInstallStatus', () => {
       desc: '✓ installiert · 2.20.0',
       highlightUpdate: false,
     });
+  });
+});
+
+describe('applyCliProgressVisual', () => {
+  it('moves between determinate, indeterminate, and complete states without inline widths', () => {
+    const classes = new Set<string>();
+    const progressWrap = {
+      classList: {
+        toggle: (name: string, enabled: boolean) => {
+          if (enabled) classes.add(name);
+          else classes.delete(name);
+        },
+      },
+    } as unknown as HTMLElement;
+    const properties = new Map<string, string>();
+    const progressBar = {
+      style: {
+        removeProperty: jest.fn((name: string) => properties.delete(name)),
+        setProperty: jest.fn((name: string, value: string) => properties.set(name, value)),
+      },
+    } as unknown as HTMLElement;
+
+    applyCliProgressVisual(progressWrap, progressBar, { mode: 'determinate', percent: 37 });
+    expect(properties.get('--claudian-cli-progress-width')).toBe('37%');
+    expect(classes).not.toContain('is-indeterminate');
+    expect(classes).not.toContain('is-complete');
+
+    applyCliProgressVisual(progressWrap, progressBar, { mode: 'indeterminate' });
+    expect(properties.has('--claudian-cli-progress-width')).toBe(false);
+    expect(classes).toContain('is-indeterminate');
+    expect(classes).not.toContain('is-complete');
+
+    applyCliProgressVisual(progressWrap, progressBar, { mode: 'complete' });
+    expect(classes).not.toContain('is-indeterminate');
+    expect(classes).toContain('is-complete');
   });
 });

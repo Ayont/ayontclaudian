@@ -76,6 +76,21 @@ describe('FreebuffOrchestratorClient', () => {
     await expect(client.discoverPort('9999')).resolves.toBeNull();
   });
 
+  it('forwards cancellation to the process probes used during discovery', async () => {
+    const { fetchImpl } = makeFetch(new Map());
+    const execImpl = jest.fn().mockResolvedValue({ stdout: '' });
+    const client = new FreebuffOrchestratorClient({ fetchImpl, execImpl });
+    const abortController = new AbortController();
+
+    await expect(client.discoverPort(undefined, abortController.signal)).resolves.toBeNull();
+
+    expect(execImpl).toHaveBeenCalledWith(
+      'pgrep',
+      ['-f', 'orchestrator'],
+      { signal: abortController.signal },
+    );
+  });
+
   it('discovers the orchestrator through pgrep plus lsof and fingerprints healthz', async () => {
     const { fetchImpl, calls } = makeFetch(new Map([
       ['http://127.0.0.1:1111/healthz', { status: 404, body: '' }],
@@ -152,5 +167,34 @@ describe('FreebuffOrchestratorClient', () => {
     await expect(client.postMessage(50599, 'tid', 'hallo')).resolves.toBe(true);
     expect(bodies[0]).toContain('/api/thread/tid/message');
     expect(bodies[0]).toContain('hallo');
+  });
+
+  it('forwards an abort signal through every auxiliary-query HTTP operation', async () => {
+    const calls: Array<{ init?: RequestInit; url: string }> = [];
+    const fetchImpl = (async (url: string, init?: RequestInit) => {
+      calls.push({ init, url });
+      if (url.endsWith('/healthz')) {
+        return { status: 200, text: async () => '{"ok":true}' } as unknown as Response;
+      }
+      if (url.endsWith('/api/threads')) {
+        return { ok: true, json: async () => ({ id: 'thread-1' }) } as unknown as Response;
+      }
+      if (url.endsWith('/message')) {
+        return { ok: true, json: async () => ({ ok: true }) } as unknown as Response;
+      }
+      return { ok: true } as Response;
+    }) as typeof fetch;
+    const client = new FreebuffOrchestratorClient({ fetchImpl });
+    const abortController = new AbortController();
+
+    await expect(client.discoverPort('50599', abortController.signal)).resolves.toBe(50599);
+    await client.createThread(50599, { projectPath: '/tmp' }, abortController.signal);
+    await client.postMessage(50599, 'thread-1', 'hallo', abortController.signal);
+    await client.openEventStream(50599, abortController.signal);
+    await client.stopTurn(50599, 'thread-1', abortController.signal);
+    await client.closeThread(50599, 'thread-1', abortController.signal);
+
+    expect(calls).toHaveLength(6);
+    expect(calls.every(({ init }) => init?.signal === abortController.signal)).toBe(true);
   });
 });

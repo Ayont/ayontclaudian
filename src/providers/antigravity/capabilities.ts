@@ -22,6 +22,7 @@ import type { ProviderCapabilities } from '../../core/providers/types';
  */
 export const ANTIGRAVITY_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({
   providerId: 'antigravity',
+  promptDelivery: 'session-preamble',
   supportsPersistentRuntime: true,
   supportsNativeHistory: true,
   supportsPlanMode: false,

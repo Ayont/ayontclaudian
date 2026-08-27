@@ -72,13 +72,13 @@ export class FileContextManager {
         void (async (): Promise<void> => {
           const file = this.app.vault.getAbstractFileByPath(filePath);
           if (!(file instanceof TFile)) {
-            new Notice(`Could not open file: ${filePath}`);
+            new Notice(`Datei konnte nicht geöffnet werden: ${filePath}`);
             return;
           }
           try {
             await this.app.workspace.getLeaf().openFile(file);
           } catch (error) {
-            new Notice(`Failed to open file: ${error instanceof Error ? error.message : String(error)}`);
+            new Notice(`Öffnen der Datei fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`);
           }
         })();
       },

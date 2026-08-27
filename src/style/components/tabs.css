@@ -11,11 +11,14 @@
 }
 
 .claudian-tab-badge {
+  appearance: none;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 22px;
   height: 22px;
+  margin: 0;
+  padding: 0;
   border-radius: var(--cl-radius-sm);
   border: 1px solid var(--cl-border-subtle);
   font-size: var(--cl-text-xs);
@@ -23,11 +26,20 @@
   cursor: pointer;
   color: var(--text-muted);
   background: var(--cl-surface-base);
+  font-family: inherit;
+  line-height: 1;
   transition: border-color var(--cl-dur-fast) var(--cl-ease),
     color var(--cl-dur-fast) var(--cl-ease),
     background var(--cl-dur-fast) var(--cl-ease),
     box-shadow var(--cl-dur-fast) var(--cl-ease),
     transform var(--cl-dur-fast) var(--cl-ease);
+}
+
+@media (pointer: coarse) {
+  .claudian-tab-badge {
+    width: 44px;
+    height: 44px;
+  }
 }
 
 .claudian-tab-badge:hover {

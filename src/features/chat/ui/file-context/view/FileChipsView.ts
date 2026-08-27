@@ -47,28 +47,29 @@ export class FileChipsView {
 
     const chipEl = this.fileIndicatorEl.createDiv({ cls: `claudian-file-chip claudian-file-chip--${typeClass}` });
 
-    const iconEl = chipEl.createSpan({ cls: 'claudian-file-chip-icon' });
-    setIcon(iconEl, icon);
-
     const normalizedPath = filePath.replace(/\\/g, '/');
     const filename = normalizedPath.split('/').pop() || filePath;
-    const nameEl = chipEl.createSpan({ cls: 'claudian-file-chip-name' });
+    const openEl = chipEl.createEl('button', {
+      cls: 'claudian-file-chip-open',
+      attr: { type: 'button', 'aria-label': `${filename} öffnen` },
+    });
+
+    const iconEl = openEl.createSpan({ cls: 'claudian-file-chip-icon' });
+    setIcon(iconEl, icon);
+
+    const nameEl = openEl.createSpan({ cls: 'claudian-file-chip-name' });
     nameEl.setText(filename);
     nameEl.setAttribute('title', filePath);
 
-    const removeEl = chipEl.createSpan({ cls: 'claudian-file-chip-remove' });
+    const removeEl = chipEl.createEl('button', {
+      cls: 'claudian-file-chip-remove',
+      attr: { type: 'button', 'aria-label': `${filename} entfernen` },
+    });
     removeEl.setText('\u00D7');
-    removeEl.setAttribute('aria-label', 'Entfernen');
 
-    chipEl.addEventListener('click', (e) => {
-      if (!(e.target as HTMLElement).closest('.claudian-file-chip-remove')) {
-        this.callbacks.onOpenFile(filePath);
-      }
-    });
+    openEl.addEventListener('click', () => this.callbacks.onOpenFile(filePath));
 
-    removeEl.addEventListener('click', () => {
-      onRemove();
-    });
+    removeEl.addEventListener('click', onRemove);
   }
 
   /**

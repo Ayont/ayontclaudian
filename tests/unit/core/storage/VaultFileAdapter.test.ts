@@ -157,6 +157,20 @@ describe('VaultFileAdapter', () => {
 
       expect(mockAdapter.write).toHaveBeenCalledWith('file.md', 'existing');
     });
+
+    it('propagates a write failure while keeping later appends usable', async () => {
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockResolvedValue('existing');
+      mockAdapter.write
+        .mockRejectedValueOnce(new Error('Datenträger voll'))
+        .mockResolvedValueOnce(undefined);
+
+      await expect(vaultAdapter.append('file.md', '\nfirst')).rejects.toThrow('Datenträger voll');
+      await expect(vaultAdapter.append('file.md', '\nsecond')).resolves.toBeUndefined();
+
+      expect(mockAdapter.write).toHaveBeenNthCalledWith(1, 'file.md', 'existing\nfirst');
+      expect(mockAdapter.write).toHaveBeenNthCalledWith(2, 'file.md', 'existing\nsecond');
+    });
   });
 
   describe('delete', () => {

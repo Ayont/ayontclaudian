@@ -57,6 +57,7 @@ function createMockComponent() {
 function mockCapabilities(providerId: 'claude' | 'codex' = 'claude') {
   return () => ({
     providerId,
+    promptDelivery: 'native-system' as const,
     supportsPersistentRuntime: true,
     supportsNativeHistory: providerId === 'claude',
     supportsPlanMode: true,
@@ -684,6 +685,135 @@ describe('MessageRenderer', () => {
     expect(renderStoredToolCall).toHaveBeenCalled();
     expect(renderStoredAsyncSubagent).toHaveBeenCalled();
     expect(renderStoredSubagent).toHaveBeenCalled();
+  });
+
+  it('reloads a fence interrupted by a tool as one rich document block', () => {
+    const messagesEl = createMockEl();
+    const { renderer } = createRenderer(messagesEl);
+    const renderContentSpy = jest.spyOn(renderer, 'renderContent').mockResolvedValue(undefined);
+    const persisted = JSON.parse(JSON.stringify({
+      id: 'rich-reload',
+      role: 'assistant',
+      content: '```claudian-document\n# Plan\nTeil A\nTeil B\n```',
+      timestamp: Date.now(),
+      toolCalls: [{ id: 'tool-1', name: 'Read', input: {}, status: 'completed' }],
+      contentBlocks: [
+        { type: 'text', content: '```claudian-document\n# Plan\nTeil A' },
+        { type: 'tool_use', toolId: 'tool-1' },
+        { type: 'text', content: '\nTeil B\n```' },
+      ],
+      outputSurface: 'live-document',
+    })) as ChatMessage;
+
+    renderer.renderStoredMessage(persisted);
+
+    expect(renderContentSpy).toHaveBeenCalledTimes(1);
+    expect(renderContentSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      '```claudian-document\n# Plan\nTeil A\nTeil B\n```',
+      { outputSurface: 'live-document' },
+    );
+    expect(renderStoredToolCall).toHaveBeenCalledTimes(1);
+  });
+
+  it('silently discovers one coalesced live document from rehydrated assistant blocks', () => {
+    const messagesEl = createMockEl();
+    const { renderer } = createRenderer(messagesEl);
+    const onDiscover = jest.fn();
+    renderer.setLiveDocumentDiscoveryHandler(onDiscover);
+    jest.spyOn(renderer, 'renderContent').mockResolvedValue(undefined);
+    const msg: ChatMessage = {
+      id: 'discover-document',
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now(),
+      toolCalls: [{ id: 'tool-1', name: 'Read', input: {}, status: 'completed' } as any],
+      contentBlocks: [
+        { type: 'text', content: '```claudian-document\n---\ntitle: Bibliothek\n---\n# Bibliothek\nTeil A' },
+        { type: 'tool_use', toolId: 'tool-1' },
+        { type: 'text', content: '\nTeil B\n```' },
+      ],
+    };
+
+    renderer.renderStoredMessage(msg);
+    renderer.renderStoredMessage(msg);
+
+    expect(onDiscover).toHaveBeenCalledTimes(1);
+    expect(onDiscover).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Bibliothek', body: expect.stringContaining('Teil B') }),
+      'editorial',
+    );
+  });
+
+  it('does not discover a document-shaped user message', () => {
+    const messagesEl = createMockEl();
+    const { renderer } = createRenderer(messagesEl);
+    const onDiscover = jest.fn();
+    renderer.setLiveDocumentDiscoveryHandler(onDiscover);
+
+    renderer.renderStoredMessage({
+      id: 'user-document',
+      role: 'user',
+      content: '```claudian-document\n# Private Notiz\n```',
+      timestamp: Date.now(),
+      outputSurface: 'live-document',
+      contentBlocks: [{
+        type: 'text',
+        content: '```claudian-document\n# Private Notiz\n```',
+        outputSurface: 'live-document',
+      }],
+    });
+
+    expect(onDiscover).not.toHaveBeenCalled();
+  });
+
+  it('does not publish an unfinished persisted document fence to the library', () => {
+    const messagesEl = createMockEl();
+    const { renderer } = createRenderer(messagesEl);
+    const onDiscover = jest.fn();
+    renderer.setLiveDocumentDiscoveryHandler(onDiscover);
+    jest.spyOn(renderer, 'renderContent').mockResolvedValue(undefined);
+
+    renderer.renderStoredMessage({
+      id: 'unfinished-document',
+      role: 'assistant',
+      content: '```claudian-document\n# Noch nicht fertig',
+      timestamp: Date.now(),
+      outputSurface: 'live-document',
+      contentBlocks: [{
+        type: 'text',
+        content: '```claudian-document\n# Noch nicht fertig',
+        outputSurface: 'live-document',
+      }],
+    });
+
+    expect(onDiscover).not.toHaveBeenCalled();
+  });
+
+  it('reloads progressive map frames as one canonical map surface', () => {
+    const messagesEl = createMockEl();
+    const { renderer } = createRenderer(messagesEl);
+    const renderContentSpy = jest.spyOn(renderer, 'renderContent').mockResolvedValue(undefined);
+    const msg: ChatMessage = {
+      id: 'map-reload',
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now(),
+      outputSurface: 'network-map',
+      contentBlocks: [
+        { type: 'text', content: '```network-map\nInternet --> Firewall\n```', outputSurface: 'network-map' },
+        { type: 'text', content: '```network-map\nInternet --> Firewall\nFirewall --> LAN\n```', outputSurface: 'network-map' },
+      ],
+    };
+
+    renderer.renderStoredMessage(msg);
+
+    expect(renderContentSpy).toHaveBeenCalledTimes(1);
+    expect(renderContentSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining('Firewall --> LAN'),
+      { outputSurface: 'network-map' },
+    );
   });
 
   it('passes collapsed file-edit default to stored Write/Edit renderer', () => {
@@ -1700,6 +1830,43 @@ describe('MessageRenderer', () => {
       '',
       expect.anything()
     );
+  });
+
+  it('falls back to a live document when an explicit target returns unfenced markdown', async () => {
+    const { MarkdownRenderer } = await import('obsidian');
+    const { renderer } = createRenderer();
+    const el = createMockEl();
+    (MarkdownRenderer.renderMarkdown as jest.Mock).mockImplementationOnce(
+      async (_markdown: string, container: any) => {
+        const pre = container.createEl('pre');
+        const code = pre.createEl('code', { text: '# Einsatzplan\n\nDirekt nutzbar.' });
+        code.className = 'language-claudian-display-only-fence-0';
+      },
+    );
+
+    await renderer.renderContent(el, '# Einsatzplan\n\nDirekt nutzbar.', {
+      outputSurface: 'live-document',
+    });
+
+    expect(MarkdownRenderer.renderMarkdown).toHaveBeenNthCalledWith(
+      1,
+      '```claudian-display-only-fence-0\n# Einsatzplan\n\nDirekt nutzbar.\n```',
+      el,
+      '',
+      expect.anything(),
+    );
+  });
+
+  it('skips an unchanged rich frame instead of rebuilding the whole subtree', async () => {
+    const { MarkdownRenderer } = await import('obsidian');
+    const { renderer } = createRenderer();
+    const el = createMockEl();
+    const markdown = '```claudian-document\n# Stabil\nInhalt\n```';
+
+    await renderer.renderContent(el, markdown, { outputSurface: 'live-document' });
+    await renderer.renderContent(el, markdown, { outputSurface: 'live-document' });
+
+    expect(MarkdownRenderer.renderMarkdown).toHaveBeenCalledTimes(1);
   });
 
   // ============================================

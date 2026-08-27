@@ -4,6 +4,8 @@ import { MarkdownRenderer, Notice, setIcon } from 'obsidian';
 export type LiveDocumentTheme = 'editorial' | 'business' | 'minimal' | 'warm' | 'technical';
 
 export interface LiveDocument {
+  /** Stable identity supplied by the producer or persisted frontmatter. */
+  documentId?: string;
   title: string;
   subtitle?: string;
   author?: string;
@@ -34,7 +36,7 @@ const THEME_LABELS: Record<LiveDocumentTheme, string> = {
   business: 'Business',
   minimal: 'Minimal',
   warm: 'Warm',
-  technical: 'Technical',
+  technical: 'Technisch',
 };
 
 function sanitizeMetaValue(value: string): string {
@@ -67,9 +69,10 @@ export function parseLiveDocument(content: string): LiveDocument | null {
   if (!body.trim()) return null;
 
   const firstHeading = body.match(/^#\s+(.+)$/m)?.[1]?.trim();
-  const title = sanitizeMetaValue(metadata.title ?? firstHeading ?? 'Untitled document');
+  const title = sanitizeMetaValue(metadata.title ?? firstHeading ?? 'Unbenanntes Dokument');
   const requestedTheme = (metadata.theme ?? '').toLowerCase();
   return {
+    documentId: metadata.document_id ?? metadata.id,
     title,
     subtitle: metadata.subtitle,
     author: metadata.author,
@@ -78,6 +81,22 @@ export function parseLiveDocument(content: string): LiveDocument | null {
     theme: isTheme(requestedTheme) ? requestedTheme : 'editorial',
     body,
   };
+}
+
+/** Stable library identity across streaming updates, persistence and reloads. */
+export function liveDocumentIdentity(document: LiveDocument): string {
+  const explicit = document.documentId?.trim();
+  const persistedPrefix = explicit?.match(/^(id|title):(.*)$/i);
+  const source = persistedPrefix?.[2] || explicit || document.title.trim();
+  const normalized = source
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'untitled-document';
+  const kind = persistedPrefix?.[1].toLowerCase() ?? (explicit ? 'id' : 'title');
+  return `${kind}:${normalized}`;
 }
 
 /** Parses triple-or-longer document fences, including unfinished streaming output. */
@@ -124,6 +143,7 @@ function slugify(value: string): string {
 function serializeDocument(document: LiveDocument, theme: LiveDocumentTheme): string {
   const frontmatter = [
     '---',
+    `document_id: ${JSON.stringify(liveDocumentIdentity(document))}`,
     `title: ${JSON.stringify(document.title)}`,
     ...(document.subtitle ? [`subtitle: ${JSON.stringify(document.subtitle)}`] : []),
     ...(document.author ? [`author: ${JSON.stringify(document.author)}`] : []),
@@ -190,13 +210,19 @@ function createIconButton(
   return button;
 }
 
-async function showExpandedDocument(
+export async function openLiveDocumentPreview(
+  app: App,
+  component: Component,
   sourceDocument: LiveDocument,
   theme: LiveDocumentTheme,
-  context: LiveDocumentRenderContext,
 ): Promise<void> {
-  const ownerDocument = context.app.workspace.containerEl.ownerDocument ?? window.document;
+  const context: LiveDocumentRenderContext = { app, component };
+  const ownerDocument = app.workspace.containerEl.ownerDocument ?? window.document;
+  const previouslyFocused = ownerDocument.activeElement as HTMLElement | null;
   const overlay = ownerDocument.body.createDiv({ cls: 'claudian-live-document-overlay' });
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', `Dokumentvorschau: ${sourceDocument.title}`);
   const shell = overlay.createDiv({ cls: `claudian-live-document-expanded theme-${theme}` });
   const bar = shell.createDiv({ cls: 'claudian-live-document-expanded-bar' });
   bar.createSpan({ cls: 'claudian-live-document-expanded-title', text: sourceDocument.title });
@@ -204,20 +230,55 @@ async function showExpandedDocument(
   const page = shell.createDiv({ cls: 'claudian-live-document-page' });
   renderDocumentMasthead(page, sourceDocument);
   const body = page.createDiv({ cls: 'claudian-live-document-body' });
-  await renderDocumentBody(body, sourceDocument, context);
 
+  let closed = false;
   const close = () => {
+    if (closed) return;
+    closed = true;
     ownerDocument.removeEventListener('keydown', onKeydown);
     overlay.remove();
+    previouslyFocused?.focus();
   };
   const onKeydown = (event: KeyboardEvent) => {
-    if (event.key === 'Escape') close();
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      close();
+      return;
+    }
+    if (event.key === 'Tab') {
+      const focusable = Array.from(shell.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ));
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && ownerDocument.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && ownerDocument.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
   };
   closeButton.addEventListener('click', close);
   overlay.addEventListener('click', (event) => {
     if (event.target === overlay) close();
   });
   ownerDocument.addEventListener('keydown', onKeydown);
+  closeButton.focus();
+
+  try {
+    await renderDocumentBody(body, sourceDocument, context);
+  } catch {
+    if (closed) return;
+    body.empty();
+    body.setAttribute('role', 'alert');
+    body.createEl('p', {
+      cls: 'claudian-live-document-render-error',
+      text: 'Das Dokument konnte nicht dargestellt werden. Die Großansicht kann weiterhin geschlossen werden.',
+    });
+  }
 }
 
 function renderDocumentMasthead(page: HTMLElement, document: LiveDocument): void {
@@ -259,6 +320,10 @@ export async function renderLiveDocument(
   const saveButton = createIconButton(actions, 'save', 'Als Markdown im Vault speichern');
   const dockButton = createIconButton(actions, 'panel-right', 'Dokument andocken');
   const expandButton = createIconButton(actions, 'maximize-2', 'Dokument groß öffnen');
+  const copyAnnouncement = toolbar.createSpan({
+    cls: 'claudian-live-document-status',
+    attr: { role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true' },
+  });
 
   const viewport = card.createDiv({ cls: 'claudian-live-document-viewport' });
   const page = viewport.createDiv({ cls: 'claudian-live-document-page' });
@@ -285,12 +350,19 @@ export async function renderLiveDocument(
   });
 
   copyButton.addEventListener('click', () => {
+    copyAnnouncement.setText('');
     void navigator.clipboard.writeText(serializeDocument(document, activeTheme)).then(() => {
+      const successLabel = 'Dokument kopiert';
       copyButton.empty();
       setIcon(copyButton, 'check');
+      copyButton.setAttribute('aria-label', successLabel);
+      copyButton.setAttribute('title', successLabel);
+      copyAnnouncement.setText('Dokument wurde kopiert.');
       window.setTimeout(() => {
         copyButton.empty();
         setIcon(copyButton, 'copy');
+        copyButton.setAttribute('aria-label', 'Dokument kopieren');
+        copyButton.setAttribute('title', 'Dokument kopieren');
       }, 1400);
     }).catch(() => new Notice('Dokument konnte nicht kopiert werden.'));
   });
@@ -314,7 +386,7 @@ export async function renderLiveDocument(
   });
 
   expandButton.addEventListener('click', () => {
-    void showExpandedDocument(document, activeTheme, context);
+    void openLiveDocumentPreview(context.app, context.component, document, activeTheme);
   });
 
   return card;

@@ -29,16 +29,29 @@
 }
 
 .claudian-toggle-switch {
+  appearance: none;
+  margin: 0;
+  padding: 0;
   width: 32px;
   height: 18px;
   border-radius: var(--cl-radius-pill);
   background: var(--cl-surface-sunken);
   border: 1px solid var(--cl-border-subtle);
+  box-shadow: none;
+  font: inherit;
   cursor: pointer;
   position: relative;
   transition: background var(--cl-dur) var(--cl-ease),
     border-color var(--cl-dur) var(--cl-ease);
   flex-shrink: 0;
+}
+
+@media (pointer: coarse) {
+  .claudian-toggle-switch::before {
+    content: '';
+    position: absolute;
+    inset: -13px -6px;
+  }
 }
 
 .claudian-toggle-switch::after {

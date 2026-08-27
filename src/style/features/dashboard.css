@@ -1667,6 +1667,18 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="cline"] {
   .claudian-multi-agent-grid { grid-template-columns: 1fr; }
 }
 
+@media (pointer: coarse) {
+  .claudian-multi-agent-gear {
+    width: 44px;
+    height: 44px;
+  }
+
+  .claudian-multi-agent-launch,
+  .claudian-multi-agent-footer button {
+    min-height: 44px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .claudian-dashboard,
   .claudian-dashboard-live--running,

@@ -17,6 +17,9 @@ describe('ChatSearchController', () => {
     expect(hostEl.children).toHaveLength(1);
     expect(containerEl.hasClass('claudian-chat-search')).toBe(true);
     expect(containerEl.hasClass('claudian-hidden')).toBe(true);
+    expect(containerEl.getAttribute('role')).toBe('search');
+    expect(containerEl.getAttribute('aria-label')).toBe('Chat durchsuchen');
+    expect(containerEl.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('open() reveals the bar, close() hides it again', () => {
@@ -25,10 +28,12 @@ describe('ChatSearchController', () => {
     controller.open();
     expect(controller.isVisible()).toBe(true);
     expect(containerEl.hasClass('claudian-hidden')).toBe(false);
+    expect(containerEl.getAttribute('aria-hidden')).toBe('false');
 
     controller.close();
     expect(controller.isVisible()).toBe(false);
     expect(containerEl.hasClass('claudian-hidden')).toBe(true);
+    expect(containerEl.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('toggle() flips visibility', () => {
@@ -89,5 +94,19 @@ describe('ChatSearchController', () => {
 
     expect(controller.isVisible()).toBe(false);
     expect(removeSpy).toHaveBeenCalled();
+  });
+
+  it('returns focus to the element that opened search', () => {
+    const previousFocus = { focus: jest.fn(), isConnected: true };
+    const originalDocument = (globalThis as { document?: unknown }).document;
+    (globalThis as { document?: unknown }).document = { activeElement: previousFocus };
+    try {
+      const { controller } = createController();
+      controller.open();
+      controller.close();
+      expect(previousFocus.focus).toHaveBeenCalled();
+    } finally {
+      (globalThis as { document?: unknown }).document = originalDocument;
+    }
   });
 });

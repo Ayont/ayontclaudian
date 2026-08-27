@@ -166,6 +166,28 @@ describe('PiChatRuntime', () => {
     ]);
   });
 
+  it('marks the successful terminal session stats as final usage', async () => {
+    const runtime = new PiChatRuntime(createPlugin());
+    const chunks: any[] = [];
+    const query = (async () => {
+      for await (const chunk of runtime.query(createTurn(runtime))) chunks.push(chunk);
+    })();
+    await flushPromises();
+
+    (mockTransportInstances[0].request as jest.Mock).mockImplementation(async (type: string) => {
+      if (type === 'get_session_stats') {
+        return { contextUsage: { contextTokens: 1000, contextWindow: 200000, inputTokens: 900 } };
+      }
+      return {};
+    });
+    mockTransportInstances[0].eventHandlers[0]({ type: 'agent_end' });
+    await query;
+
+    expect(chunks.find(chunk => chunk.type === 'usage')).toMatchObject({
+      usage: { reportType: 'final' },
+    });
+  });
+
   it('yields a terminal error and done when the Pi process closes mid-turn', async () => {
     const runtime = new PiChatRuntime(createPlugin());
     const iterator = runtime.query(createTurn(runtime));

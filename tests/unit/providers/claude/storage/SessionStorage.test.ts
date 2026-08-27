@@ -243,6 +243,32 @@ describe('SessionStorage', () => {
   });
 
   describe('toSessionMetadata - round trip', () => {
+    it('round-trips a pending provider context bootstrap', async () => {
+      const conversation: Conversation = {
+        id: 'conv-pending-bootstrap',
+        providerId: 'kimi' as ProviderId,
+        title: 'Pending provider switch',
+        createdAt: 1700000000,
+        updatedAt: 1700001000,
+        sessionId: null,
+        messages: [],
+        pendingContextBootstrap: '<conversation_context>bounded history</conversation_context>',
+      };
+
+      const metadata = storage.toSessionMetadata(conversation);
+      await storage.saveMetadata(metadata);
+
+      const writtenContent = mockAdapter.write.mock.calls[0][1];
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockResolvedValue(writtenContent);
+
+      const loaded = await storage.loadMetadata(conversation.id);
+
+      expect(loaded?.pendingContextBootstrap).toBe(
+        '<conversation_context>bounded history</conversation_context>',
+      );
+    });
+
     it('round-trips providerState through save and load', async () => {
       const conversation: Conversation = {
         id: 'conv-roundtrip',

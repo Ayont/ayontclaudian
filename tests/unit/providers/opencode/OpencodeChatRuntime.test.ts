@@ -1,5 +1,6 @@
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '@/core/providers/ProviderSettingsCoordinator';
+import type { StreamChunk } from '@/core/types';
 import {
   OPENCODE_BUILD_MODE_ID,
   OPENCODE_SAFE_MODE_ID,
@@ -30,6 +31,49 @@ function createMockPlugin(overrides: Record<string, unknown> = {}): any {
 describe('OpencodeChatRuntime', () => {
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  it('normalizes live cumulative usage as a snapshot and prompt usage as the final turn report', async () => {
+    const plugin = createMockPlugin({
+      settings: { providerConfigs: { opencode: { enabled: true } } },
+    });
+    const runtime = new OpencodeChatRuntime(plugin);
+    jest.spyOn(ProviderRegistry, 'resolveSettingsProviderId').mockReturnValue('opencode');
+    jest.spyOn(ProviderSettingsCoordinator, 'getProviderSettingsSnapshot').mockReturnValue(plugin.settings);
+
+    const connection = {
+      prompt: jest.fn().mockImplementation(async () => {
+        await (runtime as any).handleSessionNotification({
+          sessionId: 'session-1',
+          update: { sessionUpdate: 'usage_update', size: 200_000, used: 50_000 },
+        });
+        return {
+          stopReason: 'end_turn',
+          usage: { inputTokens: 48_000, outputTokens: 2_000, totalTokens: 50_000 },
+        };
+      }),
+    };
+    (runtime as any).connection = connection;
+    (runtime as any).sessionId = 'session-1';
+    (runtime as any).loadedSessionId = 'session-1';
+    (runtime as any).ensureReady = jest.fn().mockResolvedValue(true);
+    jest.spyOn(runtime as any, 'applySelectedMode').mockResolvedValue(undefined);
+    jest.spyOn(runtime as any, 'applySelectedModel').mockResolvedValue(undefined);
+    jest.spyOn(runtime as any, 'applySelectedEffort').mockResolvedValue(undefined);
+
+    const chunks: StreamChunk[] = [];
+    for await (const chunk of runtime.query(runtime.prepareTurn({ text: 'Hallo' }))) {
+      chunks.push(chunk);
+    }
+    const usageChunks = chunks.filter((chunk) => chunk.type === 'usage');
+
+    expect(usageChunks).toHaveLength(2);
+    expect(usageChunks[0]).toMatchObject({
+      usage: { contextTokens: 50_000, reportType: 'snapshot' },
+    });
+    expect(usageChunks[1]).toMatchObject({
+      usage: { inputTokens: 48_000, outputTokens: 2_000, reportType: 'final' },
+    });
   });
 
   it('captures available ACP commands even when no turn is active', async () => {

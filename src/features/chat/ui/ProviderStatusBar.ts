@@ -57,13 +57,15 @@ function trimZero(value: string): string {
   return value.endsWith('.0') ? value.slice(0, -2) : value;
 }
 
-/** Chip text like `5h: 34% · Reset 1h 30m`; rolling windows without a reset
+/** Chip text like `5h: 34% · Zurücksetzung: 1h 30m`; rolling windows without a reset
  *  instant drop the suffix. Pure, for testing. */
 export function formatRateLimitChipText(chip: StatusBarRateLimit): string {
   const amount = typeof chip.percent === 'number'
     ? `${chip.percent}%`
     : `${formatCompactTokens(chip.tokensUsed ?? 0)} Tokens`;
-  return chip.resetIn ? `${chip.label}: ${amount} · Reset ${chip.resetIn}` : `${chip.label}: ${amount}`;
+  return chip.resetIn
+    ? `${chip.label}: ${amount} · Zurücksetzung: ${chip.resetIn}`
+    : `${chip.label}: ${amount}`;
 }
 
 export interface ProviderStatus {
@@ -108,7 +110,7 @@ export function formatStatusTooltip(status: ProviderStatus): string {
     parts.push(`Kontext ${status.estimated ? '≈' : ''}${status.percentage}% belegt`);
   }
   if (status.autoMode) {
-    parts.push('Auto-Mode aktiv');
+    parts.push('Automatikmodus aktiv');
   }
   for (const chip of status.rateLimits ?? []) {
     parts.push(formatRateLimitChipText(chip));

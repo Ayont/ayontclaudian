@@ -85,9 +85,11 @@ and `core/conversation/goalLoopRuntime.ts` wraps ANY runtime's query boundary so
 framed goal turns the turn into a verify-and-continue loop — Cline keeps its own
 in-runtime wiring. `/goal pause|resume` suspends/resumes via `plugin.goalLoopPaused`;
 `/goal done|clear` clears. Decision logic is pure in `core/conversation/goalLoop.ts`;
-the wrapper only supplies "run one turn" and "verify" as queries against the same
-runtime. Loop turns suppress the duplicate `user_message_start` and the loop owns
-the single terminal `done`.
+the wrapper sends visible work through the base runtime but runs adversarial
+verification through a separate, session-isolated `AuxQueryRunner` with passive
+permissions. Verifier usage is still accounted for without replacing the visible
+turn's context meter. Loop turns suppress the duplicate `user_message_start` and
+the loop owns the single terminal `done`.
 
 **Master prompter (multi-agent).** Missions no longer fan the same question out to
 every specialist. `MasterPrompterService` runs one planning pass that writes a
@@ -101,7 +103,10 @@ modal go through `plugin.runMasterMission`.
 points (settings General tab and the dashboard's `TokenUsageModal`). Costs come
 from `core/budget/providerPricing.ts`, which models subscription vs metered billing
 and never invents a rate: an unpriced metered model reports "rate missing" rather
-than a plausible-looking number.
+than a plausible-looking number. Streamed usage is explicitly a `snapshot`,
+`final`, or additive `delta`; hidden title/refine/inline-edit/verifier calls use
+the same accounting boundary and fall back to a marked estimate only when the
+provider exposes no telemetry.
 
 ## Traps
 
@@ -143,6 +148,11 @@ Each of these has cost a real debugging session. They are not theoretical.
    intercepts `/cmd` when the prompt text *starts* with `/`
    (`acp_adapter/server.py`). Anything prepended — Claudian's vault instructions,
    a history bootstrap — turns `/compress` into ordinary chat text.
+9. **Visible history is not the current transport prompt.** The pending user
+   bubble stores sanitized display text, while the prepared turn also carries
+   output, goal, note, memory, and RAG envelopes. On a cold start, remove the
+   duplicate pending bubble from replay and append the prepared turn exactly
+   once; returning history alone silently drops those contracts.
 
 ## Commands
 

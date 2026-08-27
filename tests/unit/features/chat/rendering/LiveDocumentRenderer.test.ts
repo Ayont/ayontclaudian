@@ -1,6 +1,10 @@
 /** @jest-environment jsdom */
 
+import { MarkdownRenderer } from 'obsidian';
+
 import {
+  liveDocumentIdentity,
+  openLiveDocumentPreview,
   parseLiveDocument,
   parseLiveDocumentBlocks,
   renderLiveDocument,
@@ -86,6 +90,18 @@ describe('LiveDocumentRenderer', () => {
     expect(document?.body).toContain('## Executive summary');
   });
 
+  it('uses a German fallback title when no title or heading exists', () => {
+    expect(parseLiveDocument('Nur Inhalt.')?.title).toBe('Unbenanntes Dokument');
+  });
+
+  it('uses an explicit document id and otherwise a normalized title identity', () => {
+    const explicit = parseLiveDocument('---\ntitle: Plan\ndocument_id: rollout-42\n---\n# Plan')!;
+    const fallback = parseLiveDocument('---\ntitle:  STRATÉGIE   Q3 \n---\n# Strategie')!;
+
+    expect(liveDocumentIdentity(explicit)).toBe('id:rollout-42');
+    expect(liveDocumentIdentity(fallback)).toBe('title:strategie-q3');
+  });
+
   it('supports four-backtick outer fences with nested code blocks', () => {
     const markdown = [
       '````claudian-document',
@@ -125,8 +141,10 @@ describe('LiveDocumentRenderer', () => {
     expect(root.querySelectorAll('.claudian-live-document-action')).toHaveLength(5);
     expect(root.querySelector('.claudian-live-document-page')).not.toBeNull();
 
-    (root.querySelector('.claudian-live-document-action') as HTMLButtonElement).click();
+    const themeButton = root.querySelector('.claudian-live-document-action') as HTMLButtonElement;
+    themeButton.click();
     expect(root.querySelector('.claudian-live-document.theme-technical')).not.toBeNull();
+    expect(themeButton.getAttribute('aria-label')).toBe('Design: Technisch');
   });
 
   it('docks the live document when the dock action is clicked', async () => {
@@ -143,6 +161,104 @@ describe('LiveDocumentRenderer', () => {
       expect.objectContaining({ title: 'Dock Brief' }),
       'warm',
     );
+  });
+
+  it('announces successful copying beyond the temporary icon change', async () => {
+    const writeText = jest.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const root = document.createElement('div');
+    const liveDocument = parseLiveDocument('---\ntitle: Kopie\n---\n# Kopie\nContent')!;
+
+    await renderLiveDocument(root, liveDocument, createContext());
+    const copyButton = root.querySelector('[aria-label="Dokument kopieren"]') as HTMLButtonElement;
+    copyButton.click();
+    await Promise.resolve();
+
+    const announcement = root.querySelector('[role="status"]');
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(announcement?.getAttribute('aria-live')).toBe('polite');
+    expect(announcement?.textContent).toBe('Dokument wurde kopiert.');
+    expect(copyButton.getAttribute('aria-label')).toBe('Dokument kopiert');
+  });
+
+  it('persists the same stable identity only after the explicit save action', async () => {
+    const root = document.createElement('div');
+    const context = createContext();
+    const liveDocument = parseLiveDocument('---\ntitle: Strategie Q3\n---\n# Strategie Q3\nContent')!;
+    await renderLiveDocument(root, liveDocument, context);
+
+    (root.querySelector('[aria-label="Als Markdown im Vault speichern"]') as HTMLButtonElement).click();
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+
+    expect(context.app.vault.create).toHaveBeenCalledWith(
+      expect.stringContaining('.claudian/documents/strategie-q3-'),
+      expect.stringContaining('document_id: "title:strategie-q3"'),
+    );
+  });
+
+  it('opens an accessible preview dialog and restores focus on Escape', async () => {
+    const context = createContext();
+    const opener = document.createElement('button');
+    document.body.appendChild(opener);
+    opener.focus();
+    const liveDocument = parseLiveDocument('---\ntitle: Dialog\n---\n# Dialog\nContent')!;
+
+    await openLiveDocumentPreview(context.app, context.component, liveDocument, 'editorial');
+
+    const overlay = document.querySelector('.claudian-live-document-overlay') as HTMLElement;
+    const close = overlay.querySelector('[aria-label="Großansicht schließen"]') as HTMLButtonElement;
+    expect(overlay.getAttribute('role')).toBe('dialog');
+    expect(overlay.getAttribute('aria-modal')).toBe('true');
+    expect(document.activeElement).toBe(close);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(document.querySelector('.claudian-live-document-overlay')).toBeNull();
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it('installs preview dismissal before rendering finishes', async () => {
+    let finishRendering!: () => void;
+    (MarkdownRenderer.render as jest.Mock).mockImplementationOnce(() => new Promise<void>((resolve) => {
+      finishRendering = resolve;
+    }));
+    const context = createContext();
+    const opener = document.createElement('button');
+    document.body.appendChild(opener);
+    opener.focus();
+    const liveDocument = parseLiveDocument('---\ntitle: Langsam\n---\n# Langsam\nContent')!;
+
+    const previewPromise = openLiveDocumentPreview(context.app, context.component, liveDocument, 'editorial');
+    const overlay = document.querySelector('.claudian-live-document-overlay') as HTMLElement;
+    const close = overlay.querySelector('[aria-label="Großansicht schließen"]') as HTMLButtonElement;
+
+    expect(document.activeElement).toBe(close);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(document.querySelector('.claudian-live-document-overlay')).toBeNull();
+    expect(document.activeElement).toBe(opener);
+
+    finishRendering();
+    await expect(previewPromise).resolves.toBeUndefined();
+  });
+
+  it('keeps a failed preview closable and handles the render rejection', async () => {
+    (MarkdownRenderer.render as jest.Mock).mockRejectedValueOnce(new Error('render failed'));
+    const context = createContext();
+    const liveDocument = parseLiveDocument('---\ntitle: Fehler\n---\n# Fehler\nContent')!;
+
+    await expect(
+      openLiveDocumentPreview(context.app, context.component, liveDocument, 'editorial'),
+    ).resolves.toBeUndefined();
+
+    const overlay = document.querySelector('.claudian-live-document-overlay') as HTMLElement;
+    const close = overlay.querySelector('[aria-label="Großansicht schließen"]') as HTMLButtonElement;
+    expect(overlay.querySelector('[role="alert"]')?.textContent).toContain('nicht dargestellt');
+    expect(document.activeElement).toBe(close);
+
+    close.click();
+    expect(document.querySelector('.claudian-live-document-overlay')).toBeNull();
   });
 
   it('replaces a rendered document code fence with the live canvas', async () => {

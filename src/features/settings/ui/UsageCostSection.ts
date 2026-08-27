@@ -182,7 +182,7 @@ function renderWindowsAndBudgets(
 }
 
 function renderWindowCard(entry: ProviderWindow, now: number): HTMLElement {
-  const card = document.createElement('div');
+  const card = activeDocument.createElement('div');
   card.className = `claudian-usage-ringcard${entry.tokens > 0 ? '' : ' is-idle'}`;
   card.dataset.provider = entry.providerId;
 
@@ -210,7 +210,7 @@ function renderWindowCard(entry: ProviderWindow, now: number): HTMLElement {
 }
 
 function renderBudgetCard(todayTotal: number, cap: number): HTMLElement {
-  const card = document.createElement('div');
+  const card = activeDocument.createElement('div');
   card.className = 'claudian-usage-budget';
   const head = card.createDiv({ cls: 'claudian-usage-budget-head' });
   head.createDiv({ cls: 'claudian-usage-budget-title', text: 'Tagesbudget' });

@@ -7,11 +7,24 @@
 }
 
 .claudian-external-context-icon-wrapper {
+  appearance: none;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.claudian-external-context-icon-wrapper:focus-visible,
+.claudian-external-context-lock:focus-visible,
+.claudian-external-context-remove:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
 }
 
 .claudian-external-context-icon {
@@ -72,7 +85,8 @@
   z-index: 100;
 }
 
-.claudian-external-context-selector:hover .claudian-external-context-dropdown {
+.claudian-external-context-selector:hover .claudian-external-context-dropdown,
+.claudian-external-context-selector:focus-within .claudian-external-context-dropdown {
   opacity: 1;
   visibility: visible;
 }
@@ -121,6 +135,7 @@
 }
 
 .claudian-external-context-lock {
+  appearance: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -131,6 +146,11 @@
   color: var(--text-muted);
   opacity: 0.4;
   transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background-color: transparent;
+  box-shadow: none;
 }
 
 .claudian-external-context-lock:hover {
@@ -153,6 +173,7 @@
 }
 
 .claudian-external-context-remove {
+  appearance: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -163,6 +184,20 @@
   color: var(--text-muted);
   opacity: 0.6;
   transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background-color: transparent;
+  box-shadow: none;
+}
+
+@media (pointer: coarse) {
+  .claudian-external-context-icon-wrapper,
+  .claudian-external-context-lock,
+  .claudian-external-context-remove {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 
 .claudian-external-context-remove:hover {

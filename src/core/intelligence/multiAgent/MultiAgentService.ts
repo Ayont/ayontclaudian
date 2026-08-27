@@ -248,6 +248,7 @@ export function isRateLimitErrorMessage(message: string): boolean {
 
 export class MultiAgentService {
   private agents = new Map<string, SpecialistAgent>();
+  private readonly activeMissionIds = new Set<string>();
 
   registerAgent(agent: SpecialistAgent): void {
     this.agents.set(agent.id, agent);
@@ -259,6 +260,10 @@ export class MultiAgentService {
 
   getAgent(id: string): SpecialistAgent | undefined {
     return this.agents.get(id);
+  }
+
+  isMissionActive(taskId: string): boolean {
+    return this.activeMissionIds.has(taskId);
   }
 
   async runTask(
@@ -361,6 +366,24 @@ export class MultiAgentService {
     now: () => number = () => Date.now(),
     options: MissionRunOptions = {},
   ): Promise<MissionOutcome> {
+    return this.withActiveMission(task.id, () => this.runMissionInternal(
+      task,
+      executor,
+      synthesizer,
+      onProgress,
+      now,
+      options,
+    ));
+  }
+
+  private async runMissionInternal(
+    task: MultiAgentTask,
+    executor: AgentExecutor,
+    synthesizer?: Synthesizer,
+    onProgress?: MissionProgressCallback,
+    now: () => number = () => Date.now(),
+    options: MissionRunOptions = {},
+  ): Promise<MissionOutcome> {
     const progress: MissionProgress = {
       taskId: task.id,
       status: 'running',
@@ -375,11 +398,13 @@ export class MultiAgentService {
 
     const emitEvent = (event: MissionEvent): void => {
       options.onEvent?.(event);
-      void options.storage?.appendEvent(task.id, event);
+      void options.storage?.appendEvent(task.id, event).catch(() => undefined);
     };
 
-    const persist = (): void => {
-      void options.storage?.saveMission(this.buildMissionState(task, progress, createdAt, now()));
+    const persist = (completedAt?: number): void => {
+      void options.storage?.saveMission(
+        this.buildMissionState(task, progress, createdAt, now(), completedAt),
+      ).catch(() => undefined);
     };
 
     const recomputeOverall = (): void => {
@@ -392,10 +417,10 @@ export class MultiAgentService {
       progress.overall = Math.round(specialistShare + synthShare);
     };
 
-    const emit = (): void => {
+    const emit = (completedAt?: number): void => {
       recomputeOverall();
       onProgress?.(progress);
-      persist();
+      persist(completedAt);
     };
 
     const resolveProvider = (agent: SpecialistAgent): ProviderId | undefined =>
@@ -458,6 +483,7 @@ export class MultiAgentService {
     const errorCount = progress.agents.filter((a) => a.status === 'error').length;
 
     let synthesis = '';
+    let synthesisFailure: Error | null = null;
     if (synthesizer && doneCount > 0) {
       progress.status = 'synthesizing';
       if (progress.synthesis) progress.synthesis.status = 'running';
@@ -482,6 +508,7 @@ export class MultiAgentService {
         emitEvent({ ts: now(), type: 'synthesis-done', message: 'Synthesis finished' });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        synthesisFailure = error instanceof Error ? error : new Error(message);
         if (progress.synthesis) {
           progress.synthesis.status = 'error';
           progress.synthesis.output = message;
@@ -490,10 +517,16 @@ export class MultiAgentService {
       }
     }
 
-    progress.status = errorCount > 0 && doneCount === 0 ? 'error' : 'completed';
+    progress.status = synthesisFailure !== null || (errorCount > 0 && doneCount === 0)
+      ? 'error'
+      : 'completed';
     progress.overall = 100;
-    emitEvent({ ts: now(), type: progress.status === 'error' ? 'error' : 'completed', message: `Mission ${progress.status}` });
-    emit();
+    const finishedAt = now();
+    emitEvent({ ts: finishedAt, type: progress.status === 'error' ? 'error' : 'completed', message: `Mission ${progress.status}` });
+    emit(progress.status === 'completed' ? finishedAt : undefined);
+    await options.storage?.flushMission?.(task.id);
+
+    if (synthesisFailure) throw synthesisFailure;
 
     return { results, synthesis };
   }
@@ -505,6 +538,24 @@ export class MultiAgentService {
    * events continue to be persisted to the same storage key.
    */
   async resumeMission(
+    state: MissionState,
+    executor: AgentExecutor,
+    synthesizer?: Synthesizer,
+    onProgress?: MissionProgressCallback,
+    now: () => number = () => Date.now(),
+    options: MissionRunOptions = {},
+  ): Promise<MissionOutcome> {
+    return this.withActiveMission(state.taskId, () => this.resumeMissionInternal(
+      state,
+      executor,
+      synthesizer,
+      onProgress,
+      now,
+      options,
+    ));
+  }
+
+  private async resumeMissionInternal(
     state: MissionState,
     executor: AgentExecutor,
     synthesizer?: Synthesizer,
@@ -541,13 +592,13 @@ export class MultiAgentService {
 
     const emitEvent = (event: MissionEvent): void => {
       options.onEvent?.(event);
-      void options.storage?.appendEvent(state.taskId, event);
+      void options.storage?.appendEvent(state.taskId, event).catch(() => undefined);
     };
 
-    const persist = (): void => {
+    const persist = (completedAt?: number): void => {
       void options.storage?.saveMission(
-        this.buildMissionState(task, progress, state.createdAt, now(), state.completedAt),
-      );
+        this.buildMissionState(task, progress, state.createdAt, now(), completedAt),
+      ).catch(() => undefined);
     };
 
     const recomputeOverall = (): void => {
@@ -559,10 +610,10 @@ export class MultiAgentService {
       progress.overall = Math.round(specialistShare + synthShare);
     };
 
-    const emit = (): void => {
+    const emit = (completedAt?: number): void => {
       recomputeOverall();
       onProgress?.(progress);
-      persist();
+      persist(completedAt);
     };
 
     const resolveProvider = (agent: SpecialistAgent): ProviderId | undefined =>
@@ -629,6 +680,7 @@ export class MultiAgentService {
     const errorCount = progress.agents.filter((a) => a.status === 'error').length;
 
     let synthesis = state.synthesis?.output ?? '';
+    let synthesisFailure: Error | null = null;
     if (synthesizer && doneCount > 0) {
       progress.status = 'synthesizing';
       if (progress.synthesis) progress.synthesis.status = 'running';
@@ -653,6 +705,7 @@ export class MultiAgentService {
         emitEvent({ ts: now(), type: 'synthesis-done', message: 'Synthesis finished' });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        synthesisFailure = error instanceof Error ? error : new Error(message);
         if (progress.synthesis) {
           progress.synthesis.status = 'error';
           progress.synthesis.output = message;
@@ -661,10 +714,16 @@ export class MultiAgentService {
       }
     }
 
-    progress.status = errorCount > 0 && doneCount === 0 ? 'error' : 'completed';
+    progress.status = synthesisFailure !== null || (errorCount > 0 && doneCount === 0)
+      ? 'error'
+      : 'completed';
     progress.overall = 100;
-    emitEvent({ ts: now(), type: progress.status === 'error' ? 'error' : 'completed', message: `Mission ${progress.status}` });
-    emit();
+    const finishedAt = now();
+    emitEvent({ ts: finishedAt, type: progress.status === 'error' ? 'error' : 'completed', message: `Mission ${progress.status}` });
+    emit(progress.status === 'completed' ? finishedAt : undefined);
+    await options.storage?.flushMission?.(state.taskId);
+
+    if (synthesisFailure) throw synthesisFailure;
 
     return { results, synthesis };
   }
@@ -881,6 +940,7 @@ export class MultiAgentService {
       ? {
           status: progress.synthesis.status,
           output: progress.synthesis.output,
+          error: progress.synthesis.status === 'error' ? progress.synthesis.output : undefined,
         }
       : undefined;
 
@@ -897,6 +957,18 @@ export class MultiAgentService {
       updatedAt,
       completedAt,
     };
+  }
+
+  private async withActiveMission<T>(taskId: string, run: () => Promise<T>): Promise<T> {
+    if (this.activeMissionIds.has(taskId)) {
+      throw new Error(`Mission ${taskId} is already active.`);
+    }
+    this.activeMissionIds.add(taskId);
+    try {
+      return await run();
+    } finally {
+      this.activeMissionIds.delete(taskId);
+    }
   }
 }
 

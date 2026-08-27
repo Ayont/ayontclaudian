@@ -115,6 +115,12 @@ export class TokenBudgetTracker {
    * contributes a number even when only input tokens are reported.
    */
   trackUsage(usage: UsageInfo, providerId = 'unknown'): void {
+    // Snapshots are cumulative display state, not additional consumption.
+    // Keep this guard at the persistence boundary as well as in the chat
+    // controller so raw/auxiliary collectors cannot reintroduce double counts.
+    if (usage.reportType === 'snapshot' || usage.isRestatedSnapshot === true) {
+      return;
+    }
     this.ensureDayRollover();
     const delta = usage.contextTokens > 0
       ? usage.contextTokens

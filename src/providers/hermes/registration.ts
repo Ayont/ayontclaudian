@@ -6,6 +6,7 @@ import { HermesTitleGenerationService } from './auxiliary/HermesTitleGenerationS
 import { HERMES_PROVIDER_CAPABILITIES } from './capabilities';
 import { hermesSettingsReconciler } from './env/HermesSettingsReconciler';
 import { HermesConversationHistoryService } from './history/HermesConversationHistoryService';
+import { HermesAuxQueryRunner } from './runtime/HermesAuxQueryRunner';
 import { HermesChatRuntime } from './runtime/HermesChatRuntime';
 import { DEFAULT_HERMES_PROVIDER_SETTINGS, getHermesProviderSettings } from './settings';
 import { hermesChatUIConfig } from './ui/HermesChatUIConfig';
@@ -17,6 +18,7 @@ export const hermesProviderRegistration: ProviderRegistration = {
   brandColorLight: '#F5F3FF',
   capabilities: HERMES_PROVIDER_CAPABILITIES,
   chatUIConfig: hermesChatUIConfig,
+  createAuxQueryRunner: (plugin) => new HermesAuxQueryRunner(plugin),
   createInlineEditService: (plugin) => new HermesInlineEditService(plugin),
   createInstructionRefineService: (plugin) => new HermesInstructionRefineService(plugin),
   createRuntime: ({ plugin }) => new HermesChatRuntime(plugin),

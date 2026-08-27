@@ -333,6 +333,75 @@ describe('StreamController - Text Content', () => {
   });
 
   describe('Text block finalization', () => {
+    it('keeps one semantic document block across a tool boundary', async () => {
+      const msg = {
+        ...createTestMessage(),
+        outputSurface: 'live-document' as const,
+      };
+
+      await controller.handleStreamChunk({
+        type: 'text',
+        content: '```claudian-document\n---\ntitle: Einsatzplan\n---\n# Einsatzplan',
+      }, msg);
+      const liveTextEl = deps.state.currentTextEl;
+
+      await controller.handleStreamChunk({
+        type: 'tool_use',
+        id: 'tool-1',
+        name: 'Read',
+        input: { file_path: 'Kontext.md' },
+      }, msg);
+
+      expect(deps.state.currentTextEl).toBe(liveTextEl);
+      expect(msg.contentBlocks).toEqual([
+        expect.objectContaining({
+          type: 'text',
+          outputSurface: 'live-document',
+        }),
+        { type: 'tool_use', toolId: 'tool-1' },
+      ]);
+
+      await controller.handleStreamChunk({
+        type: 'tool_result',
+        id: 'tool-1',
+        content: 'Kontext geladen',
+      }, msg);
+      await controller.handleStreamChunk({
+        type: 'text',
+        content: '\n\n## Ablauf\nDirekt nutzbar.\n```\n\nDanach.',
+      }, msg);
+      await controller.finalizeCurrentTextBlock(msg);
+
+      expect(msg.contentBlocks).toEqual([
+        {
+          type: 'text',
+          content: [
+            '```claudian-document',
+            '---',
+            'title: Einsatzplan',
+            '---',
+            '# Einsatzplan',
+            '',
+            '## Ablauf',
+            'Direkt nutzbar.',
+            '```',
+          ].join('\n'),
+          outputSurface: 'live-document',
+        },
+        { type: 'tool_use', toolId: 'tool-1' },
+        { type: 'text', content: '\n\nDanach.' },
+      ]);
+      expect(deps.renderer.renderContent).toHaveBeenCalledWith(
+        liveTextEl,
+        expect.stringContaining('## Ablauf'),
+        { outputSurface: 'live-document' },
+      );
+      expect(deps.renderer.renderContent).toHaveBeenLastCalledWith(
+        expect.anything(),
+        '\n\nDanach.',
+      );
+    });
+
     it('should add copy button when finalizing text block with content', async () => {
       const msg = createTestMessage();
       deps.state.currentTextEl = createMockEl();
@@ -522,6 +591,90 @@ describe('StreamController - Text Content', () => {
         await controller.handleStreamChunk({ type: 'usage', usage: corrected, sessionId: 'session-1' }, createTestMessage());
 
         expect(deps.state.usage).toEqual(corrected);
+      });
+    });
+
+    describe('usage report accounting', () => {
+      const attachTracker = () => {
+        const trackUsage = jest.fn();
+        (deps.plugin as any).tokenBudgetTracker = { trackUsage };
+        (deps.plugin as any).persistTokenUsage = jest.fn();
+        return trackUsage;
+      };
+
+      it('uses cumulative snapshots for the context meter without adding them to the budget', async () => {
+        const trackUsage = attachTracker();
+        const usage = createMockUsage({ reportType: 'snapshot', contextTokens: 42 });
+
+        await controller.handleStreamChunk(
+          { type: 'usage', usage, sessionId: 'session-1' },
+          createTestMessage(),
+        );
+
+        expect(deps.state.usage).toEqual(usage);
+        expect(trackUsage).not.toHaveBeenCalled();
+        expect((deps.plugin as any).persistTokenUsage).not.toHaveBeenCalled();
+      });
+
+      it('accounts every delta report', async () => {
+        const trackUsage = attachTracker();
+        const msg = createTestMessage();
+
+        await controller.handleStreamChunk(
+          { type: 'usage', usage: createMockUsage({ reportType: 'delta', contextTokens: 4 }), sessionId: 'session-1' },
+          msg,
+        );
+        await controller.handleStreamChunk(
+          { type: 'usage', usage: createMockUsage({ reportType: 'delta', contextTokens: 6 }), sessionId: 'session-1' },
+          msg,
+        );
+
+        expect(trackUsage).toHaveBeenCalledTimes(2);
+      });
+
+      it('accounts auxiliary usage without replacing the visible context snapshot', async () => {
+        const trackUsage = attachTracker();
+        const visibleUsage = createMockUsage({ reportType: 'snapshot', contextTokens: 800 });
+        const auxiliaryUsage = createMockUsage({ reportType: 'delta', contextTokens: 20 });
+        deps.state.usage = visibleUsage;
+
+        await controller.handleStreamChunk(
+          {
+            type: 'usage',
+            usage: auxiliaryUsage,
+            sessionId: 'session-1',
+            contextDisplay: 'preserve',
+          },
+          createTestMessage(),
+        );
+
+        expect(deps.state.usage).toBe(visibleUsage);
+        expect(trackUsage).toHaveBeenCalledWith(auxiliaryUsage, 'claude');
+      });
+
+      it('accounts a duplicated final report only once for the same assistant turn', async () => {
+        const trackUsage = attachTracker();
+        const msg = createTestMessage();
+        const usage = createMockUsage({ reportType: 'final' });
+
+        await controller.handleStreamChunk({ type: 'usage', usage, sessionId: 'session-1' }, msg);
+        await controller.handleStreamChunk({ type: 'usage', usage, sessionId: 'session-1' }, msg);
+
+        expect(trackUsage).toHaveBeenCalledTimes(1);
+        expect((deps.plugin as any).persistTokenUsage).toHaveBeenCalledTimes(1);
+      });
+
+      it('accounts final reports again for a new assistant turn', async () => {
+        const trackUsage = attachTracker();
+        const usage = createMockUsage({ reportType: 'final' });
+
+        await controller.handleStreamChunk({ type: 'usage', usage, sessionId: 'session-1' }, createTestMessage());
+        await controller.handleStreamChunk(
+          { type: 'usage', usage, sessionId: 'session-1' },
+          { ...createTestMessage(), id: 'assistant-2' },
+        );
+
+        expect(trackUsage).toHaveBeenCalledTimes(2);
       });
     });
   });
@@ -1157,15 +1310,20 @@ describe('StreamController - Text Content', () => {
   });
 
   describe('Usage handling - edge cases', () => {
-    it('should skip usage when subagentsSpawnedThisStream > 0', async () => {
+    it('keeps the main-turn usage when subagents were spawned', async () => {
       const msg = createTestMessage();
       (deps.subagentManager as any).subagentsSpawnedThisStream = 1;
+
+      const trackUsage = jest.fn();
+      (deps.plugin as any).tokenBudgetTracker = { trackUsage };
+      (deps.plugin as any).persistTokenUsage = jest.fn();
 
       const usage = createMockUsage({ inputTokens: 100, contextWindow: 200, contextTokens: 100, percentage: 50 });
 
       await controller.handleStreamChunk({ type: 'usage', usage, sessionId: 'session-1' }, msg);
 
-      expect(deps.state.usage).toBeNull();
+      expect(deps.state.usage).toEqual(usage);
+      expect(trackUsage).toHaveBeenCalledWith(usage, 'claude');
     });
 
     it('should skip usage when chunk has sessionId but currentSessionId is null', async () => {

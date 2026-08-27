@@ -29,10 +29,12 @@
 /* Current selection (visible when collapsed) — a real chip, visually paired
    with the model pill (border + raised surface, accent carries the value). */
 .claudian-thinking-current {
+  appearance: none;
   display: inline-flex;
   align-items: center;
   gap: 5px;
   min-height: 28px;
+  margin: 0;
   padding: 3px 10px;
   font-family: var(--cl-font-ui);
   font-size: var(--cl-text-xs);
@@ -43,6 +45,7 @@
   border-radius: var(--cl-radius-pill);
   white-space: nowrap;
   background: var(--cl-surface-raised);
+  box-shadow: none;
   transition: background var(--cl-dur-fast) var(--cl-ease),
     border-color var(--cl-dur-fast) var(--cl-ease);
 }
@@ -138,6 +141,12 @@
 }
 
 .claudian-thinking-gear {
+  appearance: none;
+  width: 100%;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  text-align: start;
   padding: var(--cl-space-1) var(--cl-space-2);
   font-family: var(--cl-font-ui);
   font-size: var(--cl-text-xs);
@@ -147,6 +156,13 @@
   transition: background var(--cl-dur-fast) var(--cl-ease),
     color var(--cl-dur-fast) var(--cl-ease);
   white-space: nowrap;
+}
+
+@media (pointer: coarse) {
+  .claudian-thinking-current,
+  .claudian-thinking-gear {
+    min-height: 44px;
+  }
 }
 
 .claudian-thinking-gear:hover {

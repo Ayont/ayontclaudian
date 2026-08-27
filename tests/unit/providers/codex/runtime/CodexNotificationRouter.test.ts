@@ -863,12 +863,64 @@ describe('CodexNotificationRouter', () => {
           contextWindowIsAuthoritative: true,
           contextTokens: 9000,
           percentage: 5,
+          reportType: 'snapshot',
         },
       });
     });
   });
 
   describe('turn completion', () => {
+    it('converts the latest cumulative snapshot into one final report on success', () => {
+      router.beginTurn({ isPlanTurn: false });
+      router.handleNotification('thread/tokenUsage/updated', {
+        threadId: 't1',
+        turnId: 'turn1',
+        tokenUsage: {
+          last: { inputTokens: 9000, cachedInputTokens: 5000 },
+          modelContextWindow: 200000,
+        },
+      });
+      chunks.length = 0;
+
+      router.handleNotification('turn/completed', {
+        threadId: 't1',
+        turn: { id: 'turn1', items: [], status: 'completed', error: null },
+      });
+
+      expect(chunks).toEqual([
+        expect.objectContaining({
+          type: 'usage',
+          usage: expect.objectContaining({ reportType: 'final' }),
+        }),
+        { type: 'done' },
+      ]);
+    });
+
+    it('does not convert a snapshot into final usage when the turn fails', () => {
+      router.beginTurn({ isPlanTurn: false });
+      router.handleNotification('thread/tokenUsage/updated', {
+        threadId: 't1',
+        turnId: 'turn1',
+        tokenUsage: {
+          last: { inputTokens: 9000, cachedInputTokens: 5000 },
+          modelContextWindow: 200000,
+        },
+      });
+      chunks.length = 0;
+
+      router.handleNotification('turn/completed', {
+        threadId: 't1',
+        turn: {
+          id: 'turn1',
+          items: [],
+          status: 'failed',
+          error: { message: 'Model error', codexErrorInfo: 'other', additionalDetails: null },
+        },
+      });
+
+      expect(chunks.some(chunk => chunk.type === 'usage')).toBe(false);
+    });
+
     it('records assistant turn metadata then emits done on completion', () => {
       router.handleNotification('turn/completed', {
         threadId: 't1',

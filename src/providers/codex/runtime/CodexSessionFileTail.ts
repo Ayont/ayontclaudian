@@ -553,6 +553,7 @@ function buildUsageInfo(
     contextWindowIsAuthoritative,
     contextTokens,
     percentage: contextWindow > 0 ? Math.min(100, Math.max(0, Math.round((contextTokens / contextWindow) * 100))) : 0,
+    reportType: 'final',
   };
 }
 

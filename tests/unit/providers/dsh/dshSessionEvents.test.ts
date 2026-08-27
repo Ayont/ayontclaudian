@@ -243,4 +243,12 @@ describe('buildDshUsageInfo', () => {
   it('does not divide by an unknown context window', () => {
     expect(buildDshUsageInfo({ usage: { inputTokens: 10, outputTokens: 5 } }, 0)?.percentage).toBe(0);
   });
+
+  it('marks live cumulative measurements as snapshots when requested', () => {
+    expect(buildDshUsageInfo(
+      { usage: { inputTokens: 10, outputTokens: 5 } },
+      128_000,
+      'snapshot',
+    )).toMatchObject({ reportType: 'snapshot' });
+  });
 });

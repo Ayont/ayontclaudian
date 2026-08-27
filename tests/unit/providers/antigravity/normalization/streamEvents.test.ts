@@ -91,8 +91,14 @@ describe('mapAgyStreamEventToChunks', () => {
       expect.objectContaining({
         type: 'usage',
         sessionId: '57e03061-3145-4604-8bac-78e541f65f40',
+        usage: expect.objectContaining({ reportType: 'final' }),
       }),
     );
+  });
+
+  it('does not publish terminal usage from a failed result', () => {
+    const failed = parseAgyStreamLine(RESULT.replace('"SUCCESS"', '"FAILED"'));
+    expect(failed && mapAgyStreamEventToChunks(failed, { contextWindow: 1_000_000 })).toEqual([]);
   });
 });
 

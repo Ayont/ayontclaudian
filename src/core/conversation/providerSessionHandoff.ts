@@ -44,6 +44,18 @@ export interface ProviderSessionHandoffResult {
   providerSessions: Record<string, ProviderSessionSnapshot>;
 }
 
+export function needsProviderContextBootstrap(
+  restored: Pick<ProviderSessionHandoffResult, 'sessionId' | 'providerState'>,
+  resolvedProviderSessionId: string | null | undefined = restored.sessionId,
+): boolean {
+  // Opaque providerState may contain metadata that cannot resume native
+  // context (for example Kimi's standing goal or fork parent). The provider's
+  // history service is the authority for state-backed session identifiers;
+  // callers pass that resolved id when available. Never infer resumability
+  // merely from a non-empty metadata bag.
+  return !resolvedProviderSessionId;
+}
+
 /**
  * Computes the session handoff for a cross-provider switch.
  *

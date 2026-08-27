@@ -134,8 +134,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: none;
   border-radius: 50%;
@@ -184,6 +184,7 @@
   align-items: center;
   gap: 10px;
   margin: 1px 6px;
+  min-height: 44px;
   padding: 8px 10px;
   border: none;
   border-radius: 10px;
@@ -269,12 +270,27 @@
 }
 
 .claudian-history-item-content {
+  appearance: none;
+  display: block;
   flex: 1;
   min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
   cursor: pointer;
+  font: inherit;
+  text-align: start;
+}
+
+.claudian-history-item-content:disabled {
+  opacity: 1;
 }
 
 .claudian-history-item-title {
+  display: block;
   font-size: 13px;
   font-weight: 500;
   color: var(--text-normal);
@@ -284,6 +300,7 @@
 }
 
 .claudian-history-item-date {
+  display: block;
   font-size: 11px;
   color: var(--text-faint);
   margin-top: 2px;
@@ -297,7 +314,8 @@
   transition: opacity 0.15s ease;
 }
 
-.claudian-history-item:hover .claudian-history-item-actions {
+.claudian-history-item:hover .claudian-history-item-actions,
+.claudian-history-item:focus-within .claudian-history-item-actions {
   opacity: 1;
 }
 
@@ -306,6 +324,8 @@
   border: none;
   cursor: pointer;
   padding: 4px;
+  min-width: 28px;
+  min-height: 28px;
   border-radius: 4px;
   color: var(--text-muted);
   transition: background 0.15s ease, color 0.15s ease;
@@ -349,4 +369,15 @@
   animation: spin 1s linear infinite;
   opacity: 0.6;
   cursor: default;
+}
+
+@media (pointer: coarse) {
+  .claudian-history-search-clear,
+  .claudian-history-item-pin,
+  .claudian-action-btn {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
 }

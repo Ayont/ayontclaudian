@@ -5,6 +5,7 @@ import { InputController, type InputControllerDeps } from '@/features/chat/contr
 import { ChatState } from '@/features/chat/state/ChatState';
 import { encodeClaudeTurn } from '@/providers/claude/prompt/ClaudeTurnEncoder';
 import { ResumeSessionDropdown } from '@/shared/components/ResumeSessionDropdown';
+import { extractUserDisplayContent } from '@/utils/context';
 
 jest.mock('@/shared/components/ResumeSessionDropdown', () => ({
   ResumeSessionDropdown: jest.fn(),
@@ -1121,7 +1122,7 @@ describe('InputController - Message Queue', () => {
 
       // The second query call should include the steer prompt
       const secondCallArg = (mockAgentService.query as jest.Mock).mock.calls[1][0];
-      expect(secondCallArg.request.text).toBe('steer prompt');
+      expect(secondCallArg.request.text).toContain('steer prompt\n\n<claudian_output_contract surface="chat">');
 
       await sendPromise;
     });
@@ -1198,8 +1199,7 @@ describe('InputController - Message Queue', () => {
       expect(fileContextManager.startSession).toHaveBeenCalled();
       expect(deps.renderer.addMessage).toHaveBeenCalledTimes(2);
       expect(deps.state.messages).toHaveLength(2);
-      // Without XML context tags, content equals displayContent (no <query> wrapper)
-      expect(deps.state.messages[0].content).toBe('See ![[image.png]]');
+      expect(extractUserDisplayContent(deps.state.messages[0].content)).toBe('See ![[image.png]]');
       expect(deps.state.messages[0].displayContent).toBe('See ![[image.png]]');
       expect(deps.state.messages[0].images).toBeUndefined();
       expect(imageContextManager.clearImages).toHaveBeenCalled();
@@ -1230,8 +1230,8 @@ describe('InputController - Message Queue', () => {
       await controller.sendMessage();
 
       // The provider receives the invisible @path reference…
-      expect(textReachingProvider).toBe(
-        'Fasse das zusammen\n\n@.claudian/attachments/pasted-text-1.txt',
+      expect(textReachingProvider).toContain(
+        'Fasse das zusammen\n\n@.claudian/attachments/pasted-text-1.txt\n\n<claudian_output_contract surface="chat">',
       );
       // …while the chat transcript shows only what the user typed.
       expect(deps.state.messages[0].displayContent).toBe('Fasse das zusammen');
@@ -1257,8 +1257,61 @@ describe('InputController - Message Queue', () => {
 
       await controller.sendMessage();
 
-      expect(textReachingProvider).toBe('@.claudian/attachments/pasted-text-1.txt');
+      expect(textReachingProvider).toContain(
+        '@.claudian/attachments/pasted-text-1.txt\n\n<claudian_output_contract surface="chat">',
+      );
       expect(deps.state.messages[0].displayContent).toBe('📎 pasted-text-1.txt');
+    });
+
+    it('sends a natural document request with a provider-neutral live-document contract', async () => {
+      let requestReachingProvider: any;
+      (deps as any).mockAgentService.query = jest.fn().mockImplementation((turn: any) => {
+        requestReachingProvider = turn.request;
+        return createMockStream([{ type: 'done' }]);
+      });
+      inputEl.value = 'Erstelle einen strukturierten Projektbericht.';
+
+      await controller.sendMessage();
+
+      expect(requestReachingProvider.outputSurface).toBe('live-document');
+      expect(requestReachingProvider.text).toContain('<claudian_output_contract surface="live-document">');
+      expect(requestReachingProvider.text).toContain('```claudian-document');
+      expect(requestReachingProvider.text).not.toContain('```claudian-email');
+    });
+
+    it('keeps raw provider commands free of injected context and output contracts', async () => {
+      let textReachingProvider = '';
+      (deps as any).mockAgentService.query = jest.fn().mockImplementation((turn: any) => {
+        textReachingProvider = turn.request.text;
+        return createMockStream([{ type: 'done' }]);
+      });
+      inputEl.value = '/compact keep decisions';
+
+      await controller.sendMessage();
+
+      expect(textReachingProvider).toBe('/compact keep decisions');
+    });
+
+    it('uses one bounded provider-switch bootstrap instead of replaying the same history twice', async () => {
+      const bootstrap = '<conversation_context>\nUser: vorher\nAssistant: erledigt\n</conversation_context>';
+      deps.state.messages = [
+        { id: 'u-old', role: 'user', content: 'vorher', timestamp: 1 },
+        { id: 'a-old', role: 'assistant', content: 'erledigt', timestamp: 2 },
+      ];
+      deps.consumePendingContextBootstrap = jest.fn().mockResolvedValue(bootstrap);
+      let promptReachingProvider = '';
+      let historyReachingProvider: unknown;
+      (deps as any).mockAgentService.query = jest.fn().mockImplementation((turn: any, history: unknown) => {
+        promptReachingProvider = turn.request.text;
+        historyReachingProvider = history;
+        return createMockStream([{ type: 'done' }]);
+      });
+      inputEl.value = 'Mach weiter.';
+
+      await controller.sendMessage();
+
+      expect(promptReachingProvider.match(/<conversation_context>/g)).toHaveLength(1);
+      expect(historyReachingProvider).toEqual([]);
     });
 
     it('keeps image base64 data alive for the provider after the pre-send save clears stored copies', async () => {
@@ -2316,6 +2369,78 @@ describe('InputController - Message Queue', () => {
         expect.objectContaining({ type: 'error', content: 'string error' }),
         expect.anything(),
       );
+    });
+  });
+
+  describe('Watchdog retry boundaries', () => {
+    it('reuses the visible turn without exposing the prepared prompt on retry', async () => {
+      jest.useFakeTimers();
+      try {
+        deps = createSendableDeps();
+        const mockAgentService = (deps as any).mockAgentService;
+        (deps.streamController.appendText as jest.Mock).mockResolvedValue(undefined);
+        mockAgentService.prepareTurn = jest.fn().mockImplementation((request: any) => ({
+          request: {
+            ...request,
+            text: `<internal_transport>${request.text}</internal_transport>`,
+          },
+          persistedContent: request.text,
+          prompt: request.text,
+          isCompact: false,
+          mcpMentions: new Set(),
+        }));
+
+        let releaseTimedOutAttempt: (() => void) | undefined;
+        let signalTimedOutAttemptWaiting: (() => void) | undefined;
+        const timedOutAttemptWaiting = new Promise<void>((resolve) => {
+          signalTimedOutAttemptWaiting = resolve;
+        });
+        const timedOutAttemptGate = new Promise<void>((resolve) => {
+          releaseTimedOutAttempt = resolve;
+        });
+        let attempt = 0;
+        mockAgentService.cancel = jest.fn(() => releaseTimedOutAttempt?.());
+        mockAgentService.query = jest.fn().mockImplementation((turn: any) => {
+          attempt += 1;
+          if (attempt === 1) {
+            return (async function* () {
+              yield { type: 'user_message_start', content: turn.request.text };
+              yield { type: 'assistant_message_start' };
+              yield { type: 'text', content: 'partial' };
+              signalTimedOutAttemptWaiting?.();
+              await timedOutAttemptGate;
+              yield { type: 'done' };
+            })();
+          }
+          return (async function* () {
+            yield { type: 'user_message_start', content: turn.request.text };
+            yield { type: 'assistant_message_start' };
+            yield { type: 'text', content: 'recovered' };
+            yield { type: 'done' };
+          })();
+        });
+
+        inputEl = deps.getInputEl() as ReturnType<typeof createMockInputEl>;
+        inputEl.value = 'visible request';
+        controller = new InputController(deps);
+
+        const sendPromise = controller.sendMessage();
+        await timedOutAttemptWaiting;
+        await jest.advanceTimersByTimeAsync(125_000);
+        expect(mockAgentService.cancel).toHaveBeenCalled();
+        await sendPromise;
+
+        expect(mockAgentService.query).toHaveBeenCalledTimes(2);
+        expect(deps.state.messages).toHaveLength(2);
+        expect(deps.state.messages.map((message) => message.role)).toEqual(['user', 'assistant']);
+        expect(deps.state.messages[0].displayContent).toBe('visible request');
+        expect(deps.state.messages.every((message) => (
+          !message.displayContent?.includes('<internal_transport>')
+          && !message.content.includes('<internal_transport>')
+        ))).toBe(true);
+      } finally {
+        jest.useRealTimers();
+      }
     });
   });
 
@@ -3543,6 +3668,38 @@ describe('InputController - Message Queue', () => {
 
       expect(restoreFn).toHaveBeenCalled();
       expect(mockAgentService.query).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('template context file narrowing', () => {
+    it('ignores path results that only look like files', async () => {
+      const read = jest.fn().mockResolvedValue('must not be read');
+      const getFileCache = jest.fn().mockReturnValue({ tags: [{ tag: '#unsafe' }] });
+      const deps = createMockDeps({
+        getFileContextManager: () => ({
+          getCurrentNotePath: jest.fn().mockReturnValue('notes/lookalike.md'),
+        }) as any,
+      });
+      (deps.plugin as any).app = {
+        metadataCache: { getFileCache },
+        vault: {
+          getAbstractFileByPath: jest.fn().mockReturnValue({
+            extension: 'md',
+            name: 'lookalike.md',
+            path: 'notes/lookalike.md',
+          }),
+          read,
+        },
+      };
+      const controller = new InputController(deps);
+
+      const context = await (controller as unknown as {
+        buildTemplateContext: () => Promise<Record<string, unknown>>;
+      }).buildTemplateContext();
+
+      expect(context).toEqual({});
+      expect(read).not.toHaveBeenCalled();
+      expect(getFileCache).not.toHaveBeenCalled();
     });
   });
 

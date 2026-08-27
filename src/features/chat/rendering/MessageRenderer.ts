@@ -13,7 +13,14 @@ import {
   TOOL_WRITE_STDIN,
 } from '../../../core/tools/toolNames';
 import { extractToolResultContent } from '../../../core/tools/toolResultContent';
-import type { ChatMessage, ImageAttachment, MessageAttachment, SubagentInfo, ToolCallInfo } from '../../../core/types';
+import type {
+  ChatMessage,
+  ImageAttachment,
+  MessageAttachment,
+  OutputSurface,
+  SubagentInfo,
+  ToolCallInfo,
+} from '../../../core/types';
 import { t } from '../../../i18n/i18n';
 import type ClaudianPlugin from '../../../main';
 import { extractInjectedContextPrompt, extractUserDisplayContent } from '../../../utils/context';
@@ -40,10 +47,17 @@ import { detectStatusCard } from './errorClassification';
 import { renderInlineImages } from './InlineImageRenderer';
 import {
   type LiveDocument,
+  liveDocumentIdentity,
   type LiveDocumentTheme,
+  parseLiveDocument,
+  parseLiveDocumentBlocks,
   renderLiveDocuments,
 } from './LiveDocumentRenderer';
 import { renderNetworkMaps } from './NetworkMapRenderer';
+import {
+  coalesceRichOutputBlocks,
+  prepareRichOutputMarkdown,
+} from './RichOutputFences';
 import { renderSkillCards } from './SkillCardRenderer';
 import { renderStatusCard } from './StatusCardRenderer';
 import { resolveSubagentLifecycleAdapter } from './subagentLifecycleResolution';
@@ -58,6 +72,8 @@ import { renderStoredWriteEdit } from './WriteEditRenderer';
 
 export interface RenderContentOptions {
   deferMath?: boolean;
+  /** Deterministic presentation target selected for this assistant turn/block. */
+  outputSurface?: OutputSurface;
 }
 
 export type RenderContentFn = (
@@ -229,6 +245,8 @@ function containsPotentialVaultLink(markdown: string): boolean {
 }
 
 export class MessageRenderer {
+  /** Completed render signatures; unchanged frames keep their mounted UI state. */
+  private readonly contentRenderSignatures = new WeakMap<HTMLElement, string>();
   private app: App;
   private plugin: ClaudianPlugin;
   private component: Component;
@@ -254,6 +272,8 @@ export class MessageRenderer {
   private lastRenderedProviderId: ProviderId | null = null;
   private dockHandler: ((target: FileDockTarget) => void) | null = null;
   private liveDocumentDockHandler: ((document: LiveDocument, theme: LiveDocumentTheme) => void) | null = null;
+  private liveDocumentDiscoveryHandler: ((document: LiveDocument, theme: LiveDocumentTheme) => void) | null = null;
+  private readonly discoveredLiveDocumentSignatures = new Map<string, string>();
 
   constructor(
     plugin: ClaudianPlugin,
@@ -275,6 +295,7 @@ export class MessageRenderer {
     this.regenerateCallback = regenerateCallback;
     this.getCapabilities = getCapabilities ?? (() => ({
       providerId: DEFAULT_CHAT_PROVIDER_ID,
+      promptDelivery: 'native-system',
       supportsPersistentRuntime: false,
       supportsNativeHistory: false,
       supportsPlanMode: false,
@@ -308,6 +329,59 @@ export class MessageRenderer {
     handler: ((document: LiveDocument, theme: LiveDocumentTheme) => void) | null,
   ): void {
     this.liveDocumentDockHandler = handler;
+  }
+
+  /** Receives completed documents found while rehydrating assistant history. */
+  setLiveDocumentDiscoveryHandler(
+    handler: ((document: LiveDocument, theme: LiveDocumentTheme) => void) | null,
+  ): void {
+    this.liveDocumentDiscoveryHandler = handler;
+  }
+
+  private discoverLiveDocuments(msg: ChatMessage): void {
+    if (!this.liveDocumentDiscoveryHandler || msg.role !== 'assistant') return;
+    const blocks = coalesceRichOutputBlocks(msg.contentBlocks ?? [], msg.outputSurface);
+    const discovered = new Map<string, LiveDocument>();
+
+    for (const block of blocks) {
+      if (block.type !== 'text') continue;
+      const fenced = parseLiveDocumentBlocks(block.content);
+      if (fenced.length > 0) {
+        for (const candidate of fenced) {
+          if (candidate.closed && candidate.liveDocument) {
+            discovered.set(liveDocumentIdentity(candidate.liveDocument), candidate.liveDocument);
+          }
+        }
+        continue;
+      }
+      if ((block.outputSurface ?? msg.outputSurface) === 'live-document') {
+        const document = parseLiveDocument(block.content);
+        if (document) discovered.set(liveDocumentIdentity(document), document);
+      }
+    }
+
+    // Legacy messages may have content but no contentBlocks.
+    if (blocks.length === 0 && msg.outputSurface === 'live-document' && msg.content.trim()) {
+      const fenced = parseLiveDocumentBlocks(msg.content);
+      if (fenced.length > 0) {
+        for (const candidate of fenced) {
+          if (candidate.closed && candidate.liveDocument) {
+            discovered.set(liveDocumentIdentity(candidate.liveDocument), candidate.liveDocument);
+          }
+        }
+      } else {
+        const document = parseLiveDocument(msg.content);
+        if (document) discovered.set(liveDocumentIdentity(document), document);
+      }
+    }
+
+    for (const [identity, document] of discovered) {
+      const key = `${msg.id}:${identity}`;
+      const signature = JSON.stringify(document);
+      if (this.discoveredLiveDocumentSignatures.get(key) === signature) continue;
+      this.discoveredLiveDocumentSignatures.set(key, signature);
+      this.liveDocumentDiscoveryHandler(document, document.theme);
+    }
   }
 
   private getSubagentLifecycleAdapter(toolName?: string) {
@@ -707,6 +781,8 @@ export class MessageRenderer {
       return;
     }
 
+    this.discoverLiveDocuments(msg);
+
     // Render images above bubble for user messages
     if (msg.role === 'user' && msg.images && msg.images.length > 0) {
       this.renderMessageImages(this.messagesEl, msg.images);
@@ -810,6 +886,7 @@ export class MessageRenderer {
 
   /** Promotes a live assistant card to its stable completed state. */
   finalizeLiveAssistantMessage(msg: ChatMessage): void {
+    this.discoverLiveDocuments(msg);
     const msgEl = this.messagesEl.querySelector<HTMLElement>(`[data-message-id="${msg.id}"]`);
     if (!msgEl) return;
     this.renderAssistantHeader(msg, msgEl, false);
@@ -862,9 +939,10 @@ export class MessageRenderer {
    */
   private renderAssistantContent(msg: ChatMessage, contentEl: HTMLElement): void {
     if (msg.contentBlocks && msg.contentBlocks.length > 0) {
+      const contentBlocks = coalesceRichOutputBlocks(msg.contentBlocks, msg.outputSurface);
       const renderedToolIds = new Set<string>();
-      for (let blockIndex = 0; blockIndex < msg.contentBlocks.length; blockIndex += 1) {
-        const block = msg.contentBlocks[blockIndex];
+      for (let blockIndex = 0; blockIndex < contentBlocks.length; blockIndex += 1) {
+        const block = contentBlocks[blockIndex];
         if (block.type === 'thinking') {
           renderStoredThinkingBlock(
             contentEl,
@@ -878,15 +956,22 @@ export class MessageRenderer {
             continue;
           }
           const textEl = contentEl.createDiv({ cls: 'claudian-text-block' });
-          void this.renderContent(textEl, block.content);
+          const outputSurface = block.outputSurface && block.outputSurface !== 'chat'
+            ? block.outputSurface
+            : undefined;
+          if (outputSurface) {
+            void this.renderContent(textEl, block.content, { outputSurface });
+          } else {
+            void this.renderContent(textEl, block.content);
+          }
           this.addTextCopyButton(textEl, block.content);
         } else if (block.type === 'tool_use') {
           const toolCall = msg.toolCalls?.find(tc => tc.id === block.toolId);
           if (toolCall) {
             const groupedRun: ToolCallInfo[] = [];
             let nextIndex = blockIndex;
-            while (nextIndex < msg.contentBlocks.length) {
-              const candidateBlock = msg.contentBlocks[nextIndex];
+            while (nextIndex < contentBlocks.length) {
+              const candidateBlock = contentBlocks[nextIndex];
               if (candidateBlock.type !== 'tool_use') break;
               const candidate = msg.toolCalls?.find(tc => tc.id === candidateBlock.toolId);
               if (!candidate || !LOW_SIGNAL_STORED_TOOLS.has(candidate.name.toLowerCase())) break;
@@ -929,7 +1014,14 @@ export class MessageRenderer {
       // Fallback for old conversations without contentBlocks
       if (msg.content) {
         const textEl = contentEl.createDiv({ cls: 'claudian-text-block' });
-        void this.renderContent(textEl, msg.content);
+        const outputSurface = msg.outputSurface && msg.outputSurface !== 'chat'
+          ? msg.outputSurface
+          : undefined;
+        if (outputSurface) {
+          void this.renderContent(textEl, msg.content, { outputSurface });
+        } else {
+          void this.renderContent(textEl, msg.content);
+        }
         this.addTextCopyButton(textEl, msg.content);
       }
       if (msg.toolCalls) {
@@ -1566,6 +1658,14 @@ export class MessageRenderer {
     markdown: string,
     options?: RenderContentOptions
   ): Promise<void> {
+    const richMarkdown = prepareRichOutputMarkdown(markdown, options?.outputSurface);
+    const renderSignature = [
+      options?.deferMath === true ? 'defer-math' : 'final-math',
+      options?.outputSurface ?? 'chat',
+      richMarkdown,
+    ].join('\u0000');
+    if (this.contentRenderSignatures.get(el) === renderSignature) return;
+
     el.empty();
 
     // Error/notice marker blocks render as a designed status card (clear title,
@@ -1574,13 +1674,14 @@ export class MessageRenderer {
     const statusCard = detectStatusCard(markdown);
     if (statusCard) {
       renderStatusCard(el, statusCard);
+      this.contentRenderSignatures.set(el, renderSignature);
       return;
     }
 
     try {
       const renderMarkdown = options?.deferMath
-        ? escapeMathDelimitersForStreaming(markdown)
-        : markdown;
+        ? escapeMathDelimitersForStreaming(richMarkdown)
+        : richMarkdown;
       // Normalize embeds before MarkdownRenderer consumes them.
       const processedMarkdown = replaceImageEmbedsWithHtml(
         renderMarkdown,
@@ -1675,7 +1776,9 @@ export class MessageRenderer {
       if (containsPotentialVaultLink(processedMarkdown)) {
         processFileLinks(this.app, el);
       }
+      this.contentRenderSignatures.set(el, renderSignature);
     } catch {
+      this.contentRenderSignatures.delete(el);
       el.createDiv({
         cls: 'claudian-render-error',
         text: 'Nachrichteninhalt konnte nicht dargestellt werden.',

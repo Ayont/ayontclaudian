@@ -64,6 +64,7 @@ export class CodexNotificationRouter {
   private rawToolOutputsByCallId = new Map<string, RawToolResult>();
   private suppressedRawCallIds = new Set<string>();
   private fileChangeInputsById = new Map<string, Record<string, unknown>>();
+  private latestUsage: { sessionId: string; usage: UsageInfo } | null = null;
 
   constructor(
     private readonly emit: ChunkEmitter,
@@ -128,6 +129,7 @@ export class CodexNotificationRouter {
     this.rawToolOutputsByCallId.clear();
     this.suppressedRawCallIds.clear();
     this.fileChangeInputsById.clear();
+    this.latestUsage = null;
   }
 
   endTurn(): void {
@@ -143,6 +145,7 @@ export class CodexNotificationRouter {
     this.rawToolOutputsByCallId.clear();
     this.suppressedRawCallIds.clear();
     this.fileChangeInputsById.clear();
+    this.latestUsage = null;
   }
 
   handleNotification(method: string, params: unknown): void {
@@ -785,8 +788,10 @@ export class CodexNotificationRouter {
       contextWindowIsAuthoritative: contextWindow > 0,
       contextTokens,
       percentage: contextWindow > 0 ? Math.min(100, Math.max(0, Math.round((contextTokens / contextWindow) * 100))) : 0,
+      reportType: 'snapshot',
     };
 
+    this.latestUsage = { sessionId: params.threadId, usage };
     this.emit({ type: 'usage', usage, sessionId: params.threadId });
   }
 
@@ -798,6 +803,13 @@ export class CodexNotificationRouter {
     }
 
     if (turn.status === 'completed') {
+      if (this.latestUsage) {
+        this.emit({
+          type: 'usage',
+          usage: { ...this.latestUsage.usage, reportType: 'final' },
+          sessionId: this.latestUsage.sessionId,
+        });
+      }
       this.onTurnMetadata?.({
         assistantMessageId: turn.id,
         ...(this.isPlanTurn && this.sawPlanDelta ? { planCompleted: true } : {}),

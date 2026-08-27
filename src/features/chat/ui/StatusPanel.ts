@@ -302,10 +302,10 @@ export class StatusPanel {
   private updateTodoAriaLabel(completedCount: number, totalCount: number): void {
     if (!this.todoHeaderEl) return;
 
-    const action = this.isTodoExpanded ? 'Collapse' : 'Expand';
+    const action = this.isTodoExpanded ? 'einklappen' : 'ausklappen';
     this.todoHeaderEl.setAttribute(
       'aria-label',
-      `${action} task list - ${completedCount} of ${totalCount} completed`
+      `Aufgabenliste ${action} – ${completedCount} von ${totalCount} erledigt`
     );
     this.todoHeaderEl.setAttribute('aria-expanded', String(this.isTodoExpanded));
   }

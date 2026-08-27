@@ -8,6 +8,7 @@ import { kimiSettingsReconciler } from './env/KimiSettingsReconciler';
 import { KimiConversationHistoryService } from './history/KimiConversationHistoryService';
 import { ensureKimiModelConfigured } from './modelOptions';
 import { KimiAcpChatRuntime } from './runtime/KimiAcpChatRuntime';
+import { KimiAuxQueryRunner } from './runtime/KimiAuxQueryRunner';
 import { KimiChatRuntime } from './runtime/KimiChatRuntime';
 import { getKimiProviderSettings } from './settings';
 import { kimiChatUIConfig } from './ui/KimiChatUIConfig';
@@ -22,6 +23,7 @@ export const kimiProviderRegistration: ProviderRegistration = {
   blankTabOrder: 16,
   capabilities: KIMI_PROVIDER_CAPABILITIES,
   chatUIConfig: kimiChatUIConfig,
+  createAuxQueryRunner: (plugin) => new KimiAuxQueryRunner(plugin),
   createInlineEditService: (plugin) => new KimiInlineEditService(plugin),
   createInstructionRefineService: (plugin) => new KimiInstructionRefineService(plugin),
   createRuntime: ({ plugin }) => {

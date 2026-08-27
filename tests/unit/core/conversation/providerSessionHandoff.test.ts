@@ -1,7 +1,9 @@
 import {
   computeProviderSessionHandoff,
+  needsProviderContextBootstrap,
   type ProviderSessionSnapshot,
 } from '@/core/conversation/providerSessionHandoff';
+import { KimiConversationHistoryService } from '@/providers/kimi/history/KimiConversationHistoryService';
 
 describe('computeProviderSessionHandoff', () => {
   it('stashes the outgoing provider session and starts the incoming provider clean', () => {
@@ -132,5 +134,43 @@ describe('computeProviderSessionHandoff', () => {
 
     expect(result.sessionId).toBeNull();
     expect(result.providerSessions.claude).toEqual({ sessionId: null, providerState: undefined });
+  });
+});
+
+describe('needsProviderContextBootstrap', () => {
+  it('requires bounded context when the target provider has no resumable state', () => {
+    expect(needsProviderContextBootstrap({ sessionId: null, providerState: undefined })).toBe(true);
+  });
+
+  it('does not duplicate context when a native session is restored', () => {
+    expect(needsProviderContextBootstrap({ sessionId: 'session-1', providerState: undefined })).toBe(false);
+  });
+
+  it('does not duplicate context for providers that resume through providerState', () => {
+    expect(needsProviderContextBootstrap(
+      { sessionId: null, providerState: { threadId: 'thread-1' } },
+      'thread-1',
+    )).toBe(false);
+  });
+
+  it('does not treat Kimi metadata without a session id as resumable context', () => {
+    const restored = {
+      sessionId: null,
+      providerState: { goal: 'finish the task', forkParentId: 'parent-session' },
+    };
+    const resolvedSessionId = new KimiConversationHistoryService()
+      .resolveSessionIdForConversation({
+        id: 'kimi-handoff',
+        providerId: 'kimi',
+        title: 'Kimi handoff',
+        createdAt: 1,
+        updatedAt: 2,
+        sessionId: restored.sessionId,
+        providerState: restored.providerState,
+        messages: [],
+      });
+
+    expect(resolvedSessionId).toBeNull();
+    expect(needsProviderContextBootstrap(restored, resolvedSessionId)).toBe(true);
   });
 });

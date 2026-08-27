@@ -243,6 +243,39 @@ describe('extractUserDisplayContent', () => {
     expect(stripInternalImageTags('Was bedeutet <image src="demo.png">?'))
       .toBe('Was bedeutet <image src="demo.png">?');
   });
+
+  it('hides the application output contract and standing goal from rehydrated messages', () => {
+    const prompt = [
+      '<claudian_system_preamble prompt-key="sha256:abc">',
+      'Private application and custom instructions.',
+      '</claudian_system_preamble>',
+      '',
+      '<conversation_context>',
+      'Internal transcript bootstrap.',
+      '</conversation_context>',
+      '',
+      '<standing_goal>Das Produkt fertigstellen</standing_goal>',
+      '',
+      'Erstelle einen Projektbericht.',
+      '',
+      '<claudian_output_contract surface="live-document">',
+      '```claudian-document',
+      '# Internal schema',
+      '```',
+      '</claudian_output_contract>',
+      '',
+      '<goal_loop_work_so_far>',
+      'Internal accumulated work.',
+      '</goal_loop_work_so_far>',
+      '',
+      '<goal_loop>',
+      'Internal autonomous-loop directive.',
+      '</goal_loop>',
+    ].join('\n');
+
+    expect(extractUserDisplayContent(prompt)).toBe('Erstelle einen Projektbericht.');
+    expect(extractUserQuery(prompt)).toBe('Erstelle einen Projektbericht.');
+  });
 });
 
 describe('extractVaultContextPrompt', () => {

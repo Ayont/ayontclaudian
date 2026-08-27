@@ -355,13 +355,13 @@ describe('ImageContextManager - Private Helpers', () => {
     it('should append file not found for ENOENT error', () => {
       const error = new Error('ENOENT: no such file or directory');
       manager['notifyImageError']('Failed to load image.', error);
-      expect(Notice).toHaveBeenCalledWith('Failed to load image. (File not found)');
+      expect(Notice).toHaveBeenCalledWith('Failed to load image. (Datei nicht gefunden)');
     });
 
     it('should append permission denied for EACCES error', () => {
       const error = new Error('EACCES: permission denied');
       manager['notifyImageError']('Failed to load image.', error);
-      expect(Notice).toHaveBeenCalledWith('Failed to load image. (Permission denied)');
+      expect(Notice).toHaveBeenCalledWith('Failed to load image. (Zugriff verweigert)');
     });
 
     it('should use original message for non-Error objects', () => {
@@ -387,7 +387,7 @@ describe('ImageContextManager - Private Helpers', () => {
 
       const result = await manager['addImageFromFile'](file, 'paste');
       expect(result).toBe(false);
-      expect(Notice).toHaveBeenCalledWith(expect.stringContaining('limit'));
+      expect(Notice).toHaveBeenCalledWith(expect.stringContaining('Limit'));
     });
 
     it('should reject files with unsupported media type', async () => {
@@ -400,7 +400,7 @@ describe('ImageContextManager - Private Helpers', () => {
 
       const result = await manager['addImageFromFile'](file, 'drop');
       expect(result).toBe(false);
-      expect(Notice).toHaveBeenCalledWith('Unsupported image type.');
+      expect(Notice).toHaveBeenCalledWith('Nicht unterstütztes Bildformat.');
     });
 
     it('should add valid image file and invoke callback', async () => {
@@ -440,7 +440,7 @@ describe('ImageContextManager - Private Helpers', () => {
 
       const result = await manager['addImageFromFile'](file, 'drop');
       expect(result).toBe(false);
-      expect(Notice).toHaveBeenCalledWith('Failed to attach image.');
+      expect(Notice).toHaveBeenCalledWith('Bild konnte nicht angehängt werden.');
     });
 
     it('should generate default name when file has no name', async () => {
@@ -798,6 +798,8 @@ describe('ImageContextManager - Private Helpers', () => {
 
       const removeEl = chipEl.querySelector('.claudian-image-remove');
       expect(removeEl).not.toBeNull();
+      expect(removeEl.tagName).toBe('BUTTON');
+      expect(chipEl.querySelector('.claudian-image-thumb')?.tagName).toBe('BUTTON');
     });
 
     it('remove button should delete the image and update preview', () => {
@@ -854,6 +856,8 @@ describe('ImageContextManager - Private Helpers', () => {
       manager['showFullImage'](image);
 
       expect(mockBody.createDiv).toHaveBeenCalledWith({ cls: 'claudian-image-modal-overlay' });
+      expect(overlayEl.querySelector('.claudian-image-modal')?.getAttribute('role')).toBe('dialog');
+      expect(overlayEl.querySelector('.claudian-image-modal-close')?.tagName).toBe('BUTTON');
     });
 
     it('should register Escape key handler and close button', () => {

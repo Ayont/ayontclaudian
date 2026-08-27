@@ -103,7 +103,7 @@ export class BangBashModeManager {
       this.clear();
       await this.callbacks.onSubmit(rawCommand);
     } catch (e) {
-      new Notice(`Command failed: ${e instanceof Error ? e.message : String(e)}`);
+      new Notice(`Befehl fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       this.isSubmitting = false;
     }

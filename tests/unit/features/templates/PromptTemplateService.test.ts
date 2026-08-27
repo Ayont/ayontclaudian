@@ -1,4 +1,4 @@
-import type { App, TFile, TFolder } from 'obsidian';
+import { type App, TFile, TFolder } from 'obsidian';
 
 import {
   BUILT_IN_TEMPLATES,
@@ -11,24 +11,23 @@ import {
 function createMockApp(templates: Record<string, string> = {}): App {
   const files = new Map<string, string>(Object.entries(templates));
 
-  const folder: TFolder = {
+  const folder = new TFolder();
+  Object.assign(folder, {
     path: DEFAULT_TEMPLATE_FOLDER,
     name: DEFAULT_TEMPLATE_FOLDER.split('/').pop() || DEFAULT_TEMPLATE_FOLDER,
-    children: [] as Array<TFile | TFolder>,
-    vault: {} as any,
-    parent: null,
-  } as unknown as TFolder;
+  });
 
   for (const [path] of files) {
-    const file: TFile = {
+    const file = new TFile();
+    Object.assign(file, {
       path,
       name: path.split('/').pop() || path,
       basename: path.split('/').pop()?.replace(/\.md$/, '') || path,
       extension: 'md',
       parent: folder,
       vault: {} as any,
-    } as unknown as TFile;
-    (folder as any).children.push(file);
+    });
+    folder.children.push(file);
   }
 
   return {
@@ -108,6 +107,22 @@ describe('PromptTemplateService', () => {
     const found = service.getTemplate('code-review', templates);
     expect(found).toBeDefined();
     expect(found?.name).toBe('code-review');
+  });
+
+  it('ignores structural markdown lookalikes that are not vault files', async () => {
+    const app = createMockApp();
+    const folder = app.vault.getAbstractFileByPath(DEFAULT_TEMPLATE_FOLDER) as TFolder;
+    folder.children.push({
+      basename: 'lookalike',
+      extension: 'md',
+      path: `${DEFAULT_TEMPLATE_FOLDER}/lookalike.md`,
+    } as unknown as TFile);
+    (app.vault.read as jest.Mock).mockResolvedValue('# Should not load');
+
+    const templates = await new PromptTemplateService(app).listTemplates();
+
+    expect(templates.some((template) => template.filePath.endsWith('/lookalike.md'))).toBe(false);
+    expect(app.vault.read).not.toHaveBeenCalled();
   });
 });
 

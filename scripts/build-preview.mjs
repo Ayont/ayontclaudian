@@ -245,8 +245,8 @@ const chatSurface = (mode) => `
       ${modeToggle(mode)}
     </div>
     <div class="claudian-header-actions">
-      <div class="claudian-header-btn" aria-label="Neuer Tab"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg></div>
-      <div class="claudian-header-btn" aria-label="Chat-Verlauf"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+      <button class="claudian-header-btn" type="button" aria-label="Neuen Tab öffnen"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg></button>
+      <button class="claudian-header-btn" type="button" aria-label="Chat-Verlauf öffnen"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></button>
     </div>
   </div>
   <div style="padding:20px;">
@@ -388,11 +388,11 @@ const chrome = `
 <div class="claudian-container" data-provider="claude" style="max-width:760px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:28px;">
   <div>
     <div style="font-size:11px;color:var(--text-faint);margin-bottom:8px;">TAB BADGES</div>
-    <div class="claudian-tab-badges">
-      <div class="claudian-tab-badge claudian-tab-badge-active" data-provider="claude">1</div>
-      <div class="claudian-tab-badge claudian-tab-badge-streaming" data-provider="kimi">2</div>
-      <div class="claudian-tab-badge" data-provider="codex">3</div>
-      <div class="claudian-tab-badge" data-provider="grok">4</div>
+    <div class="claudian-tab-badges" role="tablist" aria-label="Offene Chats">
+      <button class="claudian-tab-badge claudian-tab-badge-active" data-provider="claude" type="button" role="tab" aria-selected="true" aria-label="Chat 1, Claude">1</button>
+      <button class="claudian-tab-badge claudian-tab-badge-streaming" data-provider="kimi" type="button" role="tab" aria-selected="false" aria-label="Chat 2, Kimi, antwortet">2</button>
+      <button class="claudian-tab-badge" data-provider="codex" type="button" role="tab" aria-selected="false" aria-label="Chat 3, Codex">3</button>
+      <button class="claudian-tab-badge" data-provider="grok" type="button" role="tab" aria-selected="false" aria-label="Chat 4, Grok">4</button>
     </div>
   </div>
   <div>
@@ -401,9 +401,9 @@ const chrome = `
       <div class="claudian-input-toolbar">
         <button class="claudian-model-btn" data-provider="kimi" type="button"><span class="claudian-model-provider-mark"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><circle cx="12" cy="12" r="9"/></svg></span><span class="claudian-model-label">K3</span><span class="claudian-model-provider-name">Kimi</span></button>
         <div class="claudian-thinking-selector">
-          <div class="claudian-thinking-effort"><span class="claudian-thinking-label-text">Effort:</span><div class="claudian-thinking-gears"><div class="claudian-thinking-current">Hoch</div></div></div>
+          <button class="claudian-thinking-effort" type="button" aria-label="Denkaufwand: Hoch"><span class="claudian-thinking-label-text">Denken:</span><span class="claudian-thinking-gears"><span class="claudian-thinking-current">Hoch</span></span></button>
         </div>
-        <div class="claudian-mode-selector"><span class="claudian-mode-label">Thinking</span><div class="claudian-toggle-switch active"></div></div>
+        <button class="claudian-mode-selector" type="button" aria-pressed="true"><span class="claudian-mode-label">Denken</span><span class="claudian-toggle-switch active"></span></button>
         <span style="font-size:var(--cl-text-xs);color:var(--text-muted);">≈7%</span>
         <div class="claudian-permission-toggle"><span class="claudian-permission-label auto-active">AUTO</span><div class="claudian-toggle-switch active auto"></div></div>
         <div class="claudian-service-tier-toggle"><button class="claudian-service-tier-button active" type="button" aria-pressed="true" aria-label="Fast"><span class="claudian-service-tier-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg></span><span class="claudian-service-tier-label">Fast</span></button></div>
@@ -436,6 +436,7 @@ const chrome = `
           </div>
         </div>
         <div class="claudian-usage-consumption"><span class="claudian-usage-consumption-value">38,4k / 100k Tokens</span><span class="claudian-usage-consumption-sub">38% im 5-h-Fenster · noch 61,6k</span></div>
+        <div class="claudian-usage-provider-spark"><svg class="claudian-usage-spark-svg" viewBox="0 0 240 34" role="img" aria-label="Tokenverbrauch der letzten sieben Tage"><path class="claudian-usage-spark-area" d="M0 29 L40 23 L80 26 L120 14 L160 18 L200 7 L240 11 L240 34 L0 34 Z"/><path class="claudian-usage-spark-line" d="M0 29 L40 23 L80 26 L120 14 L160 18 L200 7 L240 11" style="stroke-dashoffset:0"/><circle class="claudian-usage-spark-dot" cx="240" cy="11" r="2.5" style="opacity:1"/></svg></div>
         <div class="claudian-usage-limit-bar"><div class="claudian-usage-limit-fill" style="width:38%"></div></div>
         <div class="claudian-usage-provider-meta"><span class="claudian-usage-reset-chip">↻ Reset in 2 h 14 min</span><span class="claudian-usage-provider-sums">Heute 38,4k · 7 Tage 210k</span></div>
       </div>
@@ -504,7 +505,23 @@ const chrome = `
   </div>
 </div>`;
 
-const SURFACES = { Dashboard: dashboard, Chat: chat, 'Chat (Work)': chatWork, Chrome: chrome, 'New Project': modal };
+const documents = `
+<div class="claudian-container" style="position:relative;min-height:680px;max-width:760px;margin:0 auto;">
+  <article class="claudian-live-document theme-technical"><div class="claudian-live-document-toolbar"><div class="claudian-live-document-identity"><span class="claudian-live-document-icon">◆</span><span class="claudian-live-document-label">Live-Dokument</span><span class="claudian-live-document-live">LIVE</span></div><div class="claudian-live-document-actions"><button class="claudian-live-document-action" type="button" aria-label="Design wechseln">◐</button><button class="claudian-live-document-action" type="button" aria-label="Dokument kopieren">□</button><button class="claudian-live-document-action" type="button" aria-label="Dokument speichern">↓</button></div></div><div class="claudian-live-document-viewport" style="max-height:560px"><div class="claudian-live-document-page"><header class="claudian-live-document-masthead"><span class="claudian-live-document-type">Technischer Bericht</span><h1>Claudian Systemstatus</h1><p class="claudian-live-document-subtitle">Provider, Dokumente und Kosten auf einen Blick.</p></header><div class="claudian-live-document-body"><h2>Ergebnis</h2><p>Dokumente bleiben als eigenständige Arbeitsflächen erhalten und werden nicht als gewöhnlicher Chat-Text behandelt.</p><blockquote>Inhalt, Status und nächste Aktion sind klar getrennt.</blockquote></div></div></div><footer class="claudian-live-document-footer"><span>42 Wörter · ca. 1 Seite</span><span>Aktualisiert</span></footer></article>
+</div>`;
+
+const artifacts = `
+<section class="claudian-artifact-gallery-modal" aria-labelledby="preview-artifact-title" style="margin:24px auto">
+  <header class="claudian-artifact-gallery-header"><span class="claudian-artifact-gallery-icon">▦</span><h2 id="preview-artifact-title">Artifact-Galerie</h2></header><p class="claudian-artifact-gallery-description">Interaktive Ergebnisse öffnen, verwalten und sicher wiederherstellen.</p>
+  <div class="claudian-artifact-gallery-grid"><article class="claudian-artifact-card"><div class="claudian-artifact-card-summary"><span class="claudian-artifact-card-icon">🧭</span><div class="claudian-artifact-card-body"><h3 class="claudian-artifact-card-title">Incident-Verlauf</h3><div class="claudian-artifact-card-meta"><span>Zeitleiste</span><span>Version 3</span><span>gerade eben</span></div></div></div><div class="claudian-artifact-card-actions"><button class="claudian-artifact-card-btn" type="button">Öffnen</button><button class="claudian-artifact-card-btn claudian-artifact-card-btn--danger" type="button">In Papierkorb</button></div></article></div>
+</section>`;
+
+const library = `
+<div class="claudian-container claudian-preview-open" style="position:relative;height:680px;max-width:420px;margin:0 auto;overflow:hidden">
+  <section class="claudian-preview-panel is-open" role="region" aria-label="Dokumentbibliothek"><header class="claudian-preview-header"><div class="claudian-preview-brand"><span class="claudian-preview-header-icon">▤</span><div class="claudian-preview-titles"><span class="claudian-preview-title">Bibliothek</span><span class="claudian-preview-subtitle">Dokumente &amp; Uploads</span></div></div><span class="claudian-preview-count">2</span><button class="claudian-preview-close" type="button" aria-label="Dokumentbibliothek schließen">×</button></header><div class="claudian-preview-content"><div class="claudian-preview-library"><button class="claudian-preview-card claudian-preview-card--vault" type="button"><div class="claudian-preview-card-peek"><span class="claudian-preview-card-kind">Live-Dokument</span><strong>Claudian Systemstatus</strong><p class="claudian-preview-card-excerpt">Provider, Dokumente und Kosten auf einen Blick.</p></div><div class="claudian-preview-card-footer"><span class="claudian-preview-card-name">claudian-systemstatus.md</span><span class="claudian-preview-card-action">Öffnen</span></div></button><button class="claudian-preview-card" type="button"><div class="claudian-preview-card-peek"><span class="claudian-preview-card-kind">Markdown</span><strong>Release-Checkliste</strong><p class="claudian-preview-card-excerpt">Tests, Build und visuelle Abnahme.</p></div><div class="claudian-preview-card-footer"><span class="claudian-preview-card-name">release-checkliste.md</span><span class="claudian-preview-card-action">Öffnen</span></div></button></div></div></section>
+</div>`;
+
+const SURFACES = { Dashboard: dashboard, Chat: chat, 'Chat (Work)': chatWork, Chrome: chrome, Dokumente: documents, Bibliothek: library, Artefakte: artifacts, 'New Project': modal };
 
 const tabs = Object.keys(SURFACES)
   .map((name, i) => `<button class="pv-tab${i === 0 ? ' is-active' : ''}" data-surface="${name}">${name}</button>`)
@@ -514,14 +531,14 @@ const panels = Object.entries(SURFACES)
   .join('');
 
 const html = `<!doctype html>
-<html lang="en">
+<html lang="de">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Claudian — Design Preview</title>
 <style>${THEME_SHIM}
-.pv-bar { position: sticky; top: 0; z-index: 50; display: flex; gap: 6px; align-items: center; padding: 10px 14px; background: var(--background-secondary); border-bottom: 1px solid var(--background-modifier-border); }
-.pv-tab { padding: 6px 12px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--text-muted); cursor: pointer; font-size: 13px; }
+.pv-bar { position: sticky; top: 0; z-index: 50; display: flex; gap: 6px; align-items: center; padding: 10px 14px; overflow-x: auto; background: var(--background-secondary); border-bottom: 1px solid var(--background-modifier-border); scrollbar-width: thin; }
+.pv-tab { flex: 0 0 auto; padding: 6px 12px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--text-muted); cursor: pointer; font-size: 13px; }
 .pv-tab.is-active { background: var(--background-modifier-hover); color: var(--text-normal); border-color: var(--background-modifier-border); }
 .pv-spacer { flex: 1; }
 .pv-panel { display: none; padding: 8px; }

@@ -445,7 +445,7 @@ export class ImageContextManager {
         ? clipboard.getData('text/plain')
         : '';
       if (pastedText && new Blob([pastedText]).size > LARGE_PASTED_TEXT_THRESHOLD) {
-        e.preventDefault();
+        e.preventDefault?.();
         await this.attachLargePastedText(pastedText);
       }
       })();
@@ -485,13 +485,13 @@ export class ImageContextManager {
     }
 
     if (file.size > MAX_IMAGE_SIZE) {
-      this.notifyImageError(`Image exceeds ${this.formatSize(MAX_IMAGE_SIZE)} limit.`);
+      this.notifyImageError(`Bild überschreitet das Limit von ${this.formatSize(MAX_IMAGE_SIZE)}.`);
       return false;
     }
 
     const mediaType = this.getMediaType(file.name) || (file.type as ImageMediaType);
     if (!mediaType) {
-      this.notifyImageError('Unsupported image type.');
+      this.notifyImageError('Nicht unterstütztes Bildformat.');
       return false;
     }
 
@@ -527,7 +527,7 @@ export class ImageContextManager {
       this.callbacks.onImagesChanged();
       return true;
     } catch (error) {
-      this.notifyImageError('Failed to attach image.', error);
+      this.notifyImageError('Bild konnte nicht angehängt werden.', error);
       return false;
     }
   }
@@ -588,7 +588,10 @@ export class ImageContextManager {
     const isUploading = this.uploadingImageIds.has(id);
     if (isUploading) previewEl.addClass('claudian-attachment-chip--uploading');
 
-    const thumbEl = previewEl.createDiv({ cls: 'claudian-image-thumb' });
+    const thumbEl = previewEl.createEl('button', {
+      cls: 'claudian-image-thumb',
+      attr: { type: 'button', 'aria-label': `${image.name} vergrößern` },
+    });
     thumbEl.createEl('img', {
       attr: {
         src: `data:${image.mediaType};base64,${image.data}`,
@@ -607,9 +610,11 @@ export class ImageContextManager {
     const sizeEl = infoEl.createSpan({ cls: 'claudian-image-size' });
     sizeEl.setText(this.formatSize(image.size));
 
-    const removeEl = previewEl.createSpan({ cls: 'claudian-image-remove' });
+    const removeEl = previewEl.createEl('button', {
+      cls: 'claudian-image-remove',
+      attr: { type: 'button', 'aria-label': `${image.name} entfernen` },
+    });
     removeEl.setText('\u00D7');
-    removeEl.setAttribute('aria-label', 'Bild entfernen');
 
     removeEl.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -620,7 +625,7 @@ export class ImageContextManager {
     });
 
     thumbEl.addEventListener('click', () => {
-      this.showFullImage(image);
+      this.showFullImage(image, thumbEl);
     });
   }
 
@@ -721,9 +726,11 @@ export class ImageContextManager {
       text: `${meta.typeClass.toUpperCase()} · ${formatFileSize(att.size)}`,
     });
 
-    const removeEl = chip.createSpan({ cls: 'claudian-attachment-remove' });
+    const removeEl = chip.createEl('button', {
+      cls: 'claudian-attachment-remove',
+      attr: { type: 'button', 'aria-label': `${att.name} entfernen` },
+    });
     removeEl.setText('×');
-    removeEl.setAttribute('aria-label', 'Anhang entfernen');
     removeEl.addEventListener('click', (e) => {
       e.stopPropagation();
       this.removeStagedAttachment(id);
@@ -758,10 +765,13 @@ export class ImageContextManager {
     );
   }
 
-  private showFullImage(image: ImageAttachment) {
+  private showFullImage(image: ImageAttachment, returnFocus?: HTMLElement) {
     const ownerDocument = this.containerEl.ownerDocument ?? window.document;
     const overlay = ownerDocument.body.createDiv({ cls: 'claudian-image-modal-overlay' });
     const modal = overlay.createDiv({ cls: 'claudian-image-modal' });
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', `Bildvorschau: ${image.name}`);
 
     modal.createEl('img', {
       attr: {
@@ -770,18 +780,30 @@ export class ImageContextManager {
       },
     });
 
-    const closeBtn = modal.createDiv({ cls: 'claudian-image-modal-close' });
+    modal.createDiv({ cls: 'claudian-image-modal-caption', text: image.name });
+
+    const closeBtn = modal.createEl('button', {
+      cls: 'claudian-image-modal-close',
+      attr: { type: 'button', 'aria-label': 'Bildvorschau schließen' },
+    });
     closeBtn.setText('\u00D7');
 
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        e.preventDefault?.();
         close();
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        closeBtn.focus();
       }
     };
 
     const close = () => {
       ownerDocument.removeEventListener('keydown', handleEsc);
       overlay.remove();
+      if (returnFocus?.isConnected !== false) {
+        returnFocus?.focus();
+      }
     };
 
     closeBtn.addEventListener('click', close);
@@ -789,6 +811,7 @@ export class ImageContextManager {
       if (e.target === overlay) close();
     });
     ownerDocument.addEventListener('keydown', handleEsc);
+    closeBtn.focus();
   }
 
   private generateId(): string {
@@ -813,9 +836,9 @@ export class ImageContextManager {
     let userMessage = message;
     if (error instanceof Error) {
       if (error.message.includes('ENOENT') || error.message.includes('no such file')) {
-        userMessage = `${message} (File not found)`;
+        userMessage = `${message} (Datei nicht gefunden)`;
       } else if (error.message.includes('EACCES') || error.message.includes('permission denied')) {
-        userMessage = `${message} (Permission denied)`;
+        userMessage = `${message} (Zugriff verweigert)`;
       }
     }
     new Notice(userMessage);

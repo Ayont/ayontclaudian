@@ -143,16 +143,16 @@ describe('InlineAskUserQuestion', () => {
       expect(optionLabels).toEqual(['A', 'B']);
     });
 
-    it('uses header when provided, falls back to Q index', () => {
+    it('uses header when provided, falls back to German question index', () => {
       const input = makeInput([
         { question: 'First', options: ['A'], header: 'MyHeader' },
         { question: 'Second', options: ['B'] },
       ]);
       const { container } = renderWidget(input);
       const tabLabels = container.querySelectorAll('claudian-ask-tab-label');
-      // Tab labels: MyHeader, Q2, Submit
+      // Tab labels: MyHeader, F2, Absenden
       expect(tabLabels[0]?.textContent).toBe('MyHeader');
-      expect(tabLabels[1]?.textContent).toBe('Q2');
+      expect(tabLabels[1]?.textContent).toBe('F2');
     });
 
     it('treats non-boolean multiSelect values as false', () => {
@@ -178,6 +178,53 @@ describe('InlineAskUserQuestion', () => {
       const { container } = renderWidget(input);
       const tabLabels = container.querySelectorAll('claudian-ask-tab-label');
       expect(tabLabels[0]?.textContent).toBe('VeryLongHead');
+    });
+  });
+
+  describe('German accessibility semantics', () => {
+    it('renders a labelled group with native tab and option buttons', () => {
+      const input = makeInput([{ question: 'Auswählen?', options: ['A', 'B'] }]);
+      const { container } = renderWidget(input);
+      const root = findRoot(container);
+      const content = container.querySelector('claudian-ask-content');
+      const tabs = container.querySelectorAll('claudian-ask-tab');
+      const items = findItems(container).filter(
+        (item: any) => !item.hasClass('claudian-ask-custom-item'),
+      );
+
+      expect(root.getAttribute('role')).toBe('group');
+      expect(root.getAttribute('aria-label')).toBe('Frage');
+      expect(content.getAttribute('aria-live')).toBe('polite');
+      expect(tabs.every((tab: any) => tab.tagName === 'BUTTON')).toBe(true);
+      expect(tabs.every((tab: any) => tab.getAttribute('type') === 'button')).toBe(true);
+      expect(items.every((item: any) => item.tagName === 'BUTTON')).toBe(true);
+      expect(items[0].getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('uses German controls, placeholders, and keyboard hints', () => {
+      const input = makeInput([
+        { question: 'Geheimer Wert?', options: ['A'], isOther: true },
+      ]);
+      const { container } = renderWidget(input);
+
+      const tabLabels = container.querySelectorAll('claudian-ask-tab-label');
+      expect(tabLabels.at(-1)?.textContent).toBe('Absenden');
+      expect(container.querySelector('claudian-ask-custom-text')?.getAttribute('placeholder'))
+        .toBe('Eigene Antwort eingeben …');
+      expect(container.querySelector('claudian-ask-hints')?.textContent)
+        .toContain('Eingabe: auswählen');
+    });
+
+    it('restores focus to the invoking control after Escape', () => {
+      const trigger = { focus: jest.fn(), isConnected: true };
+      (globalThis as any).document.activeElement = trigger;
+      const input = makeInput([{ question: 'Q', options: ['A'] }]);
+      const { container } = renderWidget(input);
+
+      fireKeyDown(findRoot(container), 'Escape');
+
+      expect(trigger.focus).toHaveBeenCalledTimes(1);
+      (globalThis as any).document.activeElement = null;
     });
   });
 

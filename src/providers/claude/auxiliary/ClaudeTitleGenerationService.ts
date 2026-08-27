@@ -1,3 +1,8 @@
+import {
+  type AuxiliaryCallSource,
+  type CompletedAuxiliaryCall,
+  CONSUME_AUXILIARY_CALL,
+} from '../../../core/auxiliary/AuxiliaryUsageAccounting';
 import { TITLE_GENERATION_SYSTEM_PROMPT } from '../../../core/prompt/titleGeneration';
 import type {
   TitleGenerationCallback,
@@ -10,9 +15,10 @@ import { claudeChatUIConfig } from '../ui/ClaudeChatUIConfig';
 
 export type { TitleGenerationResult };
 
-export class TitleGenerationService {
+export class TitleGenerationService implements AuxiliaryCallSource {
   private plugin: ClaudianPlugin;
   private activeGenerations: Map<string, AbortController> = new Map();
+  private completedCalls = new Map<string, CompletedAuxiliaryCall>();
 
   constructor(plugin: ClaudianPlugin) {
     this.plugin = plugin;
@@ -23,6 +29,7 @@ export class TitleGenerationService {
     userMessage: string,
     callback: TitleGenerationCallback
   ): Promise<void> {
+    this.completedCalls.delete(conversationId);
     // Cancel any existing generation for this conversation
     const existingController = this.activeGenerations.get(conversationId);
     if (existingController) {
@@ -45,6 +52,10 @@ export class TitleGenerationService {
         persistSession: false,
         abortController,
       }, prompt);
+      this.completedCalls.set(conversationId, {
+        outputText: result.text,
+        ...(result.usage ? { usageReports: [result.usage] } : {}),
+      });
 
       const title = this.parseTitle(result.text);
       if (title) {
@@ -68,6 +79,13 @@ export class TitleGenerationService {
       controller.abort();
     }
     this.activeGenerations.clear();
+  }
+
+  [CONSUME_AUXILIARY_CALL](operationKey?: string): CompletedAuxiliaryCall | null {
+    if (!operationKey) return null;
+    const completed = this.completedCalls.get(operationKey) ?? null;
+    this.completedCalls.delete(operationKey);
+    return completed;
   }
 
   private resolveTitleModel(): string {

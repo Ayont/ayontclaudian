@@ -6,6 +6,7 @@
 }
 
 .claudian-service-tier-button {
+  appearance: none;
   position: relative;
   isolation: isolate;
   display: inline-flex;
@@ -13,12 +14,15 @@
   justify-content: center;
   gap: 5px;
   min-height: 26px;
+  margin: 0;
   padding: 2px 9px 2px 7px;
   overflow: hidden;
   border: 1px solid var(--cl-border-subtle);
   border-radius: var(--cl-radius-pill);
   color: var(--text-muted);
   background: var(--cl-surface-raised);
+  box-shadow: none;
+  font: inherit;
   cursor: pointer;
   transition:
     color 160ms var(--cl-ease-out),
@@ -109,6 +113,12 @@
       inset 0 1px 0 rgba(255, 245, 210, 0.34),
       0 0 0 1px rgba(var(--cl-speed-rgb), 0.16),
       0 6px 16px rgba(var(--cl-speed-rgb), 0.26);
+  }
+}
+
+@media (pointer: coarse) {
+  .claudian-service-tier-button {
+    min-height: 44px;
   }
 }
 

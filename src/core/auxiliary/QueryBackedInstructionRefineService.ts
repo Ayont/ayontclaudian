@@ -3,11 +3,17 @@ import type {
   InstructionRefineService,
   RefineProgressCallback,
 } from '../providers/types';
-import type { InstructionRefineResult } from '../types';
+import type { InstructionRefineResult, UsageInfo } from '../types';
+import {
+  type AuxiliaryCallSource,
+  type CompletedAuxiliaryCall,
+  CONSUME_AUXILIARY_CALL,
+} from './AuxiliaryUsageAccounting';
 import type { AuxQueryRunner } from './AuxQueryRunner';
 
-export class QueryBackedInstructionRefineService implements InstructionRefineService {
+export class QueryBackedInstructionRefineService implements InstructionRefineService, AuxiliaryCallSource {
   private abortController: AbortController | null = null;
+  private completedCall: CompletedAuxiliaryCall | null = null;
   private existingInstructions = '';
   private hasConversation = false;
   private modelOverride: string | undefined;
@@ -49,11 +55,19 @@ export class QueryBackedInstructionRefineService implements InstructionRefineSer
     this.abortController = null;
   }
 
+  [CONSUME_AUXILIARY_CALL](): CompletedAuxiliaryCall | null {
+    const completed = this.completedCall;
+    this.completedCall = null;
+    return completed;
+  }
+
   private async sendMessage(
     prompt: string,
     onProgress?: RefineProgressCallback,
   ): Promise<InstructionRefineResult> {
     this.abortController = new AbortController();
+    this.completedCall = null;
+    const usageReports: UsageInfo[] = [];
 
     try {
       const text = await this.runner.query({
@@ -62,8 +76,13 @@ export class QueryBackedInstructionRefineService implements InstructionRefineSer
         onTextChunk: onProgress
           ? (accumulatedText: string) => onProgress(parseInstructionRefineResponse(accumulatedText))
           : undefined,
+        onUsage: (usage) => usageReports.push(usage),
         systemPrompt: buildRefineSystemPrompt(this.existingInstructions),
       }, prompt);
+      this.completedCall = {
+        outputText: text,
+        ...(usageReports.length > 0 ? { usageReports } : {}),
+      };
       this.hasConversation = true;
       return parseInstructionRefineResponse(text);
     } catch (error) {

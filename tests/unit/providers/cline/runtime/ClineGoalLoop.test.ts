@@ -9,6 +9,7 @@ interface HarnessOptions {
   maxIterations?: number;
   cancelAfterTurn?: number;
   errorOnTurn?: number;
+  initialPrompt?: string;
 }
 
 interface HarnessResult {
@@ -51,7 +52,11 @@ async function runHarness(options: HarnessOptions): Promise<HarnessResult> {
     maxIterations: options.maxIterations ?? 5,
   };
 
-  const generator = runClineGoalLoop({ goal: 'Ziel X', initialPrompt: 'Mach das.', deps });
+  const generator = runClineGoalLoop({
+    goal: 'Ziel X',
+    initialPrompt: options.initialPrompt ?? 'Mach das.',
+    deps,
+  });
   let next = await generator.next();
   while (!next.done) {
     chunks.push(next.value);
@@ -62,6 +67,29 @@ async function runHarness(options: HarnessOptions): Promise<HarnessResult> {
 }
 
 describe('runClineGoalLoop', () => {
+  test('does not start the first provider turn when cancellation arrived after the opening notice', async () => {
+    const runTurn = jest.fn(async function* () {
+      yield { type: 'done' } as StreamChunk;
+    });
+    const generator = runClineGoalLoop({
+      goal: 'Ziel X',
+      initialPrompt: 'Mach das.',
+      deps: {
+        isCancelled: () => true,
+        maxIterations: 3,
+        runTurn,
+        verify: null,
+      },
+    });
+
+    for await (const chunk of generator) {
+      // Drain the closing notice and done marker.
+      void chunk;
+    }
+
+    expect(runTurn).not.toHaveBeenCalled();
+  });
+
   test('stops after one iteration when the agent reports the goal achieved', async () => {
     const result = await runHarness({ turns: [`Erledigt.\n${GOAL_DONE_MARKER}`] });
 
@@ -177,6 +205,23 @@ describe('runClineGoalLoop', () => {
     expect(result.prompts[0]).toContain('Mach das.');
   });
 
+  test('retains the turn output contract on continuation iterations', async () => {
+    const contract = [
+      '<claudian_output_contract surface="live-document">',
+      'Render exactly one live document.',
+      '</claudian_output_contract>',
+    ].join('\n');
+    const result = await runHarness({
+      initialPrompt: `Mach das.\n\n${contract}`,
+      turns: [`Entwurf\n${GOAL_CONTINUE_MARKER}`, `Fertig\n${GOAL_DONE_MARKER}`],
+    });
+
+    expect(result.prompts).toHaveLength(2);
+    expect(result.prompts[0].match(/<claudian_output_contract/g)).toHaveLength(1);
+    expect(result.prompts[1].match(/<claudian_output_contract/g)).toHaveLength(1);
+    expect(result.prompts[1]).toContain('surface="live-document"');
+  });
+
   test('keeps the stream alive while a slow verifier runs', async () => {
     jest.useFakeTimers();
     try {
@@ -200,6 +245,52 @@ describe('runClineGoalLoop', () => {
       const result = await run;
       expect(result.chunks.filter((chunk) => chunk.type === 'keepalive').length).toBeGreaterThan(0);
       expect(result.reason).toBe('achieved');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('reports cancellation instead of timeout when cancel arrives during verifier abort grace', async () => {
+    jest.useFakeTimers();
+    try {
+      let cancelled = false;
+      const generator = runClineGoalLoop({
+        goal: 'Ziel X',
+        initialPrompt: 'Mach das.',
+        deps: {
+          isCancelled: () => cancelled,
+          maxIterations: 1,
+          runTurn: async function* () {
+            yield { type: 'text', content: `Fertig.\n${GOAL_DONE_MARKER}` } as StreamChunk;
+            yield { type: 'done' } as StreamChunk;
+          },
+          verify: async (_goal, _work, signal) => {
+            signal.addEventListener('abort', () => {
+              window.setTimeout(() => { cancelled = true; }, 5);
+            }, { once: true });
+            return new Promise<GoalVerdict | null>(() => undefined);
+          },
+          verificationTimeoutMs: 10,
+          verificationAbortGraceMs: 20,
+        },
+      });
+      const chunks: StreamChunk[] = [];
+      const consume = (async () => {
+        let next = await generator.next();
+        while (!next.done) {
+          chunks.push(next.value);
+          next = await generator.next();
+        }
+        return next.value;
+      })();
+
+      await jest.advanceTimersByTimeAsync(40);
+      const result = await consume;
+      const notices = chunks.filter((chunk) => chunk.type === 'notice');
+
+      expect(result.reason).toBe('cancelled');
+      expect(JSON.stringify(notices)).toContain('abgebrochen');
+      expect(JSON.stringify(notices)).not.toContain('Zeitlimit');
     } finally {
       jest.useRealTimers();
     }

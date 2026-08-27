@@ -15,8 +15,8 @@ export interface WorkspaceModeToggleOptions {
   onModeChange: (mode: WorkspaceMode) => Promise<void>;
   /** Model pinned to a mode (shown in the tooltip), if configured. */
   getModeModel?: (mode: WorkspaceMode) => string | null;
-  /** Right-click on a segment: configure/remove the mode's pinned model. */
-  onConfigureModel?: (mode: WorkspaceMode, anchor: MouseEvent) => void;
+  /** Opens configuration for the mode's pinned model from pointer or keyboard. */
+  onConfigureModel?: (mode: WorkspaceMode, anchor: MouseEvent | HTMLElement) => void;
 }
 
 const MODES: readonly WorkspaceMode[] = ['code', 'work'];
@@ -36,7 +36,7 @@ export class WorkspaceModeToggle {
   constructor(parent: HTMLElement, private readonly options: WorkspaceModeToggleOptions) {
     this.rootEl = parent.createDiv({ cls: 'claudian-mode-toggle' });
     this.rootEl.setAttribute('role', 'group');
-    this.rootEl.setAttribute('aria-label', 'Workspace-Modus');
+    this.rootEl.setAttribute('aria-label', 'Arbeitsmodus');
 
     // Sliding thumb sits behind the segment buttons; moved via transform.
     this.thumbEl = this.rootEl.createDiv({ cls: 'claudian-mode-toggle-thumb' });
@@ -46,7 +46,11 @@ export class WorkspaceModeToggle {
       const meta = getWorkspaceModeMeta(mode);
       const segment = this.rootEl.createEl('button', {
         cls: 'claudian-mode-toggle-segment',
-        attr: { 'data-mode': mode, type: 'button' },
+        attr: {
+          'aria-keyshortcuts': 'Shift+F10',
+          'data-mode': mode,
+          type: 'button',
+        },
       });
       setTooltip(segment, meta.tooltip, { placement: 'bottom' });
       const iconEl = segment.createSpan({ cls: 'claudian-mode-toggle-icon' });
@@ -61,6 +65,16 @@ export class WorkspaceModeToggle {
         }
         event.preventDefault();
         this.options.onConfigureModel(mode, event);
+      });
+      segment.addEventListener('keydown', (event) => {
+        const opensContextMenu = event.key === 'ContextMenu'
+          || (event.key === 'F10' && event.shiftKey);
+        if (!opensContextMenu || !this.options.onConfigureModel) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        this.options.onConfigureModel(mode, segment);
       });
       this.segmentEls.set(mode, segment);
     }
@@ -83,8 +97,8 @@ export class WorkspaceModeToggle {
       setTooltip(
         segment,
         pinned
-          ? `${meta.tooltip} · Modell: ${pinned} (Rechtsklick ändern)`
-          : `${meta.tooltip} · Rechtsklick: Modell festlegen`,
+          ? `${meta.tooltip} · Modell: ${pinned} (Rechtsklick oder Umschalt+F10 zum Ändern)`
+          : `${meta.tooltip} · Rechtsklick oder Umschalt+F10: Modell festlegen`,
         { placement: 'bottom' },
       );
     }

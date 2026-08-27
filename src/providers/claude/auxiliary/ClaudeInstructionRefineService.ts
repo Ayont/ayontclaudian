@@ -1,12 +1,18 @@
+import {
+  type AuxiliaryCallSource,
+  type CompletedAuxiliaryCall,
+  CONSUME_AUXILIARY_CALL,
+} from '../../../core/auxiliary/AuxiliaryUsageAccounting';
 import { buildRefineSystemPrompt } from '../../../core/prompt/instructionRefine';
 import type { RefineProgressCallback } from '../../../core/providers/types';
 import type { InstructionRefineResult } from '../../../core/types';
 import type ClaudianPlugin from '../../../main';
 import { runColdStartQuery } from '../runtime/claudeColdStartQuery';
 
-export class InstructionRefineService {
+export class InstructionRefineService implements AuxiliaryCallSource {
   private plugin: ClaudianPlugin;
   private abortController: AbortController | null = null;
+  private completedCall: CompletedAuxiliaryCall | null = null;
   private sessionId: string | null = null;
   private existingInstructions: string = '';
 
@@ -46,11 +52,18 @@ export class InstructionRefineService {
     }
   }
 
+  [CONSUME_AUXILIARY_CALL](): CompletedAuxiliaryCall | null {
+    const completed = this.completedCall;
+    this.completedCall = null;
+    return completed;
+  }
+
   private async sendMessage(
     prompt: string,
     onProgress?: RefineProgressCallback
   ): Promise<InstructionRefineResult> {
     this.abortController = new AbortController();
+    this.completedCall = null;
 
     try {
       const result = await runColdStartQuery({
@@ -63,6 +76,11 @@ export class InstructionRefineService {
           ? (accumulatedText: string) => onProgress(this.parseResponse(accumulatedText))
           : undefined,
       }, prompt);
+
+      this.completedCall = {
+        outputText: result.text,
+        ...(result.usage ? { usageReports: [result.usage] } : {}),
+      };
 
       this.sessionId = result.sessionId;
       return this.parseResponse(result.text);

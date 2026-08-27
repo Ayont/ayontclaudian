@@ -57,7 +57,7 @@ describe('formatStatusTooltip', () => {
         providerId: 'claude', name: 'Claude', ready: true, enabled: true, streaming: false,
         percentage: null, estimated: false, autoMode: true,
       }),
-    ).toBe('Claude: bereit · Auto-Mode aktiv');
+    ).toBe('Claude: bereit · Automatikmodus aktiv');
   });
 
   it('hints at CLI setup when enabled but not ready', () => {
@@ -91,12 +91,12 @@ describe('formatStatusTooltip', () => {
 describe('formatRateLimitChipText', () => {
   it('shows percent and reset for native windows', () => {
     expect(formatRateLimitChipText({ label: '5h', percent: 34, resetIn: '1h 30m' }))
-      .toBe('5h: 34% · Reset 1h 30m');
+      .toBe('5h: 34% · Zurücksetzung: 1h 30m');
   });
 
   it('shows token counts when no native percent exists', () => {
     expect(formatRateLimitChipText({ label: '5h', percent: null, tokensUsed: 40000, resetIn: '2h' }))
-      .toBe('5h: 40k Tokens · Reset 2h');
+      .toBe('5h: 40k Tokens · Zurücksetzung: 2h');
   });
 
   // A 7-day Claude window reaches billions because cache reads are re-counted
@@ -113,8 +113,8 @@ describe('formatRateLimitChipText', () => {
       .toBe('7T: 1.5M Tokens');
   });
 
-  it('prefixes "Reset" exactly once for an overdue window', () => {
+  it('labels an overdue window in German exactly once', () => {
     expect(formatRateLimitChipText({ label: '5h', percent: 100, resetIn: 'fällig' }))
-      .toBe('5h: 100% · Reset fällig');
+      .toBe('5h: 100% · Zurücksetzung: fällig');
   });
 });

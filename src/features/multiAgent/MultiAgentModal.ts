@@ -34,6 +34,25 @@ const PHASE_LABELS: Record<MasterMissionProgress['phase'], string> = {
   error: 'Mission mit Fehlern beendet',
 };
 
+let missionIdSequence = 0;
+
+/**
+ * Generates a new mission id for every launch. The monotonic in-process suffix
+ * prevents same-millisecond collisions; entropy prevents collisions after an
+ * Obsidian restart.
+ */
+export function createMissionId(
+  now: () => number = () => Date.now(),
+  entropy: () => string = () => {
+    const uuid = window.crypto?.randomUUID?.();
+    return uuid ?? Math.random().toString(36).slice(2);
+  },
+): string {
+  missionIdSequence += 1;
+  const randomPart = entropy().replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 36) || 'local';
+  return `ma-${now().toString(36)}-${missionIdSequence.toString(36)}-${randomPart}`;
+}
+
 /**
  * Multi-Agent Mission control: the user types a task, a team of specialists runs
  * it in parallel with live streaming + token/time metrics, and a lead coordinator
@@ -72,7 +91,7 @@ export class MultiAgentModal extends Modal {
     taskId?: string,
   ) {
     super(plugin.app);
-    this.missionId = taskId ?? `ma-${Date.now()}`;
+    this.missionId = taskId ?? createMissionId();
     this.modalEl.addClass('claudian-multi-agent-modal');
   }
 
@@ -94,7 +113,9 @@ export class MultiAgentModal extends Modal {
     setIcon(icon, 'users');
     const titleCopy = titleGroup.createDiv({ cls: 'claudian-multi-agent-title-copy' });
     titleCopy.createSpan({ cls: 'claudian-multi-agent-eyebrow', text: `${providerLabel} · Master-Prompter` });
-    titleCopy.createEl('h2', { text: 'Multi-Agent Mission' });
+    const heading = titleCopy.createEl('h2', { text: 'Multi-Agent Mission' });
+    heading.id = 'claudian-multi-agent-title';
+    this.modalEl.setAttribute('aria-labelledby', heading.id);
 
     // Gear: configure a custom provider team (e.g. Codex + Fable + Opus).
     const gearBtn = header.createEl('button', { cls: 'claudian-multi-agent-gear' });
@@ -106,6 +127,11 @@ export class MultiAgentModal extends Modal {
         this.updateTeamTelemetry();
       }).open();
     });
+
+    const historyBtn = header.createEl('button', { cls: 'claudian-multi-agent-gear' });
+    setIcon(historyBtn, 'history');
+    historyBtn.setAttribute('aria-label', 'Letzte Mission öffnen');
+    historyBtn.addEventListener('click', () => void this.openLatestStoredMission());
 
     this.statusText = header.createSpan({ cls: 'claudian-multi-agent-status', text: 'Beschreibe die Mission und starte das Team.' });
     this.statusText.setAttribute('role', 'status');
@@ -140,15 +166,12 @@ export class MultiAgentModal extends Modal {
     synthHead.createEl('h4', { text: 'Synthese' });
     this.synthBodyEl = this.synthEl.createDiv({ cls: 'claudian-multi-agent-synthesis-body' });
 
-    // If we restored a stored mission, render its snapshot and listen for live updates.
-    if (this.restoredState) {
-      this.viewingStoredMission = true;
-      this.restoreMissionSnapshot(this.restoredState);
-    }
-
     this.renderPromptSection(contentEl);
-    if (this.viewingStoredMission && this.promptInput) {
-      this.promptInput.disabled = true;
+
+    // Prompt controls must exist before restoring so the persisted prompt and
+    // explicit Continue/New actions can be rendered correctly.
+    if (this.restoredState) {
+      this.restoreMissionSnapshot(this.restoredState);
     }
 
     const footer = contentEl.createDiv({ cls: 'claudian-multi-agent-footer' });
@@ -358,7 +381,9 @@ export class MultiAgentModal extends Modal {
         ? 'Mission läuft…'
         : state.status === 'completed'
           ? 'Mission abgeschlossen'
-          : 'Mission beendet';
+          : state.status === 'error'
+            ? 'Mission mit Fehlern beendet'
+            : 'Mission beendet';
     this.statusText.className = `claudian-multi-agent-status claudian-multi-agent-status--${state.status}`;
 
     this.overallBar.style.width = `${state.overall}%`;
@@ -384,17 +409,11 @@ export class MultiAgentModal extends Modal {
       this.showSynthesis(state.synthesis.output);
     }
 
-    if (state.status === 'running' || state.status === 'synthesizing') {
-      this.viewingStoredMission = true;
-      this.running = true;
-      this.setControlsDisabled(true);
-      this.startTicker();
-    } else {
-      this.viewingStoredMission = false;
-      this.running = false;
-      this.setControlsDisabled(false);
-      this.stopTicker();
-    }
+    this.restoredState = state;
+    this.viewingStoredMission = true;
+    this.running = false;
+    this.stopTicker();
+    this.configureStoredMissionControls(state);
   }
 
   private renderPromptSection(parent: HTMLElement): void {
@@ -406,14 +425,25 @@ export class MultiAgentModal extends Modal {
     this.promptInput.value = this.initialPrompt;
 
     this.launchBtn = wrap.createEl('button', { cls: 'claudian-multi-agent-launch' });
-    setIcon(this.launchBtn.createSpan(), 'rocket');
-    this.launchBtn.createSpan({ text: 'Mission starten' });
-    this.launchBtn.addEventListener('click', () => void this.launch());
+    this.setLaunchButtonContent('rocket', 'Mission starten');
+    this.launchBtn.addEventListener('click', () => {
+      if (!this.viewingStoredMission) {
+        void this.launch();
+        return;
+      }
+      if (this.restoredState?.status === 'completed') {
+        void this.openFreshMission();
+        return;
+      }
+      void this.resumeStoredMission();
+    });
 
     this.promptInput.addEventListener('keydown', (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault();
-        void this.launch();
+        if (!this.viewingStoredMission) {
+          void this.launch();
+        }
       }
     });
   }
@@ -460,13 +490,17 @@ export class MultiAgentModal extends Modal {
   }
 
   private async launch(): Promise<void> {
-    if (this.running) return;
+    if (this.running || this.viewingStoredMission) return;
     const prompt = this.promptInput?.value.trim() ?? '';
     if (!prompt) {
       new Notice('Bitte zuerst eine Mission beschreiben.');
       this.promptInput?.focus();
       return;
     }
+
+    // The modal may stay open for several sequential missions. Identity belongs
+    // to the run, not to the modal instance, so allocate it only at launch.
+    this.missionId = createMissionId();
 
     this.running = true;
     this.setControlsDisabled(true);
@@ -510,10 +544,133 @@ export class MultiAgentModal extends Modal {
     } catch (error) {
       new Notice(`Mission fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`);
       globalEventBus.emit('mission:completed', { id: this.missionId, agents: 0, ok: false });
+      const failedState = await this.plugin.missionStateStorage.loadMission(this.missionId).catch(() => null);
+      if (!this.closed && failedState && failedState.status !== 'completed') {
+        this.restoreMissionSnapshot(failedState);
+      }
     } finally {
       this.running = false;
       this.stopTicker();
-      this.setControlsDisabled(false);
+      if (!this.closed && this.viewingStoredMission && this.restoredState) {
+        this.configureStoredMissionControls(this.restoredState);
+      } else {
+        this.setControlsDisabled(false);
+      }
+    }
+  }
+
+  /** Continue a mission that the user explicitly opened from persistence. */
+  private async resumeStoredMission(): Promise<void> {
+    const state = this.restoredState;
+    if (!state || state.status === 'completed' || this.running) return;
+    if (this.plugin.multiAgentService.isMissionActive(state.taskId)) {
+      new Notice('Diese Mission läuft bereits. Der gespeicherte Stand wird weiter aktualisiert.');
+      return;
+    }
+
+    this.running = true;
+    this.setControlsDisabled(true);
+    this.startTicker();
+
+    const agents = this.getMissionAgents();
+    for (const agent of agents) {
+      this.plugin.multiAgentService.registerAgent(agent);
+    }
+
+    globalEventBus.emit('mission:started', {
+      id: state.taskId,
+      prompt: state.prompt,
+      agents: state.agentIds.length,
+      resumed: true,
+    });
+
+    try {
+      const outcome = await this.plugin.multiAgentService.resumeMission(
+        state,
+        this.plugin.buildMultiAgentExecutor(),
+        {
+          synthesize: (prompt, contributions, onChunk) =>
+            this.plugin.runSynthesisPrompt(prompt, contributions, onChunk),
+        },
+        (progress) => this.updateMissionProgress(progress),
+        undefined,
+        {
+          storage: this.plugin.missionStateStorage,
+          onEvent: (event) => globalEventBus.emit('mission:event', event),
+          defaultProviderId: this.plugin.getActiveMultiAgentProviderId(),
+          resolveAgentProviderId: (agent) => this.plugin.resolveMultiAgentProviderId(agent),
+          rankProviders: () => this.plugin.providerCapacityService.getAvailableProviderIds(),
+          onProviderRateLimited: (providerId) =>
+            this.plugin.providerCapacityService.markRateLimited(providerId),
+        },
+      );
+
+      const content = this.buildResultMarkdown(state.prompt, outcome.results, outcome.synthesis);
+      const filePath = `.claudian/multi-agent-${Date.now()}.md`;
+      await this.plugin.app.vault.create(filePath, content);
+      new Notice(`Mission gespeichert: ${filePath}`);
+      globalEventBus.emit('mission:completed', {
+        id: state.taskId,
+        agents: outcome.results.length,
+        ok: true,
+        resumed: true,
+      });
+    } catch (error) {
+      new Notice(`Mission fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`);
+      globalEventBus.emit('mission:completed', {
+        id: state.taskId,
+        agents: 0,
+        ok: false,
+        resumed: true,
+      });
+    } finally {
+      this.running = false;
+      this.stopTicker();
+      const latest = await this.plugin.missionStateStorage.loadMission(state.taskId).catch(() => null);
+      if (!this.closed && latest) {
+        this.restoreMissionSnapshot(latest);
+      } else if (!this.closed) {
+        this.configureStoredMissionControls(state);
+      }
+    }
+  }
+
+  private configureStoredMissionControls(state: MissionState): void {
+    if (this.promptInput) this.promptInput.disabled = true;
+    if (this.launchBtn) this.launchBtn.disabled = false;
+    if (this.plugin.multiAgentService.isMissionActive(state.taskId)) {
+      if (this.launchBtn) this.launchBtn.disabled = true;
+      this.setLaunchButtonContent('loader', 'Mission läuft');
+    } else if (state.status === 'completed') {
+      this.setLaunchButtonContent('plus', 'Neue Mission');
+    } else {
+      this.setLaunchButtonContent('rotate-cw', 'Mission fortsetzen');
+    }
+  }
+
+  private setLaunchButtonContent(iconName: string, label: string): void {
+    if (!this.launchBtn) return;
+    this.launchBtn.empty();
+    setIcon(this.launchBtn.createSpan(), iconName);
+    this.launchBtn.createSpan({ text: label });
+  }
+
+  private async openFreshMission(): Promise<void> {
+    this.close();
+    await MultiAgentModal.open(this.plugin);
+  }
+
+  private async openLatestStoredMission(): Promise<void> {
+    try {
+      const [latest] = await this.plugin.missionStateStorage.listMissions();
+      if (!latest) {
+        new Notice('Noch keine gespeicherte Mission vorhanden.');
+        return;
+      }
+      this.close();
+      await MultiAgentModal.open(this.plugin, '', latest.taskId);
+    } catch {
+      new Notice('Mission konnte nicht geöffnet werden.');
     }
   }
 
@@ -664,21 +821,19 @@ export class MultiAgentModal extends Modal {
     return null;
   }
 
-  /** Opens the mission console, optionally pre-filled with a task prompt.
-   *  If a mission is currently running or was recently completed, restores its
-   *  snapshot so the user can continue watching or review the result. */
-  static async open(plugin: ClaudianPlugin, initialPrompt = ''): Promise<void> {
-    let taskId: string | undefined;
+  /**
+   * Opens a fresh mission console by default. A persisted mission is restored
+   * only when its id is supplied explicitly, preventing a new run from silently
+   * overwriting the most recent mission.
+   */
+  static async open(plugin: ClaudianPlugin, initialPrompt = '', taskId?: string): Promise<void> {
     let state: MissionState | null = null;
-    try {
-      const missions = await plugin.missionStateStorage.listMissions();
-      const latest = missions[0];
-      if (latest) {
-        taskId = latest.taskId;
-        state = latest;
+    if (taskId) {
+      try {
+        state = await plugin.missionStateStorage.loadMission(taskId);
+      } catch {
+        // Ignore storage errors; the requested id remains isolated from a new run.
       }
-    } catch {
-      // ignore storage errors; fall back to a fresh modal
     }
     const modal = new MultiAgentModal(plugin, initialPrompt, taskId);
     if (state) {

@@ -10,6 +10,7 @@ import {
   normalizePiRpcEvent,
 } from '../normalizations/piEventNormalization';
 import { getPiProviderSettings } from '../settings';
+import { buildPiUsageInfo } from './buildPiUsageInfo';
 import { buildPiLaunchSpec } from './PiLaunchSpec';
 import { buildPiSetModelPayload } from './PiRpcPayloads';
 import { PiRpcTransport } from './PiRpcTransport';
@@ -123,6 +124,13 @@ export class PiAuxQueryRunner implements AuxQueryRunner {
       await terminalPromise;
       if (config.abortController?.signal.aborted) {
         throw new Error('Cancelled');
+      }
+
+      const usage = await transport.request('get_session_stats', {}, 10_000)
+        .then((response) => buildPiUsageInfo(response, model ?? null))
+        .catch(() => null);
+      if (usage) {
+        config.onUsage?.({ ...usage, reportType: 'final' });
       }
 
       return accumulatedText;

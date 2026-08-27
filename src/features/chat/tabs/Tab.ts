@@ -4,7 +4,10 @@ import { Menu, Notice, Platform, setIcon } from 'obsidian';
 import { resolveVoiceCloudConfig } from '../../../core/audio/resolveVoiceCloudConfig';
 import { resolveVoiceLanguage } from '../../../core/audio/transcription';
 import { buildConversationContextBootstrap, computeBootstrapCharCap } from '../../../core/conversation/ConversationContextBootstrap';
-import { computeProviderSessionHandoff } from '../../../core/conversation/providerSessionHandoff';
+import {
+  computeProviderSessionHandoff,
+  needsProviderContextBootstrap,
+} from '../../../core/conversation/providerSessionHandoff';
 import { GitService } from '../../../core/git/GitService';
 import { getHiddenProviderCommandSet } from '../../../core/providers/commands/hiddenCommands';
 import type { ProviderCommandDropdownConfig } from '../../../core/providers/commands/ProviderCommandCatalog';
@@ -508,16 +511,6 @@ async function switchBoundTabProvider(
   const oldProvider = tab.providerId;
   const newProvider = getEnabledProviderForModel(model, plugin.settings);
 
-  // Arm the one-shot context carry from the messages present BEFORE this switch.
-  // The cap scales with the TARGET model's context window, so switching to a
-  // large-window model carries proportionally more prior context (bounded).
-  const targetContextWindow = ProviderRegistry.getChatUIConfig(newProvider)
-    .getContextWindowSize(model, plugin.settings.customContextLimits, plugin.settings);
-  const bootstrap = buildConversationContextBootstrap(tab.state.messages, {
-    maxChars: computeBootstrapCharCap(targetContextWindow),
-  });
-  tab.pendingContextBootstrap = bootstrap || null;
-
   // Per-provider session isolation: stash the OUTGOING provider's native session and
   // restore the INCOMING provider's own (or start clean). Without this the shared
   // conversation.sessionId still holds the previous provider's id, and a provider that
@@ -530,6 +523,29 @@ async function switchBoundTabProvider(
     currentProviderState: conversation?.providerState,
     providerSessions: conversation?.providerSessions,
   });
+  const restoredProviderSessionId = conversation
+    ? ProviderRegistry.getConversationHistoryService(newProvider)
+      .resolveSessionIdForConversation({
+        ...conversation,
+        providerId: newProvider,
+        sessionId: handoff.sessionId,
+        providerState: handoff.providerState,
+      })
+    : handoff.sessionId;
+
+  // Carry prior text only when the target provider truly starts fresh. Returning
+  // to a provider-owned session/thread already restores its native context; a
+  // second injected transcript would duplicate both tokens and instructions.
+  if (needsProviderContextBootstrap(handoff, restoredProviderSessionId)) {
+    const targetContextWindow = ProviderRegistry.getChatUIConfig(newProvider)
+      .getContextWindowSize(model, plugin.settings.customContextLimits, plugin.settings);
+    const bootstrap = buildConversationContextBootstrap(tab.state.messages, {
+      maxChars: computeBootstrapCharCap(targetContextWindow),
+    });
+    tab.pendingContextBootstrap = bootstrap || null;
+  } else {
+    tab.pendingContextBootstrap = null;
+  }
 
   // Drop the stale runtime so the next send reinitializes against the new provider.
   if (tab.service) {
@@ -555,7 +571,11 @@ async function switchBoundTabProvider(
         sessionId: handoff.sessionId,
         providerState: handoff.providerState,
         providerSessions: handoff.providerSessions,
+        pendingContextBootstrap: tab.pendingContextBootstrap,
       });
+      if (conversation) {
+        conversation.pendingContextBootstrap = tab.pendingContextBootstrap;
+      }
     } catch {
       // Best-effort — the in-memory provider + next-turn save() still carry the switch.
     }
@@ -1847,7 +1867,10 @@ export function initializeTabControllers(
     });
   });
   tab.renderer.setLiveDocumentDockHandler?.((document, theme) => {
-    tab.ui.filePreviewPanel?.rememberLiveDocument(document, theme);
+    void tab.ui.filePreviewPanel?.dockLiveDocument(document, theme);
+  });
+  tab.renderer.setLiveDocumentDiscoveryHandler?.((document, theme) => {
+    tab.ui.filePreviewPanel?.rememberLiveDocument(document, theme, { preserveTheme: true });
   });
 
   // Selection controller
@@ -1940,6 +1963,7 @@ export function initializeTabControllers(
 
         // Bind session state only — runtime starts on send
         tab.conversationId = conversation?.id ?? null;
+        tab.pendingContextBootstrap = conversation?.pendingContextBootstrap ?? null;
         tab.draftModel = null;
         tab.autoModelActive = false;
         tab.routedModel = null;
@@ -1977,6 +2001,7 @@ export function initializeTabControllers(
         }
         tab.routedModel = null;
         tab.conversationId = null;
+        tab.pendingContextBootstrap = null;
         tab.providerId = getTabProviderId(tab, plugin);
         if (tab.providerId !== previousProviderId) {
           syncTabProviderServices(tab, plugin);
@@ -2033,10 +2058,41 @@ export function initializeTabControllers(
     // description. The InputController then retries the turn with descriptions
     // instead of raw images so the conversation continues uninterrupted.
     analyzeImageViaVision: (image) => plugin.runVisionPrompt(image, '').catch(() => null),
-    consumePendingContextBootstrap: () => {
-      const pending = tab.pendingContextBootstrap;
-      tab.pendingContextBootstrap = null;
-      return pending;
+    consumePendingContextBootstrap: async () => {
+      const conversation = tab.conversationId
+        ? plugin.getConversationSync(tab.conversationId)
+        : null;
+      // The shared conversation is authoritative when present, preventing two
+      // open tabs for the same chat from each consuming a stale tab-local copy.
+      const pending = conversation
+        ? (conversation.pendingContextBootstrap ?? null)
+        : (tab.pendingContextBootstrap ?? null);
+      if (!pending) {
+        tab.pendingContextBootstrap = null;
+        return null;
+      }
+
+      try {
+        if (tab.conversationId && conversation) {
+          // Clear durably before returning the snapshot to the send path. This
+          // makes the handoff one-shot across reloads as well as within a tab.
+          await plugin.updateConversation(tab.conversationId, {
+            pendingContextBootstrap: null,
+          });
+          // updateConversation mutates the live object in production; keep
+          // lightweight adapters/test doubles coherent too.
+          conversation.pendingContextBootstrap = null;
+        }
+        tab.pendingContextBootstrap = null;
+        return pending;
+      } catch (error) {
+        // A failed persistence write must not silently consume the handoff.
+        tab.pendingContextBootstrap = pending;
+        if (conversation) {
+          conversation.pendingContextBootstrap = pending;
+        }
+        throw error;
+      }
     },
     getActiveGoal: () => (tab.conversationId
       ? plugin.getConversationSync(tab.conversationId)?.goal ?? tab.goal ?? null
@@ -2320,6 +2376,7 @@ export function activateTab(tab: TabData): void {
  */
 export function deactivateTab(tab: TabData): void {
   tab.dom.contentEl.addClass('claudian-hidden');
+  tab.ui.mcpServerSelector?.closeMenu?.();
   tab.controllers.selectionController?.stop();
   tab.controllers.browserSelectionController?.stop();
   tab.controllers.canvasSelectionController?.stop();
@@ -2372,6 +2429,8 @@ export async function destroyTab(tab: TabData): Promise<void> {
   // Closes the model dropdown and removes its document-level dismiss listeners
   // (pointerdown/keydown), preventing a leak if a tab is closed while open.
   tab.ui.modelSelector?.destroy();
+  tab.ui.mcpServerSelector?.destroy?.();
+  tab.ui.mcpServerSelector = null;
   tab.ui.streamStatusBar?.destroy();
   tab.ui.modelSelector = null;
 

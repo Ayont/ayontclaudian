@@ -379,13 +379,16 @@ export class HermesChatRuntime implements ChatRuntime {
         activeTurn.queue.push({ type: 'error', content: stopReasonError });
       }
 
-      const usage = buildAcpUsageInfo({
-        contextWindow: this.contextUsage,
-        model: this.getActiveDisplayModel(queryOptions),
-        promptUsage: this.promptUsage,
-      });
-      if (usage) {
-        activeTurn.queue.push({ sessionId, type: 'usage', usage });
+      if (!stopReasonError) {
+        const usage = buildAcpUsageInfo({
+          contextWindow: this.contextUsage,
+          model: this.getActiveDisplayModel(queryOptions),
+          promptUsage: this.promptUsage,
+          reportType: 'final',
+        });
+        if (usage) {
+          activeTurn.queue.push({ sessionId, type: 'usage', usage });
+        }
       }
 
       activeTurn.queue.push({ type: 'done' });
@@ -1070,6 +1073,7 @@ export class HermesChatRuntime implements ChatRuntime {
           contextWindow: normalized.usage,
           model: this.getActiveDisplayModel(),
           promptUsage: this.promptUsage,
+          reportType: 'snapshot',
         });
         if (usage) {
           this.activeTurn.queue.push({ sessionId: notification.sessionId, type: 'usage', usage });

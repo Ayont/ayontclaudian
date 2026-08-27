@@ -3,6 +3,8 @@ import '@/providers';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceRegistry';
 import type {
+  InlineEditService,
+  InstructionRefineService,
   ProviderId,
   TitleGenerationCallback,
   TitleGenerationResult,
@@ -104,6 +106,35 @@ describe('ProviderRegistry', () => {
     expect(ids).toContain('claude');
     expect(ids).toContain('codex');
     expect(ids).toContain('pi');
+  });
+
+  it('declares prompt delivery explicitly for every provider', () => {
+    const expected = {
+      claude: 'native-system',
+      cline: 'session-preamble',
+      codex: 'native-system',
+      opencode: 'native-system',
+      pi: 'native-system',
+      antigravity: 'session-preamble',
+      kimi: 'session-preamble',
+      vibe: 'session-preamble',
+      grok: 'session-preamble',
+      dsh: 'stateless-turn',
+      freebuff: 'session-preamble',
+      hermes: 'native-system',
+    } as const;
+
+    for (const [providerId, policy] of Object.entries(expected)) {
+      expect(ProviderRegistry.getCapabilities(providerId).promptDelivery).toBe(policy);
+    }
+  });
+
+  it('provides an isolated auxiliary runner for goal verification on every provider', () => {
+    for (const providerId of ProviderRegistry.getRegisteredProviderIds()) {
+      expect(
+        ProviderRegistry.getProviderRegistration(providerId).createAuxQueryRunner,
+      ).toEqual(expect.any(Function));
+    }
   });
 
   it('filters enabled provider ids using registration metadata', () => {
@@ -235,6 +266,54 @@ describe('ProviderRegistry', () => {
       success: true,
       title: 'codex title',
     });
+  });
+
+  it('centrally wraps title, refine, and inline services with provider accounting', async () => {
+    const registration = ProviderRegistry.getProviderRegistration('dsh');
+    const title: TitleGenerationService = {
+      cancel: jest.fn(),
+      generateTitle: jest.fn(async (conversationId, _message, callback) => {
+        await callback(conversationId, { success: true, title: 'Generated title' });
+      }),
+    };
+    const refine: InstructionRefineService = {
+      cancel: jest.fn(),
+      continueConversation: jest.fn().mockResolvedValue({ success: false }),
+      refineInstruction: jest.fn().mockResolvedValue({
+        refinedInstruction: 'Refined',
+        success: true,
+      }),
+      resetConversation: jest.fn(),
+    };
+    const inline: InlineEditService = {
+      cancel: jest.fn(),
+      continueConversation: jest.fn().mockResolvedValue({ success: false }),
+      editText: jest.fn().mockResolvedValue({ editedText: 'Edited', success: true }),
+      resetConversation: jest.fn(),
+    };
+    jest.spyOn(registration, 'createTitleGenerationService').mockReturnValue(title);
+    jest.spyOn(registration, 'createInstructionRefineService').mockReturnValue(refine);
+    jest.spyOn(registration, 'createInlineEditService').mockReturnValue(inline);
+    const recordAuxiliaryUsage = jest.fn();
+    const plugin = {
+      recordAuxiliaryUsage,
+      settings: { providerConfigs: { dsh: { enabled: true } } },
+    } as any;
+
+    await ProviderRegistry.createTitleGenerationService(plugin, 'dsh')
+      .generateTitle('conversation-1', 'Title this', jest.fn());
+    await ProviderRegistry.createInstructionRefineService(plugin, 'dsh')
+      .refineInstruction('be concise', '');
+    await ProviderRegistry.createInlineEditService(plugin, 'dsh').editText({
+      instruction: 'Improve',
+      mode: 'selection',
+      notePath: 'note.md',
+      selectedText: 'Old',
+    });
+
+    expect(recordAuxiliaryUsage).toHaveBeenCalledTimes(3);
+    expect(recordAuxiliaryUsage.mock.calls.map(([record]) => record.providerId))
+      .toEqual(['dsh', 'dsh', 'dsh']);
   });
 });
 

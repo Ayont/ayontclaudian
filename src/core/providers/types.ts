@@ -1,5 +1,6 @@
 import type ClaudianPlugin from '../../main';
 import type { CursorContext } from '../../utils/editor';
+import type { AuxQueryRunner } from '../auxiliary/AuxQueryRunner';
 import type { SharedAppStorage } from '../bootstrap/storage';
 import type { McpServerManager } from '../mcp/McpServerManager';
 import type { ChatRuntime } from '../runtime/ChatRuntime';
@@ -21,8 +22,13 @@ import type { ProviderCommandCatalog } from './commands/ProviderCommandCatalog';
 
 export type { ProviderId } from '../types/provider';
 
+/** How the provider receives Claudian's shared system instructions. */
+export type PromptDeliveryPolicy = 'native-system' | 'session-preamble' | 'stateless-turn';
+
 export interface ProviderCapabilities {
   providerId: ProviderId;
+  /** Required on production registrations; optional for lightweight test/fallback capability objects. */
+  promptDelivery?: PromptDeliveryPolicy;
   supportsPersistentRuntime: boolean;
   supportsNativeHistory: boolean;
   supportsPlanMode: boolean;
@@ -63,6 +69,8 @@ export interface ProviderRegistration {
   chatUIConfig: ProviderChatUIConfig;
   settingsReconciler: ProviderSettingsReconciler;
   createRuntime: (options: Omit<CreateChatRuntimeOptions, 'providerId'>) => ChatRuntime;
+  /** Creates an ephemeral, session-isolated runner for hidden provider calls. */
+  createAuxQueryRunner?: (plugin: ClaudianPlugin) => AuxQueryRunner;
   createTitleGenerationService: (plugin: ClaudianPlugin) => TitleGenerationService;
   createInstructionRefineService: (plugin: ClaudianPlugin) => InstructionRefineService;
   createInlineEditService: (plugin: ClaudianPlugin) => InlineEditService;

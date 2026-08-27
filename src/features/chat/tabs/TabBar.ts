@@ -28,6 +28,7 @@ export class TabBar {
   /** Builds the tab bar UI. */
   private build(): void {
     this.containerEl.addClass('claudian-tab-badges');
+    this.containerEl.setAttribute('aria-label', 'Chat-Tabs');
   }
 
   /**
@@ -56,14 +57,18 @@ export class TabBar {
       stateClass = 'claudian-tab-badge-streaming';
     }
 
-    const badgeEl = this.containerEl.createDiv({
+    const badgeEl = this.containerEl.createEl('button', {
       cls: `claudian-tab-badge ${stateClass}`,
       text: String(item.index),
+      attr: { type: 'button' },
     });
 
     // Tooltip with full title (aria-label only; adding title too causes double tooltip)
     badgeEl.setAttribute('aria-label', item.title);
     badgeEl.setAttribute('data-provider', item.providerId);
+    if (item.isActive) {
+      badgeEl.setAttribute('aria-current', 'page');
+    }
 
     // Click handler to switch tab
     badgeEl.addEventListener('click', () => {
@@ -72,8 +77,14 @@ export class TabBar {
 
     // Right-click to close (if allowed)
     if (item.canClose) {
+      badgeEl.setAttribute('aria-keyshortcuts', 'Delete');
       badgeEl.addEventListener('contextmenu', (e) => {
         e.preventDefault();
+        this.callbacks.onTabClose(item.id);
+      });
+      badgeEl.addEventListener('keydown', (event) => {
+        if (event.key !== 'Delete' && event.key !== 'Backspace') return;
+        event.preventDefault();
         this.callbacks.onTabClose(item.id);
       });
     }

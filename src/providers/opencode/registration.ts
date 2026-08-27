@@ -6,6 +6,7 @@ import { OpencodeTitleGenerationService } from './auxiliary/OpencodeTitleGenerat
 import { OPENCODE_PROVIDER_CAPABILITIES } from './capabilities';
 import { opencodeSettingsReconciler } from './env/OpencodeSettingsReconciler';
 import { OpencodeConversationHistoryService } from './history/OpencodeConversationHistoryService';
+import { OpencodeAuxQueryRunner } from './runtime/OpencodeAuxQueryRunner';
 import { OpencodeChatRuntime } from './runtime/OpencodeChatRuntime';
 import { getOpencodeProviderSettings } from './settings';
 import { opencodeChatUIConfig } from './ui/OpencodeChatUIConfig';
@@ -14,6 +15,10 @@ export const opencodeProviderRegistration: ProviderRegistration = {
   blankTabOrder: 10,
   capabilities: OPENCODE_PROVIDER_CAPABILITIES,
   chatUIConfig: opencodeChatUIConfig,
+  createAuxQueryRunner: (plugin) => new OpencodeAuxQueryRunner(plugin, {
+    agentProfile: 'passive',
+    artifactPurpose: 'instructions',
+  }),
   createInlineEditService: (plugin) => new OpencodeInlineEditService(plugin),
   createInstructionRefineService: (plugin) => new OpencodeInstructionRefineService(plugin),
   createRuntime: ({ plugin }) => new OpencodeChatRuntime(plugin),

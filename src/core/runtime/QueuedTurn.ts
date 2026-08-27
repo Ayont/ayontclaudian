@@ -38,6 +38,7 @@ export function mergeQueuedChatTurns(
     request: {
       ...cloneChatTurnRequest(incomingRequest),
       text: mergeText(existingRequest.text, incomingRequest.text),
+      outputSurface: incomingRequest.outputSurface ?? existingRequest.outputSurface,
       images: mergeImages(existingRequest.images, incomingRequest.images),
       currentNotePath: incomingRequest.currentNotePath ?? existingRequest.currentNotePath,
       externalContextPaths: mergeStringLists(

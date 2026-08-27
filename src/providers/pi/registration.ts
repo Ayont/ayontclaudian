@@ -6,6 +6,7 @@ import { PiTitleGenerationService } from './auxiliary/PiTitleGenerationService';
 import { PI_PROVIDER_CAPABILITIES } from './capabilities';
 import { piSettingsReconciler } from './env/PiSettingsReconciler';
 import { PiConversationHistoryService } from './history/PiConversationHistoryService';
+import { PiAuxQueryRunner } from './runtime/PiAuxQueryRunner';
 import { PiChatRuntime } from './runtime/PiChatRuntime';
 import { getPiProviderSettings } from './settings';
 import { ObsidianPiExtensionUiRenderer } from './ui/ObsidianPiExtensionUiRenderer';
@@ -15,6 +16,7 @@ export const piProviderRegistration: ProviderRegistration = {
   blankTabOrder: 11,
   capabilities: PI_PROVIDER_CAPABILITIES,
   chatUIConfig: piChatUIConfig,
+  createAuxQueryRunner: (plugin) => new PiAuxQueryRunner(plugin, { profile: 'passive' }),
   createInlineEditService: (plugin) => new PiInlineEditService(plugin),
   createInstructionRefineService: (plugin) => new PiInstructionRefineService(plugin),
   createRuntime: ({ plugin }) => new PiChatRuntime(plugin, {

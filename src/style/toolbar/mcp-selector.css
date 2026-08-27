@@ -7,11 +7,23 @@
 }
 
 .claudian-mcp-selector-icon-wrapper {
+  appearance: none;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.claudian-mcp-selector-icon-wrapper:focus-visible,
+.claudian-mcp-selector-item:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
 }
 
 .claudian-mcp-selector-icon {
@@ -83,7 +95,8 @@
 }
 
 .claudian-mcp-selector-dropdown.visible,
-.claudian-mcp-selector:hover .claudian-mcp-selector-dropdown {
+.claudian-mcp-selector:hover .claudian-mcp-selector-dropdown,
+.claudian-mcp-selector:focus-within .claudian-mcp-selector-dropdown {
   opacity: 1;
   visibility: visible;
 }
@@ -110,12 +123,31 @@
 }
 
 .claudian-mcp-selector-item {
+  appearance: none;
   display: flex;
   align-items: center;
   padding: 8px 12px;
   gap: 8px;
   cursor: pointer;
+  width: 100%;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
+  text-align: start;
   transition: background 0.15s ease;
+}
+
+@media (pointer: coarse) {
+  .claudian-mcp-selector-icon-wrapper,
+  .claudian-mcp-selector-item {
+    min-height: 44px;
+  }
+
+  .claudian-mcp-selector-icon-wrapper {
+    min-width: 44px;
+  }
 }
 
 .claudian-mcp-selector-item:hover {

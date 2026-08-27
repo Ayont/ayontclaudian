@@ -38,6 +38,18 @@ describe('buildVibeLaunchSpec', () => {
     expect(spec.args).not.toContain('--yolo');
   });
 
+  it('can run a plan agent without trusting the workspace', () => {
+    const spec = buildVibeLaunchSpec({
+      ...BASE,
+      permissionMode: 'plan',
+      trustWorkspace: false,
+    });
+
+    expect(spec.args).not.toContain('--trust');
+    expect(spec.args).not.toContain('--yolo');
+    expect(spec.args[spec.args.indexOf('--agent') + 1]).toBe('plan');
+  });
+
   it('passes --max-turns and --max-tokens when set', () => {
     const spec = buildVibeLaunchSpec({ ...BASE, maxTurns: 8, maxTokens: 32000 });
     expect(spec.args[spec.args.indexOf('--max-turns') + 1]).toBe('8');

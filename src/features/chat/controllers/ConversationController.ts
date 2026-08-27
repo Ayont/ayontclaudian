@@ -294,7 +294,7 @@ export class ConversationController {
 
     const agentServiceForCheck = this.getAgentService();
     if (agentServiceForCheck && !agentServiceForCheck.getCapabilities().supportsRewind) {
-      new Notice(t('chat.rewind.failed', { error: 'Rewind is not supported by this provider.' }));
+      new Notice(t('chat.rewind.failed', { error: 'Zurücksetzen wird von diesem Anbieter nicht unterstützt.' }));
       return;
     }
 
@@ -338,7 +338,7 @@ export class ConversationController {
 
     const agentService = this.getAgentService();
     if (!agentService) {
-      new Notice(t('chat.rewind.failed', { error: 'Agent service not available' }));
+      new Notice(t('chat.rewind.failed', { error: 'Agentendienst nicht verfügbar' }));
       return;
     }
 
@@ -346,11 +346,11 @@ export class ConversationController {
     try {
       result = await agentService.rewind(userMsg.userMessageId, prevAssistantUuid, mode);
     } catch (e) {
-      new Notice(t('chat.rewind.failed', { error: e instanceof Error ? e.message : 'Unknown error' }));
+      new Notice(t('chat.rewind.failed', { error: e instanceof Error ? e.message : 'Unbekannter Fehler' }));
       return;
     }
     if (!result.canRewind) {
-      new Notice(t('chat.rewind.cannot', { error: result.error ?? 'Unknown error' }));
+      new Notice(t('chat.rewind.cannot', { error: result.error ?? 'Unbekannter Fehler' }));
       return;
     }
 
@@ -612,7 +612,12 @@ export class ConversationController {
     setIcon(searchIcon, 'search');
     const searchInput = searchWrap.createEl('input', {
       cls: 'claudian-history-search-input',
-      attr: { type: 'text', placeholder: 'Verlauf durchsuchen…', spellcheck: 'false' },
+      attr: {
+        type: 'text',
+        placeholder: 'Verlauf durchsuchen…',
+        spellcheck: 'false',
+        'aria-label': 'Verlauf durchsuchen',
+      },
     });
     searchInput.value = this.historyFilter;
     const clearBtn = searchWrap.createEl('button', {
@@ -721,12 +726,20 @@ export class ConversationController {
       const iconEl = item.createDiv({ cls: 'claudian-history-item-icon' });
       setIcon(iconEl, isCurrent ? 'message-square-dot' : 'message-square');
 
-      const content = item.createDiv({ cls: 'claudian-history-item-content' });
-      const titleEl = content.createDiv({ cls: 'claudian-history-item-title', text: conv.title });
+      const content = item.createEl('button', {
+        cls: 'claudian-history-item-content',
+        attr: {
+          type: 'button',
+          'aria-label': isCurrent ? `${conv.title}, aktuelle Unterhaltung` : conv.title,
+          ...(isCurrent ? { 'aria-current': 'true' } : {}),
+        },
+      });
+      content.disabled = isCurrent;
+      const titleEl = content.createSpan({ cls: 'claudian-history-item-title', text: conv.title });
       titleEl.setAttribute('title', conv.title);
-      content.createDiv({
+      content.createSpan({
         cls: 'claudian-history-item-date',
-        text: isCurrent ? 'Current session' : this.formatDate(conv.lastResponseAt ?? conv.createdAt),
+        text: isCurrent ? 'Aktuelle Unterhaltung' : this.formatDate(conv.lastResponseAt ?? conv.createdAt),
       });
 
       // Pin toggle at the row end: pinned rows sort to the top of the history.
@@ -754,9 +767,9 @@ export class ConversationController {
             runConversationAction(
               () => this.runHistoryAction(
                 () => options.onOpenConversationInNewTab?.(conv.id, true),
-                'Failed to load conversation',
+                'Unterhaltung konnte nicht geladen werden.',
               ),
-              'Failed to load conversation',
+              'Unterhaltung konnte nicht geladen werden.',
             );
             return;
           }
@@ -764,9 +777,9 @@ export class ConversationController {
           runConversationAction(
             () => this.runHistoryAction(
               () => options.onSelectConversation(conv.id),
-              'Failed to load conversation',
+              'Unterhaltung konnte nicht geladen werden.',
             ),
-            'Failed to load conversation',
+            'Unterhaltung konnte nicht geladen werden.',
           );
         });
 
@@ -778,9 +791,9 @@ export class ConversationController {
             runConversationAction(
               () => this.runHistoryAction(
                 () => options.onOpenConversationInNewTab?.(conv.id, true),
-                'Failed to load conversation',
+                'Unterhaltung konnte nicht geladen werden.',
               ),
-              'Failed to load conversation',
+              'Unterhaltung konnte nicht geladen werden.',
             );
           });
         }
@@ -799,8 +812,13 @@ export class ConversationController {
         const loadingEl = actions.createEl('span', { cls: 'claudian-action-btn claudian-action-loading' });
         setIcon(loadingEl, 'loader-2');
         loadingEl.setAttribute('aria-label', 'Titel wird erzeugt …');
+        loadingEl.setAttribute('role', 'status');
+        loadingEl.setAttribute('aria-live', 'polite');
       } else if (conv.titleGenerationStatus === 'failed') {
-        const regenerateBtn = actions.createEl('button', { cls: 'claudian-action-btn' });
+        const regenerateBtn = actions.createEl('button', {
+          cls: 'claudian-action-btn',
+          attr: { type: 'button' },
+        });
         setIcon(regenerateBtn, 'refresh-cw');
         regenerateBtn.setAttribute('aria-label', 'Titel neu erzeugen');
         regenerateBtn.addEventListener('click', (e) => {
@@ -812,7 +830,10 @@ export class ConversationController {
         });
       }
 
-      const renameBtn = actions.createEl('button', { cls: 'claudian-action-btn' });
+      const renameBtn = actions.createEl('button', {
+        cls: 'claudian-action-btn',
+        attr: { type: 'button' },
+      });
       setIcon(renameBtn, 'pencil');
       renameBtn.setAttribute('aria-label', 'Umbenennen');
       renameBtn.addEventListener('click', (e) => {
@@ -821,7 +842,10 @@ export class ConversationController {
       });
 
       // Visible "save as note" action — discoverable without the context menu.
-      const exportBtn = actions.createEl('button', { cls: 'claudian-action-btn' });
+      const exportBtn = actions.createEl('button', {
+        cls: 'claudian-action-btn',
+        attr: { type: 'button' },
+      });
       setIcon(exportBtn, 'download');
       exportBtn.setAttribute('aria-label', 'Als Notiz speichern');
       exportBtn.setAttribute('title', 'Als Notiz im Vault speichern');
@@ -833,7 +857,10 @@ export class ConversationController {
         );
       });
 
-      const deleteBtn = actions.createEl('button', { cls: 'claudian-action-btn claudian-delete-btn' });
+      const deleteBtn = actions.createEl('button', {
+        cls: 'claudian-action-btn claudian-delete-btn',
+        attr: { type: 'button' },
+      });
       setIcon(deleteBtn, 'trash-2');
       deleteBtn.setAttribute('aria-label', 'Löschen');
       deleteBtn.addEventListener('click', (e) => {
@@ -841,9 +868,9 @@ export class ConversationController {
         runConversationAction(
           () => this.runHistoryAction(
             () => this.deleteHistoryConversation(conv.id, options),
-            'Failed to delete conversation',
+            'Unterhaltung konnte nicht gelöscht werden.',
           ),
-          'Failed to delete conversation',
+          'Unterhaltung konnte nicht gelöscht werden.',
         );
       });
       }
@@ -879,35 +906,35 @@ export class ConversationController {
     if (!isCurrent) {
       if (openState === 'closed' && options.onOpenConversationInNewTab) {
         menu.addItem((menuItem) => menuItem
-          .setTitle('Open in new tab')
+          .setTitle('In neuem Tab öffnen')
           .onClick(() => {
             void this.runHistoryAction(
               () => options.onOpenConversationInNewTab?.(conversationId, true),
-              'Failed to load conversation',
+              'Unterhaltung konnte nicht geladen werden.',
             );
           }));
         menu.addItem((menuItem) => menuItem
-          .setTitle('Open in background tab')
+          .setTitle('Im Hintergrund-Tab öffnen')
           .onClick(() => {
             void this.runHistoryAction(
               () => options.onOpenConversationInNewTab?.(conversationId, false),
-              'Failed to load conversation',
+              'Unterhaltung konnte nicht geladen werden.',
             );
           }));
       } else if (openState === 'open') {
         menu.addItem((menuItem) => menuItem
-          .setTitle('Switch to open session')
+          .setTitle('Zum geöffneten Tab wechseln')
           .onClick(() => {
             void this.runHistoryAction(
               () => options.onSelectConversation(conversationId),
-              'Failed to load conversation',
+              'Unterhaltung konnte nicht geladen werden.',
             );
           }));
       }
     }
 
     menu.addItem((menuItem) => menuItem
-      .setTitle('Rename')
+      .setTitle('Umbenennen')
       .onClick(() => {
         this.showRenameInput(item, conversationId, title);
       }));
@@ -918,11 +945,11 @@ export class ConversationController {
         void this.deps.plugin.exportActiveConversation(conversationId);
       }));
     menu.addItem((menuItem) => menuItem
-      .setTitle('Delete')
+      .setTitle('Löschen')
       .onClick(() => {
         void this.runHistoryAction(
           () => this.deleteHistoryConversation(conversationId, options),
-          'Failed to delete conversation',
+          'Unterhaltung konnte nicht gelöscht werden.',
         );
       }));
 
@@ -953,6 +980,7 @@ export class ConversationController {
     input.type = 'text';
     input.className = 'claudian-rename-input';
     input.value = currentTitle;
+    input.setAttribute('aria-label', 'Unterhaltung umbenennen');
 
     titleEl.replaceWith(input);
     input.focus();
@@ -999,37 +1027,37 @@ export class ConversationController {
 
     // Day-specific greetings (some personalized, some universal)
     const dayGreetings: Record<number, string[]> = {
-      0: [personalize('Happy Sunday'), 'Sunday session?', 'Welcome to the weekend'],
-      1: [personalize('Happy Monday'), personalize('Back at it', 'Back at it!')],
-      2: [personalize('Happy Tuesday')],
-      3: [personalize('Happy Wednesday')],
-      4: [personalize('Happy Thursday')],
-      5: [personalize('Happy Friday'), personalize('That Friday feeling')],
-      6: [personalize('Happy Saturday', 'Happy Saturday!'), personalize('Welcome to the weekend')],
+      0: [personalize('Schönen Sonntag'), 'Sonntagsrunde?', 'Willkommen im Wochenende'],
+      1: [personalize('Schönen Montag'), personalize('Los geht’s', 'Los geht’s!')],
+      2: [personalize('Schönen Dienstag')],
+      3: [personalize('Schönen Mittwoch')],
+      4: [personalize('Schönen Donnerstag')],
+      5: [personalize('Schönen Freitag'), personalize('Freitagsgefühl')],
+      6: [personalize('Schönen Samstag', 'Schönen Samstag!'), personalize('Willkommen im Wochenende')],
     };
 
     // Time-specific greetings
     const getTimeGreetings = (): string[] => {
       if (hour >= 5 && hour < 12) {
-        return [personalize('Good morning'), 'Coffee and Claudian time?'];
+        return [personalize('Guten Morgen'), 'Kaffee und Claudian?'];
       } else if (hour >= 12 && hour < 18) {
-        return [personalize('Good afternoon'), personalize('Hey there'), personalize("How's it going") + '?'];
+        return [personalize('Guten Tag'), personalize('Hallo'), personalize('Wie geht’s') + '?'];
       } else if (hour >= 18 && hour < 22) {
-        return [personalize('Good evening'), personalize('Evening'), personalize('How was your day') + '?'];
+        return [personalize('Guten Abend'), personalize('Abend'), personalize('Wie war dein Tag') + '?'];
       } else {
-        return ['Hello, night owl', personalize('Evening')];
+        return ['Hallo, Nachteule', personalize('Guten Abend')];
       }
     };
 
     // General greetings
     const generalGreetings = [
-      personalize('Hey there'),
-      name ? `Hi ${name}, how are you?` : 'Hi, how are you?',
-      personalize("How's it going") + '?',
-      personalize('Welcome back') + '!',
-      personalize("What's new") + '?',
-      ...(name ? [`${name} returns!`] : []),
-      'You are absolutely right!',
+      personalize('Hallo'),
+      name ? `Hi ${name}, wie geht’s?` : 'Hi, wie geht’s?',
+      personalize('Wie läuft’s') + '?',
+      personalize('Willkommen zurück') + '!',
+      personalize('Was gibt’s Neues') + '?',
+      ...(name ? [`${name} ist wieder da!`] : []),
+      'Du hast absolut recht!',
     ];
 
     // Combine day + time + general greetings, pick randomly
@@ -1147,9 +1175,9 @@ export class ConversationController {
     const now = new Date();
 
     if (date.toDateString() === now.toDateString()) {
-      return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+      return date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', hour12: false });
     }
-    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString('de-DE', { month: 'short', day: 'numeric' });
   }
 
   // ============================================

@@ -18,9 +18,17 @@ export default defineConfig({
   reporter: [['list']],
   use: {
     ...devices['Desktop Chrome'],
+    reducedMotion: 'reduce',
   },
   projects: [
-    { name: 'w320', use: { viewport: { width: 320, height: 900 } } },
+    {
+      name: 'w320',
+      use: {
+        viewport: { width: 320, height: 900 },
+        hasTouch: true,
+        isMobile: true,
+      },
+    },
     { name: 'w768', use: { viewport: { width: 768, height: 900 } } },
     { name: 'w1440', use: { viewport: { width: 1440, height: 900 } } },
   ],

@@ -50,4 +50,12 @@ describe('buildEstimatedUsageInfo', () => {
   it('omits the model field when not provided', () => {
     expect(buildEstimatedUsageInfo({ contextTokens: 10, contextWindow: 100 })).not.toHaveProperty('model');
   });
+
+  it('preserves explicit streaming accounting semantics', () => {
+    expect(buildEstimatedUsageInfo({
+      contextTokens: 10,
+      contextWindow: 100,
+      reportType: 'snapshot',
+    })).toMatchObject({ reportType: 'snapshot' });
+  });
 });

@@ -66,6 +66,20 @@ describe('InstructionModal', () => {
       expect(originalEl.textContent).toBe('Make it better');
     });
 
+    it('uses German labels and exposes loading progress to assistive technology', () => {
+      const callbacks = createMockCallbacks();
+      const modal = openModal('test', callbacks);
+      const contentEl = (modal as any).contentEl;
+
+      expect((modal as any).setTitle).toHaveBeenCalledWith('Eigene Anweisung hinzufügen');
+      expect(findByClass(contentEl, 'claudian-instruction-label').textContent).toBe('Deine Eingabe:');
+
+      const loadingEl = findByClass(contentEl, 'claudian-instruction-loading');
+      expect(loadingEl.getAttribute('role')).toBe('status');
+      expect(loadingEl.getAttribute('aria-live')).toBe('polite');
+      expect(loadingEl.children[1]?.textContent).toBe('Anweisung wird verarbeitet …');
+    });
+
     it('starts in loading state', () => {
       const callbacks = createMockCallbacks();
       const modal = openModal('test', callbacks);
@@ -82,14 +96,15 @@ describe('InstructionModal', () => {
       expect(confirmationEl.hasClass('claudian-hidden')).toBe(true);
     });
 
-    it('renders Cancel button in loading state', () => {
+    it('renders Abbrechen button in loading state', () => {
       const callbacks = createMockCallbacks();
       const modal = openModal('test', callbacks);
       const contentEl = (modal as any).contentEl;
 
       const buttons = findAllByClass(contentEl, 'claudian-instruction-btn');
       expect(buttons.length).toBe(1);
-      expect(buttons[0].textContent).toBe('Cancel');
+      expect(buttons[0].textContent).toBe('Abbrechen');
+      expect(buttons[0].getAttribute('type')).toBe('button');
     });
   });
 
@@ -119,7 +134,7 @@ describe('InstructionModal', () => {
       expect(clarificationTextEl.textContent).toBe('What format?');
     });
 
-    it('renders Cancel and Submit buttons', () => {
+    it('renders German cancel and submit buttons', () => {
       const callbacks = createMockCallbacks();
       const modal = openModal('test', callbacks);
       const contentEl = (modal as any).contentEl;
@@ -128,8 +143,29 @@ describe('InstructionModal', () => {
 
       const buttons = findAllByClass(contentEl, 'claudian-instruction-btn');
       const buttonTexts = buttons.map((b: any) => b.textContent);
-      expect(buttonTexts).toContain('Cancel');
-      expect(buttonTexts).toContain('Submit');
+      expect(buttonTexts).toContain('Abbrechen');
+      expect(buttonTexts).toContain('Antwort senden');
+    });
+
+    it('enables clarification submission only after an answer is entered', () => {
+      const callbacks = createMockCallbacks();
+      const modal = openModal('test', callbacks);
+      const contentEl = (modal as any).contentEl;
+
+      modal.showClarification('Question?');
+
+      const submitBtn = findAllByClass(contentEl, 'claudian-instruction-accept-btn')[0];
+      expect(submitBtn.disabled).toBe(true);
+      expect(submitBtn.getAttribute('aria-disabled')).toBe('true');
+
+      const responseTextarea = (modal as any).responseTextarea;
+      responseTextarea.setValue('Mehr Details');
+      const inputHandler = responseTextarea.inputEl.addEventListener.mock.calls
+        .find(([event]: [string]) => event === 'input')?.[1];
+      inputHandler();
+
+      expect(submitBtn.disabled).toBe(false);
+      expect(submitBtn.getAttribute('aria-disabled')).toBe('false');
     });
   });
 
@@ -159,7 +195,7 @@ describe('InstructionModal', () => {
       expect(refinedEl.textContent).toBe('The refined snippet');
     });
 
-    it('renders Cancel, Edit, and Accept buttons', () => {
+    it('renders German confirmation actions', () => {
       const callbacks = createMockCallbacks();
       const modal = openModal('test', callbacks);
       const contentEl = (modal as any).contentEl;
@@ -168,9 +204,9 @@ describe('InstructionModal', () => {
 
       const buttons = findAllByClass(contentEl, 'claudian-instruction-btn');
       const buttonTexts = buttons.map((b: any) => b.textContent);
-      expect(buttonTexts).toContain('Cancel');
-      expect(buttonTexts).toContain('Edit');
-      expect(buttonTexts).toContain('Accept');
+      expect(buttonTexts).toContain('Abbrechen');
+      expect(buttonTexts).toContain('Bearbeiten');
+      expect(buttonTexts).toContain('Übernehmen');
     });
   });
 
@@ -181,7 +217,7 @@ describe('InstructionModal', () => {
       const contentEl = (modal as any).contentEl;
 
       modal.showConfirmation('refined text');
-      clickButton(contentEl, 'Accept');
+      clickButton(contentEl, 'Übernehmen');
 
       expect(callbacks.onAccept).toHaveBeenCalledWith('refined text');
     });
@@ -192,7 +228,7 @@ describe('InstructionModal', () => {
       const contentEl = (modal as any).contentEl;
 
       modal.showConfirmation('refined');
-      clickButton(contentEl, 'Accept');
+      clickButton(contentEl, 'Übernehmen');
 
       expect((modal as any).close).toHaveBeenCalled();
     });
@@ -203,22 +239,22 @@ describe('InstructionModal', () => {
       const contentEl = (modal as any).contentEl;
 
       modal.showConfirmation('refined');
-      clickButton(contentEl, 'Accept');
+      clickButton(contentEl, 'Übernehmen');
       // Simulate second click - re-render buttons and try again
       modal.showConfirmation('refined');
-      clickButton(contentEl, 'Accept');
+      clickButton(contentEl, 'Übernehmen');
 
       expect(callbacks.onAccept).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('reject callback', () => {
-    it('calls onReject when Cancel is clicked', () => {
+    it('calls onReject when Abbrechen is clicked', () => {
       const callbacks = createMockCallbacks();
       const modal = openModal('test', callbacks);
       const contentEl = (modal as any).contentEl;
 
-      clickButton(contentEl, 'Cancel');
+      clickButton(contentEl, 'Abbrechen');
 
       expect(callbacks.onReject).toHaveBeenCalled();
     });
@@ -228,7 +264,7 @@ describe('InstructionModal', () => {
       const modal = openModal('test', callbacks);
       const contentEl = (modal as any).contentEl;
 
-      clickButton(contentEl, 'Cancel');
+      clickButton(contentEl, 'Abbrechen');
 
       expect((modal as any).close).toHaveBeenCalled();
     });
@@ -238,16 +274,33 @@ describe('InstructionModal', () => {
       const modal = openModal('test', callbacks);
       const contentEl = (modal as any).contentEl;
 
-      clickButton(contentEl, 'Cancel');
+      clickButton(contentEl, 'Abbrechen');
       // Reset buttons and try again
       modal.showClarification('q');
-      clickButton(contentEl, 'Cancel');
+      clickButton(contentEl, 'Abbrechen');
 
       expect(callbacks.onReject).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('onClose', () => {
+    it('restores focus to the control that opened the modal', () => {
+      const originalDocument = (globalThis as any).document;
+      const trigger = { focus: jest.fn(), isConnected: true };
+      (globalThis as any).document = { activeElement: trigger };
+
+      try {
+        const callbacks = createMockCallbacks();
+        const modal = openModal('test', callbacks);
+
+        InstructionModal.prototype.onClose.call(modal);
+
+        expect(trigger.focus).toHaveBeenCalledTimes(1);
+      } finally {
+        (globalThis as any).document = originalDocument;
+      }
+    });
+
     it('calls onReject if not already resolved', () => {
       const callbacks = createMockCallbacks();
       const modal = openModal('test', callbacks);
@@ -263,7 +316,7 @@ describe('InstructionModal', () => {
       const contentEl = (modal as any).contentEl;
 
       modal.showConfirmation('refined');
-      clickButton(contentEl, 'Accept');
+      clickButton(contentEl, 'Übernehmen');
 
       InstructionModal.prototype.onClose.call(modal);
 

@@ -25,6 +25,7 @@ describe('buildAcpUsageInfo', () => {
       contextWindowIsAuthoritative: true,
       inputTokens: 1200,
       model: 'gemini-2.5-pro',
+      outputTokens: 400,
       percentage: 25,
     });
   });
@@ -47,5 +48,12 @@ describe('buildAcpUsageInfo', () => {
     });
 
     expect(usage?.percentage).toBe(6);
+  });
+
+  it('preserves explicit streaming accounting semantics', () => {
+    expect(buildAcpUsageInfo({
+      contextWindow: { size: 200_000, used: 50_000 },
+      reportType: 'snapshot',
+    })).toMatchObject({ reportType: 'snapshot' });
   });
 });

@@ -30,7 +30,7 @@ import type { ChatMessage, Conversation, ForkSource, SlashCommand, StreamChunk }
 import { normalizeWorkspaceMode } from '../../../core/workspace/workspaceMode';
 import type ClaudianPlugin from '../../../main';
 import { getVaultPath } from '../../../utils/path';
-import { buildContextFromHistory } from '../../../utils/session';
+import { buildBoundedContextFromHistory } from '../../../utils/session';
 import { CODEX_PROVIDER_CAPABILITIES } from '../capabilities';
 import {
   deriveCodexMemoriesDirFromSessionsRoot,
@@ -292,6 +292,7 @@ export class CodexChatRuntime implements ChatRuntime {
       let threadPath: string | null = null;
       let threadTargetPath: string | null = null;
       let completedPendingFork = false;
+      let historyReplayApplied = false;
 
       if (this.pendingFork) {
         // Pending fork: fork the source thread, optionally roll back, then start a turn
@@ -342,7 +343,7 @@ export class CodexChatRuntime implements ChatRuntime {
           );
           if (checkpointIdx >= 0 && checkpointIdx < _conversationHistory.length - 1) {
             const suffix = _conversationHistory.slice(checkpointIdx + 1);
-            const replayContext = buildContextFromHistory(suffix);
+            const replayContext = buildBoundedContextFromHistory(suffix);
             if (replayContext.trim()) {
               turn = {
                 ...turn,
@@ -380,6 +381,8 @@ export class CodexChatRuntime implements ChatRuntime {
           });
           threadId = startResult.thread.id;
           threadTargetPath = startResult.thread.path ?? null;
+          turn = withBoundedHistoryReplay(turn, _conversationHistory);
+          historyReplayApplied = turn !== originalTurn;
         }
         threadPath = this.toHostSessionPath(threadTargetPath);
         this.loadedThreadId = threadId;
@@ -403,6 +406,8 @@ export class CodexChatRuntime implements ChatRuntime {
         threadTargetPath = startResult.thread.path ?? null;
         threadPath = this.toHostSessionPath(threadTargetPath);
         this.loadedThreadId = threadId;
+        turn = withBoundedHistoryReplay(turn, _conversationHistory);
+        historyReplayApplied = turn !== originalTurn;
       }
 
       // Update session with thread info
@@ -429,7 +434,7 @@ export class CodexChatRuntime implements ChatRuntime {
 
         // Build input
         const skillInputs = await this.resolveSkillInputs(turn.request.text);
-        const turnInputBundle = this.buildInput(turn.prompt, turn.request.images, skillInputs);
+        let turnInputBundle = this.buildInput(turn.prompt, turn.request.images, skillInputs);
         this.registerActiveInputBundle(turnInputBundle);
 
         // Start turn
@@ -516,6 +521,17 @@ export class CodexChatRuntime implements ChatRuntime {
           this.session.setThread(threadId, threadPath ?? undefined);
           if (threadPath) this.currentThreadPath = threadPath;
           this.currentQueryThreadId = threadId;
+
+          if (!historyReplayApplied) {
+            const replayedTurn = withBoundedHistoryReplay(turn, _conversationHistory);
+            if (replayedTurn !== turn) {
+              turn = replayedTurn;
+              historyReplayApplied = true;
+              this.disposeInputBundle(turnInputBundle);
+              turnInputBundle = this.buildInput(turn.prompt, turn.request.images, skillInputs);
+              this.registerActiveInputBundle(turnInputBundle);
+            }
+          }
 
           const freshSessionFilePathHint = threadPath ?? this.session.getSessionFilePath() ?? null;
           const freshTranscriptRootTarget = this.runtimeContext?.sessionsDirTarget
@@ -1316,6 +1332,19 @@ export class CodexChatRuntime implements ChatRuntime {
       this.resolveTranscriptRootTarget(sessionFilePath),
     );
   }
+}
+
+function withBoundedHistoryReplay(
+  turn: PreparedChatTurn,
+  conversationHistory?: ChatMessage[],
+): PreparedChatTurn {
+  if (!conversationHistory?.length) return turn;
+  const history = buildBoundedContextFromHistory(conversationHistory);
+  if (!history) return turn;
+  return {
+    ...turn,
+    prompt: `${history}\n\nUser: ${turn.prompt}`,
+  };
 }
 
 function isCodexContextWindowError(error: unknown): boolean {

@@ -317,6 +317,7 @@ export class FreebuffChatRuntime implements ChatRuntime {
           contextWindowIsAuthoritative: typeof observedWindow === 'number' && observedWindow > 0,
           contextTokens: usedTokens,
           percentage: Math.min(100, Math.round((usedTokens / contextWindow) * 100)),
+          reportType: 'final',
         },
         sessionId: threadId,
       };
@@ -332,6 +333,7 @@ export class FreebuffChatRuntime implements ChatRuntime {
           contextTokens,
           contextWindow,
           model: settings.model,
+          reportType: 'final',
         }),
         sessionId: threadId,
       };

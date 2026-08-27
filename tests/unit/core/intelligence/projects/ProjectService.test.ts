@@ -1,4 +1,4 @@
-import type { TFile, Vault } from 'obsidian';
+import { TFile, TFolder, type Vault } from 'obsidian';
 
 import { ProjectService } from '../../../../../src/core/intelligence/projects/ProjectService';
 
@@ -7,7 +7,9 @@ function createVault(): Vault {
   return {
     getAbstractFileByPath: (path: string) => {
       if (files.has(path)) {
-        return { path } as TFile;
+        const file = new TFile();
+        Object.assign(file, { path });
+        return file;
       }
       return null;
     },
@@ -45,5 +47,19 @@ describe('ProjectService', () => {
     const project = await projects.getProject('website-relaunch');
     expect(project).not.toBeNull();
     expect(project?.instructions).toContain('Next.js');
+  });
+
+  it('returns null when the project path resolves to a folder', async () => {
+    const folder = new TFolder();
+    Object.assign(folder, { path: '.claudian/projects/not-a-file.md' });
+    const cachedRead = jest.fn().mockResolvedValue('name: should-not-be-read');
+    const vault = {
+      createFolder: jest.fn().mockResolvedValue(undefined),
+      getAbstractFileByPath: jest.fn().mockReturnValue(folder),
+      cachedRead,
+    } as unknown as Vault;
+
+    await expect(new ProjectService(vault).getProject('not-a-file')).resolves.toBeNull();
+    expect(cachedRead).not.toHaveBeenCalled();
   });
 });

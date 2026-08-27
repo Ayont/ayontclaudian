@@ -1,4 +1,4 @@
-import type { App, TFile } from 'obsidian';
+import { type App, TFile } from 'obsidian';
 
 /**
  * A reusable prompt template loaded from a Markdown note in the vault.
@@ -100,15 +100,6 @@ function isFolder(file: unknown): file is { children: unknown[] } {
   );
 }
 
-function isMarkdownFile(file: unknown): file is { basename: string; extension: string; path: string } {
-  return (
-    typeof file === 'object' &&
-    file !== null &&
-    'extension' in file &&
-    (file as { extension?: unknown }).extension === 'md'
-  );
-}
-
 /** Loads prompt templates from both built-in definitions and the vault folder. */
 export class PromptTemplateService {
   constructor(private readonly app: App, private readonly folder: string = DEFAULT_TEMPLATE_FOLDER) {}
@@ -136,9 +127,9 @@ export class PromptTemplateService {
 
     const templates: PromptTemplate[] = [];
     for (const child of folder.children) {
-      if (isMarkdownFile(child)) {
+      if (child instanceof TFile && child.extension === 'md') {
         try {
-          const content = await this.app.vault.read(child as TFile);
+          const content = await this.app.vault.read(child);
           const { name, description, body } = this.parseTemplateFile(content, child.basename);
           templates.push({ name, description, body, filePath: child.path });
         } catch {

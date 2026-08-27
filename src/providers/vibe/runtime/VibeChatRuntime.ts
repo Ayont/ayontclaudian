@@ -1,6 +1,7 @@
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 import * as path from 'node:path';
 
+import { buildPrintRetryPromptWithHistory } from '../../../core/conversation/printRetryHistory';
 import { expandProviderCommandInput } from '../../../core/providers/commands/expandProviderCommandInput';
 import { appendImagePathReferences } from '../../../core/providers/imagePathFallback';
 import { getRuntimeEnvironmentText } from '../../../core/providers/providerEnvironment';
@@ -190,6 +191,14 @@ export class VibeChatRuntime implements ChatRuntime {
     // agent's file tools. Reference them so vision works here too.
     promptText = appendImagePathReferences(promptText, turn.request.images);
 
+    if (isRetry) {
+      promptText = buildPrintRetryPromptWithHistory({
+        prompt: promptText,
+        actualPrompt: turn.request.text,
+        conversationHistory,
+      });
+    }
+
     // Vibe selects the model via the VIBE_ACTIVE_MODEL env var, not a CLI flag.
     if (model) {
       env.VIBE_ACTIVE_MODEL = model;
@@ -356,7 +365,9 @@ export class VibeChatRuntime implements ChatRuntime {
       // Estimated context-window feedback: vibe reports no token usage, so
       // approximate from the conversation history + this turn's prompt/response.
       const contextTokens = estimateTokensForTexts([
-        ...(conversationHistory ?? []).map((message) => message.content ?? ''),
+        ...(isRetry
+          ? []
+          : (conversationHistory ?? []).map((message) => message.content ?? '')),
         promptText,
         responseText,
       ]);
@@ -366,6 +377,7 @@ export class VibeChatRuntime implements ChatRuntime {
           contextTokens,
           contextWindow: getVibeModelContextWindow(model),
           model: model || undefined,
+          reportType: 'final',
         }),
         sessionId: this.sessionId,
       };

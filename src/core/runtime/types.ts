@@ -6,8 +6,11 @@ import type {
   Conversation,
   ExitPlanModeCallback,
   ImageAttachment,
+  OutputSurface,
   StreamChunk,
 } from '../types';
+
+export type { OutputSurface } from '../types';
 
 export interface ApprovalDecisionOption {
   label: string;
@@ -44,6 +47,8 @@ export type AskUserQuestionCallback = (
 
 export interface ChatTurnRequest {
   text: string;
+  /** Application-selected presentation target for this turn. */
+  outputSurface?: OutputSurface;
   images?: ImageAttachment[];
   currentNotePath?: string;
   editorSelection?: EditorSelectionContext | null;

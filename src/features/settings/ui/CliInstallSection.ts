@@ -16,6 +16,28 @@ import {
 import type { ProviderId } from '../../../core/types/provider';
 import type ClaudianPlugin from '../../../main';
 
+type CliProgressVisual =
+  | { mode: 'complete' | 'error' | 'indeterminate' }
+  | { mode: 'determinate'; percent: number };
+
+/** Keeps progress width in a themeable CSS property and static states in classes. */
+export function applyCliProgressVisual(
+  progressWrap: HTMLElement,
+  progressBar: HTMLElement,
+  visual: CliProgressVisual,
+): void {
+  progressWrap.classList.toggle('is-indeterminate', visual.mode === 'indeterminate');
+  progressWrap.classList.toggle('is-complete', visual.mode === 'complete');
+  progressWrap.classList.toggle('is-error', visual.mode === 'error');
+
+  if (visual.mode === 'determinate') {
+    const percent = Math.min(100, Math.max(0, visual.percent));
+    progressBar.style.setProperty('--claudian-cli-progress-width', `${percent}%`);
+    return;
+  }
+  progressBar.style.removeProperty('--claudian-cli-progress-width');
+}
+
 /**
  * Authoritative "is this CLI usable" check for the install list. Prefers the
  * provider's own runtime resolver (so detection matches what actually launches,
@@ -165,7 +187,7 @@ function renderRow(
           button.setDisabled(true);
           button.setButtonText('Aktualisiert…');
           progressWrap.removeClass('claudian-hidden');
-          progressWrap.removeClass('is-error');
+          applyCliProgressVisual(progressWrap, progressBar, { mode: 'determinate', percent: 0 });
           const info = await checkProviderUpdate(spec.id, plugin.settings as unknown as Record<string, unknown>);
           const payload = {
             providerId: spec.id,
@@ -181,12 +203,13 @@ function renderRow(
               return;
             }
             if (item.percent !== null) {
-              progressWrap.removeClass('is-indeterminate');
-              progressBar.style.width = `${item.percent}%`;
+              applyCliProgressVisual(progressWrap, progressBar, {
+                mode: 'determinate',
+                percent: item.percent,
+              });
               progressText.setText(item.logLines.at(-1) ?? `${item.percent}%`);
             } else {
-              progressWrap.addClass('is-indeterminate');
-              progressBar.style.width = '100%';
+              applyCliProgressVisual(progressWrap, progressBar, { mode: 'indeterminate' });
               progressText.setText(item.logLines.at(-1) ?? 'Läuft…');
             }
           });
@@ -194,12 +217,13 @@ function renderRow(
             await plugin.startCliUpdate(payload);
             const done = plugin.getUpdateSession().items.find((entry) => entry.id === `cli:${spec.id}`);
             if (done?.status === 'error') {
-              progressWrap.addClass('is-error');
+              applyCliProgressVisual(progressWrap, progressBar, { mode: 'error' });
               progressText.setText(done.error ?? 'Fehlgeschlagen');
               button.setDisabled(false);
               button.setButtonText(canDetectLatest ? 'Update' : 'Aktualisieren');
               return;
             }
+            applyCliProgressVisual(progressWrap, progressBar, { mode: 'complete' });
             progressText.setText('Fertig ✓');
             window.setTimeout(rerender, 400);
           } finally {
@@ -254,17 +278,18 @@ function renderRow(
         button.setDisabled(true);
         button.setButtonText('Installiert…');
         progressWrap.removeClass('claudian-hidden');
-        progressWrap.removeClass('is-error');
+        applyCliProgressVisual(progressWrap, progressBar, { mode: 'determinate', percent: 0 });
 
         const installer = new CliInstaller();
         const onProgress = (progress: InstallProgress): void => {
           if (progress.percent !== null) {
-            progressWrap.removeClass('is-indeterminate');
-            progressBar.style.width = `${progress.percent}%`;
+            applyCliProgressVisual(progressWrap, progressBar, {
+              mode: 'determinate',
+              percent: progress.percent,
+            });
             progressText.setText(`${progress.percent}%`);
           } else {
-            progressWrap.addClass('is-indeterminate');
-            progressBar.style.width = '100%';
+            applyCliProgressVisual(progressWrap, progressBar, { mode: 'indeterminate' });
             progressText.setText(progress.phase === 'starting' ? 'Starte…' : 'Läuft…');
           }
         };
@@ -272,13 +297,13 @@ function renderRow(
         const result = await installer.run(preferred.command, onProgress);
 
         if (result.ok) {
-          progressBar.style.width = '100%';
+          applyCliProgressVisual(progressWrap, progressBar, { mode: 'complete' });
           progressText.setText('Fertig ✓');
           new Notice(`${spec.displayName} installiert.`);
           // Re-detect and re-render so the row flips to "installiert".
           window.setTimeout(rerender, 600);
         } else {
-          progressWrap.addClass('is-error');
+          applyCliProgressVisual(progressWrap, progressBar, { mode: 'error' });
           progressText.setText(result.error ?? 'Fehlgeschlagen');
           button.setDisabled(false);
           button.setButtonText('Erneut versuchen');

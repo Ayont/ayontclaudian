@@ -536,6 +536,7 @@ export class KimiChatRuntime implements ChatRuntime {
           contextTokens,
           contextWindow: getKimiModelContextWindow(model),
           model: model || undefined,
+          reportType: 'final',
         }),
         sessionId: this.sessionId,
       };

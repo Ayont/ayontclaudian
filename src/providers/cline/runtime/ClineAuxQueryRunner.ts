@@ -2,14 +2,15 @@ import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 
 import type { AuxQueryConfig, AuxQueryRunner } from '../../../core/auxiliary/AuxQueryRunner';
 import { getRuntimeEnvironmentText } from '../../../core/providers/providerEnvironment';
+import type { UsageInfo } from '../../../core/types';
 import type ClaudianPlugin from '../../../main';
 import { getVaultPath } from '../../../utils/path';
 import {
   terminateSpawnedProcess,
   type WindowsCmdShimSpawnSpec,
 } from '../../../utils/windowsCmdShim';
-import { resolveClineModelSelection } from '../modelOptions';
-import { extractClineJsonText } from '../normalization/jsonEvents';
+import { getClineModelContextWindow, resolveClineModelSelection } from '../modelOptions';
+import { extractClineJsonText, parseClineJsonLine } from '../normalization/jsonEvents';
 import { CLINE_PROVIDER_ID,getClineProviderSettings } from '../settings';
 import { buildClineLaunchSpec } from './ClineLaunchSpec';
 import { spawnClineProcess } from './ClineProcess';
@@ -56,7 +57,7 @@ export class ClineAuxQueryRunner implements AuxQueryRunner {
       envText,
       mode: 'print',
       model,
-      permissionMode: 'yolo',
+      permissionMode: 'plan',
       prompt: fullPrompt,
       retries: 1,
       thinking: 'none',
@@ -98,6 +99,10 @@ export class ClineAuxQueryRunner implements AuxQueryRunner {
         this.activeSpawnSpec = null;
         const text = extractClineJsonText(output).trim();
         if (text) {
+          const usage = this.extractUsage(output, model);
+          if (usage) {
+            config.onUsage?.(usage);
+          }
           resolve(text);
           return;
         }
@@ -112,5 +117,33 @@ export class ClineAuxQueryRunner implements AuxQueryRunner {
       this.activeProcess = null;
       this.activeSpawnSpec = null;
     }
+  }
+
+  private extractUsage(output: string, model: string): UsageInfo | null {
+    for (const line of output.split(/\r?\n/).reverse()) {
+      const usage = parseClineJsonLine(line)?.usage;
+      if (!usage) continue;
+      const cacheReadInputTokens = usage.cacheReadTokens ?? 0;
+      const cacheCreationInputTokens = usage.cacheWriteTokens ?? 0;
+      const contextTokens = usage.inputTokens
+        + cacheReadInputTokens
+        + cacheCreationInputTokens;
+      const contextWindow = getClineModelContextWindow(model);
+      return {
+        cacheCreationInputTokens,
+        cacheReadInputTokens,
+        contextTokens,
+        contextWindow,
+        contextWindowIsAuthoritative: true,
+        inputTokens: usage.inputTokens,
+        model: model || undefined,
+        outputTokens: usage.outputTokens,
+        percentage: contextWindow > 0
+          ? Math.min(100, Math.max(0, Math.round((contextTokens / contextWindow) * 100)))
+          : 0,
+        reportType: 'final' as const,
+      };
+    }
+    return null;
   }
 }

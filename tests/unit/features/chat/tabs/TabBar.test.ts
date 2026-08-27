@@ -36,6 +36,7 @@ describe('TabBar', () => {
       new TabBar(containerEl, callbacks);
 
       expect(containerEl._classList.has('claudian-tab-badges')).toBe(true);
+      expect(containerEl.getAttribute('aria-label')).toBe('Chat-Tabs');
     });
   });
 
@@ -80,6 +81,18 @@ describe('TabBar', () => {
   });
 
   describe('badge rendering', () => {
+    it('uses native buttons and exposes the active tab', () => {
+      const containerEl = createMockEl();
+      const tabBar = new TabBar(containerEl, createMockCallbacks());
+
+      tabBar.update([createTabBarItem({ isActive: true })]);
+
+      const badge = containerEl._children[0];
+      expect(badge.tagName).toBe('BUTTON');
+      expect(badge.getAttribute('type')).toBe('button');
+      expect(badge.getAttribute('aria-current')).toBe('page');
+    });
+
     it('should display index number as text', () => {
       const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
@@ -214,6 +227,19 @@ describe('TabBar', () => {
       containerEl._children[0].dispatchEvent('contextmenu', mockEvent);
 
       expect(mockEvent.preventDefault).toHaveBeenCalled();
+      expect(callbacks.onTabClose).toHaveBeenCalledWith('closeable-tab');
+    });
+
+    it('lets keyboard users close a closeable tab with Delete', () => {
+      const containerEl = createMockEl();
+      const callbacks = createMockCallbacks();
+      const tabBar = new TabBar(containerEl, callbacks);
+
+      tabBar.update([createTabBarItem({ id: 'closeable-tab', canClose: true })]);
+      const preventDefault = jest.fn();
+      containerEl._children[0].dispatchEvent({ type: 'keydown', key: 'Delete', preventDefault });
+
+      expect(preventDefault).toHaveBeenCalled();
       expect(callbacks.onTabClose).toHaveBeenCalledWith('closeable-tab');
     });
 

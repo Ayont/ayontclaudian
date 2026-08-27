@@ -15,6 +15,19 @@ describe('filterShortcuts', () => {
 });
 
 describe('ShortcutOverlay', () => {
+  it('is a labelled modal dialog with a real close button', () => {
+    const host = createMockEl();
+    new ShortcutOverlay(host);
+
+    const root = host.querySelector('.claudian-shortcuts');
+    const close = host.querySelector('.claudian-shortcuts-close');
+    expect(root?.getAttribute('role')).toBe('dialog');
+    expect(root?.getAttribute('aria-modal')).toBe('true');
+    expect(root?.getAttribute('aria-labelledby')).toBeTruthy();
+    expect(close?.tagName).toBe('BUTTON');
+    expect(close?.getAttribute('aria-label')).toBe('Tastenkürzel schließen');
+  });
+
   it('opens, filters, and closes', () => {
     const host = createMockEl();
     const overlay = new ShortcutOverlay(host);
@@ -35,5 +48,34 @@ describe('ShortcutOverlay', () => {
     expect(overlay.isOpen()).toBe(true);
     overlay.toggle();
     expect(overlay.isOpen()).toBe(false);
+  });
+
+  it('closes on Escape from anywhere inside the dialog', () => {
+    const host = createMockEl();
+    const overlay = new ShortcutOverlay(host);
+    overlay.open();
+
+    host.querySelector('.claudian-shortcuts')?.dispatchEvent({
+      type: 'keydown',
+      key: 'Escape',
+      preventDefault: jest.fn(),
+      stopPropagation: jest.fn(),
+    });
+
+    expect(overlay.isOpen()).toBe(false);
+  });
+
+  it('returns focus to the element that opened it', () => {
+    const previousFocus = { focus: jest.fn(), isConnected: true };
+    const originalDocument = (globalThis as { document?: unknown }).document;
+    (globalThis as { document?: unknown }).document = { activeElement: previousFocus };
+    try {
+      const overlay = new ShortcutOverlay(createMockEl());
+      overlay.open();
+      overlay.close();
+      expect(previousFocus.focus).toHaveBeenCalled();
+    } finally {
+      (globalThis as { document?: unknown }).document = originalDocument;
+    }
   });
 });

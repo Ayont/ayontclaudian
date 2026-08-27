@@ -6,6 +6,7 @@ import { AntigravityTitleGenerationService } from './auxiliary/AntigravityTitleG
 import { ANTIGRAVITY_PROVIDER_CAPABILITIES } from './capabilities';
 import { antigravitySettingsReconciler } from './env/AntigravitySettingsReconciler';
 import { AntigravityConversationHistoryService } from './history/AntigravityConversationHistoryService';
+import { AntigravityAuxQueryRunner } from './runtime/AntigravityAuxQueryRunner';
 import { AntigravityChatRuntime } from './runtime/AntigravityChatRuntime';
 import { getAntigravityProviderSettings } from './settings';
 import { antigravityChatUIConfig } from './ui/AntigravityChatUIConfig';
@@ -14,6 +15,7 @@ export const antigravityProviderRegistration: ProviderRegistration = {
   blankTabOrder: 12,
   capabilities: ANTIGRAVITY_PROVIDER_CAPABILITIES,
   chatUIConfig: antigravityChatUIConfig,
+  createAuxQueryRunner: (plugin) => new AntigravityAuxQueryRunner(plugin),
   createInlineEditService: (plugin) => new AntigravityInlineEditService(plugin),
   createInstructionRefineService: (plugin) => new AntigravityInstructionRefineService(plugin),
   createRuntime: ({ plugin }) => new AntigravityChatRuntime(plugin),

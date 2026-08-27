@@ -1,4 +1,5 @@
 import { ProviderSettingsCoordinator } from '../../../core/providers/ProviderSettingsCoordinator';
+import type { UsageInfo } from '../../../core/types';
 import type ClaudianPlugin from '../../../main';
 import { DEFAULT_CODEX_PRIMARY_MODEL } from '../types/models';
 import { CodexAppServerProcess } from './CodexAppServerProcess';
@@ -8,6 +9,7 @@ import type {
   ErrorNotification,
   InitializeResult,
   ThreadStartResult,
+  TokenUsageUpdatedNotification,
   TurnCompletedNotification,
   TurnStartResult,
 } from './codexAppServerTypes';
@@ -20,6 +22,7 @@ export interface CodexAuxQueryConfig {
   model?: string;
   abortController?: AbortController;
   onTextChunk?: (accumulatedText: string) => void;
+  onUsage?: (usage: UsageInfo) => void;
 }
 
 /**
@@ -41,8 +44,8 @@ export class CodexAuxQueryRunner {
       await this.startProcess();
     }
 
+    const model = config.model ?? this.resolveProviderModel();
     if (!this.threadId) {
-      const model = config.model ?? this.resolveProviderModel();
       const result = await this.transport!.request<ThreadStartResult>('thread/start', {
         model,
         cwd: this.launchSpec?.targetCwd ?? process.cwd(),
@@ -57,6 +60,7 @@ export class CodexAuxQueryRunner {
 
     let accumulatedText = '';
     let turnError: string | null = null;
+    let usage: UsageInfo | null = null;
     let resolveWait: (() => void) | null = null;
 
     const donePromise = new Promise<void>((resolve) => {
@@ -75,6 +79,27 @@ export class CodexAuxQueryRunner {
         turnError = p.turn.error.message;
       }
       resolveWait?.();
+    });
+
+    this.transport!.onNotification('thread/tokenUsage/updated', (params) => {
+      const update = params as TokenUsageUpdatedNotification;
+      if (update.threadId !== this.threadId) return;
+      const last = update.tokenUsage.last;
+      const contextTokens = last.inputTokens;
+      const contextWindow = update.tokenUsage.modelContextWindow;
+      usage = {
+        cacheReadInputTokens: last.cachedInputTokens,
+        contextTokens,
+        contextWindow,
+        contextWindowIsAuthoritative: contextWindow > 0,
+        inputTokens: last.inputTokens,
+        model,
+        outputTokens: last.outputTokens,
+        percentage: contextWindow > 0
+          ? Math.min(100, Math.max(0, Math.round((contextTokens / contextWindow) * 100)))
+          : 0,
+        reportType: 'final',
+      };
     });
 
     this.transport!.onNotification('error', (params) => {
@@ -133,6 +158,10 @@ export class CodexAuxQueryRunner {
 
     if (turnError) {
       throw new Error(turnError);
+    }
+
+    if (usage) {
+      config.onUsage?.(usage);
     }
 
     return accumulatedText;

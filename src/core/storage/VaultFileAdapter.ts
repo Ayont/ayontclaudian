@@ -27,17 +27,18 @@ export class VaultFileAdapter {
 
   async append(path: string, content: string): Promise<void> {
     await this.ensureParentFolder(path);
-    this.writeQueue = this.writeQueue.then(async () => {
+    const write = this.writeQueue.then(async () => {
       if (await this.exists(path)) {
         const existing = await this.read(path);
         await this.app.vault.adapter.write(path, existing + content);
       } else {
         await this.app.vault.adapter.write(path, content);
       }
-    }).catch(() => {
-      // prevent queue from getting stuck
     });
-    await this.writeQueue;
+    // Keep the shared tail usable after a failure, but await the unrecovered
+    // operation so callers and higher-level flush barriers see the write loss.
+    this.writeQueue = write.catch(() => undefined);
+    await write;
   }
 
   async delete(path: string): Promise<void> {

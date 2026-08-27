@@ -72,6 +72,12 @@ describe('ExternalContextSelector', () => {
   });
 
   describe('Persistent Paths Management', () => {
+    it('uses a native button to open the folder picker', () => {
+      const trigger = parentEl.querySelector('.claudian-external-context-icon-wrapper');
+      expect(trigger?.tagName).toBe('BUTTON');
+      expect(trigger?.getAttribute('aria-label')).toBe('Externen Kontext hinzufügen');
+    });
+
     it('should initialize with empty persistent paths', () => {
       expect(selector.getPersistentPaths()).toEqual([]);
     });
@@ -201,7 +207,7 @@ describe('ExternalContextSelector', () => {
 
       expect(result).toEqual({
         success: false,
-        error: 'No path provided. Usage: /add-dir /absolute/path',
+        error: 'Kein Pfad angegeben. Verwendung: /add-dir /absoluter/pfad',
       });
       expect(selector.getExternalContexts()).toEqual([]);
       expect(onChange).not.toHaveBeenCalled();
@@ -215,7 +221,7 @@ describe('ExternalContextSelector', () => {
 
       expect(result).toEqual({
         success: false,
-        error: 'No path provided. Usage: /add-dir /absolute/path',
+        error: 'Kein Pfad angegeben. Verwendung: /add-dir /absoluter/pfad',
       });
       expect(selector.getExternalContexts()).toEqual([]);
       expect(onChange).not.toHaveBeenCalled();
@@ -229,7 +235,7 @@ describe('ExternalContextSelector', () => {
 
       expect(result).toEqual({
         success: false,
-        error: 'Path must be absolute. Usage: /add-dir /absolute/path',
+        error: 'Der Pfad muss absolut sein. Verwendung: /add-dir /absoluter/pfad',
       });
       expect(selector.getExternalContexts()).toEqual([]);
       expect(onChange).not.toHaveBeenCalled();
@@ -258,7 +264,7 @@ describe('ExternalContextSelector', () => {
       const result = selector.addExternalContext(absolutePath);
 
       expect(result.success).toBe(false);
-      expect(result).toMatchObject({ error: expect.stringContaining('Path does not exist') });
+      expect(result).toMatchObject({ error: expect.stringContaining('Pfad existiert nicht') });
     });
 
     it('should reject paths with permission denied error', () => {
@@ -272,7 +278,7 @@ describe('ExternalContextSelector', () => {
       const result = selector.addExternalContext(absolutePath);
 
       expect(result.success).toBe(false);
-      expect(result).toMatchObject({ error: expect.stringContaining('Permission denied') });
+      expect(result).toMatchObject({ error: expect.stringContaining('Zugriff verweigert') });
     });
 
     it('should reject paths that exist but are not directories', () => {
@@ -282,7 +288,7 @@ describe('ExternalContextSelector', () => {
       const result = selector.addExternalContext(absolutePath);
 
       expect(result.success).toBe(false);
-      expect(result).toMatchObject({ error: expect.stringContaining('Path exists but is not a directory') });
+      expect(result).toMatchObject({ error: expect.stringContaining('Pfad ist kein Ordner') });
     });
 
     it('should accept double-quoted absolute paths', () => {
@@ -333,7 +339,7 @@ describe('ExternalContextSelector', () => {
       const result = selector.addExternalContext(childPath);
 
       expect(result.success).toBe(false);
-      expect(result).toMatchObject({ error: expect.stringContaining('inside existing path') });
+      expect(result).toMatchObject({ error: expect.stringContaining('liegt im bereits hinzugefügten Pfad') });
       expect(selector.getExternalContexts()).toEqual([parentPath]);
     });
 
@@ -346,7 +352,7 @@ describe('ExternalContextSelector', () => {
       const result = selector.addExternalContext(parentPath);
 
       expect(result.success).toBe(false);
-      expect(result).toMatchObject({ error: expect.stringContaining('contains existing path') });
+      expect(result).toMatchObject({ error: expect.stringContaining('enthält den bereits hinzugefügten Pfad') });
       expect(selector.getExternalContexts()).toEqual([childPath]);
     });
   });

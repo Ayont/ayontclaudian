@@ -45,7 +45,10 @@ Copy the one whose transport matches your CLI:
    model selection.
 5. **Models** (`types/models.ts`) — real model ids, default, **per-model context
    windows**, `DEFAULT_<ID>_MODELS`.
-6. **registration.ts** — `displayName`, `environmentKeyPatterns` (e.g. `[/^XAI_/i]`).
+6. **registration.ts** — `displayName`, `environmentKeyPatterns` (e.g. `[/^XAI_/i]`),
+   and `createAuxQueryRunner`. The auxiliary runner must start a fresh, passive,
+   session-isolated query for hidden title/refine/edit and adversarial goal
+   verification calls; it must never reuse or mutate the visible chat session.
 7. **Register** in `src/providers/index.ts`: `ProviderRegistry.register('<id>', …)`
    **and** `ProviderWorkspaceRegistry.register('<id>', …)`. Plus one entry in
    `defaultProviderConfigs.ts`. `ProviderId` is a bare `string` — there is no union
@@ -63,7 +66,9 @@ Copy the one whose transport matches your CLI:
 10. **Install catalog** (`src/core/install/cliInstallCatalog.ts`) — `binary`,
     `methods` (mac/win/linux command), `docsUrl`. Drives the in-app CLI installer
     and the "greyed out when not installed" state.
-11. **capabilities.ts / settings.ts** — ship `enabled: false`.
+11. **capabilities.ts / settings.ts** — ship `enabled: false` and declare the
+    verified prompt-delivery policy: `native-system`, `session-preamble`, or
+    `stateless-turn`. Never rely on the compatibility fallback in production.
 12. **Locales** — `src/i18n/locales/*.json` (10 files).
 13. **Tests** — at minimum a parser test under `tests/unit/providers/<id>/`.
     Note the three newest providers are the *thinnest* examples (vibe has 3 test
@@ -80,7 +85,10 @@ Required: `displayName`, `blankTabOrder`, `isEnabled`, `capabilities`,
 `createInlineEditService`, `historyService`, `taskResultInterpreter`.
 
 Optional: `environmentKeyPatterns`, `subagentLifecycleAdapter`, `configValidator`,
-`modelConfigSync`, `defaultConfig`, `brandColor`, `brandColorLight`.
+`modelConfigSync`, `defaultConfig`, `brandColor`, `brandColorLight`,
+`createAuxQueryRunner`. Although optional in the compatibility type, every new
+provider must implement `createAuxQueryRunner`; without it the goal loop can only
+fall back to the agent's own completion marker.
 
 ## Known traps
 
@@ -95,13 +103,18 @@ These are the ones that actually cost time.
   "session/conversation not found". Reference:
   `AntigravityChatRuntime.syncConversationState` (plus its `hasAntigravityTranscript`
   guard), and `isSessionExpiredError` recovery in `utils/session.ts` for Claude.
+- **Fresh retries need the prepared current turn, not only display history.** On
+  a stale native session, replay bounded/sanitized history, remove a pending
+  duplicate current user bubble, and append the full prepared prompt once. Keep
+  output/goal/context envelopes and emit `user_message_start` only once. See
+  `core/conversation/printRetryHistory.ts`.
 - **Commands and skills need explicit expansion.** Set
   `supportsProviderCommands: true`, register `SharedVaultCommandCatalog` in
   WorkspaceServices, and call `expandProviderCommandInput()` in the send path —
   print-mode CLIs do **not** expand `/cmd` or `$skill` themselves.
 - **Context meter for CLIs that report no tokens.** Use
   `buildEstimatedUsageInfo` (`core/providers/usage/estimateUsage.ts`) and emit a
-  `usage` event before `done` (see Kimi / Antigravity / Vibe / Grok). Because
+  `usage` event with `reportType: 'final'` before `done` (see Kimi / Antigravity / Vibe / Grok). Because
   nothing corrects the estimate downstream, the **context window must be per
   model** — a flat default silently mis-scales the badge for every model that
   differs from it.

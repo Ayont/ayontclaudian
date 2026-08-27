@@ -192,6 +192,7 @@ describe('mapEventMsgEvent', () => {
       const usageChunk = chunks.find(c => c.type === 'usage');
       const doneChunk = chunks.find(c => c.type === 'done');
       expect(usageChunk).toBeDefined();
+      expect(usageChunk).toMatchObject({ usage: { reportType: 'final' } });
       expect(doneChunk).toBeDefined();
     });
 

@@ -33,21 +33,46 @@
 }
 
 .claudian-model-btn {
+  appearance: none;
   display: flex;
   align-items: center;
   gap: var(--cl-space-1);
   min-height: 28px;
+  margin: 0;
   padding: 3px 10px;
   border: 1px solid var(--cl-border-subtle);
   border-radius: var(--cl-radius-pill);
   cursor: pointer;
   color: var(--text-normal);
   background: var(--cl-surface-raised);
+  box-shadow: none;
   font-family: var(--cl-font-ui);
   font-size: var(--cl-text-sm);
   transition: background var(--cl-dur-fast) var(--cl-ease),
     border-color var(--cl-dur-fast) var(--cl-ease),
     transform var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-model-select-option {
+  appearance: none;
+  width: 100%;
+  margin: 0;
+  font: inherit;
+  text-align: start;
+}
+
+.claudian-model-select-option:focus-visible,
+.claudian-model-select-effort:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+
+@media (pointer: coarse) {
+  .claudian-model-btn,
+  .claudian-model-select-option,
+  .claudian-model-select-effort {
+    min-height: 44px;
+  }
 }
 
 .claudian-model-btn:hover,

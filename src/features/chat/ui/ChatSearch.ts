@@ -44,12 +44,16 @@ export class ChatSearchController {
   private debounceTimer: number | null = null;
   private observer: MutationObserver | null = null;
   private lastFlashedEl: HTMLElement | null = null;
+  private previousFocus: HTMLElement | null = null;
 
   constructor(
     hostEl: HTMLElement,
     private readonly messagesEl: HTMLElement,
   ) {
     this.containerEl = hostEl.createDiv({ cls: 'claudian-chat-search claudian-hidden' });
+    this.containerEl.setAttribute('role', 'search');
+    this.containerEl.setAttribute('aria-label', 'Chat durchsuchen');
+    this.containerEl.setAttribute('aria-hidden', 'true');
 
     const iconEl = this.containerEl.createSpan({ cls: 'claudian-chat-search-icon' });
     setIcon(iconEl, 'search');
@@ -89,8 +93,13 @@ export class ChatSearchController {
 
   open(): void {
     if (!this.isOpen) {
+      const activeElement = this.containerEl.ownerDocument.activeElement;
+      this.previousFocus = activeElement && typeof (activeElement as HTMLElement).focus === 'function'
+        ? activeElement as HTMLElement
+        : null;
       this.isOpen = true;
       this.containerEl.removeClass('claudian-hidden');
+      this.containerEl.setAttribute('aria-hidden', 'false');
       this.startObserver();
       if (this.inputEl.value) this.runSearch();
     }
@@ -102,10 +111,16 @@ export class ChatSearchController {
     if (!this.isOpen) return;
     this.isOpen = false;
     this.containerEl.addClass('claudian-hidden');
+    this.containerEl.setAttribute('aria-hidden', 'true');
     this.stopObserver();
     this.clearHighlights();
     this.matchRanges = [];
     this.updateCount();
+    const returnTarget = this.previousFocus;
+    this.previousFocus = null;
+    if (returnTarget?.isConnected !== false) {
+      returnTarget?.focus();
+    }
   }
 
   toggle(): void {

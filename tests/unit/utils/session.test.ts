@@ -1,5 +1,6 @@
 import type { ChatMessage, ToolCallInfo } from '@/core/types';
 import {
+  buildBoundedContextFromHistory,
   buildContextFromHistory,
   buildPromptWithHistoryContext,
   formatContextLine,
@@ -320,6 +321,76 @@ describe('session utilities', () => {
       expect(result).toContain('Assistant: Hi there!');
     });
 
+    it('replays only human-authored user text instead of persisted prompt envelopes', () => {
+      const messages: ChatMessage[] = [
+        {
+          id: 'msg-1',
+          role: 'user',
+          content: [
+            '<vault_context>',
+            'Large automatically retrieved vault excerpt',
+            '</vault_context>',
+            '<memory_context>',
+            'Large automatically retrieved memory excerpt',
+            '</memory_context>',
+            'Create a concise project brief',
+            '<claudian_output_contract surface="live-document">',
+            'Large internal document manual',
+            '</claudian_output_contract>',
+            '<standing_goal>',
+            'Internal standing goal',
+            '</standing_goal>',
+          ].join('\n\n'),
+          timestamp: 1000,
+        },
+      ];
+
+      const result = buildContextFromHistory(messages);
+
+      expect(result).toBe('User: Create a concise project brief');
+      expect(result).not.toContain('vault_context');
+      expect(result).not.toContain('memory_context');
+      expect(result).not.toContain('claudian_output_contract');
+      expect(result).not.toContain('standing_goal');
+      expect(result).not.toContain('Large automatically');
+    });
+
+    it('prefers persisted display content when rebuilding user history', () => {
+      const messages: ChatMessage[] = [
+        {
+          id: 'msg-1',
+          role: 'user',
+          content: 'Transport prompt that must not be replayed',
+          displayContent: 'Visible question',
+          timestamp: 1000,
+        },
+      ];
+
+      expect(buildContextFromHistory(messages)).toBe('User: Visible question');
+    });
+
+    it('does not replay an internal-only user transport envelope', () => {
+      const messages: ChatMessage[] = [{
+        id: 'msg-1',
+        role: 'user',
+        content: [
+          '<vault_context>',
+          'Secret retrieved context that has no visible user text',
+          '</vault_context>',
+          '<claudian_output_contract surface="chat">',
+          'Internal instructions',
+          '</claudian_output_contract>',
+        ].join('\n'),
+        timestamp: 1000,
+      }];
+
+      const result = buildContextFromHistory(messages);
+
+      expect(result).toBe('User:');
+      expect(result).not.toContain('Secret retrieved context');
+      expect(result).not.toContain('Internal instructions');
+    });
+
     it('includes tool calls without results for successful tools', () => {
       const messages: ChatMessage[] = [
         { id: 'msg-1', role: 'user', content: 'Read file', timestamp: 1000 },
@@ -559,6 +630,52 @@ describe('session utilities', () => {
     });
   });
 
+  describe('buildBoundedContextFromHistory', () => {
+    it('keeps the newest renderable turns within the requested budget', () => {
+      const messages: ChatMessage[] = [
+        { id: 'old-user', role: 'user', content: `old-${'x'.repeat(120)}`, timestamp: 1 },
+        { id: 'old-assistant', role: 'assistant', content: `old-answer-${'y'.repeat(120)}`, timestamp: 2 },
+        { id: 'new-user', role: 'user', content: 'new question', timestamp: 3 },
+        { id: 'new-assistant', role: 'assistant', content: 'new answer', timestamp: 4 },
+      ];
+
+      const result = buildBoundedContextFromHistory(messages, 100);
+
+      expect(result.length).toBeLessThanOrEqual(100);
+      expect(result).toContain('[earlier turns omitted]');
+      expect(result).toContain('new question');
+      expect(result).toContain('new answer');
+      expect(result).not.toContain('old-answer');
+    });
+
+    it('returns the full context without an omission marker when it fits', () => {
+      const messages: ChatMessage[] = [
+        { id: 'user', role: 'user', content: 'short question', timestamp: 1 },
+        { id: 'assistant', role: 'assistant', content: 'short answer', timestamp: 2 },
+      ];
+
+      expect(buildBoundedContextFromHistory(messages, 500)).toBe(
+        buildContextFromHistory(messages),
+      );
+    });
+
+    it('keeps both the beginning and conclusion of one oversized recent message', () => {
+      const messages: ChatMessage[] = [{
+        id: 'assistant',
+        role: 'assistant',
+        content: `BEGIN-${'x'.repeat(500)}-FINAL-CONCLUSION`,
+        timestamp: 1,
+      }];
+
+      const result = buildBoundedContextFromHistory(messages, 140);
+
+      expect(result.length).toBeLessThanOrEqual(140);
+      expect(result).toContain('Assistant: BEGIN-');
+      expect(result).toContain('FINAL-CONCLUSION');
+      expect(result).toContain('[message middle omitted]');
+    });
+  });
+
   describe('getLastUserMessage', () => {
     it('returns last user message from history', () => {
       const messages: ChatMessage[] = [
@@ -623,7 +740,65 @@ describe('session utilities', () => {
       expect(result).toBe(prompt);
     });
 
-    it('returns only history when actualPrompt matches last user message', () => {
+    it('keeps the prepared transport prompt when the pending user bubble is already in history', () => {
+      const prompt = [
+        '<claudian_output_contract surface="live-document">',
+        'Return a document.',
+        '</claudian_output_contract>',
+        '',
+        'Erstelle das Handbuch.',
+      ].join('\n');
+      const messages: ChatMessage[] = [
+        { id: 'old-user', role: 'user', content: 'Vorherige Frage', timestamp: 1 },
+        { id: 'old-assistant', role: 'assistant', content: 'Vorherige Antwort', timestamp: 2 },
+        {
+          id: 'current-user',
+          role: 'user',
+          content: prompt,
+          displayContent: 'Erstelle das Handbuch.',
+          timestamp: 3,
+        },
+      ];
+      const historyContext = buildBoundedContextFromHistory(messages);
+
+      const result = buildPromptWithHistoryContext(
+        historyContext,
+        prompt,
+        prompt,
+        messages,
+      );
+
+      expect(result).toContain('Vorherige Antwort');
+      expect(result).toContain('<claudian_output_contract surface="live-document">');
+      expect(result.match(/Erstelle das Handbuch\./g)).toHaveLength(1);
+    });
+
+    it('restores current-note metadata when a legacy retry prompt lacks its transport envelope', () => {
+      const messages: ChatMessage[] = [
+        { id: 'old-user', role: 'user', content: 'Vorher', timestamp: 1 },
+        { id: 'old-assistant', role: 'assistant', content: 'Antwort', timestamp: 2 },
+        {
+          id: 'current-user',
+          role: 'user',
+          content: 'Follow up',
+          currentNote: 'notes/active.md',
+          timestamp: 3,
+        },
+      ];
+      const historyContext = buildBoundedContextFromHistory(messages);
+
+      const result = buildPromptWithHistoryContext(
+        historyContext,
+        'Follow up',
+        'Follow up',
+        messages,
+      );
+
+      expect(result).toContain('<current_note>\nnotes/active.md\n</current_note>');
+      expect(result.match(/Follow up/g)).toHaveLength(1);
+    });
+
+    it('appends a repeated prompt when the matching historical turn already has a reply', () => {
       const messages: ChatMessage[] = [
         { id: 'msg-1', role: 'user', content: 'hello', timestamp: 1000 },
         { id: 'msg-2', role: 'assistant', content: 'hi', timestamp: 2000 },
@@ -634,8 +809,7 @@ describe('session utilities', () => {
 
       const result = buildPromptWithHistoryContext(historyContext, prompt, actualPrompt, messages);
 
-      // Should NOT append prompt since actualPrompt matches last user message
-      expect(result).toBe(historyContext);
+      expect(result).toBe(`${historyContext}\n\nUser: ${prompt}`);
     });
 
     it('appends prompt when actualPrompt differs from last user message', () => {
@@ -688,8 +862,7 @@ describe('session utilities', () => {
 
       const result = buildPromptWithHistoryContext(historyContext, prompt, actualPrompt, messages);
 
-      // Should match after trimming
-      expect(result).toBe(historyContext);
+      expect(result).toBe(prompt);
     });
 
     it('avoids duplication when XML-wrapped content matches display content', () => {
@@ -731,7 +904,7 @@ describe('session utilities', () => {
 
       const result = buildPromptWithHistoryContext(historyContext, prompt, actualPrompt, messages);
 
-      expect(result).toBe(historyContext);
+      expect(result).toBe(prompt);
     });
 
     describe('new format (user content before XML context)', () => {
@@ -751,7 +924,7 @@ describe('session utilities', () => {
 
         const result = buildPromptWithHistoryContext(historyContext, prompt, actualPrompt, messages);
 
-        expect(result).toBe(historyContext);
+        expect(result).toBe(prompt);
       });
 
       it('appends prompt when actualPrompt differs from last user message', () => {
@@ -789,7 +962,7 @@ describe('session utilities', () => {
 
         const result = buildPromptWithHistoryContext(historyContext, prompt, prompt, messages);
 
-        expect(result).toBe(historyContext);
+        expect(result).toBe(prompt);
       });
 
       it('extracts user query from content with multiple XML context tags', () => {
@@ -807,7 +980,7 @@ describe('session utilities', () => {
 
         const result = buildPromptWithHistoryContext(historyContext, prompt, prompt, messages);
 
-        expect(result).toBe(historyContext);
+        expect(result).toBe(prompt);
       });
 
       it('falls back to extractUserQuery when displayContent is not available', () => {
@@ -825,7 +998,7 @@ describe('session utilities', () => {
 
         const result = buildPromptWithHistoryContext(historyContext, prompt, prompt, messages);
 
-        expect(result).toBe(historyContext);
+        expect(result).toBe(prompt);
       });
     });
   });
