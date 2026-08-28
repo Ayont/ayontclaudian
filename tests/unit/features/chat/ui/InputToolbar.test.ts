@@ -205,6 +205,7 @@ describe('ModelSelector', () => {
     expect(label?.textContent).toBe('Sonnet');
     expect(btn?.tagName).toBe('BUTTON');
     expect(btn?.getAttribute('aria-haspopup')).toBe('dialog');
+    expect(btn?.querySelector('.claudian-model-chevron')).not.toBeNull();
   });
 
   it('should display first model when current model not found', () => {
@@ -1283,16 +1284,26 @@ describe('createInputToolbar', () => {
     expect(toolbar.serviceTierToggle).toBeInstanceOf(ServiceTierToggle);
   });
 
-  it('should place the mode selector after the permission toggle in toolbar order', () => {
+  it('groups primary, context, and mode controls into stable toolbar regions', () => {
     const parentEl = createMockEl();
     const callbacks = createMockCallbacks();
 
     createInputToolbar(parentEl, callbacks);
 
-    const permissionIndex = parentEl.children.findIndex((child: any) => child.hasClass('claudian-permission-toggle'));
-    const modeIndex = parentEl.children.findIndex((child: any) => child.hasClass('claudian-mode-selector'));
-    expect(permissionIndex).toBeGreaterThanOrEqual(0);
-    expect(modeIndex).toBeGreaterThan(permissionIndex);
-    expect(modeIndex).toBe(parentEl.children.length - 1);
+    const controlGroup = parentEl.querySelector('.claudian-toolbar-control-group');
+    const primaryGroup = parentEl.querySelector('.claudian-toolbar-primary-group');
+    const contextGroup = parentEl.querySelector('.claudian-toolbar-context-group');
+    const modeGroup = parentEl.querySelector('.claudian-toolbar-mode-group');
+
+    expect(controlGroup).not.toBeNull();
+    expect(primaryGroup?.querySelector('.claudian-model-selector')).not.toBeNull();
+    expect(primaryGroup?.querySelector('.claudian-thinking-selector')).not.toBeNull();
+    expect(primaryGroup?.querySelector('.claudian-service-tier-toggle')).not.toBeNull();
+    expect(contextGroup?.querySelector('.claudian-context-meter')).not.toBeNull();
+    expect(contextGroup?.querySelector('.claudian-external-context-selector')).not.toBeNull();
+    expect(contextGroup?.querySelector('.claudian-mcp-selector')).not.toBeNull();
+    expect(modeGroup?.querySelector('.claudian-permission-toggle')).not.toBeNull();
+    expect(modeGroup?.querySelector('.claudian-mode-selector')).not.toBeNull();
+    expect(parentEl.children.indexOf(controlGroup)).toBeLessThan(parentEl.children.indexOf(modeGroup));
   });
 });

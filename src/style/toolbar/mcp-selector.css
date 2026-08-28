@@ -3,7 +3,7 @@
   position: relative;
   display: flex;
   align-items: center;
-  margin-left: 8px;
+  margin-left: 0;
 }
 
 .claudian-mcp-selector-icon-wrapper {
@@ -13,16 +13,19 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  width: 30px;
+  height: 30px;
   margin: 0;
   padding: 0;
-  border: 0;
-  background: transparent;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--cl-surface-raised) 88%, transparent);
   box-shadow: none;
 }
 
 .claudian-mcp-selector-icon-wrapper:focus-visible,
 .claudian-mcp-selector-item:focus-visible {
-  outline: 2px solid var(--interactive-accent);
+  outline: 2px solid var(--cl-accent-line);
   outline-offset: 2px;
 }
 
@@ -30,14 +33,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   color: var(--text-faint);
   transition: color var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-mcp-selector-icon-wrapper:hover .claudian-mcp-selector-icon {
   color: var(--text-normal);
+}
+
+.claudian-mcp-selector-icon-wrapper:hover {
+  background: var(--background-modifier-hover);
+  border-color: var(--cl-border-strong);
 }
 
 .claudian-mcp-selector-icon.active {

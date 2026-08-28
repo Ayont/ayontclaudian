@@ -144,11 +144,14 @@ export class ModelSelector {
       this.callbacks.app,
       models,
       currentModel,
-      (modelValue) => {
-        runToolbarAction(async () => {
+      async (modelValue) => {
+        try {
           await this.callbacks.onModelChange(modelValue);
           this.updateDisplay();
-        }, 'Modell konnte nicht gewechselt werden.');
+        } catch (error) {
+          new Notice('Modell konnte nicht gewechselt werden.');
+          throw error;
+        }
       },
     ).open();
   }
@@ -208,6 +211,9 @@ export class ModelSelector {
         }
       }
     }
+
+    const chevronEl = this.buttonEl.createSpan({ cls: 'claudian-model-chevron' });
+    setIcon(chevronEl, 'chevron-down');
   }
 
   /** Human label of the currently selected model, or null when unknown. */
@@ -1605,14 +1611,19 @@ export function createInputToolbar(
   permissionToggle: PermissionToggle;
   serviceTierToggle: ServiceTierToggle;
 } {
-  const modelSelector = new ModelSelector(parentEl, callbacks);
-  const thinkingBudgetSelector = new ThinkingBudgetSelector(parentEl, callbacks);
-  const serviceTierToggle = new ServiceTierToggle(parentEl, callbacks);
-  const contextUsageMeter = new ContextUsageMeter(parentEl);
-  const externalContextSelector = new ExternalContextSelector(parentEl, callbacks);
-  const mcpServerSelector = new McpServerSelector(parentEl);
-  const permissionToggle = new PermissionToggle(parentEl, callbacks);
-  const modeSelector = new ModeSelector(parentEl, callbacks);
+  const controlGroup = parentEl.createDiv({ cls: 'claudian-toolbar-control-group' });
+  const primaryGroup = controlGroup.createDiv({ cls: 'claudian-toolbar-primary-group' });
+  const contextGroup = controlGroup.createDiv({ cls: 'claudian-toolbar-context-group' });
+  const modeGroup = parentEl.createDiv({ cls: 'claudian-toolbar-mode-group' });
+
+  const modelSelector = new ModelSelector(primaryGroup, callbacks);
+  const thinkingBudgetSelector = new ThinkingBudgetSelector(primaryGroup, callbacks);
+  const serviceTierToggle = new ServiceTierToggle(primaryGroup, callbacks);
+  const contextUsageMeter = new ContextUsageMeter(contextGroup);
+  const externalContextSelector = new ExternalContextSelector(contextGroup, callbacks);
+  const mcpServerSelector = new McpServerSelector(contextGroup);
+  const permissionToggle = new PermissionToggle(modeGroup, callbacks);
+  const modeSelector = new ModeSelector(modeGroup, callbacks);
 
   return {
     modelSelector,

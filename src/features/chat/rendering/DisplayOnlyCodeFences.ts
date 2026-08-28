@@ -63,11 +63,16 @@ export async function restoreDisplayOnlyCodeFences(
   fences: readonly DisplayOnlyCodeFence[],
 ): Promise<void> {
   for (const fence of fences) {
-    const code = container.querySelector(`.language-${fence.placeholderLanguage}`);
+    const placeholderClass = `language-${fence.placeholderLanguage}`;
+    // Obsidian/Prism may copy the language class to both <pre> and <code>.
+    // The code element is the contract consumed by Claudian's rich renderers;
+    // an unqualified query used to hit <pre> first and leak the placeholder.
+    const code = Array.from(container.querySelectorAll(`.${placeholderClass}`))
+      .find((element) => element.tagName === 'CODE');
     if (!code) {
       continue;
     }
-    code.classList.remove(`language-${fence.placeholderLanguage}`);
+    code.classList.remove(placeholderClass);
     code.classList.add(`language-${fence.originalLanguage}`);
   }
 }

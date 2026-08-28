@@ -1,6 +1,7 @@
 import type { EventRef, WorkspaceLeaf } from 'obsidian';
 import { ItemView, Menu, Notice, Scope, setIcon } from 'obsidian';
 
+import { runSerializedSettingsMutation } from '../../app/settings/SettingsMutationQueue';
 import { getHiddenProviderCommandSet } from '../../core/providers/commands/hiddenCommands';
 import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '../../core/providers/ProviderSettingsCoordinator';
@@ -293,6 +294,43 @@ export class ClaudianView extends ItemView {
     }
   }
 
+  private async persistWorkspaceModeModelBinding(
+    mode: WorkspaceMode,
+    model: string | null,
+  ): Promise<void> {
+    await runSerializedSettingsMutation(this.plugin.settings, async () => {
+      const previousModeModels = this.plugin.settings.workspaceModeModels;
+      const candidateModeModels = { ...previousModeModels };
+      if (model) {
+        candidateModeModels[mode] = model;
+      } else {
+        delete candidateModeModels[mode];
+      }
+      this.plugin.settings.workspaceModeModels = candidateModeModels;
+
+      try {
+        await this.plugin.saveSettings();
+      } catch (error) {
+        this.plugin.settings.workspaceModeModels = previousModeModels;
+        new Notice('Modell-Bindung konnte nicht gespeichert werden.');
+        throw error;
+      }
+    });
+
+    this.workspaceModeToggle?.render();
+    if (model) {
+      const meta = getWorkspaceModeMeta(mode);
+      new Notice(`${meta.label}-Modus nutzt jetzt ${model}.`);
+      if (this.resolveActiveWorkspaceMode() === mode) {
+        await this.applyModeModelPreference(mode);
+      }
+      return;
+    }
+
+    const meta = getWorkspaceModeMeta(mode);
+    new Notice(`${meta.label}-Modus folgt wieder dem Tab-Modell.`);
+  }
+
   /** Context menu on a mode segment: pin/unpin a model for that mode. */
   private openModeModelMenu(mode: WorkspaceMode, anchor: MouseEvent | HTMLElement): void {
     const meta = getWorkspaceModeMeta(mode);
@@ -306,20 +344,9 @@ export class ClaudianView extends ItemView {
           const models = ProviderRegistry.getAggregatedModelOptions(
             this.plugin.settings as unknown as Record<string, unknown>,
           );
-          new ModelSelectModal(this.plugin.app, models, pinned ?? '', (value) => {
-            void (async () => {
-              this.plugin.settings.workspaceModeModels = {
-                ...this.plugin.settings.workspaceModeModels,
-                [mode]: value,
-              };
-              await this.plugin.saveSettings();
-              this.workspaceModeToggle?.render();
-              new Notice(`${meta.label}-Modus nutzt jetzt ${value}.`);
-              if (this.resolveActiveWorkspaceMode() === mode) {
-                await this.applyModeModelPreference(mode);
-              }
-            })();
-          }).open();
+          new ModelSelectModal(this.plugin.app, models, pinned ?? '', (value) =>
+            this.persistWorkspaceModeModelBinding(mode, value)
+          ).open();
         }),
     );
     if (pinned) {
@@ -328,15 +355,9 @@ export class ClaudianView extends ItemView {
           .setTitle(`Modell-Bindung entfernen (${pinned})`)
           .setIcon('x')
           .onClick(() => {
-            void (async () => {
-              this.plugin.settings.workspaceModeModels = {
-                ...this.plugin.settings.workspaceModeModels,
-                [mode]: undefined,
-              };
-              await this.plugin.saveSettings();
-              this.workspaceModeToggle?.render();
-              new Notice(`${meta.label}-Modus folgt wieder dem Tab-Modell.`);
-            })();
+            void this.persistWorkspaceModeModelBinding(mode, null).catch(() => {
+              // The helper restored state and surfaced a user-facing notice.
+            });
           }),
       );
     }

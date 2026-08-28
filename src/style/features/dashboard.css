@@ -336,34 +336,40 @@ body {
 
 /* Toolbar OS action buttons */
 .claudian-os-actions {
+  grid-area: actions;
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  margin-left: auto;
-  padding-left: 12px;
-  border-left: 1px solid var(--claudian-border);
+  justify-self: start;
+  margin-left: 0;
+  padding-left: 0;
+  border-left: 0;
 }
 
 /* Icon-only since 5.76: the label lives in the tooltip — the composer row
    stays calm. Hover recolors instead of gradient-washing. */
 .claudian-os-action-button {
+  appearance: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
+  margin: 0;
   padding: 0;
-  background: var(--claudian-card-bg);
-  color: var(--claudian-muted);
-  border: 1px solid var(--claudian-border);
-  border-radius: 999px;
+  background: color-mix(in srgb, var(--cl-surface-raised) 88%, transparent);
+  color: var(--text-muted);
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: 10px;
+  box-shadow: none;
   cursor: pointer;
   transition: border-color 160ms ease, color 160ms ease;
 }
 
 .claudian-os-action-button:hover {
-  color: var(--claudian-accent);
-  border-color: color-mix(in srgb, var(--claudian-accent) 45%, transparent);
+  color: var(--cl-accent);
+  background: var(--background-modifier-hover);
+  border-color: var(--cl-accent-line);
 }
 
 .claudian-os-action-button:focus-visible {
@@ -378,14 +384,19 @@ body {
 
 /* Voice input (push-to-talk) */
 .claudian-voice-btn {
+  appearance: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--claudian-card-bg);
-  color: var(--claudian-text);
-  border: 1px solid var(--claudian-border);
-  border-radius: 999px;
-  padding: 7px;
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  background: color-mix(in srgb, var(--cl-surface-raised) 88%, transparent);
+  color: var(--text-muted);
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: 10px;
+  box-shadow: none;
   cursor: pointer;
   transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
 }

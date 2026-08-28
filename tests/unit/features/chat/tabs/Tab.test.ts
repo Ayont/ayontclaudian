@@ -462,6 +462,21 @@ function createMockPlugin(overrides: Record<string, any> = {}): any {
   };
 }
 
+function captureProviderSelectionSettings(settings: Record<string, any>): Record<string, unknown> {
+  return {
+    model: settings.model,
+    effortLevel: settings.effortLevel,
+    serviceTier: settings.serviceTier,
+    thinkingBudget: settings.thinkingBudget,
+    permissionMode: settings.permissionMode,
+    savedProviderModel: { ...settings.savedProviderModel },
+    savedProviderEffort: { ...settings.savedProviderEffort },
+    savedProviderServiceTier: { ...settings.savedProviderServiceTier },
+    savedProviderThinkingBudget: { ...settings.savedProviderThinkingBudget },
+    savedProviderPermissionMode: { ...settings.savedProviderPermissionMode },
+  };
+}
+
 // Helper to create mock MCP manager
 function createMockMcpManager(): any {
   return {
@@ -3614,6 +3629,53 @@ describe('Tab - Cross-Provider Model Switch (bound tab)', () => {
     expect(tab.state.messages).toHaveLength(2);
   });
 
+  it('keeps the bound provider and bootstrap unchanged when model settings cannot be saved', async () => {
+    jest.spyOn(ProviderRegistry, 'createInstructionRefineService').mockReturnValue({ cancel: jest.fn(), resetConversation: jest.fn() } as any);
+    jest.spyOn(ProviderRegistry, 'createTitleGenerationService').mockReturnValue({ cancel: jest.fn() } as any);
+    jest.spyOn(ProviderRegistry, 'getTaskResultInterpreter').mockReturnValue({} as any);
+    jest.spyOn(ProviderRegistry, 'getChatUIConfig').mockReturnValue({
+      getModelOptions: jest.fn().mockReturnValue([]),
+      ownsModel: jest.fn((model: string) => model.startsWith('gpt-') || /^o\d/.test(model)),
+      isAdaptiveReasoningModel: jest.fn().mockReturnValue(false),
+      getReasoningOptions: jest.fn().mockReturnValue([]),
+      getDefaultReasoningValue: jest.fn().mockReturnValue('off'),
+      getContextWindowSize: jest.fn().mockReturnValue(200000),
+      isDefaultModel: jest.fn().mockReturnValue(false),
+      applyModelDefaults: jest.fn(),
+      normalizeModelVariant: jest.fn((model: string) => model),
+      getCustomModelIds: jest.fn().mockReturnValue(new Set()),
+    } as any);
+
+    const saveError = new Error('settings disk unavailable');
+    const updateConversation = jest.fn().mockResolvedValue(undefined);
+    const plugin = createMockPlugin({
+      saveSettings: jest.fn().mockRejectedValue(saveError),
+      updateConversation,
+    });
+    const tab = createTab(createMockOptions({ plugin }));
+    initializeTabUI(tab, plugin);
+    tab.lifecycleState = 'bound_cold';
+    tab.providerId = 'claude';
+    tab.conversationId = 'conv-save-failure';
+    tab.pendingContextBootstrap = null;
+    tab.state.messages = [
+      { id: 'u1', role: 'user', content: 'prior question', timestamp: 1 },
+    ];
+    const settingsBefore = captureProviderSelectionSettings(plugin.settings);
+
+    const toolbarModule = jest.requireMock('@/features/chat/ui/InputToolbar') as {
+      createInputToolbar: jest.Mock;
+    };
+    const toolbarCallbacks = toolbarModule.createInputToolbar.mock.calls.at(-1)?.[1];
+
+    await expect(toolbarCallbacks.onModelChange(DEFAULT_CODEX_PRIMARY_MODEL)).rejects.toBe(saveError);
+
+    expect(tab.providerId).toBe('claude');
+    expect(tab.pendingContextBootstrap).toBeNull();
+    expect(captureProviderSelectionSettings(plugin.settings)).toEqual(settingsBefore);
+    expect(updateConversation).not.toHaveBeenCalled();
+  });
+
   it('restores a persisted bootstrap after reload and consumes it exactly once', async () => {
     const persistedConversation = {
       id: 'conv-reloaded',
@@ -3730,6 +3792,181 @@ describe('Tab - Blank Tab Draft Model Change', () => {
     expect(tab.service).toBeNull();
     expect(tab.serviceInitialized).toBe(false);
     expect(tab.lifecycleState).toBe('blank');
+  });
+
+  it('restores the blank-tab selection when model settings cannot be saved', async () => {
+    jest.spyOn(ProviderRegistry, 'createInstructionRefineService').mockReturnValue({ cancel: jest.fn(), resetConversation: jest.fn() } as any);
+    jest.spyOn(ProviderRegistry, 'createTitleGenerationService').mockReturnValue({ cancel: jest.fn() } as any);
+    jest.spyOn(ProviderRegistry, 'getTaskResultInterpreter').mockReturnValue({} as any);
+    jest.spyOn(ProviderRegistry, 'getChatUIConfig').mockReturnValue({
+      getModelOptions: jest.fn().mockReturnValue([]),
+      ownsModel: jest.fn((model: string) => model.startsWith('gpt-') || /^o\d/.test(model)),
+      isAdaptiveReasoningModel: jest.fn().mockReturnValue(false),
+      getReasoningOptions: jest.fn().mockReturnValue([]),
+      getDefaultReasoningValue: jest.fn().mockReturnValue('off'),
+      getContextWindowSize: jest.fn().mockReturnValue(200000),
+      isDefaultModel: jest.fn().mockReturnValue(false),
+      applyModelDefaults: jest.fn(),
+      normalizeModelVariant: jest.fn((model: string) => model),
+      getCustomModelIds: jest.fn().mockReturnValue(new Set()),
+    } as any);
+
+    const saveError = new Error('settings disk unavailable');
+    const plugin = createMockPlugin({ saveSettings: jest.fn().mockRejectedValue(saveError) });
+    const tab = createTab(createMockOptions({
+      plugin,
+      draftModel: '__auto__',
+    }));
+    tab.autoModelActive = true;
+    tab.routedModel = 'claude-sonnet-4-5';
+    initializeTabUI(tab, plugin);
+    const settingsBefore = captureProviderSelectionSettings(plugin.settings);
+
+    const toolbarModule = jest.requireMock('@/features/chat/ui/InputToolbar') as {
+      createInputToolbar: jest.Mock;
+    };
+    const toolbarCallbacks = toolbarModule.createInputToolbar.mock.calls.at(-1)?.[1];
+
+    await expect(toolbarCallbacks.onModelChange(DEFAULT_CODEX_PRIMARY_MODEL)).rejects.toBe(saveError);
+
+    expect(tab.providerId).toBe('claude');
+    expect(tab.draftModel).toBe('__auto__');
+    expect(tab.autoModelActive).toBe(true);
+    expect(tab.routedModel).toBe('claude-sonnet-4-5');
+    expect(captureProviderSelectionSettings(plugin.settings)).toEqual(settingsBefore);
+  });
+
+  it('does not roll back a newer successful model selection when an older save fails', async () => {
+    jest.spyOn(ProviderRegistry, 'createInstructionRefineService').mockReturnValue({ cancel: jest.fn(), resetConversation: jest.fn() } as any);
+    jest.spyOn(ProviderRegistry, 'createTitleGenerationService').mockReturnValue({ cancel: jest.fn() } as any);
+    jest.spyOn(ProviderRegistry, 'getTaskResultInterpreter').mockReturnValue({} as any);
+    jest.spyOn(ProviderRegistry, 'getChatUIConfig').mockReturnValue({
+      getModelOptions: jest.fn().mockReturnValue([]),
+      ownsModel: jest.fn((model: string) => model.startsWith('gpt-') || /^o\d/.test(model)),
+      isAdaptiveReasoningModel: jest.fn().mockReturnValue(false),
+      getReasoningOptions: jest.fn().mockReturnValue([]),
+      getDefaultReasoningValue: jest.fn().mockReturnValue('off'),
+      getContextWindowSize: jest.fn().mockReturnValue(200000),
+      isDefaultModel: jest.fn().mockReturnValue(false),
+      applyModelDefaults: jest.fn(),
+      normalizeModelVariant: jest.fn((model: string) => model),
+      getCustomModelIds: jest.fn().mockReturnValue(new Set()),
+    } as any);
+
+    let rejectFirstSave!: (error: Error) => void;
+    let saveCall = 0;
+    const saveSettings = jest.fn().mockImplementation(() => {
+      saveCall += 1;
+      if (saveCall === 1) {
+        return new Promise<void>((_resolve, reject) => {
+          rejectFirstSave = reject;
+        });
+      }
+      return Promise.resolve();
+    });
+    const plugin = createMockPlugin({ saveSettings });
+    const tab = createTab(createMockOptions({ plugin }));
+    initializeTabUI(tab, plugin);
+    const toolbarModule = jest.requireMock('@/features/chat/ui/InputToolbar') as {
+      createInputToolbar: jest.Mock;
+    };
+    const toolbarCallbacks = toolbarModule.createInputToolbar.mock.calls.at(-1)?.[1];
+
+    const firstChange = toolbarCallbacks.onModelChange('gpt-5.4');
+    const secondChange = toolbarCallbacks.onModelChange('gpt-5.4-mini');
+    expect(saveSettings).toHaveBeenCalledTimes(1);
+    const firstError = new Error('older settings save failed');
+    const firstFailure = firstChange.catch((error: unknown) => error);
+    rejectFirstSave(firstError);
+    await expect(firstFailure).resolves.toBe(firstError);
+    await secondChange;
+
+    expect(saveSettings).toHaveBeenCalledTimes(2);
+    expect(tab.providerId).toBe('codex');
+    expect(tab.draftModel).toBe('gpt-5.4-mini');
+    expect(plugin.settings.savedProviderModel.codex).toBe('gpt-5.4-mini');
+  });
+
+  it('restores the original model settings when two queued saves both fail', async () => {
+    jest.spyOn(ProviderRegistry, 'createInstructionRefineService').mockReturnValue({ cancel: jest.fn(), resetConversation: jest.fn() } as any);
+    jest.spyOn(ProviderRegistry, 'createTitleGenerationService').mockReturnValue({ cancel: jest.fn() } as any);
+    jest.spyOn(ProviderRegistry, 'getTaskResultInterpreter').mockReturnValue({} as any);
+    jest.spyOn(ProviderRegistry, 'getChatUIConfig').mockReturnValue({
+      getModelOptions: jest.fn().mockReturnValue([]),
+      ownsModel: jest.fn((model: string) => model.startsWith('gpt-') || /^o\d/.test(model)),
+      isAdaptiveReasoningModel: jest.fn().mockReturnValue(false),
+      getReasoningOptions: jest.fn().mockReturnValue([]),
+      getDefaultReasoningValue: jest.fn().mockReturnValue('off'),
+      getContextWindowSize: jest.fn().mockReturnValue(200000),
+      isDefaultModel: jest.fn().mockReturnValue(false),
+      applyModelDefaults: jest.fn(),
+      normalizeModelVariant: jest.fn((model: string) => model),
+      getCustomModelIds: jest.fn().mockReturnValue(new Set()),
+    } as any);
+
+    const rejectSaves: Array<(error: Error) => void> = [];
+    const saveSettings = jest.fn().mockImplementation(() => new Promise<void>((_resolve, reject) => {
+      rejectSaves.push(reject);
+    }));
+    const plugin = createMockPlugin({ saveSettings });
+    const tab = createTab(createMockOptions({ plugin }));
+    initializeTabUI(tab, plugin);
+    const settingsBefore = captureProviderSelectionSettings(plugin.settings);
+    const draftModelBefore = tab.draftModel;
+    const toolbarModule = jest.requireMock('@/features/chat/ui/InputToolbar') as {
+      createInputToolbar: jest.Mock;
+    };
+    const toolbarCallbacks = toolbarModule.createInputToolbar.mock.calls.at(-1)?.[1];
+
+    const firstError = new Error('first settings save failed');
+    const secondError = new Error('second settings save failed');
+    const firstChange = toolbarCallbacks.onModelChange('gpt-5.4');
+    const secondChange = toolbarCallbacks.onModelChange('gpt-5.4-mini');
+    const firstFailure = firstChange.catch((error: unknown) => error);
+    const secondFailure = secondChange.catch((error: unknown) => error);
+
+    expect(saveSettings).toHaveBeenCalledTimes(1);
+    rejectSaves[0](firstError);
+    await expect(firstFailure).resolves.toBe(firstError);
+    expect(saveSettings).toHaveBeenCalledTimes(2);
+    rejectSaves[1](secondError);
+    await expect(secondFailure).resolves.toBe(secondError);
+
+    expect(tab.providerId).toBe('claude');
+    expect(tab.draftModel).toBe(draftModelBefore);
+    expect(captureProviderSelectionSettings(plugin.settings)).toEqual(settingsBefore);
+  });
+
+  it('keeps a saved model selection when optional metadata warmup fails', async () => {
+    jest.spyOn(ProviderRegistry, 'createInstructionRefineService').mockReturnValue({ cancel: jest.fn(), resetConversation: jest.fn() } as any);
+    jest.spyOn(ProviderRegistry, 'createTitleGenerationService').mockReturnValue({ cancel: jest.fn() } as any);
+    jest.spyOn(ProviderRegistry, 'getTaskResultInterpreter').mockReturnValue({} as any);
+    const prepareError = new Error('metadata service unavailable');
+    jest.spyOn(ProviderRegistry, 'getChatUIConfig').mockReturnValue({
+      getModelOptions: jest.fn().mockReturnValue([]),
+      ownsModel: jest.fn((model: string) => model.startsWith('gpt-') || /^o\d/.test(model)),
+      isAdaptiveReasoningModel: jest.fn().mockReturnValue(false),
+      getReasoningOptions: jest.fn().mockReturnValue([]),
+      getDefaultReasoningValue: jest.fn().mockReturnValue('off'),
+      getContextWindowSize: jest.fn().mockReturnValue(200000),
+      isDefaultModel: jest.fn().mockReturnValue(false),
+      applyModelDefaults: jest.fn(),
+      prepareModelMetadata: jest.fn().mockRejectedValue(prepareError),
+      normalizeModelVariant: jest.fn((model: string) => model),
+      getCustomModelIds: jest.fn().mockReturnValue(new Set()),
+    } as any);
+
+    const plugin = createMockPlugin();
+    const tab = createTab(createMockOptions({ plugin }));
+    initializeTabUI(tab, plugin);
+    const toolbarModule = jest.requireMock('@/features/chat/ui/InputToolbar') as {
+      createInputToolbar: jest.Mock;
+    };
+    const toolbarCallbacks = toolbarModule.createInputToolbar.mock.calls.at(-1)?.[1];
+
+    await expect(toolbarCallbacks.onModelChange(DEFAULT_CODEX_PRIMARY_MODEL)).resolves.toBeUndefined();
+    expect(tab.providerId).toBe('codex');
+    expect(tab.draftModel).toBe(DEFAULT_CODEX_PRIMARY_MODEL);
   });
 
   it('refreshes the service-tier toggle when the model changes on a blank tab', async () => {

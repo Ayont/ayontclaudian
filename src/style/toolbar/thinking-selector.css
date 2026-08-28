@@ -2,7 +2,7 @@
 .claudian-thinking-selector {
   display: flex;
   align-items: center;
-  gap: var(--cl-space-2);
+  gap: 0;
 }
 
 /* Effort / budget container (shared layout) */
@@ -10,13 +10,22 @@
 .claudian-thinking-budget {
   display: flex;
   align-items: center;
-  gap: var(--cl-space-2);
+  gap: 0;
+  min-height: 30px;
+  overflow: visible;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--cl-surface-raised) 92%, transparent);
 }
 
 .claudian-thinking-label-text {
+  padding: 0 7px 0 8px;
   font-family: var(--cl-font-ui);
-  font-size: var(--cl-text-xs);
-  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
 }
 
 .claudian-thinking-gears {
@@ -34,17 +43,19 @@
   align-items: center;
   gap: 5px;
   min-height: 28px;
+  height: 28px;
   margin: 0;
-  padding: 3px 10px;
+  padding: 3px 9px;
   font-family: var(--cl-font-ui);
   font-size: var(--cl-text-xs);
   color: var(--cl-accent);
   font-weight: 500;
   cursor: pointer;
-  border: 1px solid var(--cl-border-subtle);
-  border-radius: var(--cl-radius-pill);
+  border: 0;
+  border-inline-start: 1px solid var(--cl-border-subtle);
+  border-radius: 0 9px 9px 0;
   white-space: nowrap;
-  background: var(--cl-surface-raised);
+  background: transparent;
   box-shadow: none;
   transition: background var(--cl-dur-fast) var(--cl-ease),
     border-color var(--cl-dur-fast) var(--cl-ease);
@@ -88,13 +99,35 @@
 
 .claudian-thinking-gears:hover .claudian-thinking-current,
 .claudian-thinking-current:focus-visible {
-  background: var(--cl-accent-soft);
-  border-color: var(--cl-accent-line);
+  background: var(--background-modifier-hover);
+  border-inline-start-color: var(--cl-accent-line);
 }
 
 .claudian-thinking-current:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--cl-accent-softer);
+  box-shadow: inset 0 0 0 1px var(--cl-accent-line);
+}
+
+@media (max-width: 380px) {
+  .claudian-thinking-label-text {
+    display: none;
+  }
+
+  .claudian-thinking-current {
+    border-inline-start: 0;
+    border-radius: 9px;
+  }
+}
+
+@container claudian-composer (max-width: 380px) {
+  .claudian-thinking-label-text {
+    display: none;
+  }
+
+  .claudian-thinking-current {
+    border-inline-start: 0;
+    border-radius: 9px;
+  }
 }
 
 /* Options container — floats above the chip. The composer plate clips overflow,

@@ -1,6 +1,7 @@
 import type { Component } from 'obsidian';
 import { Menu, Notice, Platform, setIcon } from 'obsidian';
 
+import { runSerializedSettingsMutation } from '../../../app/settings/SettingsMutationQueue';
 import { resolveVoiceCloudConfig } from '../../../core/audio/resolveVoiceCloudConfig';
 import { resolveVoiceLanguage } from '../../../core/audio/transcription';
 import { buildConversationContextBootstrap, computeBootstrapCharCap } from '../../../core/conversation/ConversationContextBootstrap';
@@ -337,21 +338,191 @@ function syncSlashCommandDropdownForProvider(
   dropdown.setHiddenCommands(getTabHiddenCommands(tab, plugin, conversation));
 }
 
-async function updateTabProviderSettings(
+const SETTINGS_CAS_MAP_KEYS = new Set<PropertyKey>([
+  'savedProviderModel',
+  'savedProviderEffort',
+  'savedProviderServiceTier',
+  'savedProviderThinkingBudget',
+  'savedProviderPermissionMode',
+  'providerConfigs',
+]);
+
+interface SettingsMutationSnapshot {
+  root: Map<PropertyKey, unknown>;
+  maps: Map<PropertyKey, {
+    entries: Map<PropertyKey, unknown>;
+    ref: Record<PropertyKey, unknown>;
+  }>;
+}
+
+function isSettingsRecord(value: unknown): value is Record<PropertyKey, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function captureSettingsRollbackSnapshot(
+  settings: Record<string, unknown>,
+): SettingsMutationSnapshot {
+  const target = settings as Record<PropertyKey, unknown>;
+  const root = new Map<PropertyKey, unknown>();
+  const maps = new Map<PropertyKey, {
+    entries: Map<PropertyKey, unknown>;
+    ref: Record<PropertyKey, unknown>;
+  }>();
+  for (const key of Reflect.ownKeys(target)) {
+    const value = target[key];
+    root.set(key, value);
+    if (SETTINGS_CAS_MAP_KEYS.has(key) && isSettingsRecord(value)) {
+      maps.set(key, {
+        entries: new Map(Reflect.ownKeys(value).map((entryKey) => [entryKey, value[entryKey]])),
+        ref: value,
+      });
+    }
+  }
+  return { root, maps };
+}
+
+function mapMatchesSnapshot(
+  current: Record<PropertyKey, unknown>,
+  entries: Map<PropertyKey, unknown>,
+): boolean {
+  const currentKeys = Reflect.ownKeys(current);
+  return currentKeys.length === entries.size
+    && currentKeys.every((key) => entries.has(key) && Object.is(current[key], entries.get(key)));
+}
+
+function rollbackCasMap(
+  target: Record<PropertyKey, unknown>,
+  key: PropertyKey,
+  before: SettingsMutationSnapshot,
+  candidate: SettingsMutationSnapshot,
+): void {
+  const beforeMap = before.maps.get(key);
+  const candidateMap = candidate.maps.get(key);
+  const current = target[key];
+
+  if (!candidateMap) {
+    if (candidate.root.has(key) || Object.prototype.hasOwnProperty.call(target, key)) return;
+    if (beforeMap) target[key] = beforeMap.ref;
+    return;
+  }
+
+  // A later successful mutation replaces these maps. Never roll it back, even
+  // if it happened to retain one of this candidate's values.
+  if (current !== candidateMap.ref || !isSettingsRecord(current)) return;
+
+  const entryKeys = new Set<PropertyKey>([
+    ...(beforeMap?.entries.keys() ?? []),
+    ...candidateMap.entries.keys(),
+  ]);
+  for (const entryKey of entryKeys) {
+    const beforeHas = beforeMap?.entries.has(entryKey) ?? false;
+    const candidateHas = candidateMap.entries.has(entryKey);
+    const changed = beforeHas !== candidateHas
+      || (candidateHas && !Object.is(beforeMap?.entries.get(entryKey), candidateMap.entries.get(entryKey)));
+    if (!changed) continue;
+
+    const currentHas = Object.prototype.hasOwnProperty.call(current, entryKey);
+    const stillCandidate = candidateHas
+      ? currentHas && Object.is(current[entryKey], candidateMap.entries.get(entryKey))
+      : !currentHas;
+    if (!stillCandidate) continue;
+
+    if (beforeHas) {
+      current[entryKey] = beforeMap?.entries.get(entryKey);
+    } else {
+      delete current[entryKey];
+    }
+  }
+
+  if (beforeMap && mapMatchesSnapshot(current, beforeMap.entries)) {
+    target[key] = beforeMap.ref;
+  } else if (!beforeMap && Reflect.ownKeys(current).length === 0) {
+    delete target[key];
+  }
+}
+
+function restoreSettingsRollbackSnapshot(
+  settings: Record<string, unknown>,
+  before: SettingsMutationSnapshot,
+  candidate: SettingsMutationSnapshot,
+): void {
+  const target = settings as Record<PropertyKey, unknown>;
+  const keys = new Set<PropertyKey>([
+    ...before.root.keys(),
+    ...candidate.root.keys(),
+  ]);
+  for (const key of keys) {
+    if (SETTINGS_CAS_MAP_KEYS.has(key)) {
+      rollbackCasMap(target, key, before, candidate);
+      continue;
+    }
+
+    const beforeHas = before.root.has(key);
+    const candidateHas = candidate.root.has(key);
+    const changed = beforeHas !== candidateHas
+      || (candidateHas && !Object.is(before.root.get(key), candidate.root.get(key)));
+    if (!changed) continue;
+
+    const currentHas = Object.prototype.hasOwnProperty.call(target, key);
+    const stillCandidate = candidateHas
+      ? currentHas && Object.is(target[key], candidate.root.get(key))
+      : !currentHas;
+    if (!stillCandidate) continue;
+
+    if (beforeHas) {
+      target[key] = before.root.get(key);
+    } else {
+      delete target[key];
+    }
+  }
+}
+
+function updateTabProviderSettings(
   tab: TabProviderContext,
   plugin: ClaudianPlugin,
   update: (settings: TabProviderSettings) => void,
+  providerOverride?: ProviderId,
 ): Promise<TabProviderSettings> {
-  const providerId = getTabProviderId(tab, plugin);
-  const snapshot = getTabSettingsSnapshot(tab, plugin);
-  update(snapshot);
-  ProviderSettingsCoordinator.commitProviderSettingsSnapshot(
-    plugin.settings,
-    providerId,
-    snapshot,
-  );
-  await plugin.saveSettings();
-  return snapshot;
+  return runSerializedSettingsMutation(plugin.settings, async () => {
+    const providerId = providerOverride ?? getTabProviderId(tab, plugin);
+    const rollbackSnapshot = captureSettingsRollbackSnapshot(plugin.settings);
+    const snapshot = ProviderSettingsCoordinator.getProviderSettingsSnapshot(
+      plugin.settings,
+      providerId,
+    ) as TabProviderSettings;
+    update(snapshot);
+    ProviderSettingsCoordinator.commitProviderSettingsSnapshot(
+      plugin.settings,
+      providerId,
+      snapshot,
+    );
+    const candidateSnapshot = captureSettingsRollbackSnapshot(plugin.settings);
+    try {
+      await plugin.saveSettings();
+    } catch (error) {
+      // saveSettings persists the live settings object, so the candidate must be
+      // installed before awaiting it. Restore the exact provider projection when
+      // persistence fails to keep the picker and runtime on the previous model.
+      restoreSettingsRollbackSnapshot(plugin.settings, rollbackSnapshot, candidateSnapshot);
+      throw error;
+    }
+    return snapshot;
+  });
+}
+
+async function prepareSelectedModelMetadata(
+  uiConfig: ProviderChatUIConfig,
+  model: string,
+  plugin: ClaudianPlugin,
+): Promise<void> {
+  try {
+    await uiConfig.prepareModelMetadata?.(model, plugin.settings, { plugin });
+  } catch {
+    // Metadata discovery is an optimization after the durable selection. Do
+    // not report the model switch as failed or leave the modal on stale state;
+    // providers can retry discovery on the first real turn.
+    new Notice('Modell gewechselt. Zusatzdaten werden beim ersten Einsatz geladen.');
+  }
 }
 
 export function syncComposerModeClasses(tab: TabData, plugin: ClaudianPlugin): void {
@@ -536,31 +707,37 @@ async function switchBoundTabProvider(
   // Carry prior text only when the target provider truly starts fresh. Returning
   // to a provider-owned session/thread already restores its native context; a
   // second injected transcript would duplicate both tokens and instructions.
+  let nextPendingContextBootstrap: string | null;
   if (needsProviderContextBootstrap(handoff, restoredProviderSessionId)) {
     const targetContextWindow = ProviderRegistry.getChatUIConfig(newProvider)
       .getContextWindowSize(model, plugin.settings.customContextLimits, plugin.settings);
     const bootstrap = buildConversationContextBootstrap(tab.state.messages, {
       maxChars: computeBootstrapCharCap(targetContextWindow),
     });
-    tab.pendingContextBootstrap = bootstrap || null;
+    nextPendingContextBootstrap = bootstrap || null;
   } else {
-    tab.pendingContextBootstrap = null;
+    nextPendingContextBootstrap = null;
   }
-
-  // Drop the stale runtime so the next send reinitializes against the new provider.
-  if (tab.service) {
-    cleanupTabRuntime(tab);
-  }
-  tab.providerId = newProvider;
-  syncTabProviderServices(tab, plugin);
-  syncSlashCommandDropdownForProvider(tab, plugin, getProviderCatalogConfig);
 
   const uiConfig = ProviderRegistry.getChatUIConfig(newProvider);
   const providerSettings = await updateTabProviderSettings(tab, plugin, (settings) => {
     settings.model = model;
     uiConfig.applyModelDefaults(model, settings);
-  });
-  await uiConfig.prepareModelMetadata?.(model, plugin.settings, { plugin });
+  }, newProvider);
+
+  // Only mutate the tab after the provider settings are durable. A failed save
+  // therefore leaves the current provider, Auto state and bootstrap untouched.
+  if (tab.service) {
+    cleanupTabRuntime(tab);
+  }
+  tab.providerId = newProvider;
+  tab.pendingContextBootstrap = nextPendingContextBootstrap;
+  tab.autoModelActive = false;
+  tab.routedModel = null;
+  tab.draftModel = null;
+  syncTabProviderServices(tab, plugin);
+  syncSlashCommandDropdownForProvider(tab, plugin, getProviderCatalogConfig);
+  await prepareSelectedModelMetadata(uiConfig, model, plugin);
 
   // Persist the active provider + session handoff so a reload (or the next
   // initializeTabService) reads the correct, provider-isolated session.
@@ -1188,22 +1365,28 @@ function initializeInputToolbar(
         return;
       }
 
-      // User picked a real model manually — Auto is no longer active.
-      // MUST clear draftModel so getModelValue() falls through to snapshot.model
-      // instead of returning the stale '__auto__' sentinel.
-      tab.autoModelActive = false;
-      tab.routedModel = null;
-      tab.draftModel = null;
-
       // For blank tabs, update draft model and derive provider
       if (tab.lifecycleState === 'blank') {
         const previousProvider = tab.providerId;
-        tab.draftModel = model;
         const newProvider = getEnabledProviderForModel(
           model,
           plugin.settings,
         );
         const didProviderChange = newProvider !== previousProvider;
+
+        // Persist the incoming provider's projection before changing the tab.
+        // If the save fails, the current provider/Auto selection stays intact.
+        const uiConfig = ProviderRegistry.getChatUIConfig(newProvider);
+        await updateTabProviderSettings(tab, plugin, (settings) => {
+          settings.model = model;
+          uiConfig.applyModelDefaults(model, settings);
+        }, newProvider);
+
+        // User picked a real model manually — Auto is no longer active. Clear
+        // draftModel's Auto sentinel only after persistence succeeds.
+        tab.autoModelActive = false;
+        tab.routedModel = null;
+        tab.draftModel = model;
         if (tab.service) {
           cleanupTabRuntime(tab);
         }
@@ -1212,17 +1395,10 @@ function initializeInputToolbar(
           syncTabProviderServices(tab, plugin);
         }
         syncSlashCommandDropdownForProvider(tab, plugin, getProviderCatalogConfig);
-
-        // Update settings for the new provider
-        const uiConfig = ProviderRegistry.getChatUIConfig(newProvider);
-        await updateTabProviderSettings(tab, plugin, (settings) => {
-          settings.model = model;
-          uiConfig.applyModelDefaults(model, settings);
-        });
         if (didProviderChange) {
           await onProviderChanged?.(newProvider);
         }
-        await uiConfig.prepareModelMetadata?.(model, plugin.settings, { plugin });
+        await prepareSelectedModelMetadata(uiConfig, model, plugin);
         tab.ui.thinkingBudgetSelector?.updateDisplay();
         tab.ui.serviceTierToggle?.updateDisplay();
         tab.ui.modelSelector?.updateDisplay();
@@ -1249,7 +1425,12 @@ function initializeInputToolbar(
         settings.model = model;
         uiConfig.applyModelDefaults(model, settings);
       });
-      await uiConfig.prepareModelMetadata?.(model, plugin.settings, { plugin });
+      await prepareSelectedModelMetadata(uiConfig, model, plugin);
+      // The saved model now owns the display state; release a previous Auto
+      // selection only after that durable boundary.
+      tab.autoModelActive = false;
+      tab.routedModel = null;
+      tab.draftModel = null;
       tab.ui.thinkingBudgetSelector?.updateDisplay();
       tab.ui.serviceTierToggle?.updateDisplay();
       tab.ui.modelSelector?.updateDisplay();

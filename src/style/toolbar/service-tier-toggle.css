@@ -13,14 +13,15 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
-  min-height: 26px;
+  min-height: 30px;
+  height: 30px;
   margin: 0;
-  padding: 2px 9px 2px 7px;
+  padding: 3px 9px 3px 8px;
   overflow: hidden;
   border: 1px solid var(--cl-border-subtle);
-  border-radius: var(--cl-radius-pill);
+  border-radius: 10px;
   color: var(--text-muted);
-  background: var(--cl-surface-raised);
+  background: color-mix(in srgb, var(--cl-surface-raised) 92%, transparent);
   box-shadow: none;
   font: inherit;
   cursor: pointer;
@@ -33,14 +34,7 @@
 }
 
 .claudian-service-tier-button::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent 58%);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 160ms var(--cl-ease-out);
+  content: none;
 }
 
 .claudian-service-tier-icon {
@@ -74,7 +68,7 @@
 .claudian-service-tier-button:focus-visible {
   outline: none;
   border-color: var(--cl-speed-line);
-  box-shadow: 0 0 0 3px rgba(var(--cl-speed-rgb), 0.18);
+  box-shadow: 0 0 0 3px rgba(var(--cl-speed-rgb), 0.14);
 }
 
 .claudian-service-tier-button:active {
@@ -83,17 +77,9 @@
 
 .claudian-service-tier-button.active {
   color: var(--cl-speed);
-  background:
-    linear-gradient(
-      180deg,
-      rgba(var(--cl-speed-rgb), 0.32) 0%,
-      rgba(var(--cl-speed-rgb), 0.14) 100%
-    );
+  background: var(--cl-speed-soft);
   border-color: var(--cl-speed-line);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 245, 210, 0.28),
-    0 0 0 1px rgba(var(--cl-speed-rgb), 0.1),
-    0 4px 14px rgba(var(--cl-speed-rgb), 0.2);
+  box-shadow: inset 0 0 0 1px rgba(var(--cl-speed-rgb), 0.08);
 }
 
 .claudian-service-tier-button.active::before {
@@ -104,15 +90,13 @@
   fill: currentColor;
   stroke: currentColor;
   stroke-width: 1.4;
-  filter: drop-shadow(0 0 4px rgba(var(--cl-speed-rgb), 0.55));
+  filter: none;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .claudian-service-tier-button.active:hover {
-    box-shadow:
-      inset 0 1px 0 rgba(255, 245, 210, 0.34),
-      0 0 0 1px rgba(var(--cl-speed-rgb), 0.16),
-      0 6px 16px rgba(var(--cl-speed-rgb), 0.26);
+    background: color-mix(in srgb, var(--cl-speed) 22%, transparent);
+    box-shadow: inset 0 0 0 1px rgba(var(--cl-speed-rgb), 0.12);
   }
 }
 
@@ -145,7 +129,18 @@
   }
 
   .claudian-service-tier-button {
-    width: 26px;
+    width: 30px;
+    padding: 0;
+  }
+}
+
+@container claudian-composer (max-width: 380px) {
+  .claudian-service-tier-label {
+    display: none;
+  }
+
+  .claudian-service-tier-button {
+    width: 30px;
     padding: 0;
   }
 }

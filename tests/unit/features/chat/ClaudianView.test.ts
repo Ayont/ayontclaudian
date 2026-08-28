@@ -1,9 +1,14 @@
 import { createMockEl } from '@test/helpers/mockElement';
-import { Platform, Scope } from 'obsidian';
+import { Menu, Modal, Platform, Scope } from 'obsidian';
 
+import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ClaudianView } from '@/features/chat/ClaudianView';
 
 const MockScope = Scope as typeof Scope & { instances: Scope[] };
+const MockMenu = Menu as typeof Menu & {
+  instances: Array<{ items: Array<{ clickHandler: (() => void) | null }> }>;
+};
+const MockModal = Modal as typeof Modal & { instances: Modal[] };
 
 function createViewHarness(options: {
   canCreateTab: boolean;
@@ -83,6 +88,157 @@ describe('ClaudianView tab controls', () => {
     }
     const historyButton = buttons.find((button) => button.getAttribute('aria-label') === 'Chat-Verlauf');
     expect(historyButton?.getAttribute('aria-expanded')).toBe('false');
+  });
+});
+
+describe('ClaudianView workspace model picker', () => {
+  beforeEach(() => {
+    MockMenu.instances.length = 0;
+    MockModal.instances.length = 0;
+  });
+
+  it('returns the pending persistence promise to the model picker', async () => {
+    let releaseSave!: () => void;
+    const saveSettings = jest.fn().mockImplementation(() => new Promise<void>((resolve) => {
+      releaseSave = resolve;
+    }));
+    const view = Object.create(ClaudianView.prototype) as any;
+    view.plugin = {
+      app: {},
+      settings: {
+        workspaceModeModels: { code: 'old-model' },
+      },
+      saveSettings,
+    };
+    view.tabManager = { getActiveTab: jest.fn().mockReturnValue(null) };
+    view.workspaceModeToggle = { render: jest.fn() };
+    view.resolveActiveWorkspaceMode = jest.fn().mockReturnValue('work');
+    jest.spyOn(ProviderRegistry, 'getAggregatedModelOptions').mockReturnValue([
+      { value: 'new-model', label: 'New model' },
+    ]);
+
+    view.openModeModelMenu('code', { clientX: 0 } as MouseEvent);
+    const menu = MockMenu.instances.at(-1)!;
+    menu.items[0].clickHandler?.();
+    const modal = MockModal.instances.at(-1) as any;
+
+    const selectionResult = modal.onSelect('new-model');
+    releaseSave();
+    await Promise.resolve();
+
+    expect(selectionResult).toBeInstanceOf(Promise);
+    await selectionResult;
+    expect(view.plugin.settings.workspaceModeModels.code).toBe('new-model');
+  });
+
+  it('restores the workspace model binding when persistence fails', async () => {
+    const saveError = new Error('settings disk unavailable');
+    const previousModeModels = { code: 'old-model', work: 'work-model' };
+    const view = Object.create(ClaudianView.prototype) as any;
+    view.plugin = {
+      app: {},
+      settings: { workspaceModeModels: previousModeModels },
+      saveSettings: jest.fn().mockRejectedValue(saveError),
+    };
+    view.tabManager = { getActiveTab: jest.fn().mockReturnValue(null) };
+    view.workspaceModeToggle = { render: jest.fn() };
+    view.resolveActiveWorkspaceMode = jest.fn().mockReturnValue('work');
+    jest.spyOn(ProviderRegistry, 'getAggregatedModelOptions').mockReturnValue([
+      { value: 'new-model', label: 'New model' },
+    ]);
+
+    view.openModeModelMenu('code', { clientX: 0 } as MouseEvent);
+    MockMenu.instances.at(-1)!.items[0].clickHandler?.();
+    const modal = MockModal.instances.at(-1) as any;
+
+    await expect(modal.onSelect('new-model')).rejects.toBe(saveError);
+    expect(view.plugin.settings.workspaceModeModels).toBe(previousModeModels);
+    expect(view.workspaceModeToggle.render).not.toHaveBeenCalled();
+  });
+
+  it('restores a failed workspace model unpin without an unhandled rejection', async () => {
+    const saveError = new Error('settings disk unavailable');
+    const previousModeModels = { code: 'old-model' };
+    const view = Object.create(ClaudianView.prototype) as any;
+    view.plugin = {
+      app: {},
+      settings: { workspaceModeModels: previousModeModels },
+      saveSettings: jest.fn().mockRejectedValue(saveError),
+    };
+    view.tabManager = { getActiveTab: jest.fn().mockReturnValue(null) };
+    view.workspaceModeToggle = { render: jest.fn() };
+    jest.spyOn(ProviderRegistry, 'getAggregatedModelOptions').mockReturnValue([]);
+
+    view.openModeModelMenu('code', { clientX: 0 } as MouseEvent);
+    MockMenu.instances.at(-1)!.items[1].clickHandler?.();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(view.plugin.settings.workspaceModeModels).toBe(previousModeModels);
+    expect(view.workspaceModeToggle.render).not.toHaveBeenCalled();
+  });
+
+  it('preserves a newer workspace model pin when an older save fails', async () => {
+    let rejectFirstSave!: (error: Error) => void;
+    let saveCall = 0;
+    const view = Object.create(ClaudianView.prototype) as any;
+    view.plugin = {
+      settings: { workspaceModeModels: { code: 'old-model' } },
+      saveSettings: jest.fn().mockImplementation(() => {
+        saveCall += 1;
+        if (saveCall === 1) {
+          return new Promise<void>((_resolve, reject) => {
+            rejectFirstSave = reject;
+          });
+        }
+        return Promise.resolve();
+      }),
+    };
+    view.workspaceModeToggle = { render: jest.fn() };
+    view.resolveActiveWorkspaceMode = jest.fn().mockReturnValue('work');
+
+    const firstPin = view.persistWorkspaceModeModelBinding('code', 'first-model');
+    const secondPin = view.persistWorkspaceModeModelBinding('code', 'second-model');
+    expect(view.plugin.saveSettings).toHaveBeenCalledTimes(1);
+    const firstError = new Error('older settings save failed');
+    const firstFailure = firstPin.catch((error: unknown) => error);
+    rejectFirstSave(firstError);
+    await expect(firstFailure).resolves.toBe(firstError);
+    await secondPin;
+
+    expect(view.plugin.saveSettings).toHaveBeenCalledTimes(2);
+    expect(view.plugin.settings.workspaceModeModels.code).toBe('second-model');
+  });
+
+  it('restores the original workspace model when two queued saves both fail', async () => {
+    const rejectSaves: Array<(error: Error) => void> = [];
+    const previousModeModels = { code: 'old-model' };
+    const view = Object.create(ClaudianView.prototype) as any;
+    view.plugin = {
+      settings: { workspaceModeModels: previousModeModels },
+      saveSettings: jest.fn().mockImplementation(() => new Promise<void>((_resolve, reject) => {
+        rejectSaves.push(reject);
+      })),
+    };
+    view.workspaceModeToggle = { render: jest.fn() };
+    view.resolveActiveWorkspaceMode = jest.fn().mockReturnValue('work');
+
+    const firstError = new Error('first settings save failed');
+    const secondError = new Error('second settings save failed');
+    const firstPin = view.persistWorkspaceModeModelBinding('code', 'first-model');
+    const secondPin = view.persistWorkspaceModeModelBinding('code', 'second-model');
+    const firstFailure = firstPin.catch((error: unknown) => error);
+    const secondFailure = secondPin.catch((error: unknown) => error);
+
+    expect(view.plugin.saveSettings).toHaveBeenCalledTimes(1);
+    rejectSaves[0](firstError);
+    await expect(firstFailure).resolves.toBe(firstError);
+    expect(view.plugin.saveSettings).toHaveBeenCalledTimes(2);
+    rejectSaves[1](secondError);
+    await expect(secondFailure).resolves.toBe(secondError);
+
+    expect(view.plugin.settings.workspaceModeModels).toBe(previousModeModels);
+    expect(view.workspaceModeToggle.render).not.toHaveBeenCalled();
   });
 });
 

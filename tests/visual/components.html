@@ -38,6 +38,26 @@
     .harness-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
     .harness-workflow-host { position: relative; min-height: 230px; }
     .harness-library-host { position: relative; width: 100%; height: 580px; overflow: hidden; }
+    .harness-model-picker-host { width: min(100%, 560px); }
+    /* Reproduce Obsidian themes that force generic buttons into a fixed,
+       bevelled 30px control. Product selectors must neutralize this chrome. */
+    .harness-obsidian-button-conflict .modal button:not(.clickable-icon) {
+      height: 30px !important;
+      min-height: 30px !important;
+      padding: 6px 14px !important;
+      border: 1px solid rgba(255, 255, 255, 0.16) !important;
+      border-radius: 10px !important;
+      color: #ededf4 !important;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02)) !important;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+      transform: none !important;
+    }
+    .harness-obsidian-button-conflict .modal button:not(.clickable-icon):hover {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(124, 58, 237, 0.28)) !important;
+      border-color: rgba(192, 132, 252, 0.7) !important;
+      box-shadow: 0 6px 25px rgba(124, 58, 237, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
+      transform: translateY(-1px) !important;
+    }
     /* Stand-in for setIcon's injected SVG so layout/box sizing is representative. */
     .harness-section svg { width: 100%; height: 100%; }
   </style>
@@ -114,6 +134,111 @@
             <span class="claudian-service-tier-label">Fast</span>
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Model picker under hostile Obsidian button defaults -->
+  <div class="harness-section claudian-container harness-obsidian-button-conflict" data-vis="model-picker">
+    <div class="harness-label">Modellpicker · Host-Konflikt</div>
+    <div class="harness-model-picker-host">
+      <section class="modal claudian-model-select-modal" role="dialog" aria-modal="true" aria-labelledby="model-picker-title">
+        <h2 class="modal-title" id="model-picker-title">Modell wählen</h2>
+        <div class="modal-content claudian-model-select-content">
+          <div class="claudian-model-select-frame">
+            <div class="claudian-model-select-summary"><span>62 Modelle · 11 Anbieter</span><span class="claudian-model-select-summary-hint">Esc zum Schließen</span></div>
+            <div class="claudian-model-select-search"><input class="claudian-model-select-search-input" type="search" placeholder="Modelle durchsuchen…" aria-label="Modelle durchsuchen" /></div>
+            <div class="claudian-model-select-list" role="listbox" aria-label="Verfügbare Modelle">
+              <div class="claudian-model-select-group">Codex</div>
+              <button class="claudian-model-select-option" type="button" data-provider="codex" aria-pressed="false">
+                <span class="claudian-model-select-option-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3.2a4.5 4.5 0 0 1 7.8 4.5 4.5 4.5 0 0 1 0 9 4.5 4.5 0 0 1-7.8 4.5 4.5 4.5 0 0 1-7.8-4.5 4.5 4.5 0 0 1 0-9A4.5 4.5 0 0 1 12 3.2Z"/><path d="m8.2 9.8 3.8-2.2 3.8 2.2v4.4L12 16.4l-3.8-2.2Z"/></svg></span>
+                <span class="claudian-model-select-option-label">GPT-5.6 Luna</span>
+              </button>
+              <button class="claudian-model-select-option is-selected" type="button" data-provider="codex" aria-pressed="true" aria-current="true">
+                <span class="claudian-model-select-option-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3.2a4.5 4.5 0 0 1 7.8 4.5 4.5 4.5 0 0 1 0 9 4.5 4.5 0 0 1-7.8 4.5 4.5 4.5 0 0 1-7.8-4.5 4.5 4.5 0 0 1 0-9A4.5 4.5 0 0 1 12 3.2Z"/><path d="m8.2 9.8 3.8-2.2 3.8 2.2v4.4L12 16.4l-3.8-2.2Z"/></svg></span>
+                <span class="claudian-model-select-option-label">GPT-5.6 Sol</span>
+                <span class="claudian-model-select-option-description">Leistungsstarkes Codex-Modell für komplexe, agentische Aufgaben</span>
+                <span class="claudian-model-select-option-check" aria-hidden="true">✓</span>
+              </button>
+              <button class="claudian-model-select-option" type="button" data-provider="codex" aria-pressed="false" data-preview-interaction="true">
+                <span class="claudian-model-select-option-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3.2a4.5 4.5 0 0 1 7.8 4.5 4.5 4.5 0 0 1 0 9 4.5 4.5 0 0 1-7.8 4.5 4.5 4.5 0 0 1-7.8-4.5 4.5 4.5 0 0 1 0-9A4.5 4.5 0 0 1 12 3.2Z"/><path d="m8.2 9.8 3.8-2.2 3.8 2.2v4.4L12 16.4l-3.8-2.2Z"/></svg></span>
+                <span class="claudian-model-select-option-label">GPT-5.6 Terra</span>
+                <span class="claudian-model-select-option-description">Balanciertes Modell für längere Entwicklungsaufgaben</span>
+              </button>
+              <div class="claudian-model-select-option" data-provider="codex" data-model-value="gpt-5.5" role="group" aria-label="GPT-5.5">
+                <span class="claudian-model-select-option-icon" aria-hidden="true">◉</span>
+                <span class="claudian-model-select-option-label">GPT-5.5</span>
+                <div class="claudian-model-select-efforts">
+                  <button class="claudian-model-select-effort is-active" type="button" aria-pressed="true">High</button>
+                  <button class="claudian-model-select-effort" type="button" aria-pressed="false">XHigh</button>
+                </div>
+                <span class="claudian-model-select-option-description">Denkaufwand direkt am Modell wählen</span>
+              </div>
+              <div class="claudian-model-select-group">OpenCode</div>
+              <button class="claudian-model-select-option" type="button" data-provider="opencode" aria-pressed="false">
+                <span class="claudian-model-select-option-icon" aria-hidden="true">◧</span>
+                <span class="claudian-model-select-option-label">opencode-go/deepseek-v4-flash-vision-exp</span>
+                <span class="claudian-model-select-option-description">Experimentelles Vision-Modell mit besonders langem Katalognamen</span>
+              </button>
+              <button class="claudian-model-select-option" type="button" data-provider="opencode" aria-pressed="false">
+                <span class="claudian-model-select-option-icon" aria-hidden="true">◧</span>
+                <span class="claudian-model-select-option-label">opencode-go/glm-5.3-flash</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Complete composer toolbar using the production grouping hierarchy -->
+  <div class="harness-section claudian-container" data-vis="composer-toolbar">
+    <div class="harness-label">Composer-Toolbar</div>
+    <div class="claudian-input-wrapper">
+      <textarea class="claudian-input" rows="2" readonly aria-label="Nachricht">Was bauen wir?</textarea>
+      <div class="claudian-input-toolbar">
+        <div class="claudian-toolbar-control-group">
+          <div class="claudian-toolbar-primary-group">
+            <div class="claudian-model-selector">
+              <button class="claudian-model-btn" type="button" aria-label="Modell wählen">
+                <span class="claudian-model-provider-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3.2a4.5 4.5 0 0 1 7.8 4.5 4.5 4.5 0 0 1 0 9 4.5 4.5 0 0 1-7.8 4.5 4.5 4.5 0 0 1-7.8-4.5 4.5 4.5 0 0 1 0-9A4.5 4.5 0 0 1 12 3.2Z"/></svg></span>
+                <span class="claudian-model-label">GPT-5.6 Sol</span><span class="claudian-model-provider-name">Codex</span>
+              </button>
+            </div>
+            <div class="claudian-thinking-selector">
+              <div class="claudian-thinking-effort"><span class="claudian-thinking-label-text">Aufwand:</span><div class="claudian-thinking-gears"><button class="claudian-thinking-current" type="button" aria-label="Denkaufwand wählen"><span class="claudian-thinking-current-text">XHigh</span></button></div></div>
+            </div>
+            <div class="claudian-service-tier-toggle">
+              <button class="claudian-service-tier-button active" type="button" aria-pressed="true" aria-label="Fast-Modus aktiv">
+                <span class="claudian-service-tier-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg></span><span class="claudian-service-tier-label">Fast</span>
+              </button>
+            </div>
+          </div>
+          <div class="claudian-toolbar-context-group">
+            <div class="claudian-context-meter" data-tooltip="162k / 272k">
+              <div class="claudian-context-meter-gauge"><svg viewBox="0 0 16 16" aria-hidden="true"><path class="claudian-meter-bg" d="M1.94 11.5 A7 7 0 1 1 14.06 11.5" fill="none" stroke-width="2" stroke-linecap="round"/><path class="claudian-meter-fill" d="M1.94 11.5 A7 7 0 1 1 14.06 11.5" fill="none" stroke-width="2" stroke-linecap="round" stroke-dasharray="29.32" stroke-dashoffset="12.02"/></svg></div><span class="claudian-context-meter-percent">59%</span>
+            </div>
+            <div class="claudian-external-context-selector">
+              <button class="claudian-external-context-icon-wrapper" type="button" aria-label="Externen Kontext hinzufügen"><span class="claudian-external-context-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h6l2 2h10v10H3z"/></svg></span><span class="claudian-external-context-badge"></span></button>
+              <div class="claudian-external-context-dropdown" aria-hidden="true"></div>
+            </div>
+            <div class="claudian-mcp-selector">
+              <button class="claudian-mcp-selector-icon-wrapper" type="button" aria-label="MCP-Server verwalten" aria-expanded="false"><span class="claudian-mcp-selector-icon active" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 8h8v8H8zM3 12h5m8 0h5M12 3v5m0 8v5"/></svg></span><span class="claudian-mcp-selector-badge visible">2</span></button>
+              <div class="claudian-mcp-selector-dropdown" aria-hidden="true"></div>
+            </div>
+          </div>
+        </div>
+        <div class="claudian-toolbar-mode-group">
+          <div class="claudian-permission-toggle"><span class="claudian-permission-label auto-active">AUTO</span><button class="claudian-toggle-switch active auto" type="button" role="switch" aria-checked="true" aria-label="Berechtigungsmodus: AUTO"></button></div>
+        </div>
+        <div class="claudian-os-actions">
+          <button class="claudian-command-center-trigger" type="button" aria-label="Produktivitätszentrale öffnen"><span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="m12 12 4-3"/></svg></span></button>
+          <button class="claudian-os-action-button" type="button" aria-label="Dashboard"><span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></span></button>
+          <button class="claudian-os-action-button is-active" type="button" aria-label="Multi-Agent-Modus umschalten" aria-pressed="true"><span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2"/><path d="M3 20c0-4 2-6 6-6s6 2 6 6m0-5c3 0 5 2 5 5"/></svg></span></button>
+          <button class="claudian-os-action-button" type="button" aria-label="Index RAG"><span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></span></button>
+        </div>
+        <span class="claudian-composer-hint">⌘↵</span>
+        <button class="claudian-send-btn is-ready" type="button" aria-label="Senden"><span class="claudian-send-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 12 6-6 6 6M12 6v12"/></svg></span></button>
       </div>
     </div>
   </div>

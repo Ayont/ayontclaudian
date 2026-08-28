@@ -32,6 +32,7 @@ describe('prepareDisplayOnlyCodeFences', () => {
     expect(prepared.markdown).toContain('claudian-display-only-fence-1');
     expect(prepared.fences.map((fence) => fence.originalLanguage)).toEqual(['js', 'templater']);
   });
+
 });
 
 describe('restoreDisplayOnlyCodeFences', () => {
@@ -45,5 +46,19 @@ describe('restoreDisplayOnlyCodeFences', () => {
     ]);
 
     expect(code.className).toBe('language-dataview');
+  });
+
+  it('restores the code element when Obsidian adds the placeholder to pre and code', async () => {
+    const root = createMockEl();
+    const pre = root.createEl('pre');
+    pre.className = 'language-claudian-display-only-fence-0';
+    const code = pre.createEl('code');
+    code.className = 'language-claudian-display-only-fence-0';
+
+    await restoreDisplayOnlyCodeFences(root as unknown as HTMLElement, [
+      { placeholderLanguage: 'claudian-display-only-fence-0', originalLanguage: 'claudian-document' },
+    ]);
+
+    expect(code.className).toBe('language-claudian-document');
   });
 });

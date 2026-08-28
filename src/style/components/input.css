@@ -15,6 +15,8 @@
   position: relative;
   display: flex;
   flex-direction: column;
+  container-name: claudian-composer;
+  container-type: inline-size;
   min-height: 118px;
   isolation: isolate;
   overflow: hidden;
@@ -147,26 +149,61 @@ body.theme-light .claudian-input-wrapper {
 
 /* Input toolbar */
 .claudian-input-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "controls modes modes"
+    "actions hint send";
+  align-items: center;
+  flex-shrink: 0;
+  gap: 8px 10px;
+  padding: 6px 10px 10px;
+}
+
+.claudian-toolbar-control-group {
+  grid-area: controls;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  flex-shrink: 0;
   flex-wrap: wrap;
+  gap: 7px;
+  min-width: 0;
+}
+
+.claudian-toolbar-primary-group,
+.claudian-toolbar-context-group,
+.claudian-toolbar-mode-group {
+  display: flex;
+  align-items: center;
   gap: 6px;
-  padding: 4px 10px 10px;
+  min-width: 0;
+}
+
+.claudian-toolbar-primary-group {
+  flex-wrap: wrap;
+}
+
+.claudian-toolbar-context-group {
+  padding-inline-start: 7px;
+  border-inline-start: 1px solid var(--cl-border-subtle);
+}
+
+.claudian-toolbar-mode-group {
+  grid-area: modes;
+  justify-self: end;
+  gap: 10px;
 }
 
 .claudian-command-center-trigger {
   appearance: none;
   display: inline-flex;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
   margin: 0;
   border: 1px solid var(--cl-border-subtle);
-  border-radius: var(--cl-radius-pill);
+  border-radius: 10px;
   color: var(--text-muted);
   background: var(--cl-surface-raised);
   box-shadow: none;
@@ -179,6 +216,7 @@ body.theme-light .claudian-input-wrapper {
 .claudian-command-center-trigger svg { width: 14px; height: 14px; }
 
 .claudian-composer-hint {
+  grid-area: hint;
   margin-inline-start: auto;
   color: var(--text-faint);
   font-family: var(--cl-font-ui);
@@ -188,6 +226,7 @@ body.theme-light .claudian-input-wrapper {
 }
 
 .claudian-send-btn {
+  grid-area: send;
   appearance: none;
   display: inline-flex;
   align-items: center;
@@ -198,7 +237,7 @@ body.theme-light .claudian-input-wrapper {
   margin: 0;
   padding: 0;
   border: 1px solid var(--cl-border-subtle);
-  border-radius: var(--cl-radius-pill);
+  border-radius: 10px;
   background: var(--cl-surface-sunken);
   box-shadow: none;
   font: inherit;
@@ -210,6 +249,70 @@ body.theme-light .claudian-input-wrapper {
     border-color var(--cl-dur-fast) var(--cl-ease),
     transform var(--cl-dur-fast) var(--cl-ease),
     box-shadow var(--cl-dur-fast) var(--cl-ease);
+}
+
+@media (max-width: 560px) {
+  .claudian-input-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "controls controls"
+      "modes modes"
+      "actions send";
+  }
+
+  .claudian-toolbar-mode-group {
+    justify-self: stretch;
+    justify-content: flex-end;
+    padding-top: 2px;
+  }
+
+  .claudian-composer-hint {
+    display: none;
+  }
+}
+
+@media (max-width: 380px) {
+  .claudian-toolbar-control-group {
+    gap: 6px;
+  }
+
+  .claudian-toolbar-context-group {
+    padding-inline-start: 0;
+    border-inline-start: 0;
+  }
+}
+
+/* Obsidian panes can be narrow inside a wide desktop window. Mirror the
+   viewport fallbacks against the composer itself so sidebar layouts reflow. */
+@container claudian-composer (max-width: 560px) {
+  .claudian-input-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "controls controls"
+      "modes modes"
+      "actions send";
+  }
+
+  .claudian-toolbar-mode-group {
+    justify-self: stretch;
+    justify-content: flex-end;
+    padding-top: 2px;
+  }
+
+  .claudian-composer-hint {
+    display: none;
+  }
+}
+
+@container claudian-composer (max-width: 380px) {
+  .claudian-toolbar-control-group {
+    gap: 6px;
+  }
+
+  .claudian-toolbar-context-group {
+    padding-inline-start: 0;
+    border-inline-start: 0;
+  }
 }
 
 /* Composer-adjacent controls use native button semantics. Keep their existing

@@ -37,14 +37,15 @@
   display: flex;
   align-items: center;
   gap: var(--cl-space-1);
-  min-height: 28px;
+  min-height: 30px;
+  max-width: min(100%, 260px);
   margin: 0;
-  padding: 3px 10px;
+  padding: 4px 8px 4px 9px;
   border: 1px solid var(--cl-border-subtle);
-  border-radius: var(--cl-radius-pill);
+  border-radius: 10px;
   cursor: pointer;
   color: var(--text-normal);
-  background: var(--cl-surface-raised);
+  background: color-mix(in srgb, var(--cl-surface-raised) 92%, transparent);
   box-shadow: none;
   font-family: var(--cl-font-ui);
   font-size: var(--cl-text-sm);
@@ -77,6 +78,11 @@
 
 .claudian-model-btn:hover,
 .claudian-model-btn--open {
+  background: var(--background-modifier-hover);
+  border-color: var(--cl-border-strong);
+}
+
+.claudian-model-btn--open {
   background: var(--cl-accent-soft);
   border-color: var(--cl-accent-line);
 }
@@ -97,7 +103,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 650;
+  font-weight: 620;
 }
 
 .claudian-model-provider-mark {
@@ -149,8 +155,11 @@
 }
 
 .claudian-model-chevron {
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
+  margin-inline-start: 1px;
+  color: var(--text-faint);
   transition: transform var(--cl-dur-fast) var(--cl-ease);
 }
 

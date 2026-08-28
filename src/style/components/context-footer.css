@@ -5,7 +5,12 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-inline-start: 8px;
+  min-height: 30px;
+  margin-inline-start: 0;
+  padding: 0 7px;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--cl-surface-raised) 88%, transparent);
   cursor: default;
 }
 
@@ -40,8 +45,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 18px;
+  height: 28px;
 }
 
 .claudian-context-meter-gauge svg {
@@ -59,7 +64,8 @@
 }
 
 .claudian-context-meter-percent {
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 600;
   color: var(--claudian-brand);
   min-width: 24px;
   text-align: end;

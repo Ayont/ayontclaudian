@@ -9,12 +9,13 @@ export class ModelSelectModal extends Modal {
   private filter = '';
   private listEl: HTMLElement | null = null;
   private searchInput: HTMLInputElement | null = null;
+  private selecting = false;
 
   constructor(
     app: App,
     private readonly models: ProviderUIOption[],
     private readonly currentModel: string,
-    private readonly onSelect: (value: string) => void,
+    private readonly onSelect: (value: string) => void | Promise<void>,
   ) {
     super(app);
   }
@@ -103,8 +104,12 @@ export class ModelSelectModal extends Modal {
       optionEl.setAttribute('role', 'group');
       optionEl.setAttribute('aria-label', family.familyLabel);
     }
+    optionEl.dataset.modelValue = family.primaryValue;
     if (family.providerId) optionEl.dataset.provider = family.providerId;
-    if (selectedValue) optionEl.addClass('is-selected');
+    if (selectedValue) {
+      optionEl.addClass('is-selected');
+      optionEl.setAttribute('aria-current', 'true');
+    }
     if (family.primaryValue === AUTO_MODEL_VALUE) optionEl.addClass('is-auto');
 
     if (family.providerIcon) {
@@ -137,8 +142,7 @@ export class ModelSelectModal extends Modal {
         if (variant.value === this.currentModel) chip.addClass('is-active');
         chip.addEventListener('click', (event) => {
           event.stopPropagation();
-          this.onSelect(variant.value);
-          this.close();
+          void this.selectModel(variant.value);
         });
       }
     }
@@ -155,9 +159,26 @@ export class ModelSelectModal extends Modal {
 
     if (!hasVariants) {
       optionEl.addEventListener('click', () => {
-        this.onSelect(selectedValue ?? family.primaryValue);
-        this.close();
+        void this.selectModel(selectedValue ?? family.primaryValue);
       });
+    }
+  }
+
+  private async selectModel(value: string): Promise<void> {
+    if (this.selecting) return;
+    this.selecting = true;
+    this.modalEl.addClass('is-selecting');
+    this.listEl?.setAttribute('aria-busy', 'true');
+
+    try {
+      await this.onSelect(value);
+      this.close();
+    } catch {
+      // The caller owns the provider-specific error notice. Keep the picker
+      // open so the previous model remains visible and another choice is possible.
+      this.selecting = false;
+      this.modalEl.removeClass('is-selecting');
+      this.listEl?.removeAttribute('aria-busy');
     }
   }
 

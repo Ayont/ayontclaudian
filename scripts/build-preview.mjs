@@ -398,15 +398,52 @@ const chrome = `
   <div>
     <div style="font-size:11px;color:var(--text-faint);margin-bottom:8px;">COMPOSER TOOLBAR</div>
     <div class="claudian-input-wrapper claudian-input-speed-mode" style="max-width:720px;">
+      <textarea class="claudian-input" rows="2" placeholder="Was bauen wir?"></textarea>
       <div class="claudian-input-toolbar">
-        <button class="claudian-model-btn" data-provider="kimi" type="button"><span class="claudian-model-provider-mark"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><circle cx="12" cy="12" r="9"/></svg></span><span class="claudian-model-label">K3</span><span class="claudian-model-provider-name">Kimi</span></button>
-        <div class="claudian-thinking-selector">
-          <button class="claudian-thinking-effort" type="button" aria-label="Denkaufwand: Hoch"><span class="claudian-thinking-label-text">Denken:</span><span class="claudian-thinking-gears"><span class="claudian-thinking-current">Hoch</span></span></button>
+        <div class="claudian-toolbar-control-group">
+          <div class="claudian-toolbar-primary-group">
+            <div class="claudian-model-selector">
+              <button class="claudian-model-btn" data-provider="codex" type="button" aria-haspopup="dialog" aria-label="Modell wählen: GPT-5.6 Sol">
+                <span class="claudian-model-provider-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3.2a4.5 4.5 0 0 1 7.8 4.5 4.5 4.5 0 0 1 0 9 4.5 4.5 0 0 1-7.8 4.5 4.5 4.5 0 0 1-7.8-4.5 4.5 4.5 0 0 1 0-9A4.5 4.5 0 0 1 12 3.2Z"/><path d="m8.2 9.8 3.8-2.2 3.8 2.2v4.4L12 16.4l-3.8-2.2Z"/></svg></span>
+                <span class="claudian-model-label">GPT-5.6 Sol</span>
+                <span class="claudian-model-provider-name">Codex</span>
+                <span class="claudian-model-chevron" aria-hidden="true"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></span>
+              </button>
+            </div>
+            <div class="claudian-thinking-selector">
+              <div class="claudian-thinking-effort">
+                <span class="claudian-thinking-label-text">Aufwand:</span>
+                <div class="claudian-thinking-gears">
+                  <button class="claudian-thinking-current" type="button" aria-haspopup="menu" aria-label="Denkaufwand: XHigh">XHigh</button>
+                  <div class="claudian-thinking-options" role="menu" aria-label="Denkaufwand wählen">
+                    <button class="claudian-thinking-gear selected" type="button" role="menuitemradio" aria-checked="true"><span class="claudian-thinking-gear-head"><span class="claudian-thinking-gear-label">XHigh</span></span></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="claudian-service-tier-toggle">
+              <button class="claudian-service-tier-button active" type="button" aria-pressed="true" aria-label="Schnellmodus: ein"><span class="claudian-service-tier-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg></span><span class="claudian-service-tier-label">Fast</span></button>
+            </div>
+          </div>
+          <div class="claudian-toolbar-context-group">
+            <div class="claudian-context-meter" data-tooltip="162k / 272k">
+              <div class="claudian-context-meter-gauge"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path class="claudian-meter-bg" d="M1.94 11.5 A7 7 0 1 1 14.06 11.5" fill="none" stroke-width="2" stroke-linecap="round"/><path class="claudian-meter-fill" d="M1.94 11.5 A7 7 0 1 1 14.06 11.5" fill="none" stroke-width="2" stroke-linecap="round" stroke-dasharray="29.32" stroke-dashoffset="12.02"/></svg></div>
+              <span class="claudian-context-meter-percent">59%</span>
+            </div>
+            <div class="claudian-external-context-selector">
+              <button class="claudian-external-context-icon-wrapper" type="button" aria-label="Externen Kontext hinzufügen"><span class="claudian-external-context-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h6l2 2h10v10H3z"/></svg></span><span class="claudian-external-context-badge"></span></button>
+              <div class="claudian-external-context-dropdown" aria-hidden="true"></div>
+            </div>
+            <div class="claudian-mcp-selector">
+              <button class="claudian-mcp-selector-icon-wrapper" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="MCP-Server verwalten"><span class="claudian-mcp-selector-icon active" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="8" width="8" height="8" rx="2"/><path d="M3 12h5m8 0h5M12 3v5m0 8v5"/></svg></span><span class="claudian-mcp-selector-badge visible">2</span></button>
+              <div class="claudian-mcp-selector-dropdown" role="menu" aria-label="MCP-Server"></div>
+            </div>
+          </div>
         </div>
-        <button class="claudian-mode-selector" type="button" aria-pressed="true"><span class="claudian-mode-label">Denken</span><span class="claudian-toggle-switch active"></span></button>
-        <span style="font-size:var(--cl-text-xs);color:var(--text-muted);">≈7%</span>
-        <div class="claudian-permission-toggle"><span class="claudian-permission-label auto-active">AUTO</span><div class="claudian-toggle-switch active auto"></div></div>
-        <div class="claudian-service-tier-toggle"><button class="claudian-service-tier-button active" type="button" aria-pressed="true" aria-label="Fast"><span class="claudian-service-tier-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg></span><span class="claudian-service-tier-label">Fast</span></button></div>
+        <div class="claudian-toolbar-mode-group">
+          <div class="claudian-permission-toggle"><span class="claudian-permission-label auto-active">AUTO</span><button class="claudian-toggle-switch active auto" type="button" role="switch" aria-checked="true" aria-label="Berechtigungsmodus: AUTO"></button></div>
+          <div class="claudian-mode-selector"><span class="claudian-mode-label active">Denken</span><button class="claudian-toggle-switch active" type="button" role="switch" aria-checked="true" aria-label="Modus: Denken"></button></div>
+        </div>
         <div class="claudian-os-actions">
           <button class="claudian-command-center-trigger" type="button"><span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg></span></button>
           <button class="claudian-os-action-button" type="button"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></button>
@@ -417,7 +454,6 @@ const chrome = `
         <span class="claudian-composer-hint">⌘↵</span>
         <button class="claudian-send-btn is-ready" type="button" aria-label="Senden"><span class="claudian-send-btn-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></span></button>
       </div>
-      <textarea class="claudian-input" rows="2" placeholder="Was bauen wir?"></textarea>
     </div>
   </div>
   <div>
@@ -505,6 +541,60 @@ const chrome = `
   </div>
 </div>`;
 
+const modelPicker = `
+<div class="claudian-container pv-model-picker-stage pv-obsidian-button-conflict" data-provider="codex">
+  <section class="modal claudian-model-select-modal" role="dialog" aria-modal="true" aria-labelledby="preview-model-picker-title">
+    <button class="modal-close-button" type="button" aria-label="Schließen">×</button>
+    <h2 class="modal-title" id="preview-model-picker-title">Modell wählen</h2>
+    <div class="modal-content claudian-model-select-content">
+      <div class="claudian-model-select-frame">
+        <div class="claudian-model-select-summary">
+          <span>62 Modelle · 11 Anbieter</span>
+          <span class="claudian-model-select-summary-hint">Esc zum Schließen</span>
+        </div>
+        <div class="claudian-model-select-search">
+          <input class="claudian-model-select-search-input" type="text" placeholder="Modelle durchsuchen…" aria-label="Modelle durchsuchen">
+        </div>
+        <div class="claudian-model-select-list">
+          <div class="claudian-model-select-group">Codex</div>
+          <button class="claudian-model-select-option" type="button" data-provider="codex" data-model-value="gpt-5.6-luna" aria-pressed="false">
+            <span class="claudian-model-select-option-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3.2a4.5 4.5 0 0 1 7.8 4.5 4.5 4.5 0 0 1 0 9 4.5 4.5 0 0 1-7.8 4.5 4.5 4.5 0 0 1-7.8-4.5 4.5 4.5 0 0 1 0-9A4.5 4.5 0 0 1 12 3.2Z"/><path d="m8.2 9.8 3.8-2.2 3.8 2.2v4.4L12 16.4l-3.8-2.2Z"/></svg></span>
+            <span class="claudian-model-select-option-label">GPT-5.6 Luna</span>
+            <span class="claudian-model-select-option-description">Schnelles Codex-Modell für fokussierte Aufgaben und kurze Iterationen</span>
+          </button>
+          <button class="claudian-model-select-option is-selected" type="button" data-provider="codex" data-model-value="gpt-5.6-sol" aria-pressed="true" aria-current="true">
+            <span class="claudian-model-select-option-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3.2a4.5 4.5 0 0 1 7.8 4.5 4.5 4.5 0 0 1 0 9 4.5 4.5 0 0 1-7.8 4.5 4.5 4.5 0 0 1 0-9A4.5 4.5 0 0 1 12 3.2Z"/><path d="m8.2 9.8 3.8-2.2 3.8 2.2v4.4L12 16.4l-3.8-2.2Z"/></svg></span>
+            <span class="claudian-model-select-option-label">GPT-5.6 Sol</span>
+            <span class="claudian-model-select-option-description">Leistungsstarkes Codex-Modell für komplexe, agentische Entwicklungsaufgaben</span>
+            <span class="claudian-model-select-option-check" aria-hidden="true">✓</span>
+          </button>
+          <button class="claudian-model-select-option" type="button" data-provider="codex" data-model-value="gpt-5.6-terra" aria-pressed="false">
+            <span class="claudian-model-select-option-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3.2a4.5 4.5 0 0 1 7.8 4.5 4.5 4.5 0 0 1 0 9 4.5 4.5 0 0 1-7.8 4.5 4.5 4.5 0 0 1-7.8-4.5 4.5 4.5 0 0 1 0-9A4.5 4.5 0 0 1 12 3.2Z"/><path d="m8.2 9.8 3.8-2.2 3.8 2.2v4.4L12 16.4l-3.8-2.2Z"/></svg></span>
+            <span class="claudian-model-select-option-label">GPT-5.6 Terra</span>
+            <span class="claudian-model-select-option-description">Balanciertes Modell für längere Entwicklungsaufgaben und Reviews</span>
+          </button>
+          <div class="claudian-model-select-group">OpenCode</div>
+          <button class="claudian-model-select-option" type="button" data-provider="opencode" data-model-value="opencode-go/deepseek-v4-flash-vision-exp" aria-pressed="false">
+            <span class="claudian-model-select-option-icon" aria-hidden="true">◧</span>
+            <span class="claudian-model-select-option-label">opencode-go/deepseek-v4-flash-vision-exp</span>
+            <span class="claudian-model-select-option-description">Experimentelles Vision-Modell mit einem besonders langen Katalognamen</span>
+          </button>
+          <button class="claudian-model-select-option" type="button" data-provider="opencode" data-model-value="opencode-go/glm-5.3-flash" aria-pressed="false">
+            <span class="claudian-model-select-option-icon" aria-hidden="true">◧</span>
+            <span class="claudian-model-select-option-label">opencode-go/glm-5.3-flash</span>
+            <span class="claudian-model-select-option-description">Schnelles OpenCode-Modell für Codeanalyse und kompakte Änderungen</span>
+          </button>
+          <button class="claudian-model-select-option" type="button" data-provider="opencode" data-model-value="opencode-go/grok-4.6" aria-pressed="false">
+            <span class="claudian-model-select-option-icon" aria-hidden="true">◧</span>
+            <span class="claudian-model-select-option-label">opencode-go/grok-4.6</span>
+            <span class="claudian-model-select-option-description">Allgemeines Modell mit großem Kontextfenster für umfangreiche Repositories</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>`;
+
 const documents = `
 <div class="claudian-container" style="position:relative;min-height:680px;max-width:760px;margin:0 auto;">
   <article class="claudian-live-document theme-technical"><div class="claudian-live-document-toolbar"><div class="claudian-live-document-identity"><span class="claudian-live-document-icon">◆</span><span class="claudian-live-document-label">Live-Dokument</span><span class="claudian-live-document-live">LIVE</span></div><div class="claudian-live-document-actions"><button class="claudian-live-document-action" type="button" aria-label="Design wechseln">◐</button><button class="claudian-live-document-action" type="button" aria-label="Dokument kopieren">□</button><button class="claudian-live-document-action" type="button" aria-label="Dokument speichern">↓</button></div></div><div class="claudian-live-document-viewport" style="max-height:560px"><div class="claudian-live-document-page"><header class="claudian-live-document-masthead"><span class="claudian-live-document-type">Technischer Bericht</span><h1>Claudian Systemstatus</h1><p class="claudian-live-document-subtitle">Provider, Dokumente und Kosten auf einen Blick.</p></header><div class="claudian-live-document-body"><h2>Ergebnis</h2><p>Dokumente bleiben als eigenständige Arbeitsflächen erhalten und werden nicht als gewöhnlicher Chat-Text behandelt.</p><blockquote>Inhalt, Status und nächste Aktion sind klar getrennt.</blockquote></div></div></div><footer class="claudian-live-document-footer"><span>42 Wörter · ca. 1 Seite</span><span>Aktualisiert</span></footer></article>
@@ -521,7 +611,7 @@ const library = `
   <section class="claudian-preview-panel is-open" role="region" aria-label="Dokumentbibliothek"><header class="claudian-preview-header"><div class="claudian-preview-brand"><span class="claudian-preview-header-icon">▤</span><div class="claudian-preview-titles"><span class="claudian-preview-title">Bibliothek</span><span class="claudian-preview-subtitle">Dokumente &amp; Uploads</span></div></div><span class="claudian-preview-count">2</span><button class="claudian-preview-close" type="button" aria-label="Dokumentbibliothek schließen">×</button></header><div class="claudian-preview-content"><div class="claudian-preview-library"><button class="claudian-preview-card claudian-preview-card--vault" type="button"><div class="claudian-preview-card-peek"><span class="claudian-preview-card-kind">Live-Dokument</span><strong>Claudian Systemstatus</strong><p class="claudian-preview-card-excerpt">Provider, Dokumente und Kosten auf einen Blick.</p></div><div class="claudian-preview-card-footer"><span class="claudian-preview-card-name">claudian-systemstatus.md</span><span class="claudian-preview-card-action">Öffnen</span></div></button><button class="claudian-preview-card" type="button"><div class="claudian-preview-card-peek"><span class="claudian-preview-card-kind">Markdown</span><strong>Release-Checkliste</strong><p class="claudian-preview-card-excerpt">Tests, Build und visuelle Abnahme.</p></div><div class="claudian-preview-card-footer"><span class="claudian-preview-card-name">release-checkliste.md</span><span class="claudian-preview-card-action">Öffnen</span></div></button></div></div></section>
 </div>`;
 
-const SURFACES = { Dashboard: dashboard, Chat: chat, 'Chat (Work)': chatWork, Chrome: chrome, Dokumente: documents, Bibliothek: library, Artefakte: artifacts, 'New Project': modal };
+const SURFACES = { Dashboard: dashboard, Chat: chat, 'Chat (Work)': chatWork, Chrome: chrome, Modellpicker: modelPicker, Dokumente: documents, Bibliothek: library, Artefakte: artifacts, 'New Project': modal };
 
 const tabs = Object.keys(SURFACES)
   .map((name, i) => `<button class="pv-tab${i === 0 ? ' is-active' : ''}" data-surface="${name}">${name}</button>`)
@@ -543,6 +633,14 @@ const html = `<!doctype html>
 .pv-spacer { flex: 1; }
 .pv-panel { display: none; padding: 8px; }
 .pv-panel.is-active { display: block; }
+.claudian-container.pv-model-picker-stage { min-height: calc(100vh - 76px); height: auto; display: grid; place-items: center; padding: 16px; box-sizing: border-box; overflow: visible; }
+.pv-model-picker-stage .claudian-model-select-modal { position: relative; margin: 0; }
+.pv-model-picker-stage .modal-close-button { position: absolute; z-index: 2; top: 13px; right: 15px; width: 30px; min-width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; color: var(--text-muted); background: transparent; box-shadow: none; font-size: 21px; line-height: 1; cursor: pointer; }
+.pv-model-picker-stage .modal-close-button:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+/* Exercise the picker under the generic fixed-height button chrome used by
+   several Obsidian themes. The product's scoped reset must still win. */
+.pv-obsidian-button-conflict .modal button:not(.clickable-icon) { height: 30px !important; min-height: 30px !important; padding: 6px 14px !important; border: 1px solid rgba(255,255,255,.16) !important; border-radius: 10px !important; color: #ededf4 !important; background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.02)) !important; box-shadow: 0 4px 14px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.3) !important; transform: none !important; }
+.pv-obsidian-button-conflict .modal button:not(.clickable-icon):hover { background: linear-gradient(180deg, rgba(255,255,255,.2), rgba(124,58,237,.28)) !important; border-color: rgba(192,132,252,.7) !important; box-shadow: 0 6px 25px rgba(124,58,237,.45), inset 0 1px 0 rgba(255,255,255,.5) !important; transform: translateY(-1px) !important; }
 </style>
 <style>${pluginCss}</style>
 </head>

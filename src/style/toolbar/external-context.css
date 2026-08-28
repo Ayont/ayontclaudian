@@ -3,7 +3,7 @@
   position: relative;
   display: flex;
   align-items: center;
-  margin-left: 8px;
+  margin-left: 0;
 }
 
 .claudian-external-context-icon-wrapper {
@@ -13,17 +13,20 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  width: 30px;
+  height: 30px;
   margin: 0;
   padding: 0;
-  border: 0;
-  background: transparent;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--cl-surface-raised) 88%, transparent);
   box-shadow: none;
 }
 
 .claudian-external-context-icon-wrapper:focus-visible,
 .claudian-external-context-lock:focus-visible,
 .claudian-external-context-remove:focus-visible {
-  outline: 2px solid var(--interactive-accent);
+  outline: 2px solid var(--cl-accent-line);
   outline-offset: 2px;
 }
 
@@ -31,14 +34,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   color: var(--text-faint);
   transition: color var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-external-context-icon-wrapper:hover .claudian-external-context-icon {
   color: var(--text-normal);
+}
+
+.claudian-external-context-icon-wrapper:hover {
+  background: var(--background-modifier-hover);
+  border-color: var(--cl-border-strong);
 }
 
 .claudian-external-context-icon.active {

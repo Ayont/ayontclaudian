@@ -3,16 +3,15 @@
   display: flex;
   align-items: center;
   gap: var(--cl-space-2);
-  margin-left: auto;
-  padding-left: var(--cl-space-3);
-  padding-right: var(--cl-space-2);
+  margin-left: 0;
+  padding: 0;
 }
 
 .claudian-permission-label {
   font-family: var(--cl-font-ui);
   font-size: var(--cl-text-xs);
   color: var(--text-muted);
-  min-width: 28px;
+  min-width: 0;
 }
 
 .claudian-permission-label.plan-active {
@@ -101,13 +100,12 @@
 
 /* AUTO knob: brighter fill + accent halo to signal the stronger, unattended mode. */
 .claudian-toggle-switch.active.auto {
-  background: rgba(var(--cl-accent-rgb), 0.22);
+  background: var(--cl-accent-soft);
   border-color: var(--cl-accent);
-  box-shadow: 0 0 0 1px rgba(var(--cl-accent-rgb), 0.30),
-    0 0 8px rgba(var(--cl-accent-rgb), 0.40);
+  box-shadow: inset 0 0 0 1px rgba(var(--cl-accent-rgb), 0.16);
 }
 
 .claudian-toggle-switch.active.auto::after {
   background: var(--cl-accent);
-  box-shadow: 0 0 6px rgba(var(--cl-accent-rgb), 0.85);
+  box-shadow: var(--cl-shadow-sm);
 }
