@@ -42,7 +42,8 @@ import {
 } from '../../../utils/animationFrame';
 import { formatDurationMmSs } from '../../../utils/date';
 import { extractDiffData } from '../../../utils/diff';
-import { hasStreamingMathDelimiters } from '../../../utils/markdownMath';
+import { createInlineThinkScrubber } from '../../../utils/inlineThinkScrubber';
+import { hasOpenCodeFence, hasStreamingMathDelimiters } from '../../../utils/markdownMath';
 import { getVaultPath, normalizePathForVault } from '../../../utils/path';
 import { FLAVOR_TEXTS } from '../constants';
 import type { MessageRenderer, RenderContentOptions } from '../rendering/MessageRenderer';
@@ -169,6 +170,7 @@ export class StreamController {
   private activeRichTextBlock: Extract<ContentBlock, { type: 'text' }> | null = null;
   private activeRichMessageId: string | null = null;
   private currentTextOutputSurface: OutputSurface | undefined;
+  private inlineThinkScrubber = createInlineThinkScrubber();
 
   // Smoothed cost of the last text/thinking render, feeding getRenderBudgetDelay.
   // Tracked separately because a thinking block and an answer block rarely cost
@@ -210,6 +212,35 @@ export class StreamController {
   // ============================================
 
   async handleStreamChunk(chunk: StreamChunk, msg: ChatMessage): Promise<void> {
+    // Reasoning leaked into the text channel as <think>…</think> (OpenAI-
+    // compatible gateways behind Kimi / dsh / Freebuff / vibe / pi) is routed to
+    // the thinking block. Delta-safe: split tags are held until they resolve.
+    if (chunk.type === 'text') {
+      const parts = this.inlineThinkScrubber.feed(chunk.content);
+      for (const part of parts) {
+        await this.handleScrubbedChunk(
+          part.kind === 'thinking'
+            ? { type: 'thinking', content: part.content }
+            : { type: 'text', content: part.content },
+          msg,
+        );
+      }
+      return;
+    }
+    if (chunk.type === 'done') {
+      for (const part of this.inlineThinkScrubber.flush()) {
+        await this.handleScrubbedChunk(
+          part.kind === 'thinking'
+            ? { type: 'thinking', content: part.content }
+            : { type: 'text', content: part.content },
+          msg,
+        );
+      }
+    }
+    await this.handleScrubbedChunk(chunk, msg);
+  }
+
+  private async handleScrubbedChunk(chunk: StreamChunk, msg: ChatMessage): Promise<void> {
     const { state } = this.deps;
 
     switch (chunk.type) {
@@ -221,7 +252,12 @@ export class StreamController {
         });
         // Flush pending tools before rendering new content type
         this.flushPendingTools();
-        if (state.currentTextEl) {
+        // Some providers deliver reasoning out of band (Antigravity's planner
+        // row lands via the transcript while stream-json is mid-answer). If the
+        // open text block is inside a code fence, closing it here would split
+        // the fence into two broken blocks — keep it open; the thinking block
+        // is rendered after it and the next text delta continues the fence.
+        if (state.currentTextEl && !hasOpenCodeFence(state.currentTextContent)) {
           await this.finalizeCurrentTextBlock(msg, { preserveRichOutput: true });
         }
         await this.appendThinking(chunk.content);
@@ -1884,6 +1920,7 @@ export class StreamController {
     // second late; one over-eager first frame is the cheaper trade.
     this.textRenderCostMs = null;
     this.thinkingRenderCostMs = null;
+    this.inlineThinkScrubber = createInlineThinkScrubber();
     this.cancelPendingTextRender();
     this.cancelPendingThinkingRender();
     this.cancelPendingToolOutputRenders();

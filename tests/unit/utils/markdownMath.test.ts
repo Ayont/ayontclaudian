@@ -1,5 +1,6 @@
 import {
   escapeMathDelimitersForStreaming,
+  hasOpenCodeFence,
   hasStreamingMathDelimiters,
 } from '@/utils/markdownMath';
 
@@ -97,6 +98,30 @@ describe('markdownMath', () => {
           escapeMathDelimitersForStreaming(fixture) !== fixture
         );
       }
+    });
+  });
+
+  describe('hasOpenCodeFence', () => {
+    it('is false for prose and for closed fences', () => {
+      expect(hasOpenCodeFence('Hallo')).toBe(false);
+      expect(hasOpenCodeFence('```ps\nGet-ChildItem\n```')).toBe(false);
+      expect(hasOpenCodeFence('```ps\nGet-ChildItem\n```\n\nDanach.')).toBe(false);
+      expect(hasOpenCodeFence('')).toBe(false);
+    });
+
+    it('is true while a fence is open, including a partially streamed info string', () => {
+      expect(hasOpenCodeFence('Hier:\n\n```powershel')).toBe(true);
+      expect(hasOpenCodeFence('```powershell\nGet-ChildItem')).toBe(true);
+      expect(hasOpenCodeFence('~~~\ncode')).toBe(true);
+    });
+
+    it('does not close a backtick fence with a tilde run or a shorter run', () => {
+      expect(hasOpenCodeFence('````\ncode\n```')).toBe(true);
+      expect(hasOpenCodeFence('```\ncode\n~~~')).toBe(true);
+    });
+
+    it('ignores inline code', () => {
+      expect(hasOpenCodeFence('Nutze `ls -la` hier.')).toBe(false);
     });
   });
 });

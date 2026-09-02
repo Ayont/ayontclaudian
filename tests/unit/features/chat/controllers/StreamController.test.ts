@@ -333,6 +333,59 @@ describe('StreamController - Text Content', () => {
   });
 
   describe('Text block finalization', () => {
+    it('does not split an open code fence when thinking arrives mid-block (agy planner row)', async () => {
+      // Antigravity/Gemini: stream-json text deltas open a fence, then the
+      // transcript's PLANNER_RESPONSE `thinking` shows up before the fence
+      // closes. Closing the text block here left "```powershel" as one block
+      // and "l\nGet-ChildItem…```" as another — broken markup, then a second
+      // fence that never closed swallowed the rest of the answer.
+      const msg = createTestMessage();
+      deps.state.currentContentEl = createMockEl();
+
+      await controller.handleStreamChunk({ type: 'text', content: 'Hier:\n\n```powershel' }, msg);
+      const textEl = deps.state.currentTextEl;
+
+      await controller.handleStreamChunk({ type: 'thinking', content: 'Recursive search is expected.' }, msg);
+
+      // Text block stays open; thinking is rendered but the fence is not torn.
+      expect(deps.state.currentTextEl).toBe(textEl);
+      expect(deps.state.currentTextContent).toBe('Hier:\n\n```powershel');
+
+      await controller.handleStreamChunk({ type: 'text', content: 'l\nGet-ChildItem *.log\n```\n' }, msg);
+      await controller.finalizeCurrentTextBlock(msg);
+
+      const textBlocks = (msg.contentBlocks ?? []).filter((block) => block.type === 'text');
+      expect(textBlocks).toHaveLength(1);
+      expect((textBlocks[0] as { content: string }).content).toBe('Hier:\n\n```powershell\nGet-ChildItem *.log\n```\n');
+    });
+
+    it('routes <think> tags leaked into the text channel to the thinking block, across deltas', async () => {
+      const { createThinkingBlock } = jest.requireMock('@/features/chat/rendering/ThinkingBlockRenderer');
+      const msg = createTestMessage();
+      deps.state.currentContentEl = createMockEl();
+
+      await controller.handleStreamChunk({ type: 'text', content: '<thi' }, msg);
+      await controller.handleStreamChunk({ type: 'text', content: 'nk>Ich überlege kurz.</th' }, msg);
+      await controller.handleStreamChunk({ type: 'text', content: 'ink>Die Antwort.' }, msg);
+      await controller.handleStreamChunk({ type: 'done' }, msg);
+      await controller.finalizeCurrentTextBlock(msg);
+
+      expect(createThinkingBlock).toHaveBeenCalled();
+      expect(msg.content).toBe('Die Antwort.');
+      expect(msg.content).not.toContain('<think');
+      const textBlocks = (msg.contentBlocks ?? []).filter((block) => block.type === 'text');
+      expect(textBlocks).toEqual([{ type: 'text', content: 'Die Antwort.' }]);
+    });
+
+    it('still closes the text block for thinking when no fence is open', async () => {
+      const msg = createTestMessage();
+      deps.state.currentContentEl = createMockEl();
+      await controller.handleStreamChunk({ type: 'text', content: 'Erster Absatz.' }, msg);
+      await controller.handleStreamChunk({ type: 'thinking', content: 'Hmm.' }, msg);
+      expect(deps.state.currentTextEl).toBeNull();
+      expect(msg.contentBlocks?.[0]).toEqual({ type: 'text', content: 'Erster Absatz.' });
+    });
+
     it('keeps one semantic document block across a tool boundary', async () => {
       const msg = {
         ...createTestMessage(),

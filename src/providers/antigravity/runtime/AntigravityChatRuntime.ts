@@ -57,6 +57,7 @@ import {
   createAgyNdjsonBuffer,
   mapAgyStreamEventToChunks,
 } from '../normalization/streamEvents';
+import { createAgyThinkingSequencer } from '../normalization/thinkingSequencer';
 import { parseTranscript } from '../normalization/transcript';
 import {
   type AntigravityTailState,
@@ -349,6 +350,8 @@ export class AntigravityChatRuntime implements ChatRuntime {
     let sawFailedStreamResult = false;
     const contextWindow = getAntigravityContextWindow(selectedModel ?? '');
     const streamToolUseEmitted = new Set<number>();
+    // Keeps transcript `thinking` out of the middle of a streaming text step.
+    const thinkingSequencer = createAgyThinkingSequencer();
 
     const ingestStreamEvents = (events: ReturnType<typeof streamBuffer.push>): void => {
       for (const event of events) {
@@ -363,10 +366,14 @@ export class AntigravityChatRuntime implements ChatRuntime {
         const sessionId = event.kind === 'init'
           ? event.conversationId
           : event.conversationId || this.conversationId;
-        for (const chunk of mapAgyStreamEventToChunks(event, {
+        const mappedStreamChunks = mapAgyStreamEventToChunks(event, {
           contextWindow,
           toolUseEmitted: streamToolUseEmitted,
-        })) {
+        });
+        if (event.kind === 'step_update' && mappedStreamChunks.some((chunk) => chunk.type === 'text')) {
+          thinkingSequencer.noteStreamText(event.stepIndex);
+        }
+        for (const chunk of mappedStreamChunks) {
           if (chunk.type === 'text') {
             emittedAnyTextFromStream = true;
           }
@@ -378,6 +385,9 @@ export class AntigravityChatRuntime implements ChatRuntime {
             continue;
           }
           pendingStreamChunks.push(chunk);
+        }
+        if (event.kind === 'step_update' && event.state === 'DONE') {
+          pendingStreamChunks.push(...thinkingSequencer.noteStreamStepDone(event.stepIndex));
         }
       }
     };
@@ -479,6 +489,10 @@ export class AntigravityChatRuntime implements ChatRuntime {
           if (chunk.type === 'text') {
             emittedAnyTextFromTranscript = true;
           }
+          if (chunk.type === 'thinking') {
+            chunks.push(...thinkingSequencer.offerThinking(event.stepIndex, chunk));
+            continue;
+          }
           chunks.push(chunk);
         }
       }
@@ -540,6 +554,10 @@ export class AntigravityChatRuntime implements ChatRuntime {
         ) {
           continue;
         }
+        accumulateResponse(chunk);
+        yield chunk;
+      }
+      for (const chunk of thinkingSequencer.flush()) {
         accumulateResponse(chunk);
         yield chunk;
       }

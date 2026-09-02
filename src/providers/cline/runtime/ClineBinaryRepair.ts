@@ -21,10 +21,30 @@ export function findClineCompiledBinary(command: string): string | null {
   } catch {
     commandPath = trimmed;
   }
-  const sibling = path.join(path.dirname(commandPath), '.cline');
+  const wrapperDir = path.dirname(commandPath);
+  // 1. Postinstall cache next to the Node wrapper (bin/.cline).
+  const sibling = path.join(wrapperDir, '.cline');
   try {
     if (fs.existsSync(sibling) && fs.statSync(sibling).isFile()) {
       return sibling;
+    }
+  } catch {
+    return null;
+  }
+  // 2. The platform package the wrapper falls back to when the cache is absent
+  //    (`node_modules/@cline/cli-<platform>-<arch>/bin/cline`). This is the copy
+  //    that ships with a signature macOS rejects; repairing only .cline missed it.
+  const platformBinary = path.join(
+    path.dirname(wrapperDir),
+    'node_modules',
+    '@cline',
+    `cli-${process.platform}-${process.arch}`,
+    'bin',
+    'cline',
+  );
+  try {
+    if (fs.existsSync(platformBinary) && fs.statSync(platformBinary).isFile()) {
+      return fs.realpathSync(platformBinary);
     }
   } catch {
     return null;

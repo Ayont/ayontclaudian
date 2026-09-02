@@ -221,3 +221,74 @@ describe('AntigravityChatRuntime stale-conversation history recovery', () => {
     ]));
   });
 });
+
+describe('AntigravityChatRuntime stream/transcript interleaving', () => {
+  // Real agy 1.1.24 behaviour (captured 2026-09-02): stream-json emits
+  // agent_response text_delta chunks immediately, while the transcript's
+  // PLANNER_RESPONSE row — the only carrier of `thinking` — lands later. Without
+  // ordering, the thinking chunk arrived AFTER the first text delta and split an
+  // open ```powershell fence in two.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const brain = require('@/providers/antigravity/history/AntigravityBrainStore') as {
+    readAntigravityTranscriptIfChanged: jest.Mock;
+    splitTranscriptLines: jest.Mock;
+  };
+
+  beforeEach(() => {
+    spawn.mockReset();
+    brain.readAntigravityTranscriptIfChanged.mockReset();
+    brain.splitTranscriptLines.mockReset();
+  });
+
+  it('emits transcript thinking before the streamed text of the same answer, never in between', async () => {
+    const proc = makeFakeProcess(4401);
+    const cid = 'agy-think';
+    const stream = [
+      JSON.stringify({ event: 'init', conversation_id: cid, init: {} }),
+      JSON.stringify({ event: 'step_update', step_update: { conversation_id: cid, step_index: 1, state: 'ACTIVE', step_type: 'agent_response', text_delta: '```powershel' } }),
+      JSON.stringify({ event: 'step_update', step_update: { conversation_id: cid, step_index: 1, state: 'DONE', step_type: 'agent_response', text_delta: 'l\nGet-ChildItem *.log\n```\n' } }),
+      JSON.stringify({ event: 'result', conversation_id: cid, status: 'SUCCESS', response: '', usage: { input_tokens: 10, output_tokens: 5, thinking_tokens: 3, cache_read_tokens: 0, total_tokens: 15 } }),
+    ].join('\n') + '\n';
+
+    const transcriptRows = [
+      JSON.stringify({ type: 'USER_INPUT', step_index: 0, status: 'DONE', content: 'frage' }),
+      JSON.stringify({ type: 'PLANNER_RESPONSE', step_index: 1, status: 'DONE', thinking: '**Listing**\n\nRecursive search.', content: '```powershell\nGet-ChildItem *.log\n```' }),
+    ];
+    // agy writes the planner row (with thinking) while the answer is still
+    // streaming: first stream delta → poll sees transcript → second delta.
+    const lines = stream.split('\n').filter(Boolean);
+    let transcriptVisible = false;
+    brain.readAntigravityTranscriptIfChanged.mockImplementation(() => (
+      transcriptVisible ? { stat: { size: 1, mtimeMs: 1 }, buffer: transcriptRows.join('\n') } : null
+    ));
+    brain.splitTranscriptLines.mockImplementation((buffer: string) => buffer.split('\n'));
+
+    spawn.mockImplementationOnce(() => {
+      setImmediate(() => {
+        proc.stdout.emit('data', Buffer.from(`${lines[0]}\n${lines[1]}\n`, 'utf-8'));
+        setTimeout(() => { transcriptVisible = true; }, 150);
+        setTimeout(() => {
+          proc.stdout.emit('data', Buffer.from(`${lines[2]}\n${lines[3]}\n`, 'utf-8'));
+          proc.exitCode = 0;
+          proc.emit('exit', 0);
+        }, 400);
+      });
+      return proc;
+    });
+
+    const runtime = new AntigravityChatRuntime(makePlugin());
+    const chunks: StreamChunk[] = [];
+    for await (const chunk of runtime.query(makeTurn('frage'), [])) {
+      chunks.push(chunk);
+    }
+
+    const order = chunks.filter((c) => c.type === 'text' || c.type === 'thinking').map((c) => c.type);
+    expect(order.filter((t) => t === 'thinking')).toHaveLength(1);
+    const firstText = order.indexOf('text');
+    const thinkingAt = order.indexOf('thinking');
+    // Thinking must not land inside the text run.
+    expect(thinkingAt < firstText || thinkingAt > order.lastIndexOf('text')).toBe(true);
+    const text = chunks.filter((c) => c.type === 'text').map((c) => (c as { content: string }).content).join('');
+    expect(text).toBe('```powershell\nGet-ChildItem *.log\n```\n');
+  });
+});

@@ -190,3 +190,23 @@ export function hasStreamingMathDelimiters(markdown: string): boolean {
   });
   return found;
 }
+
+/**
+ * True when `markdown` ends inside an unclosed fenced code block. Streaming
+ * providers deliver fences across chunk boundaries (Antigravity splits
+ * "```powershel" + "l\n…"); a block boundary placed here would tear the fence.
+ */
+export function hasOpenCodeFence(markdown: string): boolean {
+  let fence: FenceState | null = null;
+  for (const line of markdown.split('\n')) {
+    if (fence) {
+      if (isClosingFence(line, fence)) fence = null;
+      continue;
+    }
+    const run = getFenceRun(line);
+    if (run) {
+      fence = { marker: run[0] as '`' | '~', length: run.length };
+    }
+  }
+  return fence !== null;
+}
