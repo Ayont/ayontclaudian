@@ -11,19 +11,18 @@
  */
 
 .claudian-usage-center {
-  --glass-blur: 26px;
-  --glass-saturation: 1.65;
-  --glass-body: color-mix(in srgb, var(--background-primary) 62%, transparent);
-  --glass-rim: rgb(255 255 255 / 9%);
-  --glass-rim-strong: rgb(255 255 255 / 16%);
+  /* Local aliases onto the shared liquid-glass material (variables.css), so the
+     usage center and the rest of the chrome are one material, tuned once. */
+  --glass-blur: var(--cl-glass-blur);
+  --glass-saturation: var(--cl-glass-sat);
+  --glass-body: var(--cl-glass-body);
+  --glass-rim: var(--cl-glass-rim);
+  --glass-rim-strong: var(--cl-glass-rim-top);
   --glass-shadow: rgb(0 0 0 / 28%);
   --glass-num-font: var(--font-monospace);
 }
 
 body.theme-light .claudian-usage-center {
-  --glass-body: color-mix(in srgb, var(--background-primary) 78%, transparent);
-  --glass-rim: rgb(0 0 0 / 8%);
-  --glass-rim-strong: rgb(0 0 0 / 12%);
   --glass-shadow: rgb(30 30 30 / 12%);
 }
 
@@ -55,23 +54,7 @@ body.theme-light .claudian-usage-center {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(
-    165deg,
-    rgb(255 255 255 / 10%) 0%,
-    rgb(255 255 255 / 3%) 22%,
-    transparent 46%,
-    transparent 100%
-  );
-}
-
-body.theme-light .claudian-usage-total::before {
-  background: linear-gradient(
-    165deg,
-    rgb(255 255 255 / 65%) 0%,
-    rgb(255 255 255 / 20%) 24%,
-    transparent 48%,
-    transparent 100%
-  );
+  background: var(--cl-glass-sheen);
 }
 
 .claudian-usage-total-value {

@@ -19,6 +19,8 @@ const NPM_PACKAGES: Record<string, string> = {
   cline: 'cline',
   codex: '@openai/codex',
   opencode: 'opencode-ai',
+  dsh: '@deepseek-ai/dsh',
+  freebuff: 'freebuff',
 };
 
 const PYPI_PACKAGES: Record<string, string> = {
@@ -26,11 +28,14 @@ const PYPI_PACKAGES: Record<string, string> = {
   kimi: 'kimi-cli',
 };
 
-/** Native self-update commands that beat re-running the installer script. */
+/** Native self-update commands that beat re-running the installer script.
+ *  Verified against the shipped CLIs (`<cli> --help`); Hermes ships
+ *  `hermes update` (git pull + dependency reinstall, backup by default). */
 const NATIVE_UPDATE_COMMANDS: Record<string, string> = {
   antigravity: 'agy update',
   vibe: 'uv tool upgrade mistral-vibe',
   kimi: 'uv tool upgrade kimi-cli',
+  hermes: 'hermes update',
 };
 
 /** Vendor-managed install dirs whose binary is owned by the CLI's own

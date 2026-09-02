@@ -22,9 +22,17 @@ Claudian is a T3 Code-style control plane for coding agents inside an Obsidian v
 ## Shape and Elevation
 
 - Radius: 6px controls, 12px rows, 16px cards, 22px composer, pill for send and status chips.
-- The composer carries a soft resting shadow; other surfaces use hairline borders.
+- Material: liquid glass (web approximation, not Apple's native material). Tokens live in `variables.css` under `--cl-glass-*`; every glass surface is `background: var(--cl-glass-sheen), var(--cl-glass-body*)` + `backdrop-filter: var(--cl-glass-filter*)` + `box-shadow: var(--cl-glass-edge), <shadow>`. No hand-rolled rgba(255,255,255,x) rims.
+- Glass surfaces: the composer, user bubbles, bash/tool plates, popovers (history, mentions, slash, effort, model dropdown), the model picker frame, dashboard panes, the usage center.
+- Recessed content (code, shell output, logs) sits in an ink well: `--cl-ink*`, which flips with the theme via Obsidian's `--mono-rgb-0/100`. Never hardcode `rgba(0,0,0,x)` fills.
+- One glass pane per surface, never nested glass: tiles inside a pane use `--cl-wash` plus a hairline, the pane owns the blur.
+- Other surfaces use hairline borders; nested cards stay banned.
 - Speed mode uses a warm amber pill and composer edge, independent of the provider accent.
-- Avoid nested cards. Use sections, separators, and rows inside major surfaces.
+- Fallbacks: `prefers-reduced-transparency` and missing `backdrop-filter` collapse glass to opaque `--cl-surface-*`; contrast never depends on the blur.
+
+## Token Scope
+
+- Theme-dependent tokens are declared on `body` (and re-declared on `.claudian-container`), never on `:root`. A `:root` declaration resolves its `var()` references once against `html` and silently loses every theme value for surfaces outside the container (modals, dashboard, portals).
 
 ## Provider Identity
 

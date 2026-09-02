@@ -203,17 +203,13 @@
   overflow: auto;
   padding: 6px 8px;
   border-radius: var(--cl-radius-sm);
-  background: rgba(0, 0, 0, 0.28);
+  background: var(--cl-ink-deep);
   color: var(--text-muted);
   font-family: var(--cl-font-mono);
   font-size: 10px;
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-body.theme-light .claudian-update-item-log {
-  background: rgba(0, 0, 0, 0.05);
 }
 
 .claudian-update-item-error {

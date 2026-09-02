@@ -6,12 +6,12 @@
   left: 0;
   right: 0;
   margin-bottom: 4px;
-  background: var(--background-secondary);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 6px;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.2);
+  background: var(--cl-glass-sheen), var(--cl-glass-body-overlay);
+  -webkit-backdrop-filter: var(--cl-glass-filter);
+  backdrop-filter: var(--cl-glass-filter);
+  border: 0;
+  border-radius: var(--cl-radius-md);
+  box-shadow: var(--cl-glass-edge), var(--cl-glass-shadow-pop);
   z-index: 1000;
   max-height: 250px;
   overflow-y: auto;

@@ -29,8 +29,23 @@ if (!existsSync(STYLES)) {
 const pluginCss = readFileSync(STYLES, 'utf-8');
 
 // ── Obsidian theme variable shim (dark + light) ──────────────────────────────
+// Faithful to Obsidian: theme variables live on `body.theme-*` (never on :root)
+// and app.css applies `* { box-sizing: border-box }`. Both matter — a :root
+// shim hid a real bug where plugin tokens declared on :root resolved against
+// nothing, and content-box sizing produced phantom overflow at narrow widths.
 const THEME_SHIM = `
-:root, body.theme-dark {
+* { box-sizing: border-box; }
+body {
+  --text-on-accent: #ffffff;
+  --interactive-accent: #d97757;
+  --interactive-accent-rgb: 217,119,87;
+  --font-interface: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-monospace: ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-ui-smaller: 12px; --font-ui-small: 13px; --font-ui-medium: 15px; --font-ui-large: 20px;
+  --font-medium: 500; --font-semibold: 600;
+}
+body.theme-dark {
+  --mono-rgb-0: 0, 0, 0; --mono-rgb-100: 255, 255, 255;
   --background-primary: #17171a;
   --background-primary-alt: #101013;
   --background-secondary: #1e1e23;
@@ -42,18 +57,12 @@ const THEME_SHIM = `
   --text-muted: #a1a1ab;
   --text-faint: #6c6c76;
   --text-error: #ff6b6b;
-  --text-on-accent: #ffffff;
   --text-accent: #d97757;
-  --interactive-accent: #d97757;
-  --interactive-accent-rgb: 217,119,87;
   --color-green: #4ec98a; --color-green-rgb: 78,201,138;
   --color-red: #ff6b6b; --color-red-rgb: 255,107,107;
-  --font-interface: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  --font-monospace: ui-monospace, 'SF Mono', Menlo, monospace;
-  --font-ui-smaller: 12px; --font-ui-small: 13px; --font-ui-medium: 15px; --font-ui-large: 20px;
-  --font-medium: 500; --font-semibold: 600;
 }
 body.theme-light {
+  --mono-rgb-0: 255, 255, 255; --mono-rgb-100: 0, 0, 0;
   --background-primary: #ffffff;
   --background-primary-alt: #f4f4f6;
   --background-secondary: #f6f6f8;
@@ -64,7 +73,10 @@ body.theme-light {
   --text-normal: #1f2023;
   --text-muted: #55565c;
   --text-faint: #8a8b92;
+  --text-error: #d13b3b;
   --text-accent: #c15f3c;
+  --color-green: #2f9e5f; --color-green-rgb: 47,158,95;
+  --color-red: #d13b3b; --color-red-rgb: 209,59,59;
 }
 html, body { margin: 0; background: var(--background-primary); color: var(--text-normal); font-family: var(--font-interface); }
 `;

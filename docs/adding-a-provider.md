@@ -56,16 +56,26 @@ Copy the one whose transport matches your CLI:
 8. **Icon** (`src/shared/icons.ts`) — `<ID>_PROVIDER_ICON`. Gradient logos use
    `kind: 'composite'` with `defs > linearGradient > stop` (see Mistral/Grok).
    Return it from `getProviderIcon()` in `ui/<Id>ChatUIConfig.ts`.
-9. **Brand color** — four places:
+9. **Brand color** — six places:
    - `src/style/base/variables.css`: `--claudian-brand-<id>` (+ `-rgb`), a
      light-theme override, and a `.claudian-container[data-provider="<id>"]` rule
    - `src/style/components/tabs.css`: streaming border + tab underline
+   - `src/style/features/dashboard.css`: the combined
+     `.claudian-multi-agent-modal / .claudian-dashboard / -browser-modal /
+     -provider-chip[data-provider="<id>"]` accent rule AND the
+     `.claudian-dashboard-provider-item[data-provider="<id>"]` rail color
+   - `src/style/modals/model-select.css`: `.claudian-model-select-option[data-provider="<id>"]`
    - `src/features/chat/ui/ProviderStatusBar.ts`: `PROVIDER_COLOR`
    - optional `brandColor` / `brandColorLight` on the registration (themes the
      multi-agent modal)
+   Hermes, DeepSeek Harness and Freebuff shipped without the dashboard and
+   model-picker rules and silently fell back to the generic accent.
 10. **Install catalog** (`src/core/install/cliInstallCatalog.ts`) — `binary`,
     `methods` (mac/win/linux command), `docsUrl`. Drives the in-app CLI installer
-    and the "greyed out when not installed" state.
+    and the "greyed out when not installed" state. Also add the update path in
+    `cliUpdateCatalog.ts` (`NPM_PACKAGES` / `PYPI_PACKAGES` / a native
+    `NATIVE_UPDATE_COMMANDS` entry verified with `<cli> --help`), otherwise the
+    updater re-runs the installer script.
 11. **capabilities.ts / settings.ts** — ship `enabled: false` and declare the
     verified prompt-delivery policy: `native-system`, `session-preamble`, or
     `stateless-turn`. Never rely on the compatibility fallback in production.

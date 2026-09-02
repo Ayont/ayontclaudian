@@ -13,11 +13,14 @@
   max-width: 600px;
   width: min(600px, calc(100vw - 32px));
   border-radius: var(--cl-select-radius-outer);
-  background: var(--background-primary);
+  /* Liquid-glass frame: the workspace behind the modal bleeds through the
+     blurred body; contour + top light come from the shared material edge. */
+  background: var(--cl-glass-sheen), var(--cl-glass-body-strong);
+  -webkit-backdrop-filter: var(--cl-glass-filter);
+  backdrop-filter: var(--cl-glass-filter);
   box-shadow:
-    0 0 0 1px var(--background-modifier-border),
-    0 24px 60px -12px rgba(0, 0, 0, 0.16),
-    0 10px 28px -8px rgba(0, 0, 0, 0.08);
+    var(--cl-glass-edge),
+    var(--cl-glass-shadow-pop);
   animation: claudian-modal-pop 200ms var(--cl-select-ease) both;
   overflow: hidden;
   font-family: var(--font-interface), system-ui, sans-serif;
@@ -48,11 +51,10 @@
 }
 
 .claudian-model-select-frame {
-  background: var(--background-primary);
+  background: var(--cl-ink-soft);
   padding: 0;
   border-radius: var(--cl-select-radius-inner);
-  box-shadow:
-    0 0 0 1px var(--background-modifier-border);
+  box-shadow: inset 0 0 0 1px var(--cl-glass-rim);
 }
 
 .claudian-model-select-summary {
@@ -370,15 +372,18 @@
   text-overflow: ellipsis;
 }
 
-.claudian-model-select-option[data-provider="claude"] { --model-accent: var(--claudian-brand-claude, #D97757); }
-.claudian-model-select-option[data-provider="codex"] { --model-accent: var(--claudian-brand-codex, #9aa0a6); }
-.claudian-model-select-option[data-provider="opencode"] { --model-accent: var(--claudian-brand-opencode, #B8B8B8); }
-.claudian-model-select-option[data-provider="pi"] { --model-accent: var(--claudian-brand-pi, #cfcfcf); }
-.claudian-model-select-option[data-provider="kimi"] { --model-accent: var(--claudian-brand-kimi, #7C6CF2); }
-.claudian-model-select-option[data-provider="antigravity"] { --model-accent: var(--claudian-brand-antigravity, #4286F4); }
-.claudian-model-select-option[data-provider="vibe"] { --model-accent: var(--claudian-brand-vibe, #FF7A00); }
-.claudian-model-select-option[data-provider="grok"] { --model-accent: var(--claudian-brand-grok, #E8E8E8); }
-.claudian-model-select-option[data-provider="cline"] { --model-accent: var(--claudian-brand-cline, #00C9A7); }
+.claudian-model-select-option[data-provider="claude"] { --model-accent: var(--claudian-brand-claude); }
+.claudian-model-select-option[data-provider="codex"] { --model-accent: var(--claudian-brand-codex); }
+.claudian-model-select-option[data-provider="opencode"] { --model-accent: var(--claudian-brand-opencode); }
+.claudian-model-select-option[data-provider="pi"] { --model-accent: var(--claudian-brand-pi); }
+.claudian-model-select-option[data-provider="kimi"] { --model-accent: var(--claudian-brand-kimi); }
+.claudian-model-select-option[data-provider="antigravity"] { --model-accent: var(--claudian-brand-antigravity); }
+.claudian-model-select-option[data-provider="vibe"] { --model-accent: var(--claudian-brand-vibe); }
+.claudian-model-select-option[data-provider="grok"] { --model-accent: var(--claudian-brand-grok); }
+.claudian-model-select-option[data-provider="cline"] { --model-accent: var(--claudian-brand-cline); }
+.claudian-model-select-option[data-provider="hermes"] { --model-accent: var(--claudian-brand-hermes); }
+.claudian-model-select-option[data-provider="dsh"] { --model-accent: var(--claudian-brand-dsh); }
+.claudian-model-select-option[data-provider="freebuff"] { --model-accent: var(--claudian-brand-freebuff); }
 
 /* Auto model option: distinct brand color */
 .claudian-model-select-option.is-auto {

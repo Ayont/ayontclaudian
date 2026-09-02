@@ -139,7 +139,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   min-width: 0;
-  background: rgba(0, 0, 0, 0.22);
+  background: var(--cl-ink);
 }
 
 .claudian-code-body.has-line-numbers {
@@ -168,7 +168,7 @@
 /* Code body — monospace, scrollable; the wrapper owns the border/radius. */
 .claudian-code-wrapper pre,
 .claudian-message-content pre {
-  background: rgba(0, 0, 0, 0.22);
+  background: var(--cl-ink);
   padding: var(--cl-space-3);
   overflow: auto;
   margin: 0;
@@ -208,15 +208,8 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
-/* Light mode: lighter fill so hljs comment colors stay readable. */
-body.theme-light .claudian-code-wrapper pre,
-body.theme-light .claudian-message-content pre {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-body.theme-light .claudian-code-body {
-  background: rgba(0, 0, 0, 0.035);
-}
+/* Light mode fill comes from --cl-ink (theme-flipping); hljs comment colors
+   stay readable on the lighter well. */
 
 body.theme-light .claudian-code-wrapper .claudian-code-body pre {
   background: transparent;

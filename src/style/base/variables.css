@@ -1,5 +1,12 @@
-/* Brand & semantic color tokens */
-:root,
+/* Brand & semantic color tokens.
+   Declared on `body`, NOT `:root`: custom properties resolve their var()
+   references on the element they are declared on, and Obsidian sets its theme
+   variables (--background-*, --text-*) on `body.theme-*`. On `:root` every
+   token below that references a theme variable resolved to nothing, so any
+   surface living outside `.claudian-container` (modals, dashboard, settings,
+   portals) silently lost its surfaces and borders. Re-declared on the
+   container so per-provider brand aliases re-resolve inside it. */
+body,
 .claudian-container {
   --claudian-brand: oklch(0.66 0.12 40);
   --claudian-brand-rgb: 217, 119, 87;
@@ -107,6 +114,95 @@
   --cl-speed-deep: #d4922a;
   --cl-speed-soft: rgba(240, 195, 90, 0.16);
   --cl-speed-line: rgba(240, 195, 90, 0.5);
+
+  /* ── Liquid-glass material ─────────────────────────────────────────────
+     Web approximation of Apple's translucent materials (there is no official
+     CSS package; this is backdrop-filter + layered rims + a specular sweep).
+     Three cues make it read as glass rather than "a blurred div":
+       1. a tinted, saturated blur body that lets the transcript bleed through,
+       2. a hairline contour PLUS a brighter top edge (the rim catches light),
+       3. an ink well (--cl-ink) for recessed content like code and shell output.
+     --mono-rgb-0 / --mono-rgb-100 are Obsidian's theme-flipping black/white,
+     so one declaration serves both themes; light only re-tunes intensities. */
+  --cl-glass-blur: 22px;
+  --cl-glass-sat: 1.55;
+  --cl-glass-filter: blur(var(--cl-glass-blur)) saturate(var(--cl-glass-sat));
+  --cl-glass-filter-soft: blur(14px) saturate(1.25);
+  --cl-glass-body: color-mix(in srgb, var(--cl-surface-raised) 66%, transparent);
+  --cl-glass-body-strong: color-mix(in srgb, var(--cl-surface-raised) 86%, transparent);
+  --cl-glass-body-overlay: color-mix(in srgb, var(--cl-surface-overlay) 80%, transparent);
+  --cl-glass-rim: rgba(var(--mono-rgb-100, 255, 255, 255), 0.10);
+  --cl-glass-rim-top: rgba(var(--mono-rgb-100, 255, 255, 255), 0.20);
+  --cl-glass-rim-strong: rgba(var(--mono-rgb-100, 255, 255, 255), 0.16);
+  --cl-glass-sheen:
+    linear-gradient(165deg,
+      rgba(var(--mono-rgb-100, 255, 255, 255), 0.085) 0%,
+      rgba(var(--mono-rgb-100, 255, 255, 255), 0.025) 24%,
+      transparent 48%);
+  --cl-glass-shadow: 0 12px 36px rgba(0, 0, 0, 0.30);
+  --cl-glass-shadow-pop: 0 22px 60px rgba(0, 0, 0, 0.42);
+  /* Composite edge: contour + top light in one box-shadow stack. */
+  --cl-glass-edge:
+    inset 0 0 0 1px var(--cl-glass-rim),
+    inset 0 1px 0 var(--cl-glass-rim-top);
+  /* Ink well: recessed fill for code, shell output and logs. Flips with theme. */
+  --cl-ink: rgba(var(--mono-rgb-0, 0, 0, 0), 0.22);
+  --cl-ink-deep: rgba(var(--mono-rgb-0, 0, 0, 0), 0.30);
+  --cl-ink-soft: rgba(var(--mono-rgb-0, 0, 0, 0), 0.12);
+  /* Foreground-tinted wash (was hardcoded rgba(255,255,255,x) in dark-only CSS). */
+  --cl-wash: rgba(var(--mono-rgb-100, 255, 255, 255), 0.04);
+  --cl-wash-strong: rgba(var(--mono-rgb-100, 255, 255, 255), 0.07);
+}
+
+/* Light theme: glass is brighter and less saturated; rims read as shade. */
+body.theme-light,
+body.theme-light .claudian-container {
+  --cl-glass-sat: 1.25;
+  --cl-glass-body: color-mix(in srgb, var(--cl-surface-base) 74%, transparent);
+  --cl-glass-body-strong: color-mix(in srgb, var(--cl-surface-base) 90%, transparent);
+  --cl-glass-body-overlay: color-mix(in srgb, var(--cl-surface-base) 86%, transparent);
+  --cl-glass-rim: rgba(var(--mono-rgb-100, 0, 0, 0), 0.08);
+  --cl-glass-rim-top: rgba(255, 255, 255, 0.85);
+  --cl-glass-rim-strong: rgba(var(--mono-rgb-100, 0, 0, 0), 0.12);
+  --cl-glass-sheen:
+    linear-gradient(165deg,
+      rgba(255, 255, 255, 0.70) 0%,
+      rgba(255, 255, 255, 0.25) 26%,
+      transparent 50%);
+  --cl-glass-shadow: 0 10px 30px rgba(20, 20, 30, 0.10);
+  --cl-glass-shadow-pop: 0 20px 54px rgba(20, 20, 30, 0.16);
+  --cl-ink: rgba(var(--mono-rgb-100, 0, 0, 0), 0.045);
+  --cl-ink-deep: rgba(var(--mono-rgb-100, 0, 0, 0), 0.07);
+  --cl-ink-soft: rgba(var(--mono-rgb-100, 0, 0, 0), 0.03);
+  --cl-wash: rgba(var(--mono-rgb-100, 0, 0, 0), 0.025);
+  --cl-wash-strong: rgba(var(--mono-rgb-100, 0, 0, 0), 0.045);
+}
+
+/* Accessibility / capability fallbacks: collapse the material to solid,
+   opaque surfaces. Contrast never depends on the blur being available. */
+@media (prefers-reduced-transparency: reduce) {
+  body,
+  .claudian-container,
+  body.theme-light,
+  body.theme-light .claudian-container {
+    --cl-glass-filter: none;
+    --cl-glass-filter-soft: none;
+    --cl-glass-body: var(--cl-surface-raised);
+    --cl-glass-body-strong: var(--cl-surface-raised);
+    --cl-glass-body-overlay: var(--cl-surface-overlay);
+    --cl-glass-sheen: none;
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  body,
+  .claudian-container,
+  body.theme-light,
+  body.theme-light .claudian-container {
+    --cl-glass-body: var(--cl-surface-raised);
+    --cl-glass-body-strong: var(--cl-surface-raised);
+    --cl-glass-body-overlay: var(--cl-surface-overlay);
+  }
 }
 
 /* Light theme softens elevation so cards don't look heavy on white. */

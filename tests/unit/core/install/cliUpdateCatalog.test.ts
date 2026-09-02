@@ -25,6 +25,18 @@ describe('cliUpdateCatalog', () => {
     expect(getPreferredUpdateCommand('antigravity', 'linux')).toBe('agy update');
   });
 
+  it('updates Hermes via its native `hermes update` (git pull + reinstall), not the installer script', () => {
+    expect(getPreferredUpdateCommand('hermes', 'darwin')).toBe('hermes update');
+    expect(getPreferredUpdateCommand('hermes', 'win32')).toBe('hermes update');
+  });
+
+  it('updates npm-installed DeepSeek Harness and Freebuff through their npm packages', () => {
+    expect(getCliUpdateSpec('dsh')?.npmPackage).toBe('@deepseek-ai/dsh');
+    expect(getPreferredUpdateCommand('dsh', 'linux')).toBe('npm install -g @deepseek-ai/dsh@latest');
+    expect(getCliUpdateSpec('freebuff')?.npmPackage).toBe('freebuff');
+    expect(getPreferredUpdateCommand('freebuff', 'darwin')).toBe('npm install -g freebuff@latest');
+  });
+
   it('upgrades uv-installed CLIs with uv tool upgrade', () => {
     expect(getPreferredUpdateCommand('vibe', 'darwin')).toBe('uv tool upgrade mistral-vibe');
     expect(getPreferredUpdateCommand('kimi', 'linux')).toBe('uv tool upgrade kimi-cli');

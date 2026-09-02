@@ -4,9 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Claudian visual harness</title>
-  <!-- Minimal Obsidian theme vars the components rely on (normally injected by Obsidian). -->
+  <!-- Minimal Obsidian theme vars the components rely on (normally injected by Obsidian).
+       Scoped to body like Obsidian does, and border-box like Obsidian's app.css. -->
   <style>
-    :root {
+    * { box-sizing: border-box; }
+    body {
+      --mono-rgb-0: 0, 0, 0;
+      --mono-rgb-100: 255, 255, 255;
       --background-primary: #1e1e22;
       --background-primary-alt: #232327;
       --background-secondary: #26262b;

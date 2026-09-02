@@ -6,10 +6,12 @@
   left: 0;
   right: 0;
   margin-bottom: 8px;
-  background: var(--cl-surface-raised);
-  border: 1px solid var(--cl-border-subtle);
+  background: var(--cl-glass-sheen), var(--cl-glass-body-overlay);
+  -webkit-backdrop-filter: var(--cl-glass-filter);
+  backdrop-filter: var(--cl-glass-filter);
+  border: 0;
   border-radius: 16px;
-  box-shadow: var(--cl-shadow-lg);
+  box-shadow: var(--cl-glass-edge), var(--cl-glass-shadow-pop);
   z-index: 1000;
   max-height: 320px;
   overflow-y: auto;

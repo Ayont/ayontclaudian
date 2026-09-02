@@ -140,11 +140,14 @@ body {
 
 .claudian-dashboard-card {
   position: relative;
-  background: var(--claudian-card-bg);
-  border: 1px solid var(--claudian-border);
+  background: var(--cl-glass-sheen), var(--cl-glass-body);
+  -webkit-backdrop-filter: var(--cl-glass-filter-soft);
+  backdrop-filter: var(--cl-glass-filter-soft);
+  border: 1px solid transparent;
   border-radius: 18px;
   padding: 22px;
   cursor: pointer;
+  box-shadow: var(--cl-glass-edge), var(--cl-shadow-sm);
   transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
   overflow: hidden;
   isolation: isolate;
@@ -176,8 +179,10 @@ body {
 
 .claudian-dashboard-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18), 0 0 0 1px color-mix(in srgb, var(--claudian-accent) 20%, transparent);
-  border-color: color-mix(in srgb, var(--claudian-accent) 35%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--claudian-accent) 35%, transparent),
+    inset 0 1px 0 var(--cl-glass-rim-top),
+    var(--cl-glass-shadow);
 }
 
 .claudian-dashboard-card:hover::before,
@@ -1089,55 +1094,14 @@ body {
 
 .claudian-multi-agent-status--synthesizing { color: var(--claudian-accent); }
 
-/* Provider-aware accent for the Multi-Agent modal (modal lives outside .claudian-container). */
-.claudian-multi-agent-modal[data-provider="claude"] {
-  --claudian-accent: var(--claudian-brand-claude);
-  --claudian-accent-rgb: var(--claudian-brand-claude-rgb);
-}
+/* Provider-aware accent for every surface that lives OUTSIDE .claudian-container
+   (multi-agent modal, dashboard view, browser modals, header chip). One rule per
+   provider covers all of them; the brand tokens themselves are declared on
+   `body` (variables.css) and already carry their light-theme overrides, so no
+   per-theme duplicate is needed here. Keep this list in sync with
+   docs/adding-a-provider.md. */
 
-.claudian-multi-agent-modal[data-provider="codex"] {
-  --claudian-accent: var(--claudian-brand-codex);
-  --claudian-accent-rgb: var(--claudian-brand-codex-rgb);
-}
-
-.claudian-multi-agent-modal[data-provider="opencode"] {
-  --claudian-accent: var(--claudian-brand-opencode);
-  --claudian-accent-rgb: var(--claudian-brand-opencode-rgb);
-}
-
-.claudian-multi-agent-modal[data-provider="pi"] {
-  --claudian-accent: var(--claudian-brand-pi);
-  --claudian-accent-rgb: var(--claudian-brand-pi-rgb);
-}
-
-.claudian-multi-agent-modal[data-provider="kimi"] {
-  --claudian-accent: var(--claudian-brand-kimi);
-  --claudian-accent-rgb: var(--claudian-brand-kimi-rgb);
-}
-
-.claudian-multi-agent-modal[data-provider="antigravity"] {
-  --claudian-accent: var(--claudian-brand-antigravity);
-  --claudian-accent-rgb: var(--claudian-brand-antigravity-rgb);
-}
-
-.claudian-multi-agent-modal[data-provider="vibe"] {
-  --claudian-accent: var(--claudian-brand-vibe);
-  --claudian-accent-rgb: var(--claudian-brand-vibe-rgb);
-}
-
-.claudian-multi-agent-modal[data-provider="grok"] {
-  --claudian-accent: var(--claudian-brand-grok);
-  --claudian-accent-rgb: var(--claudian-brand-grok-rgb);
-}
-
-.claudian-multi-agent-modal[data-provider="cline"] {
-  --claudian-accent: var(--claudian-brand-cline);
-  --claudian-accent-rgb: var(--claudian-brand-cline-rgb);
-}
-
-/* Provider-aware accent for the Dashboard view + its browser modals + the
-   header provider chip — same brand map as the multi-agent modal so every
-   dashboard surface is tinted by the active provider. */
+.claudian-multi-agent-modal[data-provider="claude"],
 .claudian-dashboard[data-provider="claude"],
 .claudian-dashboard-browser-modal[data-provider="claude"],
 .claudian-dashboard-provider-chip[data-provider="claude"] {
@@ -1145,6 +1109,7 @@ body {
   --claudian-accent-rgb: var(--claudian-brand-claude-rgb);
 }
 
+.claudian-multi-agent-modal[data-provider="codex"],
 .claudian-dashboard[data-provider="codex"],
 .claudian-dashboard-browser-modal[data-provider="codex"],
 .claudian-dashboard-provider-chip[data-provider="codex"] {
@@ -1152,6 +1117,7 @@ body {
   --claudian-accent-rgb: var(--claudian-brand-codex-rgb);
 }
 
+.claudian-multi-agent-modal[data-provider="opencode"],
 .claudian-dashboard[data-provider="opencode"],
 .claudian-dashboard-browser-modal[data-provider="opencode"],
 .claudian-dashboard-provider-chip[data-provider="opencode"] {
@@ -1159,6 +1125,7 @@ body {
   --claudian-accent-rgb: var(--claudian-brand-opencode-rgb);
 }
 
+.claudian-multi-agent-modal[data-provider="pi"],
 .claudian-dashboard[data-provider="pi"],
 .claudian-dashboard-browser-modal[data-provider="pi"],
 .claudian-dashboard-provider-chip[data-provider="pi"] {
@@ -1166,6 +1133,7 @@ body {
   --claudian-accent-rgb: var(--claudian-brand-pi-rgb);
 }
 
+.claudian-multi-agent-modal[data-provider="kimi"],
 .claudian-dashboard[data-provider="kimi"],
 .claudian-dashboard-browser-modal[data-provider="kimi"],
 .claudian-dashboard-provider-chip[data-provider="kimi"] {
@@ -1173,6 +1141,7 @@ body {
   --claudian-accent-rgb: var(--claudian-brand-kimi-rgb);
 }
 
+.claudian-multi-agent-modal[data-provider="antigravity"],
 .claudian-dashboard[data-provider="antigravity"],
 .claudian-dashboard-browser-modal[data-provider="antigravity"],
 .claudian-dashboard-provider-chip[data-provider="antigravity"] {
@@ -1180,6 +1149,7 @@ body {
   --claudian-accent-rgb: var(--claudian-brand-antigravity-rgb);
 }
 
+.claudian-multi-agent-modal[data-provider="vibe"],
 .claudian-dashboard[data-provider="vibe"],
 .claudian-dashboard-browser-modal[data-provider="vibe"],
 .claudian-dashboard-provider-chip[data-provider="vibe"] {
@@ -1187,6 +1157,7 @@ body {
   --claudian-accent-rgb: var(--claudian-brand-vibe-rgb);
 }
 
+.claudian-multi-agent-modal[data-provider="grok"],
 .claudian-dashboard[data-provider="grok"],
 .claudian-dashboard-browser-modal[data-provider="grok"],
 .claudian-dashboard-provider-chip[data-provider="grok"] {
@@ -1194,11 +1165,36 @@ body {
   --claudian-accent-rgb: var(--claudian-brand-grok-rgb);
 }
 
+.claudian-multi-agent-modal[data-provider="cline"],
 .claudian-dashboard[data-provider="cline"],
 .claudian-dashboard-browser-modal[data-provider="cline"],
 .claudian-dashboard-provider-chip[data-provider="cline"] {
   --claudian-accent: var(--claudian-brand-cline);
   --claudian-accent-rgb: var(--claudian-brand-cline-rgb);
+}
+
+.claudian-multi-agent-modal[data-provider="hermes"],
+.claudian-dashboard[data-provider="hermes"],
+.claudian-dashboard-browser-modal[data-provider="hermes"],
+.claudian-dashboard-provider-chip[data-provider="hermes"] {
+  --claudian-accent: var(--claudian-brand-hermes);
+  --claudian-accent-rgb: var(--claudian-brand-hermes-rgb);
+}
+
+.claudian-multi-agent-modal[data-provider="dsh"],
+.claudian-dashboard[data-provider="dsh"],
+.claudian-dashboard-browser-modal[data-provider="dsh"],
+.claudian-dashboard-provider-chip[data-provider="dsh"] {
+  --claudian-accent: var(--claudian-brand-dsh);
+  --claudian-accent-rgb: var(--claudian-brand-dsh-rgb);
+}
+
+.claudian-multi-agent-modal[data-provider="freebuff"],
+.claudian-dashboard[data-provider="freebuff"],
+.claudian-dashboard-browser-modal[data-provider="freebuff"],
+.claudian-dashboard-provider-chip[data-provider="freebuff"] {
+  --claudian-accent: var(--claudian-brand-freebuff);
+  --claudian-accent-rgb: var(--claudian-brand-freebuff-rgb);
 }
 
 /* Header provider chip */
@@ -1222,68 +1218,6 @@ body {
   border-radius: 50%;
   background: var(--claudian-accent);
   box-shadow: 0 0 8px color-mix(in srgb, var(--claudian-accent) 70%, transparent);
-}
-
-/* Light-theme overrides must also apply inside the modal. */
-body.theme-light .claudian-multi-agent-modal[data-provider="codex"] {
-  --claudian-accent: var(--claudian-brand-codex);
-  --claudian-accent-rgb: var(--claudian-brand-codex-rgb);
-}
-
-body.theme-light .claudian-multi-agent-modal[data-provider="opencode"] {
-  --claudian-accent: var(--claudian-brand-opencode);
-  --claudian-accent-rgb: var(--claudian-brand-opencode-rgb);
-}
-
-body.theme-light .claudian-multi-agent-modal[data-provider="pi"] {
-  --claudian-accent: var(--claudian-brand-pi);
-  --claudian-accent-rgb: var(--claudian-brand-pi-rgb);
-}
-
-body.theme-light .claudian-multi-agent-modal[data-provider="grok"] {
-  --claudian-accent: var(--claudian-brand-grok);
-  --claudian-accent-rgb: var(--claudian-brand-grok-rgb);
-}
-
-body.theme-light .claudian-multi-agent-modal[data-provider="cline"] {
-  --claudian-accent: var(--claudian-brand-cline);
-  --claudian-accent-rgb: var(--claudian-brand-cline-rgb);
-}
-
-/* Light-theme overrides for the dashboard view + browser modals + chip. */
-body.theme-light .claudian-dashboard[data-provider="codex"],
-body.theme-light .claudian-dashboard-browser-modal[data-provider="codex"],
-body.theme-light .claudian-dashboard-provider-chip[data-provider="codex"] {
-  --claudian-accent: var(--claudian-brand-codex);
-  --claudian-accent-rgb: var(--claudian-brand-codex-rgb);
-}
-
-body.theme-light .claudian-dashboard[data-provider="opencode"],
-body.theme-light .claudian-dashboard-browser-modal[data-provider="opencode"],
-body.theme-light .claudian-dashboard-provider-chip[data-provider="opencode"] {
-  --claudian-accent: var(--claudian-brand-opencode);
-  --claudian-accent-rgb: var(--claudian-brand-opencode-rgb);
-}
-
-body.theme-light .claudian-dashboard[data-provider="pi"],
-body.theme-light .claudian-dashboard-browser-modal[data-provider="pi"],
-body.theme-light .claudian-dashboard-provider-chip[data-provider="pi"] {
-  --claudian-accent: var(--claudian-brand-pi);
-  --claudian-accent-rgb: var(--claudian-brand-pi-rgb);
-}
-
-body.theme-light .claudian-dashboard[data-provider="grok"],
-body.theme-light .claudian-dashboard-browser-modal[data-provider="grok"],
-body.theme-light .claudian-dashboard-provider-chip[data-provider="grok"] {
-  --claudian-accent: var(--claudian-brand-grok);
-  --claudian-accent-rgb: var(--claudian-brand-grok-rgb);
-}
-
-body.theme-light .claudian-dashboard[data-provider="cline"],
-body.theme-light .claudian-dashboard-browser-modal[data-provider="cline"],
-body.theme-light .claudian-dashboard-provider-chip[data-provider="cline"] {
-  --claudian-accent: var(--claudian-brand-cline);
-  --claudian-accent-rgb: var(--claudian-brand-cline-rgb);
 }
 
 /* ============================================================
@@ -1361,12 +1295,14 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="cline"] {
   gap: 1px;
   margin: 0;
   overflow: hidden;
-  border: 1px solid var(--claudian-border);
+  border: 0;
   border-radius: 14px;
-  background: var(--claudian-border);
-  /* Elevation + a hairline top highlight so the panel reads as a raised, glassy
-     surface layered above the section background. */
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  /* The grid is ONE glass pane; the 1px gaps show the pane as hairlines
+     between cells, so cells stay flat tiles inside it (no nested glass). */
+  background: var(--cl-glass-sheen), var(--cl-glass-body);
+  -webkit-backdrop-filter: var(--cl-glass-filter-soft);
+  backdrop-filter: var(--cl-glass-filter-soft);
+  box-shadow: var(--cl-glass-edge), var(--cl-glass-shadow);
 }
 
 .claudian-dashboard-card {
@@ -1374,13 +1310,14 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="cline"] {
   padding: 14px 16px 13px;
   border: 0;
   border-radius: 0;
-  /* Glass depth: a faint status-tinted glow from the top-left plus a subtle
-     top sheen over the base surface — layered, not flat. */
+  /* Status-tinted corner light over a faint wash; hairline gaps come from the
+     pane behind, so each cell only paints its own tint. */
   background:
     radial-gradient(135% 95% at 14% -12%, rgba(var(--card-color-rgb), 0.11), transparent 55%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 42%),
-    var(--claudian-card-bg);
-  box-shadow: none;
+    var(--cl-wash);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: inset 0 0 0 0.5px var(--cl-glass-rim);
 }
 
 .claudian-dashboard-card::before,
@@ -1391,8 +1328,7 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="cline"] {
   border-color: transparent;
   background:
     radial-gradient(135% 95% at 14% -12%, rgba(var(--card-color-rgb), 0.18), transparent 55%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 42%),
-    color-mix(in srgb, var(--card-color) 6%, var(--claudian-card-bg));
+    color-mix(in srgb, var(--card-color) 6%, var(--cl-wash-strong));
   box-shadow: inset 0 0 0 1px rgba(var(--card-color-rgb), 0.30);
 }
 
@@ -1444,12 +1380,12 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="cline"] {
 
 .claudian-dashboard-capabilities {
   overflow: hidden;
-  border: 1px solid var(--claudian-border);
+  border: 0;
   border-radius: 12px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 90px),
-    var(--claudian-card-bg);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  background: var(--cl-glass-sheen), var(--cl-glass-body);
+  -webkit-backdrop-filter: var(--cl-glass-filter-soft);
+  backdrop-filter: var(--cl-glass-filter-soft);
+  box-shadow: var(--cl-glass-edge), var(--cl-glass-shadow);
 }
 
 .claudian-dashboard-provider-rail {
@@ -1494,6 +1430,9 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="cline"] {
 .claudian-dashboard-provider-item[data-provider="vibe"] { --provider-color: var(--claudian-brand-vibe); }
 .claudian-dashboard-provider-item[data-provider="grok"] { --provider-color: var(--claudian-brand-grok); }
 .claudian-dashboard-provider-item[data-provider="cline"] { --provider-color: var(--claudian-brand-cline); }
+.claudian-dashboard-provider-item[data-provider="hermes"] { --provider-color: var(--claudian-brand-hermes); }
+.claudian-dashboard-provider-item[data-provider="dsh"] { --provider-color: var(--claudian-brand-dsh); }
+.claudian-dashboard-provider-item[data-provider="freebuff"] { --provider-color: var(--claudian-brand-freebuff); }
 .claudian-dashboard-provider-item.is-active { color: var(--claudian-text); border-color: color-mix(in srgb, var(--provider-color) 44%, transparent); background: color-mix(in srgb, var(--provider-color) 9%, transparent); }
 .claudian-dashboard-provider-item-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--provider-color); opacity: 0.58; }
 .claudian-dashboard-provider-item.is-active .claudian-dashboard-provider-item-dot { opacity: 1; }
@@ -1529,10 +1468,12 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="cline"] {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1px;
   overflow: hidden;
-  border: 1px solid var(--claudian-border);
+  border: 0;
   border-radius: 12px;
-  background: var(--claudian-border);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  background: var(--cl-glass-sheen), var(--cl-glass-body);
+  -webkit-backdrop-filter: var(--cl-glass-filter-soft);
+  backdrop-filter: var(--cl-glass-filter-soft);
+  box-shadow: var(--cl-glass-edge), var(--cl-glass-shadow);
 }
 .claudian-dashboard-feature {
   display: grid;
@@ -1541,7 +1482,9 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="cline"] {
   gap: 10px;
   min-height: 58px;
   padding: 9px 12px;
-  background: var(--claudian-card-bg);
+  /* Tile inside the glass feature pane: wash + hairline, pane shows through. */
+  background: var(--cl-wash);
+  box-shadow: inset 0 0 0 0.5px var(--cl-glass-rim);
 }
 .claudian-dashboard-feature-icon { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 1px solid var(--claudian-border); border-radius: 8px; color: var(--text-faint); background: var(--claudian-card-elevated); }
 .claudian-dashboard-feature.is-active .claudian-dashboard-feature-icon { color: var(--claudian-accent); border-color: color-mix(in srgb, var(--claudian-accent) 25%, transparent); background: color-mix(in srgb, var(--claudian-accent) 8%, transparent); }
@@ -1947,7 +1890,7 @@ body.theme-light .claudian-dashboard-provider-chip[data-provider="cline"] {
   font-size: 0.8em;
   padding: 4px 8px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--cl-wash);
 }
 
 .claudian-mission-event--failover {

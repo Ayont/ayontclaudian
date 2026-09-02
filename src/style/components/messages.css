@@ -187,9 +187,14 @@
    asymmetric trailing radius anchors it to the user's side. */
 .claudian-message-user {
   position: relative;
-  background: color-mix(in srgb, var(--cl-user-bubble, var(--cl-accent)) 18%, var(--cl-surface-raised));
+  /* Same material family as the composer: tinted glass with a lit top edge. */
+  background:
+    var(--cl-glass-sheen),
+    color-mix(in srgb, var(--cl-user-bubble, var(--cl-accent)) 18%, var(--cl-glass-body-strong));
+  -webkit-backdrop-filter: var(--cl-glass-filter-soft);
+  backdrop-filter: var(--cl-glass-filter-soft);
   border: 1px solid transparent;
-  box-shadow: none;
+  box-shadow: var(--cl-glass-edge);
   align-self: flex-end;
   width: fit-content;
   max-width: min(78%, var(--cl-chat-max));

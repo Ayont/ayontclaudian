@@ -12,26 +12,11 @@
   margin: 0 22px 14px;
   padding: 14px 16px;
   border-radius: var(--cl-radius-lg, 16px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  background:
-    linear-gradient(160deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.012) 46%),
-    var(--claudian-card-bg);
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  box-shadow:
-    0 10px 30px rgba(0, 0, 0, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
-body.theme-light .claudian-master-capacity,
-body.theme-light .claudian-master-plan {
-  border-color: rgba(0, 0, 0, 0.07);
-  background:
-    linear-gradient(160deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.34) 46%),
-    var(--claudian-card-bg);
-  box-shadow:
-    0 8px 22px rgba(0, 0, 0, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  border: 0;
+  background: var(--cl-glass-sheen), var(--cl-glass-body);
+  -webkit-backdrop-filter: var(--cl-glass-filter-soft);
+  backdrop-filter: var(--cl-glass-filter-soft);
+  box-shadow: var(--cl-glass-edge), var(--cl-glass-shadow);
 }
 
 .claudian-master-section-head {
@@ -79,8 +64,8 @@ body.theme-light .claudian-master-plan {
   gap: 7px;
   padding: 9px 10px;
   border-radius: 11px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--cl-glass-rim);
+  background: var(--cl-wash);
   overflow: hidden;
   transition:
     transform var(--cl-dur, 200ms) var(--cl-ease, cubic-bezier(0.16, 1, 0.3, 1)),
@@ -219,12 +204,8 @@ body.theme-light .claudian-master-plan {
   gap: 9px;
   padding: 7px 9px;
   border-radius: 9px;
-  background: rgba(255, 255, 255, 0.028);
+  background: var(--cl-wash);
   animation: cl-plan-row-in var(--cl-dur, 200ms) var(--cl-ease-out, ease-out) both;
-}
-
-body.theme-light .claudian-master-plan-row {
-  background: rgba(0, 0, 0, 0.028);
 }
 
 @keyframes cl-plan-row-in {

@@ -7,11 +7,14 @@
 
 /* Input wrapper (border container) - flex column so textarea expands when no chips */
 /* Height calculation: context row (36px) + textarea min (60px) + toolbar (38px) + border (2px) = 136px */
+/* Material: liquid glass. The transcript scrolls underneath (see
+   .claudian-messages overlap), so the blur has real content to refract. The
+   provider tint is mixed into the glass body, not painted on top. */
 .claudian-input-wrapper {
-  --claudian-input-wrapper-border-color: var(--cl-border-subtle);
+  --claudian-input-wrapper-border-color: transparent;
   --claudian-input-wrapper-box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 10px 32px rgba(0, 0, 0, 0.18);
+    var(--cl-glass-edge),
+    var(--cl-glass-shadow);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -22,7 +25,11 @@
   overflow: hidden;
   border: 1px solid var(--claudian-input-wrapper-border-color);
   border-radius: var(--cl-radius-xl);
-  background: color-mix(in srgb, var(--cl-composer-tint, transparent) 42%, var(--cl-surface-raised));
+  background:
+    var(--cl-glass-sheen),
+    color-mix(in srgb, var(--cl-composer-tint, transparent) 30%, var(--cl-glass-body));
+  -webkit-backdrop-filter: var(--cl-glass-filter);
+  backdrop-filter: var(--cl-glass-filter);
   box-shadow: var(--claudian-input-wrapper-box-shadow);
   transition: border-color var(--cl-dur) var(--cl-ease),
     box-shadow var(--cl-dur) var(--cl-ease);
@@ -40,18 +47,16 @@
   z-index: 20;
 }
 
-body.theme-light .claudian-input-wrapper {
-  --claudian-input-wrapper-box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.72),
-    0 8px 24px rgba(0, 0, 0, 0.08);
-}
+/* Light theme: the glass tokens already re-tune; nothing composer-specific. */
 
-/* Focus elevation: lift the composer with an accent border + soft shadow while
-   it (or any child) has focus. Placed before the instruction/bash mode rules so
-   an active mode color still wins over the focus accent. */
+/* Focus elevation: the rim brightens toward the accent and the plate lifts.
+   Placed before the instruction/bash mode rules so an active mode color still
+   wins over the focus accent. */
 .claudian-input-wrapper:focus-within {
-  --claudian-input-wrapper-border-color: var(--cl-accent-line);
-  --claudian-input-wrapper-box-shadow: var(--cl-shadow-md);
+  --claudian-input-wrapper-box-shadow:
+    inset 0 0 0 1px var(--cl-accent-line),
+    inset 0 1px 0 var(--cl-glass-rim-top),
+    var(--cl-glass-shadow-pop);
 }
 
 /* Context row (file chip start, selection indicator end) - inside input wrapper at top */
