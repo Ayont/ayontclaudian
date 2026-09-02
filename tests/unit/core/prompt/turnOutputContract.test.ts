@@ -25,7 +25,21 @@ describe('turn output contract', () => {
     'Erkläre mir, wie ich einen Projektbericht schreibe.',
     'How do I write a proposal?',
     'Irgendwann: DNS geht nicht.',
+    // Compounds and substrings that used to hijack the surface (5.102 bug: "aus
+    // dem Nichts wird eine E-Mail / ein Word-Dokument").
+    'Erstelle die E-Mail-Validierung im Signup-Formular.',
+    'Baue ein Image-Upload-Feature für Avatare.',
+    'Mach weiter und passe den Bildschirm-Screenshot-Flow an.',
+    'Write a brief summary of what changed in this PR.',
+    'The user reported that the dialog was closed too early. Erstelle einen Fix.',
+    'Erstelle eine Zusammenfassung der Änderungen.',
+    'Mach mir eine Notiz in die Datei.',
+    'Erstelle die Dokumentation für die API-Endpoints.',
+    'Beantworte die Frage vom Kunden: warum ist der Build rot?',
+    'Erstelle ein Logo-Component in React.',
+    'Erstelle eine Visualisierung der Testabdeckung im Terminal.',
   ])('does not mistake engineering or diagnostic language for a rich artifact: %s', (text) => {
+    expect(resolveTurnOutputSurface(text, undefined, { workspaceMode: 'work' })).toBe('chat');
     expect(resolveTurnOutputSurface(text)).toBe('chat');
   });
 
@@ -41,8 +55,28 @@ describe('turn output contract', () => {
     ['Mach mir bitte ein Angebot für den Kunden.', 'live-document'],
     ['Generate an image for the campaign.', 'image'],
     ['LAN und WAN funktionieren nicht.', 'network-map'],
-  ] as const)('routes %s to %s', (text, expected) => {
-    expect(resolveTurnOutputSurface(text)).toBe(expected);
+    ['Erstelle einen Bericht über den Ausfall gestern.', 'live-document'],
+    ['Erstelle einen strukturierten Projektbericht.', 'live-document'],
+    ['Schreib eine Mail an das Team wegen des Releases.', 'email'],
+  ] as const)('routes %s to %s in work mode', (text, expected) => {
+    expect(resolveTurnOutputSurface(text, undefined, { workspaceMode: 'work' })).toBe(expected);
+  });
+
+  it('keeps every inferred surface off in code mode; only explicit surfaces pass', () => {
+    const code = { workspaceMode: 'code' } as const;
+    expect(resolveTurnOutputSurface('Erstelle ein strukturiertes Angebot für den Kunden.', undefined, code)).toBe('chat');
+    expect(resolveTurnOutputSurface('Schreibe eine freundliche E-Mail an den Kunden.', undefined, code)).toBe('chat');
+    expect(resolveTurnOutputSurface('Erzeuge ein Kampagnenbild für die Startseite.', undefined, code)).toBe('chat');
+    expect(resolveTurnOutputSurface('Analysiere FortiGate, VLAN 20 und den Core Switch.', undefined, code)).toBe('chat');
+    // A /document, /email, … command still wins regardless of mode.
+    expect(resolveTurnOutputSurface('Q3-Rollout', 'live-document', code)).toBe('live-document');
+    expect(resolveTurnOutputSurface('Kunde X', 'email', code)).toBe('email');
+  });
+
+  it('applyTurnOutputContract honors the workspace mode when inferring the surface', () => {
+    const text = 'Erstelle ein strukturiertes Angebot für den Kunden.';
+    expect(applyTurnOutputContract({ text }, { workspaceMode: 'code' }).outputSurface).toBe('chat');
+    expect(applyTurnOutputContract({ text }, { workspaceMode: 'work' }).outputSurface).toBe('live-document');
   });
 
   it('includes only the selected specialized surface manual', () => {

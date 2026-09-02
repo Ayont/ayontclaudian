@@ -1269,6 +1269,8 @@ describe('InputController - Message Queue', () => {
         requestReachingProvider = turn.request;
         return createMockStream([{ type: 'done' }]);
       });
+      // Surfaces are inferred from prose only in WORK mode; CODE mode always stays chat.
+      (deps.plugin.settings as unknown as Record<string, unknown>).workspaceMode = 'work';
       inputEl.value = 'Erstelle einen strukturierten Projektbericht.';
 
       await controller.sendMessage();
@@ -1277,6 +1279,22 @@ describe('InputController - Message Queue', () => {
       expect(requestReachingProvider.text).toContain('<claudian_output_contract surface="live-document">');
       expect(requestReachingProvider.text).toContain('```claudian-document');
       expect(requestReachingProvider.text).not.toContain('```claudian-email');
+    });
+
+    it('never infers a rich surface from prose in code mode', async () => {
+      let requestReachingProvider: any;
+      (deps as any).mockAgentService.query = jest.fn().mockImplementation((turn: any) => {
+        requestReachingProvider = turn.request;
+        return createMockStream([{ type: 'done' }]);
+      });
+      (deps.plugin.settings as unknown as Record<string, unknown>).workspaceMode = 'code';
+      inputEl.value = 'Erstelle einen strukturierten Projektbericht.';
+
+      await controller.sendMessage();
+
+      expect(requestReachingProvider.outputSurface).toBe('chat');
+      expect(requestReachingProvider.text).toContain('<claudian_output_contract surface="chat">');
+      expect(requestReachingProvider.text).not.toContain('```claudian-document');
     });
 
     it('keeps raw provider commands free of injected context and output contracts', async () => {

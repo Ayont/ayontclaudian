@@ -554,37 +554,53 @@ function getCompactPacketTracerInstructions(): string {
 const CREATION_WORD_PATTERNS = [
   /^creat(?:e|es|ed|ing)$/,
   /^generat(?:e|es|ed|ing)$/,
-  /^mak(?:e|es|ing)$/,
-  /^made$/,
   /^draft(?:s|ed|ing)?$/,
   /^writ(?:e|es|ing|ten)$/,
   /^compos(?:e|es|ed|ing)$/,
   /^rewrit(?:e|es|ing|ten)$/,
-  /^structur(?:e|es|ed|ing)$/,
   /^erstell(?:e|en|st|t)?$/,
   /^entw(?:irf|erfe|erfen)$/,
   /^schreib(?:e|en|st|t)?$/,
   /^formulier(?:e|en|st|t)?$/,
   /^verfass(?:e|en|st|t)?$/,
-  /^strukturier(?:e|en|st|t)?$/,
   /^überarbeit(?:e|en|est|et)?$/,
   /^umschreib(?:e|en|st|t)?$/,
   /^generier(?:e|en|st|t)?$/,
   /^erzeug(?:e|en|st|t)?$/,
-  /^mach(?:e|en|st|t)?$/,
 ];
 
+/* "mach / make" only counts as creation when the object is the artifact itself
+   ("Mach mir ein Angebot"). Bare "mach weiter", "make it work", "make sure"
+   are continuation verbs and must never open a document. */
+const WEAK_CREATION_WORD_PATTERNS = [/^mak(?:e|es|ing)$/, /^made$/, /^mach(?:e|en|st|t)?$/];
+const WEAK_CREATION_OBJECT = /\b(?:mach\p{L}*|mak\p{L}*|made)\s+(?:mir|uns|bitte|mal|doch|me|us|please)?\s*(?:mir|uns|bitte|mal|doch|me|us|please)?\s*(?:ein|eine|einen|a|an|the|das|die|den)\b/iu;
+
 const ENGINEERING_WORDS = new Set([
-  'bug', 'bugs', 'class', 'code', 'component', 'css', 'function', 'hook',
+  'api', 'branch', 'bug', 'bugs', 'build', 'ci', 'class', 'code', 'commit',
+  'component', 'css', 'endpoint', 'endpoints', 'fix', 'function', 'hook',
   'implementation', 'implementierung', 'javascript', 'klasse', 'komponente',
-  'parser', 'renderer', 'sourcecode', 'stylesheet', 'test', 'tests', 'typescript',
-  'funktion', 'quellcode',
+  'merge', 'parser', 'pr', 'react', 'refactor', 'renderer', 'repo', 'sourcecode',
+  'stylesheet', 'terminal', 'test', 'tests', 'typescript', 'funktion',
+  'quellcode', 'änderungen', 'changes', 'datei', 'file', 'formular', 'signup',
+  'upload', 'validierung', 'validation', 'flow', 'screenshot',
 ]);
 
+/* Nouns that name a standalone deliverable. Matched as WHOLE words: "E-Mail"
+   in "E-Mail-Validierung" tokenizes to ["e", "mail", "validierung"], so the
+   compound never matches an artifact noun, while "eine E-Mail an" still does
+   through the phrase check below. */
 const STRONG_DOCUMENT_WORDS = new Set([
-  'angebot', 'bericht', 'brief', 'briefing', 'dokumentation', 'handbuch',
-  'konzept', 'letter', 'policy', 'projektplan', 'proposal', 'report',
-  'richtlinie', 'sop', 'zusammenfassung',
+  'angebot', 'bericht', 'briefing', 'handbuch', 'konzept', 'policy',
+  'projektplan', 'proposal', 'report', 'richtlinie', 'sop',
+]);
+const DOCUMENT_WORDS = new Set([
+  ...STRONG_DOCUMENT_WORDS,
+  'dokument', 'document', 'brief', 'letter', 'protokoll', 'memo', 'whitepaper',
+]);
+const EMAIL_WORDS = new Set(['email', 'mail', 'mailvorlage', 'anschreiben']);
+const IMAGE_WORDS = new Set([
+  'bild', 'image', 'grafik', 'illustration', 'kampagnenmotiv', 'motiv', 'poster',
+  'banner', 'hero', 'keyvisual',
 ]);
 
 function includesAny(source: string, terms: readonly string[]): boolean {
@@ -606,13 +622,48 @@ function tokenizeIntent(source: string): string[] {
   return source.match(/[\p{L}\p{N}_]+/gu) ?? [];
 }
 
+/* German closes compounds without a hyphen: "Projektbericht", "Preisangebot",
+   "Sicherheitskonzept". Accept a strong document noun as the head of a whole
+   token; hyphenated feature names ("Bericht-Renderer") never reach here because
+   the token split at the hyphen leaves "bericht" bare and "renderer" as
+   engineering context. */
+function hasStrongDocumentNoun(words: readonly string[]): boolean {
+  return words.some((word) =>
+    STRONG_DOCUMENT_WORDS.has(word)
+    || /^\p{L}{3,}(?:bericht|angebot|konzept|handbuch|richtlinie|projektplan)(?:e|s|es|en)?$/u.test(word));
+}
+
+/* An artifact noun only counts when it stands alone. "E-Mail-Validierung",
+   "Image-Upload", "Logo-Component", "Dokument-System" are feature names: the
+   noun is glued to another word with a hyphen, so it describes code. */
+function hasStandaloneNoun(source: string, vocabulary: ReadonlySet<string>): boolean {
+  for (const noun of vocabulary) {
+    // "e-mail" is one noun; any other hyphen glued to the noun marks a compound.
+    const re = new RegExp(`(?<![\\p{L}\\p{N}_-])(?:e-)?${noun}(?:s|es|e|en|n)?(?![\\p{L}\\p{N}_-])`, 'iu');
+    if (re.test(source)) return true;
+  }
+  return false;
+}
+
+/* German builds image nouns as closed compounds ("Kampagnenbild", "Titelbild",
+   "Heldenbild"). Match "…bild" as a whole word, but not "Bildschirm…" and not
+   hyphenated feature names ("Image-Upload"). */
+function hasImageNoun(source: string, words: readonly string[]): boolean {
+  if (hasStandaloneNoun(source, IMAGE_WORDS)) return true;
+  return words.some((word) => /^\p{L}{3,}bild(?:er|es|s)?$/u.test(word) && !/^bildschirm/u.test(word));
+}
+
 function hasCreationIntent(source: string, words: readonly string[]): boolean {
   const informationalLead = /^(?:wie|how)\b|^(?:(?:kann|könnte|soll)\s+ich|can\s+i|should\s+i)\b/i;
   const explanatoryHowTo = /\b(?:erklär\p{L}*|beschreib\p{L}*|explain\p{L}*|describe\p{L}*)\b[^.!?]*\b(?:wie|how)\b/iu;
   if (informationalLead.test(source.trim()) || explanatoryHowTo.test(source)) {
     return false;
   }
-  return words.some((word) => CREATION_WORD_PATTERNS.some((pattern) => pattern.test(word)));
+  if (words.some((word) => CREATION_WORD_PATTERNS.some((pattern) => pattern.test(word)))) {
+    return true;
+  }
+  return words.some((word) => WEAK_CREATION_WORD_PATTERNS.some((pattern) => pattern.test(word)))
+    && WEAK_CREATION_OBJECT.test(source);
 }
 
 function hasEngineeringContext(words: readonly string[]): boolean {
@@ -623,60 +674,60 @@ function isRawProviderCommand(text: string): boolean {
   return /^\s*\/[a-z][\w-]*(?:\s|$)/i.test(text);
 }
 
+export interface ResolveOutputSurfaceOptions {
+  /** Active workspace mode. In `code`, surfaces are never inferred from prose. */
+  workspaceMode?: WorkspaceMode;
+}
+
+/**
+ * Picks the output surface for a turn.
+ *
+ * Rules, in order: an explicit surface (a `/document`, `/email`, … command) always
+ * wins. In CODE mode nothing else is inferred: an engineer typing "Erstelle die
+ * E-Mail-Validierung" must get chat, full stop. In WORK mode a surface is only
+ * inferred when the prompt has creation intent AND names the deliverable as a
+ * standalone noun (not a hyphenated feature compound) AND carries no engineering
+ * vocabulary. Everything else stays `chat`.
+ */
 export function resolveTurnOutputSurface(
   text: string,
   requestedSurface?: OutputSurface,
+  options: ResolveOutputSurfaceOptions = {},
 ): OutputSurface {
   if (requestedSurface && requestedSurface !== 'chat') return requestedSurface;
+  if ((options.workspaceMode ?? DEFAULT_WORKSPACE_MODE) === 'code') return 'chat';
 
   const source = text.toLocaleLowerCase('de-DE');
   const words = tokenizeIntent(source);
   const create = hasCreationIntent(source, words);
 
-  // Explicit document nouns remain authoritative even when their subject is a
-  // renderer or codebase ("Schreib ein Handbuch für den Renderer"). Generic
-  // feature words such as "Dokument-System" do not qualify on their own.
-  if (create && words.some((word) => STRONG_DOCUMENT_WORDS.has(word))) {
-    return 'live-document';
-  }
-
-  const explicitEmail = create && (
-    includesAny(source, ['mailvorlage', 'mail template'])
-    || /\b(?:e-mail|email)\s+(?:an|to|für|for)\b/i.test(source)
-  );
-  if (explicitEmail) return 'email';
-
   if (create && includesAny(source, ['agent skill', 'agent-skill', 'skill.md', 'skill für', 'skill for'])) {
     return 'skill';
   }
 
+  // Explicit deliverable nouns remain authoritative even when their subject is
+  // code ("Schreib ein Handbuch für den Renderer", "Erstelle einen Bericht über
+  // den Build"). Generic nouns such as "Dokumentation" or "Zusammenfassung" are
+  // deliberately NOT in this set: in an engineering chat they describe an
+  // answer, not a Word document.
+  if (create && hasStrongDocumentNoun(words)) return 'live-document';
+
   // Code/renderer/parser requests are implementation work even when they also
-  // contain words such as image, document or firewall. This conservative gate
-  // prevents ordinary debugging answers from being forced into artifact views.
+  // contain words such as image, document or firewall.
   if (hasEngineeringContext(words)) return 'chat';
 
-  const emailNoun = includesAny(source, ['e-mail', 'email', 'mailvorlage', 'mail template']);
+  const emailNoun = hasStandaloneNoun(source, EMAIL_WORDS);
   const replyAction = words.some((word) =>
-    /^(?:antwort(?:e|en|est|et)|beantwort(?:e|en|est|et)|repl(?:y|ies|ied|ying))$/.test(word));
-  const replyRecipient = includesAny(source, ['kunde', 'customer', 'ticket', 'empfänger', 'recipient']);
+    /^(?:antwort(?:e|en|est|et)|repl(?:y|ies|ied|ying))$/.test(word));
+  const replyRecipient = includesAny(source, ['kunde', 'customer', 'empfänger', 'recipient']);
   const customerReplyDraft = create && replyRecipient && includesAny(source, ['antwort', 'reply']);
-  if ((emailNoun && (create || replyAction)) || (replyRecipient && replyAction) || customerReplyDraft) {
+  if ((emailNoun && create) || (replyRecipient && replyAction) || customerReplyDraft) {
     return 'email';
   }
 
-  if (create && includesAny(source, [
-    'bild', 'image', 'grafik', 'illustration', 'visual', 'kampagnenmotiv', 'logo',
-  ])) {
-    return 'image';
-  }
+  if (create && hasImageNoun(source, words)) return 'image';
 
-  if (create && includesAny(source, [
-    'dokument', 'document', 'bericht', 'report', 'angebot', 'proposal', 'konzept',
-    'briefing', 'handbuch', 'sop', 'richtlinie', 'policy', 'projektplan', 'notiz',
-    'meeting summary', 'zusammenfassung', 'letter', 'brief',
-  ])) {
-    return 'live-document';
-  }
+  if (create && hasStandaloneNoun(source, DOCUMENT_WORDS)) return 'live-document';
 
   const highConfidenceNetworkTerms = [
     'fortigate', 'fortinet', 'opnsense', 'pfsense', 'packet tracer', 'vlan',
@@ -798,7 +849,9 @@ export function applyTurnOutputContract(
 ): ChatTurnRequest {
   if (isRawProviderCommand(request.text)) return request;
 
-  const outputSurface = resolveTurnOutputSurface(request.text, request.outputSurface);
+  const outputSurface = resolveTurnOutputSurface(request.text, request.outputSurface, {
+    workspaceMode: options.workspaceMode,
+  });
   const contract = buildTurnOutputContract({ ...request, outputSurface }, options);
   return {
     ...request,

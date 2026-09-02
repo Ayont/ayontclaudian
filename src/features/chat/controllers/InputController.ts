@@ -560,7 +560,9 @@ export class InputController {
     let turnRequest = turnSubmission.turnRequest;
     turnRequest = {
       ...turnRequest,
-      outputSurface: resolveTurnOutputSurface(displayContent, turnRequest.outputSurface),
+      outputSurface: resolveTurnOutputSurface(displayContent, turnRequest.outputSurface, {
+        workspaceMode: normalizeWorkspaceMode(plugin.settings.workspaceMode),
+      }),
     };
 
     // CRITICAL: decouple THIS turn's image base64 from the message objects that
