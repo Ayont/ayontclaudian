@@ -1,11 +1,14 @@
 import type { ProviderSettingsReconciler } from '../../../core/providers/types';
 import type { Conversation } from '../../../core/types';
+import { antigravityChatUIConfig } from '../ui/AntigravityChatUIConfig';
 
 /**
- * Antigravity exposes a single non-selectable model (no model dropdown, no
- * env-driven model variants), so model reconciliation is a no-op. The shared
- * coordinator still calls these methods for every provider, hence the inert
- * implementations.
+ * Antigravity has no env-driven model variants, so environment reconciliation is
+ * a no-op. Model normalization is NOT: agy retires Gemini Flash generations
+ * (3.5 is gone on agy 1.1.24) and rejects a retired `--model` with status ERROR,
+ * so a value persisted by an older build must be migrated on load. The mapping
+ * itself lives in the chat UI config (`normalizeModelVariant`), which the picker
+ * and the tab draft path also use.
  */
 export const antigravitySettingsReconciler: ProviderSettingsReconciler = {
   reconcileModelWithEnvironment(
@@ -15,7 +18,16 @@ export const antigravitySettingsReconciler: ProviderSettingsReconciler = {
     return { changed: false, invalidatedConversations: [] };
   },
 
-  normalizeModelVariantSettings(_settings: Record<string, unknown>): boolean {
-    return false;
+  normalizeModelVariantSettings(settings: Record<string, unknown>): boolean {
+    const model = settings.model;
+    if (typeof model !== 'string' || !model) {
+      return false;
+    }
+    const normalized = antigravityChatUIConfig.normalizeModelVariant(model, settings);
+    if (normalized === model) {
+      return false;
+    }
+    settings.model = normalized;
+    return true;
   },
 };

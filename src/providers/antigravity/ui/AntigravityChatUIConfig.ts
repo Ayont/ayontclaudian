@@ -20,19 +20,22 @@ export const ANTIGRAVITY_DEFAULT_MODEL_ID = 'antigravity-default';
 
 /**
  * Models selectable via `agy --model "<name>"`. The VALUE is the EXACT name
- * `agy models` prints, so the launch spec passes it through verbatim. Keep in
- * sync with `agy models`.
+ * `agy models` prints, so the launch spec passes it through verbatim.
+ *
+ * Mirror of `agy models` on agy 1.1.24 (run, not assumed). Gemini 3.8 Flash is
+ * new; Gemini 3.5 Flash was dropped by agy and is migrated below so a persisted
+ * 3.5 value never reaches `--model` and fails the turn.
  */
 export const ANTIGRAVITY_MODEL_NAMES: readonly string[] = [
+  'Gemini 3.8 Flash (Low)',
+  'Gemini 3.8 Flash (Medium)',
+  'Gemini 3.8 Flash (High)',
   'Gemini 3.7 Flash (Low)',
   'Gemini 3.7 Flash (Medium)',
   'Gemini 3.7 Flash (High)',
   'Gemini 3.6 Flash (Low)',
   'Gemini 3.6 Flash (Medium)',
   'Gemini 3.6 Flash (High)',
-  'Gemini 3.5 Flash (Low)',
-  'Gemini 3.5 Flash (Medium)',
-  'Gemini 3.5 Flash (High)',
   'Gemini 3.1 Pro (Low)',
   'Gemini 3.1 Pro (High)',
   'Claude Sonnet 4.6 (Thinking)',
@@ -42,15 +45,15 @@ export const ANTIGRAVITY_MODEL_NAMES: readonly string[] = [
 
 /** Stable slugs from `agy models` (agy >= 1.1.5). Both slug and display name are valid `--model` values. */
 const ANTIGRAVITY_MODEL_SLUGS: Readonly<Record<string, string>> = Object.freeze({
+  'gemini-3.8-flash-high': 'Gemini 3.8 Flash (High)',
+  'gemini-3.8-flash-medium': 'Gemini 3.8 Flash (Medium)',
+  'gemini-3.8-flash-low': 'Gemini 3.8 Flash (Low)',
   'gemini-3.7-flash-high': 'Gemini 3.7 Flash (High)',
   'gemini-3.7-flash-medium': 'Gemini 3.7 Flash (Medium)',
   'gemini-3.7-flash-low': 'Gemini 3.7 Flash (Low)',
   'gemini-3.6-flash-high': 'Gemini 3.6 Flash (High)',
   'gemini-3.6-flash-medium': 'Gemini 3.6 Flash (Medium)',
   'gemini-3.6-flash-low': 'Gemini 3.6 Flash (Low)',
-  'gemini-3.5-flash-high': 'Gemini 3.5 Flash (High)',
-  'gemini-3.5-flash-medium': 'Gemini 3.5 Flash (Medium)',
-  'gemini-3.5-flash-low': 'Gemini 3.5 Flash (Low)',
   'gemini-3.1-pro-high': 'Gemini 3.1 Pro (High)',
   'gemini-3.1-pro-low': 'Gemini 3.1 Pro (Low)',
   'claude-sonnet-4-6': 'Claude Sonnet 4.6 (Thinking)',
@@ -62,6 +65,29 @@ const ANTIGRAVITY_MODEL_NAME_SET = new Set<string>([
   ...ANTIGRAVITY_MODEL_NAMES,
   ...Object.keys(ANTIGRAVITY_MODEL_SLUGS),
 ]);
+
+/**
+ * Gemini Flash generations agy no longer serves. A persisted value from an older
+ * build maps onto the newest Flash generation at the SAME reasoning tier, in the
+ * same spelling (display name stays a name, slug stays a slug). Without this the
+ * generic fallback would silently reset the user to "Default".
+ */
+const RETIRED_GEMINI_FLASH_GENERATIONS = ['3.5'] as const;
+const CURRENT_GEMINI_FLASH_GENERATION = '3.8';
+
+function migrateRetiredAntigravityModel(model: string): string {
+  for (const generation of RETIRED_GEMINI_FLASH_GENERATIONS) {
+    const namePrefix = `Gemini ${generation} Flash`;
+    if (model.startsWith(namePrefix)) {
+      return `Gemini ${CURRENT_GEMINI_FLASH_GENERATION} Flash${model.slice(namePrefix.length)}`;
+    }
+    const slugPrefix = `gemini-${generation}-flash`;
+    if (model.startsWith(slugPrefix)) {
+      return `gemini-${CURRENT_GEMINI_FLASH_GENERATION}-flash${model.slice(slugPrefix.length)}`;
+    }
+  }
+  return model;
+}
 
 const ANTIGRAVITY_MODEL_OPTIONS: ProviderUIOption[] = [
   { value: ANTIGRAVITY_DEFAULT_MODEL_ID, label: 'Antigravity · Default' },
@@ -157,7 +183,9 @@ export const antigravityChatUIConfig: ProviderChatUIConfig = {
   applyModelDefaults(_model: string, _settings: unknown): void {},
 
   normalizeModelVariant(model: string): string {
-    return ANTIGRAVITY_MODEL_NAME_SET.has(model) ? model : ANTIGRAVITY_DEFAULT_MODEL_ID;
+    if (ANTIGRAVITY_MODEL_NAME_SET.has(model)) return model;
+    const migrated = migrateRetiredAntigravityModel(model);
+    return ANTIGRAVITY_MODEL_NAME_SET.has(migrated) ? migrated : ANTIGRAVITY_DEFAULT_MODEL_ID;
   },
 
   getCustomModelIds(): Set<string> {

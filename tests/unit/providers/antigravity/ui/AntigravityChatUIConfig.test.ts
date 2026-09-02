@@ -27,29 +27,35 @@ describe('AntigravityChatUIConfig models', () => {
     );
   });
 
-  // Regression: verified live against `agy models` (agy 1.1.4) — Gemini 3.6
-  // Flash shipped alongside 3.5 Flash and must stay selectable.
-  it('includes all three Gemini 3.6 Flash reasoning tiers', () => {
-    expect(ANTIGRAVITY_MODEL_NAMES).toEqual(
-      expect.arrayContaining([
-        'Gemini 3.6 Flash (Low)',
-        'Gemini 3.6 Flash (Medium)',
-        'Gemini 3.6 Flash (High)',
-      ]),
-    );
+  // Verified live against `agy models` (agy 1.1.24), which prints exactly:
+  //   gemini-3.8-flash-{high,medium,low}, gemini-3.7-flash-{high,medium,low},
+  //   gemini-3.6-flash-{high,medium,low}, gemini-3.1-pro-{high,low},
+  //   claude-sonnet-4-6, claude-opus-4-6-thinking, gpt-oss-120b-medium.
+  // Gemini 3.5 Flash is GONE from that list; offering it would send a dead id.
+  it('mirrors the agy 1.1.24 model list exactly', () => {
+    expect([...ANTIGRAVITY_MODEL_NAMES]).toEqual([
+      'Gemini 3.8 Flash (Low)',
+      'Gemini 3.8 Flash (Medium)',
+      'Gemini 3.8 Flash (High)',
+      'Gemini 3.7 Flash (Low)',
+      'Gemini 3.7 Flash (Medium)',
+      'Gemini 3.7 Flash (High)',
+      'Gemini 3.6 Flash (Low)',
+      'Gemini 3.6 Flash (Medium)',
+      'Gemini 3.6 Flash (High)',
+      'Gemini 3.1 Pro (Low)',
+      'Gemini 3.1 Pro (High)',
+      'Claude Sonnet 4.6 (Thinking)',
+      'Claude Opus 4.6 (Thinking)',
+      'GPT-OSS 120B (Medium)',
+    ]);
   });
 
-  // Regression: verified live against `agy models` (agy 1.1.13) — Gemini 3.7
-  // Flash is agy's own default model there (`agy -p "/model"` reports
-  // gemini-3.7-flash-high), so all three tiers must be selectable.
-  it('includes all three Gemini 3.7 Flash reasoning tiers', () => {
-    expect(ANTIGRAVITY_MODEL_NAMES).toEqual(
-      expect.arrayContaining([
-        'Gemini 3.7 Flash (Low)',
-        'Gemini 3.7 Flash (Medium)',
-        'Gemini 3.7 Flash (High)',
-      ]),
-    );
+  it('accepts the agy slugs for every listed model, including the new 3.8 tiers', () => {
+    for (const slug of ['gemini-3.8-flash-high', 'gemini-3.8-flash-medium', 'gemini-3.8-flash-low']) {
+      expect(isAntigravityModelName(slug)).toBe(true);
+      expect(antigravityChatUIConfig.ownsModel(slug, {})).toBe(true);
+    }
   });
 
   // The selector renders in list order, so the newest generation must lead.
@@ -57,8 +63,19 @@ describe('AntigravityChatUIConfig models', () => {
     const flashGenerations = ANTIGRAVITY_MODEL_NAMES.filter((name) => name.includes('Flash')).map((name) =>
       name.slice('Gemini '.length, name.indexOf(' Flash')),
     );
-    expect(flashGenerations[0]).toBe('3.7');
-    expect([...new Set(flashGenerations)]).toEqual(['3.7', '3.6', '3.5']);
+    expect(flashGenerations[0]).toBe('3.8');
+    expect([...new Set(flashGenerations)]).toEqual(['3.8', '3.7', '3.6']);
+  });
+
+  // Stability: a value persisted by an older build for a model agy no longer
+  // serves must not reach `--model` verbatim (agy fails the turn). It migrates
+  // to the same reasoning tier of the newest Flash generation.
+  it('migrates retired Gemini 3.5 Flash values (name or slug) to Gemini 3.8 Flash of the same tier', () => {
+    expect(antigravityChatUIConfig.normalizeModelVariant('Gemini 3.5 Flash (High)', {})).toBe('Gemini 3.8 Flash (High)');
+    expect(antigravityChatUIConfig.normalizeModelVariant('Gemini 3.5 Flash (Medium)', {})).toBe('Gemini 3.8 Flash (Medium)');
+    expect(antigravityChatUIConfig.normalizeModelVariant('Gemini 3.5 Flash (Low)', {})).toBe('Gemini 3.8 Flash (Low)');
+    expect(antigravityChatUIConfig.normalizeModelVariant('gemini-3.5-flash-high', {})).toBe('gemini-3.8-flash-high');
+    expect(isAntigravityModelName('Gemini 3.5 Flash (High)')).toBe(false);
   });
 
   it('owns the default id and every model name', () => {
@@ -69,7 +86,7 @@ describe('AntigravityChatUIConfig models', () => {
 
   it('isDefaultModel only for the synthetic default', () => {
     expect(antigravityChatUIConfig.isDefaultModel(ANTIGRAVITY_DEFAULT_MODEL_ID)).toBe(true);
-    expect(antigravityChatUIConfig.isDefaultModel('Gemini 3.5 Flash (High)')).toBe(false);
+    expect(antigravityChatUIConfig.isDefaultModel('Gemini 3.8 Flash (High)')).toBe(false);
   });
 
   it('normalizeModelVariant keeps a known model and falls back otherwise', () => {
@@ -145,6 +162,8 @@ describe('AntigravityChatUIConfig permission mode', () => {
     });
 
     it('returns 1M for the Gemini and Claude entries', () => {
+      expect(antigravityChatUIConfig.getContextWindowSize('Gemini 3.8 Flash (High)', undefined)).toBe(1_000_000);
+      expect(antigravityChatUIConfig.getContextWindowSize('gemini-3.8-flash-low', undefined)).toBe(1_000_000);
       expect(antigravityChatUIConfig.getContextWindowSize('Gemini 3.7 Flash (High)', undefined)).toBe(1_000_000);
       expect(antigravityChatUIConfig.getContextWindowSize('Gemini 3.6 Flash (High)', undefined)).toBe(1_000_000);
       expect(antigravityChatUIConfig.getContextWindowSize('Gemini 3.1 Pro (Low)', undefined)).toBe(1_000_000);
