@@ -210,6 +210,90 @@ describe('ToolCallRenderer', () => {
     });
   });
 
+  describe('browser activity card', () => {
+    it('renders a Hermes browser_navigate as a browser card with an address bar', () => {
+      const parentEl = createMockEl();
+      const toolCall = createToolCall({
+        id: 'b1',
+        name: 'browser_navigate',
+        input: { url: 'https://veylor.net/shop?ref=x' },
+      });
+
+      const toolEl = renderToolCall(parentEl, toolCall, new Map());
+
+      expect(toolEl.hasClass('claudian-tool-call-browser')).toBe(true);
+      expect(toolEl.dataset.browserDriver).toBe('hermes');
+      expect(toolEl.dataset.browserAction).toBe('navigate');
+      expect(toolEl.querySelector('.claudian-tool-name')?.textContent).toBe('Öffne Seite');
+      expect(toolEl.querySelector('.claudian-tool-summary')?.textContent).toBe('veylor.net/shop');
+      expect(toolEl.querySelector('.claudian-browser-address')?.textContent).toBe('https://veylor.net/shop?ref=x');
+      // Running state: the viewport shows a pulsing "Browser arbeitet" placeholder.
+      expect(toolEl.querySelector('.claudian-browser-viewport')?.hasClass('is-running')).toBe(true);
+    });
+
+    it('renders Claude-in-Chrome computer clicks with the driver badge and target', () => {
+      const parentEl = createMockEl();
+      const toolCall = createToolCall({
+        id: 'b2',
+        name: 'mcp__claude-in-chrome__computer',
+        input: { action: 'left_click', coordinate: [120, 40], text: undefined },
+        status: 'completed',
+        result: 'Clicked at 120,40',
+      });
+
+      const toolEl = renderStoredToolCall(parentEl, toolCall);
+
+      expect(toolEl.hasClass('claudian-tool-call-browser')).toBe(true);
+      expect(toolEl.dataset.browserDriver).toBe('claude-chrome');
+      expect(toolEl.querySelector('.claudian-tool-name')?.textContent).toBe('Klicke');
+      expect(toolEl.querySelector('.claudian-browser-driver')?.textContent).toBe('Claude in Chrome');
+      expect(toolEl.querySelector('.claudian-browser-result')?.textContent).toContain('Clicked at 120,40');
+    });
+
+    it('shows a screenshot from the result inside the viewport', () => {
+      const parentEl = createMockEl();
+      const toolCall = createToolCall({
+        id: 'b3',
+        name: 'mcp__playwright__browser_take_screenshot',
+        input: {},
+        status: 'completed',
+        result: 'data:image/png;base64,iVBORw0KGgo=',
+      });
+
+      const toolEl = renderStoredToolCall(parentEl, toolCall);
+
+      const img = toolEl.querySelector('.claudian-browser-shot') as unknown as { getAttribute: (n: string) => string | null } | null;
+      expect(img).not.toBeNull();
+      expect(img?.getAttribute('src')).toBe('data:image/png;base64,iVBORw0KGgo=');
+      expect(toolEl.querySelector('.claudian-browser-viewport')?.hasClass('is-running')).toBe(false);
+    });
+
+    it('updates the viewport from running to result on tool result', () => {
+      const parentEl = createMockEl();
+      const toolCall = createToolCall({ id: 'b4', name: 'browser_click', input: { selector: '#buy' } });
+      const elements = new Map<string, HTMLElement>();
+      const toolEl = renderToolCall(parentEl, toolCall, elements);
+      expect(toolEl.querySelector('.claudian-browser-viewport')?.hasClass('is-running')).toBe(true);
+
+      toolCall.status = 'completed';
+      toolCall.result = 'ok';
+      updateToolCallResult('b4', toolCall, elements);
+
+      expect(toolEl.querySelector('.claudian-browser-viewport')?.hasClass('is-running')).toBe(false);
+      expect(toolEl.querySelector('.claudian-browser-result')?.textContent).toBe('ok');
+    });
+
+    it('marks desktop automation (computer_use) distinctly', () => {
+      const parentEl = createMockEl();
+      const toolCall = createToolCall({ id: 'b5', name: 'computer_use', input: { action: 'click', app: 'Safari' } });
+      const toolEl = renderToolCall(parentEl, toolCall, new Map());
+      expect(toolEl.hasClass('claudian-tool-call-browser')).toBe(true);
+      expect(toolEl.hasClass('claudian-tool-call-desktop')).toBe(true);
+      expect(toolEl.querySelector('.claudian-tool-name')?.textContent).toBe('Klicke am Desktop');
+      expect(toolEl.querySelector('.claudian-browser-driver')?.textContent).toBe('Hermes Desktop');
+    });
+  });
+
   describe('setToolIcon', () => {
     it('should call setIcon with the resolved icon name', () => {
       const el = createMockEl() as unknown as HTMLElement;

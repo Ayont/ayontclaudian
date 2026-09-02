@@ -1,6 +1,12 @@
 import { setIcon } from 'obsidian';
 
+import {
+  type BrowserActivity,
+  describeBrowserActivity,
+  formatBrowserUrl,
+} from '../../../core/tools/browserActivity';
 import { animateNumber } from '../../../utils/animateNumber';
+import { getBrowserActionIcon, getBrowserDriverLabel } from '../rendering/BrowserActivityRenderer';
 
 /**
  * Live "the assistant is working" status bar. Shown above the composer while a
@@ -20,6 +26,18 @@ export interface StreamActivity {
 }
 
 export const STREAM_PHASES = ['Kontext', 'Modell', 'Werkzeuge', 'Antwort', 'Sichern'] as const;
+
+/** Browser steps kept in the live trail (icons, newest last). */
+export const MAX_BROWSER_TRAIL = 6;
+
+function sameBrowserStep(left: BrowserActivity | null, right: BrowserActivity): boolean {
+  return left !== null
+    && left.kind === right.kind
+    && left.action === right.action
+    && left.url === right.url
+    && left.target === right.target
+    && left.driver === right.driver;
+}
 
 /** Maps provider-neutral activity prose to the visual phase rail. */
 export function resolveActivityStage(primary: string): number {
@@ -98,6 +116,14 @@ export class StreamStatusBar {
   private readonly detailMetaEl: HTMLElement;
   private readonly phaseEls: HTMLElement[] = [];
   private readonly activityHistoryEl: HTMLElement;
+  private readonly browserEl: HTMLElement;
+  private readonly browserDriverEl: HTMLElement;
+  private readonly browserUrlEl: HTMLElement;
+  private readonly browserActionEl: HTMLElement;
+  private readonly browserTrailEl: HTMLElement;
+  private browserPage: string | null = null;
+  private lastBrowserStep: BrowserActivity | null = null;
+  private browserTrail: BrowserActivity[] = [];
   private intervalId: number | null = null;
   private startedAt = 0;
   private lastActivityAt = 0;
@@ -166,6 +192,23 @@ export class StreamStatusBar {
     // waiting on a slow provider.
     const progressTrack = this.el.createDiv({ cls: 'claudian-stream-status-progress' });
     this.progressBarEl = progressTrack.createDiv({ cls: 'claudian-stream-status-progress-bar' });
+
+    // Browser session chip — a miniature address bar that appears the moment a
+    // provider drives a browser (Hermes browser_*, Claude-in-Chrome, Playwright
+    // MCP, cua-driver) so background automation is visible, not a mystery.
+    this.browserEl = this.el.createDiv({ cls: 'claudian-stream-browser claudian-hidden' });
+    this.browserEl.setAttribute('role', 'status');
+    this.browserEl.setAttribute('aria-live', 'polite');
+    const browserIcon = this.browserEl.createSpan({ cls: 'claudian-stream-browser-icon' });
+    browserIcon.setAttribute('aria-hidden', 'true');
+    setIcon(browserIcon, 'globe');
+    const browserBody = this.browserEl.createSpan({ cls: 'claudian-stream-browser-body' });
+    const browserTop = browserBody.createSpan({ cls: 'claudian-stream-browser-top' });
+    this.browserDriverEl = browserTop.createSpan({ cls: 'claudian-stream-browser-driver' });
+    this.browserUrlEl = browserTop.createSpan({ cls: 'claudian-stream-browser-url' });
+    this.browserActionEl = browserBody.createSpan({ cls: 'claudian-stream-browser-action' });
+    this.browserTrailEl = this.browserEl.createSpan({ cls: 'claudian-stream-browser-trail' });
+    this.browserTrailEl.setAttribute('aria-hidden', 'true');
 
     this.detailEl = this.el.createDiv({ cls: 'claudian-stream-status-detail' });
     this.detailPrimaryEl = this.detailEl.createDiv({ cls: 'claudian-stream-status-detail-primary' });
@@ -243,6 +286,62 @@ export class StreamStatusBar {
     }
   }
 
+  /**
+   * Surfaces a browser/desktop automation step. The page sticks: clicks and
+   * typing on a page keep showing that page's host until the next navigate.
+   */
+  setBrowserActivity(activity: BrowserActivity): void {
+    if (sameBrowserStep(this.lastBrowserStep, activity)) return;
+    this.lastBrowserStep = activity;
+
+    if (activity.url) {
+      this.browserPage = formatBrowserUrl(activity.url);
+    } else if (activity.kind === 'desktop' && activity.target && (activity.action === 'click' || activity.action === 'tab' || activity.action === 'other')) {
+      this.browserPage = activity.target;
+    }
+
+    const { title, detail } = describeBrowserActivity(activity);
+    // The address row already shows the page, so navigate/tab don't repeat it.
+    const repeatsPage = (activity.action === 'navigate' || activity.action === 'tab') && Boolean(activity.url);
+    const actionText = detail && !repeatsPage ? `${title} ${detail}` : title;
+
+    this.browserEl.removeClass('claudian-hidden');
+    this.browserEl.toggleClass('is-desktop', activity.kind === 'desktop');
+    this.browserEl.dataset.browserDriver = activity.driver;
+    this.browserEl.dataset.browserAction = activity.action;
+    this.browserDriverEl.setText(getBrowserDriverLabel(activity));
+    this.browserUrlEl.setText(this.browserPage ?? (activity.kind === 'desktop' ? 'Desktop' : '—'));
+    this.browserActionEl.setText(actionText);
+    this.browserEl.setAttribute('aria-label', `${getBrowserDriverLabel(activity)}: ${actionText}`);
+
+    this.browserTrail = [...this.browserTrail, activity].slice(-MAX_BROWSER_TRAIL);
+    this.renderBrowserTrail();
+  }
+
+  private renderBrowserTrail(): void {
+    this.browserTrailEl.empty();
+    this.browserTrail.forEach((step, index) => {
+      const stepEl = this.browserTrailEl.createSpan({ cls: 'claudian-stream-browser-step' });
+      stepEl.dataset.action = step.action;
+      stepEl.toggleClass('is-latest', index === this.browserTrail.length - 1);
+      setIcon(stepEl, getBrowserActionIcon(step));
+    });
+  }
+
+  private resetBrowser(): void {
+    this.browserPage = null;
+    this.lastBrowserStep = null;
+    this.browserTrail = [];
+    this.browserEl.addClass('claudian-hidden');
+    this.browserEl.removeClass('is-desktop');
+    delete this.browserEl.dataset.browserDriver;
+    delete this.browserEl.dataset.browserAction;
+    this.browserDriverEl.setText('');
+    this.browserUrlEl.setText('');
+    this.browserActionEl.setText('');
+    this.browserTrailEl.empty();
+  }
+
   private toggleOpen(): void {
     this.isOpen = !this.isOpen;
     this.el.toggleClass('is-open', this.isOpen);
@@ -250,6 +349,7 @@ export class StreamStatusBar {
   }
 
   private start(): void {
+    this.resetBrowser();
     this.startedAt = this.now();
     this.lastActivityAt = this.startedAt;
     this.setWaiting(false);
@@ -275,6 +375,7 @@ export class StreamStatusBar {
 
   private stop(): void {
     this.clearTimer();
+    this.resetBrowser();
     this.setWaiting(false);
     this.el.addClass('claudian-hidden');
     this.el.removeClass('is-open');

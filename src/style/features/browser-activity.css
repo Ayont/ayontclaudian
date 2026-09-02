@@ -1,0 +1,457 @@
+/* Browser / desktop automation — the agent driving a browser (Hermes browser_*,
+   Claude-in-Chrome MCP, Playwright / Chrome DevTools / Browser Use MCP) or the
+   desktop (cua-driver). Two surfaces:
+     1. the inline tool card, styled as a miniature glass browser window
+        (title bar → address pill → viewport → result strip),
+     2. the live chip inside the stream status bar with the current page and a
+        trail of the last actions.
+   Material rules follow DESIGN.md: one glass pane per card (the card), the
+   viewport is an ink well, tiles inside use wash + hairline. */
+
+/* ── Tool card as a browser window ─────────────────────────────────────── */
+
+.claudian-tool-call-browser {
+  position: relative;
+  margin-block: var(--cl-space-3);
+  border: 1px solid rgba(var(--claudian-brand-rgb), 0.22);
+  border-radius: var(--cl-radius-lg);
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(var(--claudian-brand-rgb), 0.14), transparent 46%),
+    var(--cl-glass-sheen),
+    var(--cl-glass-body-strong);
+  -webkit-backdrop-filter: var(--cl-glass-filter-soft);
+  backdrop-filter: var(--cl-glass-filter-soft);
+  box-shadow: var(--cl-glass-edge), var(--cl-shadow-sm);
+  overflow: hidden;
+  transition:
+    border-color var(--cl-dur) var(--cl-ease),
+    box-shadow var(--cl-dur) var(--cl-ease);
+}
+
+.claudian-tool-call-browser:hover {
+  border-color: rgba(var(--claudian-brand-rgb), 0.42);
+  box-shadow: var(--cl-glass-edge), 0 8px 28px rgba(var(--claudian-brand-rgb), 0.10), var(--cl-shadow-md);
+}
+
+.claudian-tool-call-browser .claudian-tool-header {
+  padding: 9px 12px;
+  border-bottom: 1px solid transparent;
+}
+
+.claudian-tool-call-browser.expanded .claudian-tool-header {
+  border-bottom-color: rgba(var(--claudian-brand-rgb), 0.16);
+}
+
+.claudian-tool-call-browser .claudian-tool-icon {
+  color: var(--cl-accent);
+}
+
+.claudian-tool-call-browser .claudian-tool-content {
+  margin-inline-start: 0;
+  padding: 0;
+  border-inline-start: none;
+}
+
+/* Expanded: the action strip inside the window carries name + detail, so the
+   header summary would repeat it (same rule as the bash card). */
+.claudian-tool-call-browser.expanded .claudian-tool-summary {
+  display: none;
+}
+
+/* Desktop automation swaps the tint towards a cooler system blue so it never
+   reads as "a web page" — the agent is touching real windows. */
+.claudian-tool-call-desktop {
+  --claudian-brand-rgb: 90, 140, 245;
+  --cl-accent: oklch(0.66 0.17 262);
+}
+
+/* Title bar ─────────────────────────────────────────────────────────── */
+
+.claudian-browser-chrome {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--cl-wash);
+  border-bottom: 1px solid var(--cl-glass-rim);
+}
+
+.claudian-browser-dots {
+  display: inline-flex;
+  gap: 5px;
+}
+
+.claudian-browser-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.22;
+}
+
+.claudian-browser-dots span:nth-child(1) { color: #ff5f57; opacity: 0.72; }
+.claudian-browser-dots span:nth-child(2) { color: #febc2e; opacity: 0.72; }
+.claudian-browser-dots span:nth-child(3) { color: #28c840; opacity: 0.72; }
+
+.claudian-browser-address-icon {
+  display: inline-flex;
+  color: var(--text-faint);
+}
+
+.claudian-browser-address-icon svg {
+  width: 11px;
+  height: 11px;
+}
+
+.claudian-browser-address {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 3px 10px;
+  border-radius: var(--cl-radius-pill);
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-xs);
+  color: var(--text-muted);
+  background: var(--cl-ink-soft);
+  box-shadow: inset 0 0 0 1px var(--cl-glass-rim);
+}
+
+.claudian-browser-driver {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--cl-accent);
+  white-space: nowrap;
+}
+
+/* Action strip ──────────────────────────────────────────────────────── */
+
+.claudian-browser-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 12px 6px;
+  font-size: var(--cl-text-sm);
+  color: var(--text-normal);
+}
+
+.claudian-browser-action-icon {
+  display: inline-flex;
+  color: var(--cl-accent);
+}
+
+.claudian-browser-action-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.claudian-browser-action-title {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.claudian-browser-action-detail {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+/* Viewport ──────────────────────────────────────────────────────────── */
+
+.claudian-browser-viewport {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 84px;
+  margin: 0 12px 10px;
+  border-radius: var(--cl-radius-md);
+  background: var(--cl-ink);
+  box-shadow: inset 0 0 0 1px var(--cl-glass-rim);
+  overflow: hidden;
+}
+
+.claudian-browser-viewport.has-shot {
+  min-height: 0;
+  background: var(--cl-ink-deep);
+}
+
+.claudian-browser-shot {
+  display: block;
+  width: 100%;
+  max-height: 240px;
+  object-fit: cover;
+  object-position: top;
+}
+
+/* Long pages fade out at the bottom instead of ending on a hard crop line. */
+.claudian-browser-viewport.has-shot::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 28px;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, var(--cl-ink-deep));
+}
+
+.claudian-browser-viewport.is-empty .claudian-browser-viewport-glyph {
+  color: var(--text-faint);
+}
+
+.claudian-browser-viewport-glyph svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* Working state: a soft radar ring plus a slow horizontal scan — the page is
+   "being looked at", not loading. */
+.claudian-browser-viewport.is-running {
+  gap: 10px;
+  padding: 16px 0;
+}
+
+.claudian-browser-viewport.is-running::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(var(--claudian-brand-rgb), 0.16) 45%,
+    transparent 70%
+  );
+  transform: translateX(-100%);
+  animation: claudian-browser-scan 2.6s var(--cl-ease) infinite;
+}
+
+.claudian-browser-pulse {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+}
+
+.claudian-browser-pulse-core {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cl-accent);
+  box-shadow: 0 0 14px rgba(var(--claudian-brand-rgb), 0.7);
+}
+
+.claudian-browser-pulse-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(var(--claudian-brand-rgb), 0.7);
+  animation: claudian-browser-ring 1.8s var(--cl-ease-out) infinite;
+}
+
+.claudian-browser-pulse {
+  overflow: visible;
+}
+
+.claudian-browser-viewport-label {
+  font-size: var(--cl-text-xs);
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}
+
+/* Result strip ─────────────────────────────────────────────────────── */
+
+.claudian-browser-result {
+  margin: 0 12px 12px;
+  padding: 8px 10px;
+  border-radius: var(--cl-radius-sm);
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-xs);
+  line-height: var(--cl-leading);
+  color: var(--text-muted);
+  background: var(--cl-wash);
+  box-shadow: inset 0 0 0 1px var(--cl-glass-rim);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.claudian-browser-result.is-error {
+  color: var(--claudian-error);
+  background: rgba(var(--claudian-error-rgb), 0.08);
+  box-shadow: inset 0 0 0 1px rgba(var(--claudian-error-rgb), 0.3);
+}
+
+.claudian-browser-panel .claudian-tool-empty {
+  padding: 0 12px 12px;
+}
+
+/* ── Live chip in the stream status bar ────────────────────────────────── */
+
+.claudian-stream-browser {
+  container-name: claudian-browser-chip;
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin: 0 10px 8px;
+  padding: 7px 10px;
+  border-radius: var(--cl-radius-md);
+  background:
+    linear-gradient(90deg, rgba(var(--claudian-brand-rgb), 0.14), transparent 60%),
+    var(--cl-wash);
+  box-shadow: inset 0 0 0 1px rgba(var(--claudian-brand-rgb), 0.26);
+  animation: cl-rise var(--cl-dur) var(--cl-ease) both;
+}
+
+.claudian-stream-browser.is-desktop {
+  --claudian-brand-rgb: 90, 140, 245;
+  --cl-accent: oklch(0.66 0.17 262);
+}
+
+.claudian-stream-browser-icon {
+  display: inline-flex;
+  color: var(--cl-accent);
+}
+
+.claudian-stream-browser-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.claudian-stream-browser-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.claudian-stream-browser-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.claudian-stream-browser-driver {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--cl-accent);
+  white-space: nowrap;
+}
+
+.claudian-stream-browser-url {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 8px;
+  border-radius: var(--cl-radius-pill);
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-xs);
+  color: var(--text-muted);
+  background: var(--cl-ink-soft);
+  box-shadow: inset 0 0 0 1px var(--cl-glass-rim);
+}
+
+.claudian-stream-browser-action {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--cl-text-sm);
+  color: var(--text-normal);
+}
+
+.claudian-stream-browser-trail {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.claudian-stream-browser-step {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: var(--text-faint);
+  background: var(--cl-wash);
+  box-shadow: inset 0 0 0 1px var(--cl-glass-rim);
+  animation: cl-pop var(--cl-dur) var(--cl-ease) both;
+}
+
+.claudian-stream-browser-step svg {
+  width: 11px;
+  height: 11px;
+}
+
+.claudian-stream-browser-step.is-latest {
+  color: var(--text-on-accent, #fff);
+  background: var(--cl-accent);
+  box-shadow: 0 0 0 3px rgba(var(--claudian-brand-rgb), 0.22);
+}
+
+/* ── Motion ────────────────────────────────────────────────────────────── */
+
+@keyframes claudian-browser-scan {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes claudian-browser-ring {
+  0% { transform: scale(0.5); opacity: 0.9; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-browser-viewport.is-running::before,
+  .claudian-browser-pulse-ring,
+  .claudian-stream-browser,
+  .claudian-stream-browser-step,
+  .claudian-tool-call-browser {
+    animation: none;
+  }
+}
+
+/* Narrow chip: the driver label yields, the address keeps the room and the
+   trail shrinks to the last three steps. */
+@container claudian-browser-chip (max-width: 420px) {
+  .claudian-stream-browser-driver {
+    display: none;
+  }
+
+  .claudian-stream-browser-trail .claudian-stream-browser-step:not(:nth-last-child(-n + 3)) {
+    display: none;
+  }
+}
+
+@container claudian-browser-chip (max-width: 300px) {
+  .claudian-stream-browser-trail {
+    display: none;
+  }
+}
+
+.claudian-tool-call-browser {
+  container-name: claudian-browser-card;
+  container-type: inline-size;
+}
+
+@container claudian-browser-card (max-width: 380px) {
+  .claudian-browser-driver {
+    display: none;
+  }
+
+  .claudian-browser-chrome {
+    grid-template-columns: auto auto minmax(0, 1fr);
+  }
+}

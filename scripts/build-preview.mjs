@@ -314,6 +314,28 @@ const chatSurface = (mode) => `
           </div>
         </div>
       </div>
+
+      <div class="claudian-tool-call claudian-tool-call-browser expanded" data-browser-driver="hermes" data-browser-action="click">
+        <div class="claudian-tool-header"><span class="claudian-tool-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 9l5 12 1.8-5.2L21 14 9 9z"/><path d="M7.2 2.2l.8 2.8M2.2 7.2l2.8.8M12 2v3M2 12h3M5 5l2 2"/></svg></span><span class="claudian-tool-name">Klicke</span><span class="claudian-tool-summary">#buy-now</span></div>
+        <div class="claudian-tool-content">
+          <div class="claudian-browser-panel">
+            <div class="claudian-browser-chrome"><span class="claudian-browser-dots"><span></span><span></span><span></span></span><span class="claudian-browser-address-icon"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span><span class="claudian-browser-address">https://veylor.net/shop/netherite</span><span class="claudian-browser-driver">Hermes Browser</span></div>
+            <div class="claudian-browser-action"><span class="claudian-browser-action-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 9l5 12 1.8-5.2L21 14 9 9z"/><path d="M7.2 2.2l.8 2.8M2.2 7.2l2.8.8M12 2v3M2 12h3M5 5l2 2"/></svg></span><span class="claudian-browser-action-title">Klicke</span><span class="claudian-browser-action-detail">#buy-now</span></div>
+            <div class="claudian-browser-viewport is-running"><div class="claudian-browser-pulse"><span class="claudian-browser-pulse-ring"></span><span class="claudian-browser-pulse-core"></span></div><div class="claudian-browser-viewport-label">Browser arbeitet…</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="claudian-tool-call claudian-tool-call-browser expanded" data-browser-driver="claude-chrome" data-browser-action="snapshot">
+        <div class="claudian-tool-header"><span class="claudian-tool-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span><span class="claudian-tool-name">Lese Seite</span><span class="claudian-tool-summary"></span><span class="claudian-tool-status status-completed"></span></div>
+        <div class="claudian-tool-content">
+          <div class="claudian-browser-panel">
+            <div class="claudian-browser-chrome"><span class="claudian-browser-dots"><span></span><span></span><span></span></span><span class="claudian-browser-address-icon"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span><span class="claudian-browser-address">https://github.com/Ayont/ayontclaudian/releases</span><span class="claudian-browser-driver">Claude in Chrome</span></div>
+            <div class="claudian-browser-action"><span class="claudian-browser-action-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span><span class="claudian-browser-action-title">Lese Seite</span></div>
+            <div class="claudian-browser-viewport has-shot"><img class="claudian-browser-shot" alt="Screenshot: github.com" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAUAAAACMCAIAAACCr+eGAAABoUlEQVR42u3bsQnAIBBAUQexSmGZCazFAQIZxVmzTYqMEAQPH7wJDn91ZyrlBIJKRgACBgQMCBgEDAgYEDAgYBAwIGBAwCBgQMCAgAEBg4ABAQMTAs75AIISMAgYEDAgYBAwIGBAwICAQcCAgAEBg4CBHQNu7QL+EDAIWMAgYEDAIGABg4AFDAIGBAwCFjAIWMAgYBCwgEHAgO+EgIABAYOAAQEDAgYEDAIGBAwIGAQMCBhYOOBaO8wjUQEjYAELGAELGAQsYASMgBGwgEHA9sCAgEHAgIABAQMCBgEDAgYEDAJ2iYXLJwEjYASMgBEwAhawgAWMgBEwAkbA2AODgAEBAwIGAQMCBgQMCBgEDAgYEDAgYBAwIGBAwCBgQMBAgICfcfPxmBCwgEHAAkbAAhYwAhYwCFjAIGABI2ABCxgBCxgELGAELGABI2ABg4AFDAIWMAIWsIARsIBBwAIGAQsYAQtYwAhYwCBgASNgAQsYAQsYBCxgELCAETAgYEDAgIBBwICAAQGDgAEBAwIGBAwCBgQMCBgEDAgYEDAgYNjBC07J+kbrIA+9AAAAAElFTkSuQmCC"></div>
+            <div class="claudian-browser-result">Releases · 5.105.0 — Gemini 3.8 Flash für Antigravity · 3 assets</div>
+          </div>
+        </div>
+      </div>
       <div class="claudian-write-edit-block">
         <div class="claudian-write-edit-header">
           <span class="claudian-write-edit-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>

@@ -9,6 +9,7 @@ import {
   type ProviderSubagentLifecycleAdapter,
 } from '../../../core/providers/types';
 import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
+import { type BrowserActivity, resolveBrowserActivity } from '../../../core/tools/browserActivity';
 import { parseTodoInput } from '../../../core/tools/todo';
 import { extractResolvedAnswers, extractResolvedAnswersFromResultText } from '../../../core/tools/toolInput';
 import {
@@ -88,6 +89,8 @@ export interface StreamControllerDeps {
   getAgentService?: () => ChatRuntime | null;
   /** Update the compact live status bar with the latest visible activity. */
   updateLiveActivity?: (activity: { primary: string; meta?: string; phrase?: string }) => void;
+  /** Surface a browser/desktop automation step in the live status bar. */
+  updateBrowserActivity?: (activity: BrowserActivity) => void;
 }
 
 /**
@@ -240,11 +243,17 @@ export class StreamController {
         break;
 
       case 'tool_use': {
+        const browserActivity = resolveBrowserActivity(chunk.name, chunk.input);
         this.deps.updateLiveActivity?.({
           primary: getToolName(chunk.name, chunk.input),
           meta: getToolSummary(chunk.name, chunk.input) || 'Tool-Aufruf gestartet',
-          phrase: 'running tool',
+          phrase: browserActivity
+            ? (browserActivity.kind === 'desktop' ? 'steuert Desktop' : 'steuert Browser')
+            : 'running tool',
         });
+        if (browserActivity) {
+          this.deps.updateBrowserActivity?.(browserActivity);
+        }
         if (state.currentThinkingState) {
           await this.finalizeCurrentThinkingBlock(msg);
         }

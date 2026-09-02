@@ -211,3 +211,86 @@ describe('StreamStatusBar DOM updates', () => {
       .toContain('reasoning');
   });
 });
+
+describe('StreamStatusBar browser session chip', () => {
+  const bars: StreamStatusBar[] = [];
+  afterEach(() => {
+    for (const bar of bars.splice(0)) bar.destroy();
+  });
+
+  function createBar(): { parent: any; bar: StreamStatusBar } {
+    const parent = createMockEl();
+    const bar = new StreamStatusBar(parent, { now: () => 1000 });
+    bars.push(bar);
+    return { parent, bar };
+  }
+
+  it('stays hidden until a browser tool runs', () => {
+    const { parent, bar } = createBar();
+    bar.setStreaming(true);
+    bar.setActivity('Lese Datei', 'Read');
+    const chip = parent.querySelector('.claudian-stream-browser');
+    expect(chip.hasClass('claudian-hidden')).toBe(true);
+  });
+
+  it('shows the driver, page and last action when a browser tool runs', () => {
+    const { parent, bar } = createBar();
+    bar.setStreaming(true);
+    bar.setBrowserActivity({
+      kind: 'browser', action: 'navigate', url: 'https://veylor.net/shop', target: undefined, driver: 'hermes',
+    });
+    const chip = parent.querySelector('.claudian-stream-browser');
+    expect(chip.hasClass('claudian-hidden')).toBe(false);
+    expect(chip.dataset.browserDriver).toBe('hermes');
+    expect(parent.querySelector('.claudian-stream-browser-driver').textContent).toBe('Hermes Browser');
+    expect(parent.querySelector('.claudian-stream-browser-url').textContent).toBe('veylor.net/shop');
+    expect(parent.querySelector('.claudian-stream-browser-action').textContent).toBe('Öffne Seite');
+  });
+
+  it('keeps the last known page while clicks and typing happen on it', () => {
+    const { parent, bar } = createBar();
+    bar.setStreaming(true);
+    bar.setBrowserActivity({ kind: 'browser', action: 'navigate', url: 'https://veylor.net/shop', target: undefined, driver: 'hermes' });
+    bar.setBrowserActivity({ kind: 'browser', action: 'click', url: undefined, target: '#buy', driver: 'hermes' });
+    bar.setBrowserActivity({ kind: 'browser', action: 'type', url: undefined, target: 'Netherite', driver: 'hermes' });
+
+    expect(parent.querySelector('.claudian-stream-browser-url').textContent).toBe('veylor.net/shop');
+    expect(parent.querySelector('.claudian-stream-browser-action').textContent).toBe('Tippe „Netherite“');
+    // Trail shows the most recent actions as icons, newest last.
+    const trail = parent.querySelectorAll('.claudian-stream-browser-step');
+    expect(trail.length).toBe(3);
+    expect(trail[2].dataset.action).toBe('type');
+  });
+
+  it('labels desktop automation distinctly', () => {
+    const { parent, bar } = createBar();
+    bar.setStreaming(true);
+    bar.setBrowserActivity({ kind: 'desktop', action: 'click', url: undefined, target: 'Safari', driver: 'hermes' });
+    const chip = parent.querySelector('.claudian-stream-browser');
+    expect(chip.hasClass('is-desktop')).toBe(true);
+    expect(parent.querySelector('.claudian-stream-browser-driver').textContent).toBe('Hermes Desktop');
+    expect(parent.querySelector('.claudian-stream-browser-url').textContent).toBe('Safari');
+  });
+
+  it('resets the chip when the turn ends', () => {
+    const { parent, bar } = createBar();
+    bar.setStreaming(true);
+    bar.setBrowserActivity({ kind: 'browser', action: 'navigate', url: 'https://a.b', target: undefined, driver: 'mcp' });
+    bar.setStreaming(false);
+    bar.setStreaming(true);
+    expect(parent.querySelector('.claudian-stream-browser').hasClass('claudian-hidden')).toBe(true);
+    expect(parent.querySelectorAll('.claudian-stream-browser-step').length).toBe(0);
+  });
+
+  it('performs no DOM writes when the same browser step repeats', () => {
+    const { parent, bar } = createBar();
+    bar.setStreaming(true);
+    const step = { kind: 'browser' as const, action: 'snapshot' as const, url: undefined, target: undefined, driver: 'mcp' as const };
+    bar.setBrowserActivity(step);
+    const actionEl = parent.querySelector('.claudian-stream-browser-action');
+    const trailEl = parent.querySelector('.claudian-stream-browser-trail');
+    const spies = [jest.spyOn(actionEl, 'setText'), jest.spyOn(trailEl, 'empty'), jest.spyOn(trailEl, 'createSpan')];
+    for (let i = 0; i < 20; i++) bar.setBrowserActivity(step);
+    for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+  });
+});

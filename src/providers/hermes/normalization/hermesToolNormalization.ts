@@ -25,7 +25,10 @@ import { type AcpToolCall, AcpToolStreamAdapter } from '../../acp';
 
 /** Hermes tool name → Claudian's canonical tool name. */
 const TOOL_NAME_MAP: Record<string, string> = {
-  browser_navigate: TOOL_WEB_FETCH,
+  // browser_* and computer_use stay raw on purpose: `core/tools/browserActivity`
+  // classifies them for the browser card + live status chip. Folding
+  // browser_navigate into WebFetch made a real browser session look like a
+  // plain HTTP fetch.
   delegate_task: TOOL_TASK,
   execute_code: TOOL_BASH,
   patch: TOOL_EDIT,
@@ -50,6 +53,14 @@ const TITLE_PREFIX_TO_TOOL: Record<string, string> = {
   'browser images': 'browser_get_images',
   'browser snapshot': 'browser_snapshot',
   'browser vision': 'browser_vision',
+  browser_back: 'browser_back',
+  browser_click: 'browser_click',
+  browser_console: 'browser_console',
+  browser_exec: 'browser_exec',
+  browser_press: 'browser_press',
+  browser_scroll: 'browser_scroll',
+  browser_type: 'browser_type',
+  computer_use: 'computer_use',
   cron: 'cronjob',
   delegate: 'delegate_task',
   'delegate batch': 'delegate_task',

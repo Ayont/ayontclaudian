@@ -1,5 +1,6 @@
 import { setIcon } from 'obsidian';
 
+import { describeBrowserActivity, resolveBrowserActivity } from '../../../core/tools/browserActivity';
 import type { TodoItem } from '../../../core/tools/todo';
 import { getToolIcon, MCP_ICON_MARKER } from '../../../core/tools/toolIcons';
 import { extractResolvedAnswersFromResultText } from '../../../core/tools/toolInput';
@@ -28,11 +29,21 @@ import type { AskUserQuestionItem, AskUserQuestionOption, ToolCallInfo } from '.
 import type { DiffStats } from '../../../core/types/diff';
 import { appendMcpIcon } from '../../../shared/icons';
 import { parseApplyPatchDiffs, parseFileUpdateChangeDiffs } from '../../../utils/diff';
+import {
+  decorateBrowserToolElement,
+  getBrowserActionIcon,
+  renderBrowserContent,
+} from './BrowserActivityRenderer';
 import { setupCollapsible } from './collapsible';
 import { renderDiffContent, renderDiffStats } from './DiffRenderer';
 import { renderTodoItems } from './todoUtils';
 
-export function setToolIcon(el: HTMLElement, name: string): void {
+export function setToolIcon(el: HTMLElement, name: string, input: Record<string, unknown> = {}): void {
+  const browserActivity = resolveBrowserActivity(name, input);
+  if (browserActivity) {
+    setIcon(el, getBrowserActionIcon(browserActivity));
+    return;
+  }
   const icon = getToolIcon(name);
   if (icon === MCP_ICON_MARKER) {
     appendMcpIcon(el);
@@ -71,8 +82,11 @@ export function getToolName(name: string, input: Record<string, unknown>): strin
       return 'Betrete Plan-Modus';
     case TOOL_EXIT_PLAN_MODE:
       return 'Plan fertig';
-    default:
+    default: {
+      const browserActivity = resolveBrowserActivity(name, input);
+      if (browserActivity) return describeBrowserActivity(browserActivity).title;
       return name;
+    }
   }
 }
 
@@ -109,11 +123,14 @@ export function getToolSummary(name: string, input: Record<string, unknown>): st
       return getApplyPatchSummary(input);
     case TOOL_WRITE_STDIN:
       return getWriteStdinSummary(input);
-    default:
+    default: {
       if (isAgentLifecycleTool(name)) {
         return getAgentLifecycleSummary(name, input);
       }
+      const browserActivity = resolveBrowserActivity(name, input);
+      if (browserActivity) return describeBrowserActivity(browserActivity).detail;
       return '';
+    }
   }
 }
 
@@ -866,6 +883,10 @@ function createToolElementStructure(
   if (toolCall.name === TOOL_BASH) {
     toolEl.addClass('claudian-tool-call-bash');
   }
+  const browserActivity = resolveBrowserActivity(toolCall.name, toolCall.input);
+  if (browserActivity) {
+    decorateBrowserToolElement(toolEl, browserActivity);
+  }
 
   const header = toolEl.createDiv({ cls: 'claudian-tool-header' });
   header.setAttribute('tabindex', '0');
@@ -873,7 +894,7 @@ function createToolElementStructure(
 
   const iconEl = header.createSpan({ cls: 'claudian-tool-icon' });
   iconEl.setAttribute('aria-hidden', 'true');
-  setToolIcon(iconEl, toolCall.name);
+  setToolIcon(iconEl, toolCall.name, toolCall.input);
 
   const nameEl = header.createSpan({ cls: 'claudian-tool-name' });
   nameEl.setText(getToolName(toolCall.name, toolCall.input));
@@ -1074,6 +1095,13 @@ function renderToolContent(
     }
   } else if (toolCall.name === TOOL_BASH) {
     renderBashContent(content, toolCall.input, toolCall.result ?? '', initialText);
+  } else if (resolveBrowserActivity(toolCall.name, toolCall.input)) {
+    renderBrowserContent(
+      content,
+      toolCall,
+      resolveBrowserActivity(toolCall.name, toolCall.input)!,
+      Boolean(initialText) || toolCall.status === 'running',
+    );
   } else if (initialText) {
     contentFallback(content, initialText);
   } else {
@@ -1159,6 +1187,11 @@ export function updateToolCallResult(
 
   const content = toolEl.querySelector('.claudian-tool-content') as HTMLElement;
   if (content) {
+    const browserActivity = resolveBrowserActivity(toolCall.name, toolCall.input);
+    if (browserActivity) {
+      renderBrowserContent(content, toolCall, browserActivity, toolCall.status === 'running');
+      return;
+    }
     content.empty();
     renderExpandedContent(content, toolCall.name, toolCall.result, toolCall.input);
   }

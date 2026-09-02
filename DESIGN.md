@@ -26,6 +26,7 @@ Claudian is a T3 Code-style control plane for coding agents inside an Obsidian v
 - Glass surfaces: the composer, user bubbles, bash/tool plates, popovers (history, mentions, slash, effort, model dropdown), the model picker frame, dashboard panes, the usage center.
 - Recessed content (code, shell output, logs) sits in an ink well: `--cl-ink*`, which flips with the theme via Obsidian's `--mono-rgb-0/100`. Never hardcode `rgba(0,0,0,x)` fills.
 - One glass pane per surface, never nested glass: tiles inside a pane use `--cl-wash` plus a hairline, the pane owns the blur.
+- Browser/desktop automation (`src/style/features/browser-activity.css`) renders as a miniature glass browser window: title bar (traffic dots + address pill) → action strip → viewport (ink well; screenshot or pulsing radar while running) → result strip. Desktop automation (cua-driver, `computer_use`) re-tints the card to system blue via `--claudian-brand-rgb` so it never reads as a web page. Every driver (Hermes `browser_*`, Claude-in-Chrome, Playwright/Chrome-DevTools/Browser-Use MCP) goes through `core/tools/browserActivity.ts`; add new drivers there, not in CSS.
 - Other surfaces use hairline borders; nested cards stay banned.
 - Speed mode uses a warm amber pill and composer edge, independent of the provider accent.
 - Fallbacks: `prefers-reduced-transparency` and missing `backdrop-filter` collapse glass to opaque `--cl-surface-*`; contrast never depends on the blur.

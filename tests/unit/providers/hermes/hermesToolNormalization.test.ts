@@ -44,6 +44,12 @@ describe('resolveHermesRawToolName', () => {
     ['skill create: my-skill', 'edit', 'skill_manage'],
     ['navigate: https://example.com', 'fetch', 'browser_navigate'],
     ['browser snapshot', 'read', 'browser_snapshot'],
+    // acp_adapter titles these with the bare tool name; without a prefix entry
+    // the `execute` kind fallback turned a browser click into a terminal card.
+    ['browser_click', 'execute', 'browser_click'],
+    ['browser_type', 'execute', 'browser_type'],
+    ['browser_exec', 'execute', 'browser_exec'],
+    ['computer_use', 'execute', 'computer_use'],
     ['generate image: a cat', 'execute', 'image_generate'],
     ['cron add: daily-report', 'other', 'cronjob'],
   ])('decodes %s', (title, kind, expected) => {
@@ -85,6 +91,9 @@ describe('normalizeHermesToolName', () => {
     ['web_search', TOOL_WEB_SEARCH],
     ['web_extract', TOOL_WEB_FETCH],
     ['delegate_task', TOOL_TASK],
+    // Browser tools keep their raw name so the browser card can classify them.
+    ['browser_navigate', 'browser_navigate'],
+    ['computer_use', 'computer_use'],
     ['todo', TOOL_TODO_WRITE],
   ])('maps %s to the canonical tool name', (rawName, expected) => {
     expect(normalizeHermesToolName(rawName)).toBe(expected);

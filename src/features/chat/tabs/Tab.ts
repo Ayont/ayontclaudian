@@ -2095,6 +2095,9 @@ export function initializeTabControllers(
       }
       tab.ui.streamStatusBar?.setActivity(primary, meta);
     },
+    updateBrowserActivity: (activity) => {
+      tab.ui.streamStatusBar?.setBrowserActivity(activity);
+    },
   });
 
   // Wire subagent callback now that StreamController exists

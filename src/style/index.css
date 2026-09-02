@@ -16,6 +16,7 @@
 @import "./components/commit-bar.css";
 @import "./components/thinking.css";
 @import "./components/toolcalls.css";
+@import "./features/browser-activity.css";
 @import "./components/status-panel.css";
 @import "./components/goal-banner.css";
 @import "./components/statusbar.css";
