@@ -458,7 +458,8 @@ describe('ClaudeSettingsTab', () => {
     await customModelsTextArea.trigger('blur');
 
     expect(plugin.settings.providerConfigs.claude.customModels).toBe('claude-opus-4-7');
-    expect(plugin.settings.model).toBe('sonnet');
+    // `sonnet` (legacy alias saved as lastModel) migrates to the pinned Sonnet 5.
+    expect(plugin.settings.model).toBe('claude-sonnet-5');
     expect(plugin.settings.titleGenerationModel).toBe('');
     expect(mockSaveSettings).toHaveBeenCalledTimes(1);
     expect(context.refreshModelSelectors).toHaveBeenCalledTimes(1);

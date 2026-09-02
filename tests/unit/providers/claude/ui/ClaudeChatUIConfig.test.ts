@@ -12,12 +12,11 @@ describe('claudeChatUIConfig', () => {
       });
 
       expect(options.map(option => option.value)).toEqual([
-        'haiku',
-        'sonnet',
-        'opus',
+        'claude-fable-5-1',
+        'claude-fable-5',
         'claude-opus-5',
         'claude-opus-4-8',
-        'fable',
+        'claude-sonnet-5',
         'claude-opus-4-6',
         'claude-opus-4-6[1m]',
       ]);
@@ -44,13 +43,15 @@ describe('claudeChatUIConfig', () => {
         },
       });
 
+      // `haiku` is no longer a built-in, so a user who lists it explicitly gets it
+      // as a custom entry; the duplicate `claude-opus-4-6` line collapses to one.
       expect(options.map(option => option.value)).toEqual([
-        'haiku',
-        'sonnet',
-        'opus',
+        'claude-fable-5-1',
+        'claude-fable-5',
         'claude-opus-5',
         'claude-opus-4-8',
-        'fable',
+        'claude-sonnet-5',
+        'haiku',
         'claude-opus-4-6',
       ]);
     });

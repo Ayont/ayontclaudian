@@ -103,7 +103,8 @@ describe('TitleGenerationService', () => {
       await service.generateTitle('conv-123', 'test', callback);
 
       const options = getLastOptions();
-      expect(options?.model).toBe('opus');
+      // `opus` is a legacy alias; the catalog pins it to Opus 5.
+      expect(options?.model).toBe('claude-opus-5');
     });
 
     it('should prioritize setting over env var', async () => {
@@ -127,7 +128,7 @@ describe('TitleGenerationService', () => {
       await service.generateTitle('conv-123', 'test', callback);
 
       const options = getLastOptions();
-      expect(options?.model).toBe('sonnet');
+      expect(options?.model).toBe('claude-sonnet-5');
     });
 
     it('should use ANTHROPIC_DEFAULT_HAIKU_MODEL when setting is empty', async () => {

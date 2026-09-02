@@ -191,19 +191,9 @@ export const claudeSettingsTabRenderer: ProviderSettingsTabRenderer = {
           })
       );
 
-    new Setting(container)
-      .setName(t('settings.enableSonnet1M.name'))
-      .setDesc(t('settings.enableSonnet1M.desc'))
-      .addToggle((toggle) =>
-        toggle
-          .setValue(claudeSettings.enableSonnet1M)
-          .onChange(async (value) => {
-            updateClaudeProviderSettings(settingsBag, { enableSonnet1M: value });
-            context.plugin.normalizeModelVariantSettings();
-            await context.plugin.saveSettings();
-            context.refreshModelSelectors();
-          })
-      );
+    // No Sonnet 1M toggle: Sonnet 5 is natively 1M (CLI 2.1.258 model table), so
+    // the catalog lists a single spelling. `enableSonnet1M` stays in storage only
+    // for settings-file compatibility.
 
     new Setting(container)
       .setName(t('settings.customModels.name'))

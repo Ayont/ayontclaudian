@@ -4,7 +4,7 @@ import type { SDKToolUseResult, StreamChunk, UsageInfo } from '../../../core/typ
 import { isBlockedMessage } from '../sdk/messages';
 import { extractToolResultContent } from '../sdk/toolResultContent';
 import type { TransformEvent } from '../sdk/types';
-import { getContextWindowSize, isDefaultClaudeModel } from '../types/models';
+import { getContextWindowSize, isDefaultClaudeModel, isLegacyClaudeAlias } from '../types/models';
 import { createTransformStreamState, type TransformStreamState } from './toolInputStreamState';
 
 type ToolUseFields = { id: string; name: string; input: Record<string, unknown> };
@@ -385,7 +385,10 @@ function selectContextWindowEntry(
     return exactMatch;
   }
 
-  if (!isDefaultClaudeModel(intendedModel)) {
+  // Family/version matching is only safe for ids we own: the pinned catalog ids
+  // and the CLI's floating aliases (still present in sessions persisted by older
+  // builds). Custom/gateway ids never get a fuzzy match.
+  if (!isDefaultClaudeModel(intendedModel) && !isLegacyClaudeAlias(intendedModel)) {
     return null;
   }
 

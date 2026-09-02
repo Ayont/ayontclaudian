@@ -638,7 +638,8 @@ describe('Tab - Creation', () => {
       const tab = createTab(createMockOptions({ plugin, defaultProviderId: 'claude' }));
 
       expect(tab.lifecycleState).toBe('blank');
-      expect(tab.draftModel).toBe('opus');
+      // Saved `opus` is a legacy alias; the pinned catalog id is Opus 5.
+      expect(tab.draftModel).toBe('claude-opus-5');
       expect(tab.providerId).toBe('claude');
     });
 
@@ -649,6 +650,8 @@ describe('Tab - Creation', () => {
       const tab = createTab(createMockOptions({ plugin }));
 
       expect(tab.lifecycleState).toBe('blank');
+      // Raw settings.model is taken as-is here; alias migration happens in
+      // normalizeModelVariantSettings() on load, not in createTab.
       expect(tab.draftModel).toBe('opus');
       expect(tab.providerId).toBe('claude');
     });
@@ -691,7 +694,8 @@ describe('Tab - Creation', () => {
       const tab = createTab(createMockOptions({ plugin, defaultProviderId: 'codex' }));
 
       expect(tab.lifecycleState).toBe('blank');
-      expect(tab.draftModel).toBe('opus');
+      // Saved `opus` is a legacy alias; the pinned catalog id is Opus 5.
+      expect(tab.draftModel).toBe('claude-opus-5');
       expect(tab.providerId).toBe('claude');
     });
   });

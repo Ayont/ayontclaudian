@@ -51,7 +51,8 @@ describe('claudeSettingsReconciler', () => {
       const result = claudeSettingsReconciler.reconcileModelWithEnvironment(settings, []);
 
       expect(result.changed).toBe(true);
-      expect(settings.model).toBe('sonnet');
+      // `sonnet` is a legacy floating alias; the catalog pins it to Sonnet 5.
+      expect(settings.model).toBe('claude-sonnet-5');
     });
   });
 });

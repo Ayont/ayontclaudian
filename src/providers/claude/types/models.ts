@@ -5,32 +5,33 @@
 /** Model identifier (string to support custom models via environment variables). */
 export type ClaudeModel = string;
 
+/**
+ * Built-in Claude catalog: five pinned models, no floating aliases, no Haiku.
+ *
+ * Every id, label and context window below was read out of the installed Claude
+ * Code binary's model table (2.1.258, `{id, display_name, context:{window,
+ * native_1m}, capabilities}`), not inferred. All five are `window: 1e6,
+ * native_1m: true`. The CLI's alias map today is `fable -> claude-fable-5-1`,
+ * `opus -> claude-opus-5`, `sonnet -> claude-sonnet-5`; we pin the ids so a
+ * silent alias move can never change which model a user is talking to.
+ *
+ * `[1m]` spellings: Fable 5.1 and Opus 5 are offered as a plain/[1m] pair that the
+ * single "Opus 1M" toggle governs (see filterVisibleModelOptions). The CLI honours
+ * the suffix on both (`supports_1m_suffix` on Opus; Fable normalises it). Fable 5,
+ * Opus 4.8 and Sonnet 5 are listed once; their window is 1M regardless.
+ *
+ * Order = picker order. Fable 5.1 first because it is the flagship the user asked
+ * for; it is NOT the settings default (see DEFAULT_CLAUDE_PROVIDER_SETTINGS), so a
+ * fresh install never silently burns Fable usage credits.
+ */
 export const DEFAULT_CLAUDE_MODELS: { value: ClaudeModel; label: string; description: string }[] = [
-  { value: 'haiku', label: 'Haiku', description: 'Schnell und effizient' },
-  { value: 'sonnet', label: 'Sonnet', description: 'Ausgewogene Leistung' },
-  { value: 'sonnet[1m]', label: 'Sonnet 1M', description: 'Ausgewogene Leistung (1M-Kontextfenster)' },
-  // `opus` is a floating alias — the CLI resolves it to "the latest model" server-side,
-  // so it always tracks the newest Opus release without a plugin change. The SDK's own
-  // `supportedModels()` reports the alias resolving to `claude-opus-4-8[1m]` today.
-  { value: 'opus', label: 'Opus', description: 'Leistungsfähigstes (folgt dem neuesten Release)' },
-  { value: 'opus[1m]', label: 'Opus 1M', description: 'Leistungsfähigstes (1M-Kontextfenster)' },
-  // Pinned dated IDs alongside the floating `opus` alias, so a specific generation stays
-  // selectable even after `opus` moves on to a newer release. Both verified live and still
-  // reachable today — Anthropic keeps prior dated Opus snapshots available after a new
-  // default ships, same precedent as `claude-opus-4-5`/`claude-opus-4-6`/`claude-opus-4-7`.
-  //
-  // Unlike Opus 4.8, `claude-opus-5` defaults to a 200K window and offers 1M as an opt-in
-  // (measured: `claude-opus-5` -> 200000, `claude-opus-5[1m]` -> 1000000). Both spellings
-  // are listed so the `enableOpus1M` toggle governs the pinned entry the same way it
-  // governs the floating alias — see filterVisibleModelOptions().
-  { value: 'claude-opus-5', label: 'Opus 5', description: 'An Opus 5 gebunden — bleibt fix, auch wenn ein neueres Opus zum `opus`-Standard wird' },
-  { value: 'claude-opus-5[1m]', label: 'Opus 5 1M', description: 'An Opus 5 gebunden mit 1M-Kontext-Opt-in' },
-  { value: 'claude-opus-4-8', label: 'Opus 4.8', description: 'An das vorherige Opus-4.8-Release gebunden (1M Kontext standardmäßig)' },
-  // Fable 5 is Anthropic's Mythos-class flagship (introduced with Claude Code 2.1.170).
-  // It ships with a 1M context window by default, so there is no separate `[1m]` variant —
-  // the CLI strips a `[1m]` suffix automatically (changelog 2.1.173). Placed last (not at
-  // index 0) so it never becomes the accidental default and silently consumes usage credits.
-  { value: 'fable', label: 'Fable', description: 'Flaggschiff der Mythos-Klasse (1M Kontext standardmäßig)' },
+  { value: 'claude-fable-5-1', label: 'Fable 5.1', description: 'Mythos-Klasse, neuestes Flaggschiff (1M Kontext)' },
+  { value: 'claude-fable-5-1[1m]', label: 'Fable 5.1 1M', description: 'Mythos-Klasse, neuestes Flaggschiff (1M-Kontext explizit)' },
+  { value: 'claude-fable-5', label: 'Fable 5', description: 'Mythos-Klasse, vorheriges Flaggschiff (1M Kontext)' },
+  { value: 'claude-opus-5', label: 'Opus 5', description: 'Stärkstes Opus, Fast-Modus verfügbar (1M Kontext)' },
+  { value: 'claude-opus-5[1m]', label: 'Opus 5 1M', description: 'Stärkstes Opus, Fast-Modus verfügbar (1M-Kontext explizit)' },
+  { value: 'claude-opus-4-8', label: 'Opus 4.8', description: 'Vorheriges Opus, Fast-Modus verfügbar (1M Kontext)' },
+  { value: 'claude-sonnet-5', label: 'Sonnet 5', description: 'Ausgewogen und schnell (1M Kontext)' },
 ];
 
 /**
@@ -58,14 +59,19 @@ export const SESSION_ONLY_EFFORT_LEVELS = new Set<EffortLevel>(['max', 'ultracod
 
 /** Default effort level per model tier. */
 export const DEFAULT_EFFORT_LEVEL: Record<string, EffortLevel> = {
+  'claude-fable-5-1': 'high',
+  'claude-fable-5-1[1m]': 'high',
+  'claude-fable-5': 'high',
+  'claude-opus-5': 'high',
+  'claude-opus-5[1m]': 'high',
+  'claude-opus-4-8': 'high',
+  'claude-sonnet-5': 'high',
+  // Legacy aliases still accepted from persisted settings / custom-model lists.
   'haiku': 'high',
   'sonnet': 'high',
   'sonnet[1m]': 'high',
   'opus': 'high',
   'opus[1m]': 'high',
-  'claude-opus-5': 'high',
-  'claude-opus-5[1m]': 'high',
-  'claude-opus-4-8': 'high',
   'fable': 'high',
   'fable[1m]': 'high',
 };
@@ -105,46 +111,30 @@ function isFableFamilyModel(model: string): boolean {
  * Whether `model` ships with a 1M context window **by default** — no `[1m]` opt-in
  * needed.
  *
- * Every entry here was measured, not inferred: a one-token turn was run per model
- * id and the CLI's own `modelUsage[<id>].contextWindow` from the result message
- * was read back (Claude Code 2.1.226 / SDK 0.3.209). That number is the same one
- * the runtime later uses to overwrite our estimate, so matching it keeps the usage
- * badge stable from the first render instead of jumping after the first turn.
+ * Source: the installed Claude Code binary's model table (2.1.258), field
+ * `context.window` / `context.native_1m`:
  *
- *   sonnet            -> claude-sonnet-5    1_000_000
- *   opus              -> claude-opus-4-8    1_000_000
- *   haiku             -> claude-haiku-4-5     200_000
- *   fable             -> claude-fable-5    1_000_000
- *   claude-opus-4-8                        1_000_000
- *   claude-opus-4-7                        1_000_000
- *   claude-opus-4-6                          200_000
- *   claude-opus-5                            200_000
- *   claude-opus-5[1m]                      1_000_000
+ *   claude-fable-5-1   1_000_000  native_1m   (alias target of `fable`)
+ *   claude-fable-5     1_000_000  native_1m
+ *   claude-opus-5      1_000_000  native_1m   (alias target of `opus`)
+ *   claude-opus-4-8    1_000_000  native_1m
+ *   claude-opus-4-7    1_000_000  native_1m
+ *   claude-sonnet-5    1_000_000  native_1m   (alias target of `sonnet`)
+ *   claude-opus-4-6      200_000  (1M via beta header only)
+ *   claude-haiku-4-5     200_000
  *
- * Two corrections against what this file previously assumed:
- *
- * 1. The bare `sonnet` / `opus` aliases are 1M today. They used to fall through
- *    to the 200K default, which under-reported the window 5x on the two models
- *    users actually pick — the badge read "50% full" at 100K of a 1M window.
- * 2. `claude-opus-5` and `claude-opus-4-6` are 200K, not 1M. A published summary
- *    claimed Opus 5 was "1M context window (default and maximum)"; the CLI says
- *    otherwise, and `claude-opus-5[1m]` really does report 1M, so 1M is an opt-in
- *    there rather than the default. 1M-as-default starts at Opus 4.7.
- *
- * The aliases are included deliberately even though they float. Being wrong on a
- * floating alias is self-correcting (the runtime overwrites the value with the
- * authoritative one after the first turn) and one-directional in cost: guessing
- * 200K when it is 1M shows a badge 5x too full and invites premature compaction,
- * while guessing 1M when it is 200K only under-warns for a single turn.
+ * This corrects 5.102, which believed Opus 5 defaulted to 200K based on an older
+ * CLI. The value the runtime later reads back from `modelUsage[<id>].contextWindow`
+ * is the same table, so matching it keeps the usage badge stable from the first
+ * render. Being wrong on a floating alias is self-correcting after one turn.
  */
 function isOneMContextDefaultModel(model: string): boolean {
   const normalized = normalizeModelId(model);
   if (isFableFamilyModel(normalized)) return true;
-  // Floating aliases, as resolved by Claude Code 2.1.226. `haiku` stays 200K.
   if (isBuiltInFamilyVariant(normalized, 'sonnet')) return true;
   if (isBuiltInFamilyVariant(normalized, 'opus')) return true;
-  // Pinned ids: Opus 4.7+ (NOT 4.6, and NOT the 5 line) and Sonnet 5+.
-  return /claude-opus-4-[7-9]/.test(normalized)
+  // Pinned ids: Opus 4.7+, Opus 5+, Sonnet 5+.
+  return /claude-opus-(4-[7-9]|[5-9])(?!\d)/.test(normalized)
     || /claude-sonnet-[5-9]/.test(normalized);
 }
 
@@ -180,11 +170,11 @@ export function isDefaultClaudeModel(model: string): boolean {
 /**
  * Whether Claude Code can serve this model through fast mode (`/fast`).
  *
- * Official support is Opus 5 and Opus 4.8 only. Opus 4.7 had fast mode
- * removed in July 2026. Sonnet, Haiku, and Fable are not on that path.
- * The floating `opus` alias currently resolves to a supported generation,
- * so it stays in the allow-list; a future alias move is self-correcting
- * because the CLI ignores `fastMode` on unsupported models.
+ * Read from the CLI 2.1.258 model table: the `fast_mode` capability is present
+ * on claude-opus-5 and claude-opus-4-8 only. Fable 5 / 5.1 and Sonnet 5 do NOT
+ * carry it (the CLI's own fallback check is `includes("opus-4-8") ||
+ * includes("opus-5")`). The floating `opus` alias resolves to Opus 5 today and
+ * stays in the allow-list; the CLI ignores `fastMode` on unsupported models.
  */
 export function supportsClaudeFastMode(model: string): boolean {
   const normalized = normalizeModelId(model);
@@ -311,14 +301,16 @@ function baseModelId(model: string): string {
  *
  * Substring matching (rather than an exact alias check) is what lets pinned ids
  * such as `claude-opus-5` ride the same `enableOpus1M` setting as the floating
- * `opus` alias, instead of needing a hand-maintained list per release.
+ * `opus` alias, instead of needing a hand-maintained list per release. Fable rides
+ * the Opus toggle too: the UI exposes ONE "1M-Kontext" switch for the flagship
+ * tier, and Fable 5.1 / Opus 5 are the two models offered as a plain/[1m] pair.
  */
 function oneMToggleForBase(
   base: string,
   enableOpus1M: boolean,
   enableSonnet1M: boolean,
 ): boolean | null {
-  if (base.includes('opus')) return enableOpus1M;
+  if (base.includes('opus') || base.includes('fable')) return enableOpus1M;
   if (base.includes('sonnet')) return enableSonnet1M;
   return null;
 }
@@ -370,19 +362,51 @@ export function filterVisibleModelOptions<T extends { value: string }>(
   });
 }
 
+/**
+ * Persisted values from builds that offered floating aliases (`haiku`, `sonnet`,
+ * `opus`, `fable`, plus their `[1m]` spellings) map onto the pinned catalog id the
+ * CLI resolves them to today (2.1.258 alias table). Haiku is no longer offered;
+ * it lands on Sonnet 5, the closest fast tier. Without this, every existing
+ * install would fall through to index 0 (Fable 5.1) and silently burn credits.
+ */
+const LEGACY_ALIAS_TO_CATALOG_ID: Record<string, string> = {
+  'haiku': 'claude-sonnet-5',
+  'sonnet': 'claude-sonnet-5',
+  'opus': 'claude-opus-5',
+  'fable': 'claude-fable-5-1',
+};
+
+export function migrateLegacyClaudeModelAlias(model: string): string {
+  const normalized = normalizeModelId(model);
+  const base = baseModelId(normalized);
+  const target = LEGACY_ALIAS_TO_CATALOG_ID[base];
+  if (!target) return model;
+  // Sonnet 5 has a single spelling; the other targets keep an explicit [1m].
+  if (has1MContextSuffix(normalized) && target !== 'claude-sonnet-5') {
+    return `${target}${ONE_M_SUFFIX}`;
+  }
+  return target;
+}
+
+/** `haiku` / `sonnet` / `opus` / `fable` (optionally `[1m]`), as older builds persisted them. */
+export function isLegacyClaudeAlias(model: string): boolean {
+  return baseModelId(model) in LEGACY_ALIAS_TO_CATALOG_ID;
+}
+
 export function normalizeVisibleModelVariant(
   model: string,
   enableOpus1M: boolean,
   enableSonnet1M: boolean
 ): string {
-  const base = baseModelId(model);
+  const migrated = migrateLegacyClaudeModelAlias(model);
+  const base = baseModelId(migrated);
   if (!DEFAULT_ONE_M_TOGGLE_PAIRS.has(base)) {
-    return model;
+    return migrated;
   }
 
   const prefer1M = oneMToggleForBase(base, enableOpus1M, enableSonnet1M);
   if (prefer1M === null) {
-    return model;
+    return migrated;
   }
 
   return prefer1M ? `${base}${ONE_M_SUFFIX}` : base;
@@ -402,9 +426,8 @@ export function getContextWindowSize(
     return CONTEXT_WINDOW_1M;
   }
 
-  // Models that ship with a 1M context window by default (no `[1m]` opt-in): the
-  // bare `fable` alias, `fable[1m]`, `claude-fable-5`, and every pinned Opus 4.6+
-  // dated id (`claude-opus-5`, `claude-opus-4-8`, ...).
+  // Models that ship with a 1M context window natively (no `[1m]` opt-in): every
+  // Fable id, Opus 4.7+, Opus 5, Sonnet 5 and the aliases that resolve to them.
   if (isOneMContextDefaultModel(model)) {
     return CONTEXT_WINDOW_1M;
   }

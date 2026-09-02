@@ -36,7 +36,7 @@ export const DEFAULT_CLAUDE_PROVIDER_SETTINGS: Readonly<ClaudeProviderSettings> 
   enableOpus1M: false,
   enableSonnet1M: false,
   customModels: '',
-  lastModel: 'haiku',
+  lastModel: 'claude-sonnet-5',
   environmentVariables: '',
   environmentHash: '',
 });

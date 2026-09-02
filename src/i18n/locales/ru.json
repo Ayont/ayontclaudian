@@ -284,8 +284,8 @@
       "invalid": "Неверный формат. Используйте: 256k, 1m или точное число (1000-10000000)."
     },
     "enableOpus1M": {
-      "name": "Контекстное окно Opus 1M",
-      "desc": "Показать Opus 1M в селекторе моделей. Включено в планы Max, Team и Enterprise. Пользователям API и Pro требуется дополнительное использование."
+      "name": "1M context for Fable 5.1 and Opus 5",
+      "desc": "Offers Fable 5.1 and Opus 5 with an explicit 1M context window ([1m] suffix). Fable 5, Opus 4.8 and Sonnet 5 run with 1M context regardless. Included in Max, Team and Enterprise plans; API and Pro users need extra usage."
     },
     "enableSonnet1M": {
       "name": "Контекстное окно Sonnet 1M",

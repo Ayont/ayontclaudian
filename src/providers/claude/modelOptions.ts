@@ -2,8 +2,12 @@ import { getRuntimeEnvironmentVariables } from '../../core/providers/providerEnv
 import type { ProviderUIOption } from '../../core/providers/types';
 import { getModelsFromEnvironment } from './env/claudeModelEnv';
 import { formatCustomModelLabel } from './modelLabels';
-import { getClaudeProviderSettings } from './settings';
-import { DEFAULT_CLAUDE_MODELS, filterVisibleModelOptions } from './types/models';
+import { DEFAULT_CLAUDE_PROVIDER_SETTINGS, getClaudeProviderSettings } from './settings';
+import {
+  DEFAULT_CLAUDE_MODELS,
+  filterVisibleModelOptions,
+  migrateLegacyClaudeModelAlias,
+} from './types/models';
 
 function parseConfiguredCustomModelIds(value: string): string[] {
   const modelIds: string[] = [];
@@ -81,14 +85,21 @@ export function resolveClaudeModelSelection(
   currentModel: string,
 ): string | null {
   const modelOptions = getClaudeModelOptions(settings);
-  if (currentModel && modelOptions.some(option => option.value === currentModel)) {
-    return currentModel;
+  const isOffered = (model: string): boolean => modelOptions.some(option => option.value === model);
+
+  // Persisted floating aliases (`opus`, `sonnet`, `haiku`, ...) from older builds
+  // resolve to the pinned catalog id the CLI maps them to today.
+  for (const candidate of [currentModel, getClaudeProviderSettings(settings).lastModel]) {
+    if (!candidate) continue;
+    if (isOffered(candidate)) return candidate;
+    const migrated = migrateLegacyClaudeModelAlias(candidate);
+    if (migrated !== candidate && isOffered(migrated)) return migrated;
   }
 
-  const lastModel = getClaudeProviderSettings(settings).lastModel;
-  if (lastModel && modelOptions.some(option => option.value === lastModel)) {
-    return lastModel;
-  }
-
+  // Last resort: the default tier, never index 0. The catalog puts Fable 5.1
+  // first for picker order; a fallback must not silently select the model that
+  // consumes usage credits.
+  const safeDefault = DEFAULT_CLAUDE_PROVIDER_SETTINGS.lastModel;
+  if (isOffered(safeDefault)) return safeDefault;
   return modelOptions[0]?.value ?? null;
 }

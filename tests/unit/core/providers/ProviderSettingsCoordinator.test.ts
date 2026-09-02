@@ -246,7 +246,8 @@ describe('ProviderSettingsCoordinator', () => {
 
       ProviderSettingsCoordinator.projectActiveProviderState(settings);
 
-      expect(settings.model).toBe('sonnet');
+      // Saved `sonnet` is a legacy floating alias; projection pins it to Sonnet 5.
+      expect(settings.model).toBe('claude-sonnet-5');
       expect(settings.effortLevel).toBe('high');
       expect(settings.serviceTier).toBe('default');
       expect(settings.thinkingBudget).toBe('500');
@@ -267,7 +268,9 @@ describe('ProviderSettingsCoordinator', () => {
 
       ProviderSettingsCoordinator.projectActiveProviderState(settings);
 
-      expect(settings.model).toBe('haiku');
+      // No saved value to project, but the legacy `haiku` alias is still migrated
+      // to the pinned catalog id (Haiku is no longer offered).
+      expect(settings.model).toBe('claude-sonnet-5');
       expect(settings.effortLevel).toBe('high');
       expect(settings.thinkingBudget).toBe('off');
     });
@@ -284,7 +287,7 @@ describe('ProviderSettingsCoordinator', () => {
       // Should not throw
       ProviderSettingsCoordinator.projectActiveProviderState(settings);
 
-      expect(settings.model).toBe('haiku');
+      expect(settings.model).toBe('claude-sonnet-5');
     });
 
     it('normalizes saved effort values that the projected Claude model no longer supports', () => {

@@ -11,6 +11,7 @@ import type {
 import type ClaudianPlugin from '../../../main';
 import { parseEnvironmentVariables } from '../../../utils/env';
 import { runColdStartQuery } from '../runtime/claudeColdStartQuery';
+import { migrateLegacyClaudeModelAlias } from '../types/models';
 import { claudeChatUIConfig } from '../ui/ClaudeChatUIConfig';
 
 export type { TitleGenerationResult };
@@ -92,11 +93,12 @@ export class TitleGenerationService implements AuxiliaryCallSource {
     const envVars = parseEnvironmentVariables(
       this.plugin.getActiveEnvironmentVariables('claude')
     );
-    const titleModel = this.plugin.settings.titleGenerationModel;
-    if (titleModel && claudeChatUIConfig.ownsModel(
-      titleModel,
-      this.plugin.settings as unknown as Record<string, unknown>,
-    )) {
+    const settingsBag = this.plugin.settings as unknown as Record<string, unknown>;
+    const configured = this.plugin.settings.titleGenerationModel;
+    // Persisted floating aliases (`opus`, `sonnet`) from older builds map onto the
+    // pinned catalog id; otherwise a saved title model silently degrades to Haiku.
+    const titleModel = configured ? migrateLegacyClaudeModelAlias(configured) : configured;
+    if (titleModel && claudeChatUIConfig.ownsModel(titleModel, settingsBag)) {
       return titleModel;
     }
 

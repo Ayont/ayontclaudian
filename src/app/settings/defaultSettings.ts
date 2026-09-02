@@ -43,7 +43,7 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
     cloudModel: '',
   },
 
-  model: 'haiku',
+  model: 'claude-sonnet-5',
   thinkingBudget: 'off',
   effortLevel: 'high',
   serviceTier: 'default',

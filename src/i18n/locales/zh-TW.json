@@ -284,8 +284,8 @@
       "invalid": "格式無效。使用：256k、1m 或精確數量（1000-10000000）。"
     },
     "enableOpus1M": {
-      "name": "Opus 1M 上下文視窗",
-      "desc": "在模型選擇器中顯示 Opus 1M。Max、Team 和 Enterprise 方案已包含。API 和 Pro 使用者需要額外用量。"
+      "name": "1M context for Fable 5.1 and Opus 5",
+      "desc": "Offers Fable 5.1 and Opus 5 with an explicit 1M context window ([1m] suffix). Fable 5, Opus 4.8 and Sonnet 5 run with 1M context regardless. Included in Max, Team and Enterprise plans; API and Pro users need extra usage."
     },
     "enableSonnet1M": {
       "name": "Sonnet 1M 上下文視窗",
