@@ -3,7 +3,7 @@
  * defaults without importance flags.
  */
 .claudian-hidden.claudian-hidden {
-  display: none;
+  display: none !important;
 }
 
 .claudian-visible-block.claudian-visible-block {

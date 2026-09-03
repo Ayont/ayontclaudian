@@ -1,3 +1,5 @@
+import type ClaudianPlugin from "../../../main";
+import { getSmartPromptSuggestions, type SmartPromptItem } from "../services/SmartPromptService";
 import { setIcon, setTooltip } from 'obsidian';
 
 import {
@@ -122,30 +124,63 @@ export class WorkspaceModeToggle {
 export function buildWorkspaceQuickPromptRow(
   parent: HTMLElement,
   inputEl: HTMLTextAreaElement,
+  plugin?: ClaudianPlugin,
 ): HTMLElement {
   const row = parent.createDiv({ cls: 'claudian-mode-quick-row' });
 
-  for (const mode of ['code', 'work'] as const) {
-    const group = row.createDiv({
-      cls: `claudian-mode-quick-group claudian-mode-quick-group--${mode}`,
-    });
-    for (const quick of getWorkspaceQuickPrompts(mode)) {
+  const renderChips = (items: SmartPromptItem[]) => {
+    row.empty();
+    const group = row.createDiv({ cls: 'claudian-mode-quick-group' });
+    for (const item of items) {
       const chip = group.createEl('button', {
-        cls: 'claudian-mode-quick-chip clickable-icon',
+        cls: `claudian-mode-quick-chip claudian-mode-quick-chip--${item.kind} clickable-icon`,
         attr: { type: 'button' },
       });
       const iconEl = chip.createSpan({ cls: 'claudian-mode-quick-icon' });
-      setIcon(iconEl, quick.icon);
-      chip.createSpan({ text: quick.label });
-      setTooltip(chip, quick.prompt, { placement: 'top' });
+      setIcon(iconEl, item.icon);
+      chip.createSpan({ cls: 'claudian-mode-quick-label', text: item.label });
+      setTooltip(chip, item.prompt, { placement: 'top' });
       chip.addEventListener('click', () => {
-        inputEl.value = quick.prompt;
+        inputEl.value = item.prompt;
         inputEl.focus();
-        // Cursor at the end so "…: " prompts are ready for completion.
         inputEl.setSelectionRange(inputEl.value.length, inputEl.value.length);
         inputEl.dispatchEvent(new Event('input', { bubbles: true }));
       });
     }
+  };
+
+  // Initial chips
+  renderChips([
+    {
+      id: 'init:1',
+      kind: 'history',
+      tag: 'Verlauf',
+      label: 'Letzten Schritt fortsetzen',
+      prompt: 'Lass uns an der letzten Aufgabe weiterarbeiten: ',
+      icon: 'history',
+    },
+    {
+      id: 'init:2',
+      kind: 'memory',
+      tag: 'Memory',
+      label: 'Was steht an?',
+      prompt: 'Was steht als Nächstes an? Analysiere den aktuellen Stand und schlage die nächsten Schritte vor.',
+      icon: 'sparkles',
+    },
+  ]);
+
+  if (plugin) {
+    void (async () => {
+      try {
+        const isWork = parent.closest('.claudian-container')?.classList.contains('claudian-mode-work') ?? false;
+        const items = await getSmartPromptSuggestions(plugin, isWork ? 'work' : 'code', 4);
+        if (items.length > 0 && row.isConnected) {
+          renderChips(items);
+        }
+      } catch {
+        // keep initial
+      }
+    })();
   }
 
   const syncVisibility = (): void => {

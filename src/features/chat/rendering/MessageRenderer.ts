@@ -780,7 +780,7 @@ export class MessageRenderer {
 
     // Recreate welcome element after clearing
     const newWelcomeEl = this.messagesEl.createDiv({ cls: 'claudian-welcome' });
-    renderWelcomeContent(newWelcomeEl, getGreeting());
+    renderWelcomeContent(newWelcomeEl, getGreeting(), this.plugin);
 
     for (let i = 0; i < messages.length; i++) {
       this.renderStoredMessage(messages[i], messages, i);

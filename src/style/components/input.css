@@ -742,29 +742,34 @@
 /* Live "working" status bar — shown above the composer while a turn streams. */
 .claudian-stream-status,
 .claudian-container .claudian-stream-status {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 0 !important;
-  position: relative !important;
-  overflow: hidden !important;
-  padding: 0 !important;
-  margin-bottom: var(--cl-space-2) !important;
-  font-size: var(--cl-text-sm) !important;
-  color: var(--text-muted) !important;
-  border: 1px solid var(--cl-liquid-rim) !important;
-  border-top-color: var(--cl-liquid-rim-top) !important;
-  border-radius: 9999px !important;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  margin-bottom: var(--cl-space-2);
+  font-size: var(--cl-text-sm);
+  color: var(--text-muted);
+  border: 1px solid var(--cl-liquid-rim);
+  border-top-color: var(--cl-liquid-rim-top);
+  border-radius: 9999px;
   background:
     var(--cl-liquid-gradient-medium),
-    color-mix(in srgb, var(--cl-surface-raised) 80%, transparent) !important;
-  -webkit-backdrop-filter: var(--cl-glass-filter) !important;
-  backdrop-filter: var(--cl-glass-filter) !important;
+    color-mix(in srgb, var(--cl-surface-raised) 80%, transparent);
+  -webkit-backdrop-filter: var(--cl-glass-filter);
+  backdrop-filter: var(--cl-glass-filter);
   box-shadow:
     inset 0 1px 1.5px rgba(255, 255, 255, 0.30),
     var(--cl-liquid-glow),
-    0 8px 30px -4px rgba(0, 0, 0, 0.45) !important;
-  animation: cl-spring-up 0.28s var(--cl-spring-smooth) both !important;
-  transition: border-radius var(--cl-dur-fast) var(--cl-ease), border-color var(--cl-dur-fast) var(--cl-ease) !important;
+    0 8px 30px -4px rgba(0, 0, 0, 0.45);
+  animation: cl-spring-up 0.28s var(--cl-spring-smooth) both;
+  transition: border-radius var(--cl-dur-fast) var(--cl-ease), border-color var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-stream-status.claudian-hidden,
+.claudian-container .claudian-stream-status.claudian-hidden {
+  display: none !important;
 }
 
 .claudian-stream-status.is-open,

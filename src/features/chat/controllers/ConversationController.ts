@@ -156,7 +156,7 @@ export class ConversationController {
 
       // Recreate welcome element first (before StatusPanel for consistent ordering)
       const welcomeEl = messagesEl.createDiv({ cls: 'claudian-welcome' });
-      renderWelcomeContent(welcomeEl, this.getGreeting());
+      renderWelcomeContent(welcomeEl, this.getGreeting(), this.deps.plugin);
       this.deps.setWelcomeEl(welcomeEl);
 
       // Remount StatusPanel to restore state for new conversation
@@ -1143,7 +1143,7 @@ export class ConversationController {
 
     // Only add greeting if not already present
     if (!welcomeEl.querySelector('.claudian-welcome-greeting')) {
-      renderWelcomeContent(welcomeEl, this.getGreeting());
+      renderWelcomeContent(welcomeEl, this.getGreeting(), this.deps.plugin);
     }
 
     this.updateWelcomeVisibility();

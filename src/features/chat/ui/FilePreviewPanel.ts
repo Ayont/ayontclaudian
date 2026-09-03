@@ -78,7 +78,7 @@ export class FilePreviewPanel {
   render(): void {
     this.host.load();
     this.toggleBtn = this.containerEl.createEl('button', {
-      cls: 'claudian-preview-toggle',
+      cls: 'claudian-preview-toggle clickable-icon',
       attr: {
         type: 'button',
         'aria-label': 'Dokumentbibliothek öffnen',
@@ -86,7 +86,7 @@ export class FilePreviewPanel {
         'aria-controls': this.panelId,
       },
     });
-    setIcon(this.toggleBtn, 'menu');
+    setIcon(this.toggleBtn, 'library');
     this.toggleBtn.addEventListener('click', () => this.toggle());
 
     this.panelEl = this.containerEl.createDiv({ cls: 'claudian-preview-panel' });
@@ -104,7 +104,7 @@ export class FilePreviewPanel {
     titles.createEl('span', { cls: 'claudian-preview-subtitle', text: 'Dokumente & Uploads' });
     this.countEl = header.createSpan({ cls: 'claudian-preview-count claudian-hidden', text: '0' });
     this.closeBtn = header.createEl('button', {
-      cls: 'claudian-preview-close',
+      cls: 'claudian-preview-close clickable-icon',
       attr: { type: 'button', 'aria-label': 'Dokumentbibliothek schließen' },
     });
     setIcon(this.closeBtn, 'x');
@@ -302,25 +302,66 @@ export class FilePreviewPanel {
   private async loadVaultDocuments(): Promise<void> {
     const vault = this.plugin.app.vault;
     if (typeof vault.getFiles !== 'function') return;
-    const files = vault.getFiles()
+    const allFiles = vault.getFiles();
+
+    // 1. Claudian documents & artifacts
+    const claudianFiles = allFiles
       .filter((file): file is TFile =>
-        file instanceof TFile
-        && file.path.startsWith(DOCUMENT_FOLDER_PREFIX)
-        && file.extension.toLowerCase() === 'md')
-      .sort((a, b) => (a.stat?.mtime ?? 0) - (b.stat?.mtime ?? 0) || a.path.localeCompare(b.path));
+        file instanceof TFile && file.path.startsWith('.claudian/'))
+      .sort((a, b) => (b.stat?.mtime ?? 0) - (a.stat?.mtime ?? 0));
+
     const read = typeof vault.cachedRead === 'function'
       ? (file: TFile) => vault.cachedRead(file)
       : (file: TFile) => vault.read(file);
 
-    for (const file of files) {
-      try {
-        const document = parseLiveDocument(await read(file));
-        if (document) this.rememberLiveDocument(document, document.theme, { vaultPath: file.path });
-      } catch {
-        // One malformed or temporarily unavailable file must not hide the rest.
+    for (const file of claudianFiles) {
+      if (file.extension.toLowerCase() === 'md') {
+        try {
+          const document = parseLiveDocument(await read(file));
+          if (document) {
+            this.rememberLiveDocument(document, document.theme, { vaultPath: file.path });
+            continue;
+          }
+        } catch {
+          // fall through to regular file
+        }
       }
+      this.rememberFile(file);
     }
+
+    // 2. Recent vault notes and files touched (excluding internal .obsidian/.git)
+    const recentVaultFiles = allFiles
+      .filter((file): file is TFile =>
+        file instanceof TFile
+        && !file.path.startsWith('.obsidian/')
+        && !file.path.startsWith('.git/')
+        && !file.path.startsWith('.claudian/'))
+      .sort((a, b) => (b.stat?.mtime ?? 0) - (a.stat?.mtime ?? 0))
+      .slice(0, 30);
+
+    for (const file of recentVaultFiles) {
+      this.rememberFile(file);
+    }
+
     if (!this.destroyed) this.renderLibrary();
+  }
+
+  rememberFile(file: TFile): void {
+    const id = `file:${file.path}`;
+    if (this.items.some(item => item.id === id)) return;
+    let previewSrc: string | undefined;
+    try {
+      previewSrc = this.plugin.app.vault.adapter.getResourcePath(file.path);
+    } catch {
+      // ignore
+    }
+    this.items.push({
+      id,
+      type: 'upload',
+      name: file.name,
+      relPath: file.path,
+      previewSrc,
+    });
   }
 
   private renderLibrary(): void {
@@ -361,8 +402,47 @@ export class FilePreviewPanel {
       if (excerpt) peek.createEl('p', { cls: 'claudian-preview-card-excerpt', text: excerpt });
       const footer = card.createDiv({ cls: 'claudian-preview-card-footer' });
       footer.createSpan({ cls: 'claudian-preview-card-name', text: item.liveDocument.title });
-      footer.createSpan({ cls: 'claudian-preview-card-action', text: 'Öffnen' });
+
+      const actions = footer.createDiv({ cls: 'claudian-preview-card-actions' });
+      const fileMgrName = getFileManagerName();
+      const targetPath = item.vaultPath || `.claudian/documents/${item.liveDocument.title}.md`;
+
+      const revealBtn = actions.createEl('button', {
+        cls: 'claudian-preview-card-btn clickable-icon',
+        attr: { type: 'button', 'aria-label': `In ${fileMgrName} anzeigen`, title: `In ${fileMgrName} anzeigen` },
+      });
+      setIcon(revealBtn, 'folder');
+      revealBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        void revealInSystemFileManager(this.plugin.app, targetPath);
+      });
+
+      const extBtn = actions.createEl('button', {
+        cls: 'claudian-preview-card-btn clickable-icon',
+        attr: { type: 'button', 'aria-label': 'In Standard-App öffnen', title: 'In Standard-App öffnen' },
+      });
+      setIcon(extBtn, 'external-link');
+      extBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        void openInDefaultApp(this.plugin.app, targetPath);
+      });
+
+      const moreBtn = actions.createEl('button', {
+        cls: 'claudian-preview-card-btn clickable-icon',
+        attr: { type: 'button', 'aria-label': 'Weitere Aktionen', title: 'Weitere Aktionen' },
+      });
+      setIcon(moreBtn, 'more-horizontal');
+      moreBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showFileContextMenu(this.plugin.app, e, targetPath);
+      });
+
       card.addEventListener('click', () => void this.openItem(item));
+      card.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        showFileContextMenu(this.plugin.app, e, targetPath);
+      });
       return;
     }
 

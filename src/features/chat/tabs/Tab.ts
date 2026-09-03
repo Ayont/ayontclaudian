@@ -881,7 +881,7 @@ export function createTab(options: TabCreateOptions): TabData {
   // because StreamController doesn't exist until controllers are initialized.
   const subagentManager = new SubagentManager(() => {});
 
-  const dom = buildTabDOM(contentEl);
+  const dom = buildTabDOM(contentEl, plugin);
   state.queueIndicatorEl = dom.queueIndicatorEl;
 
   streamStatusBar = new StreamStatusBar(dom.inputContainerEl, {
@@ -972,7 +972,7 @@ export function createTab(options: TabCreateOptions): TabData {
 /**
  * Builds the DOM structure for a tab.
  */
-function buildTabDOM(contentEl: HTMLElement): TabDOMElements {
+function buildTabDOM(contentEl: HTMLElement, plugin?: ClaudianPlugin): TabDOMElements {
   // Host for the active-goal banner — kept as the first child so the goal
   // indicator sits above the transcript.
   const goalBannerHostEl = contentEl.createDiv({ cls: 'claudian-goal-banner-host' });
@@ -998,7 +998,7 @@ function buildTabDOM(contentEl: HTMLElement): TabDOMElements {
   // Mode quick actions (Code/Work) — inserted between nav row and composer;
   // the container's mode class picks the visible set.
   inputContainerEl.insertBefore(
-    buildWorkspaceQuickPromptRow(inputContainerEl, inputEl),
+    buildWorkspaceQuickPromptRow(inputContainerEl, inputEl, plugin),
     inputWrapper,
   );
 
