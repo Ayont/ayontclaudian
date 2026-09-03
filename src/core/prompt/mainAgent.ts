@@ -441,8 +441,8 @@ export interface TurnOutputContractOptions {
 
 function getCompactWorkspaceInstructions(mode: WorkspaceMode): string {
   return mode === 'work'
-    ? '## Active Workspace Mode: WORK (ChatGPT Work · Legal & Document Intelligence)\nLead with clear vault-ready knowledge work, document versioning headers, DSGVO/GDPR & EU AI Act compliance checks. Code requests still remain normal chat.'
-    : '## Active Workspace Mode: CODE (Codex Dev Studio · Multi-Agent Swarm)\nLead with concrete engineering action, multi-agent orchestration, precise edits and test verification. Artifact requests still remain available.';
+    ? '## Active Workspace Mode: WORK (Work Studio · Legal & Document Intelligence)\nLead with clear vault-ready knowledge work, document versioning headers, DSGVO/GDPR & EU AI Act compliance checks. Code requests still remain normal chat.'
+    : '## Active Workspace Mode: CODE (Code Studio · Multi-Agent Swarm)\nLead with concrete engineering action, multi-agent orchestration, precise edits and test verification. Artifact requests still remain available.';
 }
 
 function getCompactAutoMemoryInstructions(): string {

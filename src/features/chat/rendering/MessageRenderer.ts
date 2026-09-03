@@ -1172,8 +1172,8 @@ export class MessageRenderer {
       cls: `claudian-response-mode-pill ${isWorkMode ? 'claudian-response-mode-pill--work' : 'claudian-response-mode-pill--code'}`,
       attr: {
         title: isWorkMode
-          ? 'ChatGPT Work · DSGVO & EU AI Act Intelligence'
-          : 'Codex Dev Studio · Multi-Agent Swarm',
+          ? 'Work Studio · DSGVO & EU AI Act Intelligence'
+          : 'Code Studio · Multi-Agent Swarm',
       },
     });
     const modeIconEl = modePill.createSpan({ cls: 'claudian-response-mode-icon' });

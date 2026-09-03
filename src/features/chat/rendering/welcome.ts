@@ -27,7 +27,7 @@ export function renderWelcomeContent(welcomeEl: HTMLElement, greeting: string): 
   const codeBadge = codeEnv.createDiv({ cls: 'claudian-welcome-mode-badge claudian-welcome-mode-badge--code' });
   const codeIcon = codeBadge.createSpan({ cls: 'claudian-welcome-mode-icon' });
   setIcon(codeIcon, 'cpu');
-  codeBadge.createSpan({ text: 'CODEX DEV STUDIO · MULTI-AGENT SWARM' });
+  codeBadge.createSpan({ text: 'CODE STUDIO · MULTI-AGENT SWARM' });
   codeEnv.createDiv({
     cls: 'claudian-welcome-sub claudian-welcome-sub--code',
     text: 'Spezialisiert auf Software-Entwicklung, Multi-Agenten-Orchestrierung, Tests & Refactoring',
@@ -37,7 +37,7 @@ export function renderWelcomeContent(welcomeEl: HTMLElement, greeting: string): 
   const workBadge = workEnv.createDiv({ cls: 'claudian-welcome-mode-badge claudian-welcome-mode-badge--work' });
   const workIcon = workBadge.createSpan({ cls: 'claudian-welcome-mode-icon' });
   setIcon(workIcon, 'scale');
-  workBadge.createSpan({ text: 'CHATGPT WORK · LEGAL & ENTERPRISE' });
+  workBadge.createSpan({ text: 'WORK STUDIO · LEGAL & ENTERPRISE' });
   workEnv.createDiv({
     cls: 'claudian-welcome-sub claudian-welcome-sub--work',
     text: 'Spezialisiert auf DSGVO, EU AI Act, Dokument-Versionen, Verträge & akademische Normen',

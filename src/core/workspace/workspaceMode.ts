@@ -39,18 +39,18 @@ export interface WorkspaceModeMeta {
 const MODE_META: Readonly<Record<WorkspaceMode, WorkspaceModeMeta>> = Object.freeze({
   code: Object.freeze({
     label: 'Code',
-    tooltip: 'Code-Modus — Codex Dev Studio, Multi-Agent Swarm, Testen & Refactoring',
+    tooltip: 'Code-Modus — Dev Studio, Multi-Agent Swarm, Testen & Refactoring',
     icon: 'code-2',
     placeholder: 'Was bauen wir?',
-    badgeTitle: 'CODEX DEV STUDIO',
+    badgeTitle: 'CODE STUDIO',
     badgeFeatures: 'Multi-Agent Swarm · Build & Test · Git Diffs · Refactoring',
   }),
   work: Object.freeze({
     label: 'Work',
-    tooltip: 'Work-Modus — ChatGPT Work, DSGVO, EU AI Act, Dokument-Versionen & Recht',
+    tooltip: 'Work-Modus — Work Studio, DSGVO, EU AI Act, Dokument-Versionen & Recht',
     icon: 'pen-line',
     placeholder: 'Woran arbeiten wir?',
-    badgeTitle: 'ENTERPRISE WORK & LEGAL',
+    badgeTitle: 'WORK STUDIO',
     badgeFeatures: 'DSGVO & EU AI Act Ready · Dokument-Versionen · Normen & Compliance',
   }),
 });
@@ -114,9 +114,9 @@ export function getWorkspaceModeInstructions(mode: WorkspaceMode): string {
   if (mode === 'work') {
     return `
 
-## Active Workspace Mode: WORK (ChatGPT Work · Enterprise & Legal Intelligence)
+## Active Workspace Mode: WORK (Work Studio · Enterprise & Legal Intelligence)
 
-The user has switched this workspace into WORK mode — modeled after ChatGPT Work and specialized for knowledge work, document versioning, legal compliance (DSGVO, EU AI Act), and academic rigor. Keep all capabilities, but lead with these defaults:
+The user has switched this workspace into WORK mode — specialized for knowledge work, document versioning, legal compliance (DSGVO, EU AI Act), and academic rigor. Keep all capabilities, but lead with these defaults:
 
 ### 1. Document Versioning & Structured Drafting
 - Manage documents with formal versioning headers whenever drafting policies, agreements, guidelines, or reports:
@@ -149,9 +149,9 @@ The user has switched this workspace into WORK mode — modeled after ChatGPT Wo
 
   return `
 
-## Active Workspace Mode: CODE (Codex Dev Studio · Multi-Agent Swarm)
+## Active Workspace Mode: CODE (Code Studio · Multi-Agent Swarm)
 
-The user has switched this workspace into CODE mode — modeled after Codex and built for staff-level software engineering, multi-agent orchestration, and verified implementations. Keep all capabilities, but lead with these defaults:
+The user has switched this workspace into CODE mode — built for staff-level software engineering, multi-agent orchestration, and verified implementations. Keep all capabilities, but lead with these defaults:
 
 ### 1. Multi-Agent Coordination & Engineering
 - Act as the Lead Software Architect and Multi-Agent Orchestrator.
