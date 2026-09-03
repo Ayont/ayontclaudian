@@ -3,6 +3,8 @@ import type { ProviderUIOption } from '../../../core/providers/types';
 export type CodexModel = string;
 
 export const CODEX_SPARK_MODEL: CodexModel = 'gpt-5.3-codex-spark';
+export const CODEX_GPT_6_ASTRA_MODEL: CodexModel = 'gpt-6-astra';
+export const CODEX_GPT_6_ASTRA_MINI_MODEL: CodexModel = 'gpt-6-astra-mini';
 export const CODEX_GPT_56_SOL_MODEL: CodexModel = 'gpt-5.6-sol';
 export const CODEX_GPT_56_TERRA_MODEL: CodexModel = 'gpt-5.6-terra';
 export const CODEX_GPT_56_LUNA_MODEL: CodexModel = 'gpt-5.6-luna';
@@ -10,12 +12,16 @@ export const DEFAULT_CODEX_MINI_MODEL: CodexModel = 'gpt-5.4-mini';
 export const CODEX_GPT_55_MODEL: CodexModel = 'gpt-5.5';
 export const DEFAULT_CODEX_PRIMARY_MODEL: CodexModel = CODEX_GPT_56_SOL_MODEL;
 export const FAST_TIER_CODEX_MODELS = new Set<CodexModel>([
+  CODEX_GPT_6_ASTRA_MODEL,
+  CODEX_GPT_6_ASTRA_MINI_MODEL,
   CODEX_GPT_56_SOL_MODEL,
   CODEX_GPT_56_TERRA_MODEL,
   CODEX_GPT_56_LUNA_MODEL,
   CODEX_GPT_55_MODEL,
 ]);
 
+export const CODEX_GPT_6_CONTEXT_WINDOW = 2_000_000;
+export const CODEX_GPT_6_MINI_CONTEXT_WINDOW = 1_050_000;
 export const CODEX_GPT_56_CONTEXT_WINDOW = 1_050_000;
 export const DEFAULT_CODEX_CONTEXT_WINDOW = 200_000;
 
@@ -37,11 +43,16 @@ export function formatCodexModelLabel(model: string): string {
   return `GPT-${version}${suffix ? ` ${formatCodexModelSuffix(suffix)}` : ''}`;
 }
 
-function createCodexModelOption(model: CodexModel, description: string): ProviderUIOption {
+function createCodexModelOption(
+  model: CodexModel,
+  description: string,
+  extras?: { badge?: string; comingSoon?: boolean },
+): ProviderUIOption {
   return {
     value: model,
     label: formatCodexModelLabel(model),
     description,
+    ...extras,
   };
 }
 
@@ -51,6 +62,16 @@ export const FAST_TIER_CODEX_MODEL_LABEL = 'supported GPT-5.6/GPT-5.5 models';
 export const FAST_TIER_CODEX_DESCRIPTION = `Enable ${FAST_TIER_CODEX_MODEL_LABEL} fast mode for this conversation. Faster responses use more credits.`;
 
 export const DEFAULT_CODEX_MODELS: ProviderUIOption[] = [
+  createCodexModelOption(
+    CODEX_GPT_6_ASTRA_MODEL,
+    'OpenAI Frontier-Flagship (AGI-Ära, native Computer-Use & autonome Workflows) · Rollout läuft',
+    { badge: 'Coming Soon', comingSoon: true },
+  ),
+  createCodexModelOption(
+    CODEX_GPT_6_ASTRA_MINI_MODEL,
+    'Schnelles Astra-Modell für latenzkritische Aufgaben & Code · Rollout läuft',
+    { badge: 'Coming Soon', comingSoon: true },
+  ),
   createCodexModelOption(CODEX_GPT_56_SOL_MODEL, 'Flagship GPT-5.6 model for complex coding'),
   createCodexModelOption(CODEX_GPT_56_TERRA_MODEL, 'Balanced GPT-5.6 model for everyday work'),
   createCodexModelOption(CODEX_GPT_56_LUNA_MODEL, 'Fast and cost-efficient GPT-5.6 model'),
@@ -59,6 +80,10 @@ export const DEFAULT_CODEX_MODELS: ProviderUIOption[] = [
 ];
 
 export const DEFAULT_CODEX_MODEL_SET = new Set(DEFAULT_CODEX_MODELS.map(model => model.value));
+
+export function isCodexGpt6Model(model: string): boolean {
+  return model === CODEX_GPT_6_ASTRA_MODEL || model === CODEX_GPT_6_ASTRA_MINI_MODEL;
+}
 
 export function isCodexGpt56Model(model: string): boolean {
   return model === CODEX_GPT_56_SOL_MODEL
@@ -71,13 +96,15 @@ export function supportsCodexFastTier(model: string | undefined): boolean {
 }
 
 export function supportsCodexMaxEffort(model: string): boolean {
-  return isCodexGpt56Model(model);
+  return isCodexGpt6Model(model) || isCodexGpt56Model(model);
 }
 
 export function supportsCodexUltraEffort(model: string): boolean {
-  return model === CODEX_GPT_56_SOL_MODEL || model === CODEX_GPT_56_TERRA_MODEL;
+  return model === CODEX_GPT_6_ASTRA_MODEL || model === CODEX_GPT_56_SOL_MODEL || model === CODEX_GPT_56_TERRA_MODEL;
 }
 
 export function getCodexModelContextWindow(model: string): number {
+  if (model === CODEX_GPT_6_ASTRA_MODEL) return CODEX_GPT_6_CONTEXT_WINDOW;
+  if (model === CODEX_GPT_6_ASTRA_MINI_MODEL) return CODEX_GPT_6_MINI_CONTEXT_WINDOW;
   return isCodexGpt56Model(model) ? CODEX_GPT_56_CONTEXT_WINDOW : DEFAULT_CODEX_CONTEXT_WINDOW;
 }

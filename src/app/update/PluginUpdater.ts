@@ -87,40 +87,49 @@ export class PluginUpdater {
       return false;
     }
 
-    const files: { name: string; url: string }[] = [
-      {
-        name: 'main.js',
-        url: `https://github.com/${this.owner}/${this.repo}/releases/download/${version}/main.js`,
-      },
-      {
-        name: 'styles.css',
-        url: `https://github.com/${this.owner}/${this.repo}/releases/download/${version}/styles.css`,
-      },
-      {
-        name: 'manifest.json',
-        url: `https://github.com/${this.owner}/${this.repo}/releases/download/${version}/manifest.json`,
-      },
+    const candidateTags = [
+      version.startsWith('v') ? version : `v${version}`,
+      version.replace(/^v/, ''),
     ];
+    const fileNames = ['main.js', 'styles.css', 'manifest.json'];
 
     onProgress?.({ phase: 'starting', percent: 0, line: `Lade ayontclaudian ${version}…` });
 
     try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const percent = Math.round((i / files.length) * 100);
+      for (let i = 0; i < fileNames.length; i++) {
+        const fileName = fileNames[i];
+        const percent = Math.round((i / fileNames.length) * 100);
         onProgress?.({
           phase: 'running',
           percent,
-          line: `Lade ${file.name}…`,
+          line: `Lade ${fileName}…`,
         });
-        const response = await requestUrl({ url: file.url, throw: true });
+
+        let response = null;
+        let lastError = null;
+        for (const tag of candidateTags) {
+          try {
+            const url = `https://github.com/${this.owner}/${this.repo}/releases/download/${tag}/${fileName}`;
+            response = await requestUrl({ url, throw: true });
+            if (response) {
+              break;
+            }
+          } catch (err) {
+            lastError = err;
+          }
+        }
+
+        if (!response) {
+          throw lastError ?? new Error(`Download für ${fileName} fehlgeschlagen.`);
+        }
+
         const bytes = releaseAssetBytes(response);
-        const filePath = path.join(pluginDir, file.name);
+        const filePath = path.join(pluginDir, fileName);
         await fs.promises.writeFile(filePath, bytes);
         onProgress?.({
           phase: 'running',
-          percent: Math.round(((i + 1) / files.length) * 90),
-          line: `${file.name} geschrieben`,
+          percent: Math.round(((i + 1) / fileNames.length) * 90),
+          line: `${fileName} geschrieben`,
         });
       }
 

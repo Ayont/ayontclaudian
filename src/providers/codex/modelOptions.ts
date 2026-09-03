@@ -80,5 +80,6 @@ export function resolveCodexModelSelection(
     return currentModel;
   }
 
-  return modelOptions[0]?.value ?? DEFAULT_CODEX_PRIMARY_MODEL;
+  const activeModel = modelOptions.find(option => !option.comingSoon)?.value;
+  return activeModel ?? DEFAULT_CODEX_PRIMARY_MODEL;
 }

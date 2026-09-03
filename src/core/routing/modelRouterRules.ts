@@ -81,6 +81,7 @@ const ROUTER_MODEL_MIGRATIONS: Record<string, string> = {
   'gemini-3.5-flash-low': 'gemini-3.8-flash-low',
   'gemini-3.5-flash-high': 'gemini-3.8-flash-high',
   'gpt-5.1': 'gpt-5.6-luna',
+  'gpt-6': 'gpt-6-astra',
 };
 
 function resolveCandidateModel(model: string, availableValues: Set<string>): string | null {

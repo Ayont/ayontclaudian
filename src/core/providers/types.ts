@@ -222,6 +222,10 @@ export interface ProviderUIOption {
   providerId?: string;
   /** Whether this is a default model of its provider (set by aggregated model lists). */
   isDefault?: boolean;
+  /** Optional badge label like "Coming Soon", "Beta", or "New". */
+  badge?: string;
+  /** Whether this model is upcoming / staged. */
+  comingSoon?: boolean;
 }
 
 export interface ProviderPathIconSvg {

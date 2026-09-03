@@ -242,7 +242,7 @@ export class ProviderSettingsCoordinator {
       );
     const fallbackModel = canReuseCurrentModel
       ? currentModel
-      : (modelOptions[0]?.value ?? currentModel);
+      : (modelOptions.find(option => !option.comingSoon)?.value ?? modelOptions[0]?.value ?? currentModel);
     const savedModelValue = normalizeProviderModel(uiConfig, settings, savedModel?.[providerId]);
     const isSavedModelValid = savedModelValue !== undefined
       && modelOptions.some(option => option.value === savedModelValue);

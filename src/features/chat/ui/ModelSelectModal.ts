@@ -1,4 +1,4 @@
-import { type App, Modal } from 'obsidian';
+import { type App, Modal, Notice } from 'obsidian';
 
 import { type GroupedModelOption, groupModelOptions } from '../../../core/providers/modelOptionGroups';
 import type { ProviderUIOption } from '../../../core/providers/types';
@@ -137,6 +137,13 @@ export class ModelSelectModal extends Modal {
     const labelEl = optionEl.createSpan({ cls: 'claudian-model-select-option-label' });
     labelEl.setText(family.familyLabel);
 
+    const badgeText = family.badge ?? (family.comingSoon ? 'Coming Soon' : undefined);
+    if (badgeText) {
+      const badgeEl = optionEl.createSpan({ cls: 'claudian-model-select-badge' });
+      badgeEl.setText(badgeText);
+      optionEl.addClass('is-coming-soon');
+    }
+
     if (family.variants.length > 1) {
       const chips = optionEl.createDiv({ cls: 'claudian-model-select-efforts' });
       for (const variant of family.variants) {
@@ -168,6 +175,14 @@ export class ModelSelectModal extends Modal {
     }
 
     optionEl.addEventListener('click', () => {
+      if (family.comingSoon) {
+        const isDe = getLocale() === 'de';
+        new Notice(
+          isDe
+            ? `⚡ ${family.familyLabel} ausgewählt. Rollout läuft aktuell an (Coming Soon).`
+            : `⚡ ${family.familyLabel} selected. Rollout is currently underway (Coming Soon).`,
+        );
+      }
       void this.selectModel(selectedValue ?? family.primaryValue);
     });
   }

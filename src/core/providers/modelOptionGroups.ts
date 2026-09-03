@@ -28,6 +28,8 @@ export interface GroupedModelOption {
   isDefault?: boolean;
   variants: ModelEffortVariant[];
   primaryValue: string;
+  badge?: string;
+  comingSoon?: boolean;
 }
 
 const EFFORT_RE = /\s*\((None|Off|Minimal|Low|Medium|High|XHigh|Max|Thinking|Ultracode)\)\s*$/i;
@@ -113,6 +115,8 @@ export function groupModelOptions(models: readonly ProviderUIOption[]): GroupedM
         providerId: model.providerId,
         providerIcon: model.providerIcon,
         isDefault: model.isDefault,
+        badge: model.badge,
+        comingSoon: model.comingSoon,
         variants: level && effortLabel ? [{ level, label: effortLabel, value: model.value }] : [],
         primaryValue: model.value,
       });

@@ -95,4 +95,19 @@ describe('groupModelOptions', () => {
     expect(grouped[0].variants).toHaveLength(0);
     expect(grouped[1].variants).toHaveLength(2);
   });
+  it("preserves badge and comingSoon flags on grouped models", () => {
+    const grouped = groupModelOptions([
+      {
+        value: "gpt-6-astra",
+        label: "GPT-6 Astra",
+        badge: "Coming Soon",
+        comingSoon: true,
+        group: "CODEX",
+        providerId: "codex",
+      },
+    ]);
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0].badge).toBe("Coming Soon");
+    expect(grouped[0].comingSoon).toBe(true);
+  });
 });
