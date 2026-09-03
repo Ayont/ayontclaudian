@@ -29,6 +29,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   min-width: 26px;
   height: 26px;
   margin: 0;
@@ -90,34 +91,36 @@ body.theme-light .claudian-tab-badge:hover {
   box-shadow: 0 0 12px rgba(124, 108, 242, 0.22), inset 0 1px 1px rgba(255, 255, 255, 0.15);
 }
 
-/* Provider badge attached to bottom-left corner of each tab */
+/* Provider badge placed inline at start of tab pill — never clipped by container overflow */
 .claudian-tab-provider-badge {
-  position: absolute;
-  bottom: -3px;
-  left: -3px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--cl-surface-elevated, #1a1b1e);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  display: flex;
+  order: -1;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45);
-  z-index: 2;
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
   pointer-events: none;
+  opacity: 0.85;
+  transition: opacity var(--cl-dur-fast) var(--cl-ease);
 }
 
-body.theme-light .claudian-tab-provider-badge {
-  background: #ffffff;
-  border-color: rgba(0, 0, 0, 0.15);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+.claudian-tab-badge:hover .claudian-tab-provider-badge,
+.claudian-tab-badge-active .claudian-tab-provider-badge {
+  opacity: 1;
 }
 
 .claudian-tab-provider-icon {
-  width: 9px;
-  height: 9px;
+  width: 11px;
+  height: 11px;
   flex-shrink: 0;
+}
+
+.claudian-tab-badge-index {
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Recognized conversation topic/title inside tab pill:

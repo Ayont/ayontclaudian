@@ -456,28 +456,77 @@ describe('appendContextFiles', () => {
   });
 });
 
-describe("injected prompt envelopes and truncation", () => {
-  it("extracts prompt cleanly when graph_context and recommended_plugins are present", () => {
+describe('injected prompt envelopes and truncation', () => {
+  it('extracts prompt cleanly when graph_context and recommended_plugins are present', () => {
     const prompt = [
-      "<graph_context>",
-      "Direkt verknüpfte Notizen zu 🏠 Home.md:",
-      "• Claudian/Conversations/test.md",
-      "</graph_context>",
-      "",
-      "Wir machen jetzt eine dokumentations liste der VLA...",
-      "",
-      "<recommended_plugins>",
-      "Here is a list of plugins that are available but not installed.",
-      "• Airtable (airtable@openai-curated-remote)",
-      "</recommended_plugins>",
-    ].join("\n");
+      '<graph_context>',
+      'Direkt verknüpfte Notizen zu 🏠 Home.md:',
+      '• Claudian/Conversations/test.md',
+      '</graph_context>',
+      '',
+      'Wir machen jetzt eine dokumentations liste der VLA...',
+      '',
+      '<recommended_plugins>',
+      'Here is a list of plugins that are available but not installed.',
+      '• Airtable (airtable@openai-curated-remote)',
+      '</recommended_plugins>',
+    ].join('\n');
 
-    expect(extractUserDisplayContent(prompt)).toBe("Wir machen jetzt eine dokumentations liste der VLA...");
-    expect(extractUserQuery(prompt)).toBe("Wir machen jetzt eine dokumentations liste der VLA...");
+    expect(extractUserDisplayContent(prompt)).toBe('Wir machen jetzt eine dokumentations liste der VLA...');
+    expect(extractUserQuery(prompt)).toBe('Wir machen jetzt eine dokumentations liste der VLA...');
   });
 
-  it("strips truncated marker tags from user display content", () => {
-    const prompt = "<truncated 774 bytes>\nklare KI-Merkmale ergab:\n• hunari-hq.png";
-    expect(extractUserDisplayContent(prompt)).toBe("klare KI-Merkmale ergab:\n• hunari-hq.png");
+  it('strips truncated marker tags from user display content', () => {
+    const prompt = '<truncated 774 bytes>\nklare KI-Merkmale ergab:\n• hunari-hq.png';
+    expect(extractUserDisplayContent(prompt)).toBe('klare KI-Merkmale ergab:\n• hunari-hq.png');
+  });
+
+  it('extracts prompt cleanly when system preamble is truncated in the middle by CLI loggers', () => {
+    const prompt = [
+      '<claudian_system_preamble prompt-key="sha256:9cff9d45ae1ca29bce4509273e3ff4e2dd64405b1e346250833193b24f7bb455">',
+      '## Identity & Knowledge',
+      '<truncated 7916 bytes>',
+      '</graph_context>',
+      '',
+      '<vault_context>',
+      'Relevant vault knowledge:',
+      '- From [[copilot/copilot-custom-prompts/Translate to Chinese.md]]',
+      '</vault_context>',
+      '',
+      'hi',
+      '',
+      '<claudian_output_contract surface="chat">',
+      'Application directives',
+      '</claudian_output_contract>',
+    ].join('\n');
+
+    expect(extractUserDisplayContent(prompt)).toBe('hi');
+    expect(extractUserQuery(prompt)).toBe('hi');
+  });
+
+  it('strips image-only prompt transport lines with truncated graph context', () => {
+    const prompt = [
+      'Attached file: @/var/folders/jm/w2hqbjvn5r179hsfytly5b740000gn/T/claudian-agy-X7ZU1j/image.png',
+      '',
+      '<graph_context>',
+      'Direkt verknüpfte Notizen zu [[🏠 Home.md]]:',
+      '<truncated 9839 bytes>',
+      'desktop task instructions...',
+      '</claudian_output_contract>',
+    ].join('\n');
+
+    expect(extractUserDisplayContent(prompt)).toBe('');
+    expect(extractUserQuery(prompt)).toBe('');
+  });
+
+  it('strips plural Attached files transport line', () => {
+    const prompt = [
+      'Attached files: @/tmp/a.png @/tmp/b.png',
+      '',
+      'Can you review this code?',
+    ].join('\n');
+
+    expect(extractUserDisplayContent(prompt)).toBe('Can you review this code?');
+    expect(extractUserQuery(prompt)).toBe('Can you review this code?');
   });
 });

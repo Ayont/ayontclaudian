@@ -47,10 +47,27 @@ export class AntigravityConversationHistoryService implements ProviderConversati
       return;
     }
 
+    const cachedUserMessages = conversation.messages.filter((m) => m.role === 'user');
     const messages = transcriptToChatMessages(buffer);
     if (messages.length === 0) {
       this.hydratedKeys.delete(conversation.id);
       return;
+    }
+
+    // Preserve authentic human user messages (content, displayContent, images, attachments)
+    // loaded from Claudian's metadata file so truncation or transport leakage in CLI transcripts
+    // does not overwrite user-authored prompts or drop attached images.
+    let userIndex = 0;
+    for (const msg of messages) {
+      if (msg.role === 'user') {
+        const cached = cachedUserMessages[userIndex++];
+        if (cached) {
+          if (cached.content !== undefined) msg.content = cached.content;
+          if (cached.displayContent !== undefined) msg.displayContent = cached.displayContent;
+          if (cached.images && cached.images.length > 0) msg.images = cached.images;
+          if (cached.attachments && cached.attachments.length > 0) msg.attachments = cached.attachments;
+        }
+      }
     }
 
     conversation.messages = messages;
@@ -81,15 +98,14 @@ export class AntigravityConversationHistoryService implements ProviderConversati
   buildForkProviderState(
     _sourceSessionId: string,
     _resumeAt: string,
-    _sourceProviderState?: Record<string, unknown>,
+    sourceProviderState?: Record<string, unknown>,
   ): Record<string, unknown> {
-    // Antigravity has no fork support (capabilities.supportsFork === false).
-    return {};
+    return buildPersistedAntigravityState(getAntigravityState(sourceProviderState)) as Record<string, unknown>;
   }
 
   buildPersistedProviderState(
     conversation: Conversation,
   ): Record<string, unknown> | undefined {
-    return buildPersistedAntigravityState(getAntigravityState(conversation.providerState));
+    return buildPersistedAntigravityState(getAntigravityState(conversation.providerState)) as Record<string, unknown> | undefined;
   }
 }

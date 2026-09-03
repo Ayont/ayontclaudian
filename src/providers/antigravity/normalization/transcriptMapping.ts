@@ -4,6 +4,10 @@ import {
   diffFromToolInput,
 } from '../../../utils/diff';
 import {
+  extractUserDisplayContent,
+  stripInternalPromptEnvelopes,
+} from '../../../utils/context';
+import {
   type AntigravitySubagentRef,
   type AntigravityToolCall,
   type AntigravityTranscriptEvent,
@@ -465,15 +469,16 @@ export function transcriptToChatMessages(buffer: string): ChatMessage[] {
       // A new user turn invalidates any unconsumed tool-call correlation.
       pendingToolCalls.length = 0;
       resolvedCallByStep.clear();
-      const text = unwrapUserRequest(event.content ?? '');
-      if (text) {
-        messages.push({
-          id: `agy-user-${event.stepIndex}-${counter++}`,
-          role: 'user',
-          content: text,
-          timestamp: eventTimestamp(event, Date.now()),
-        });
-      }
+      const rawText = unwrapUserRequest(event.content ?? '');
+      const displayContent = extractUserDisplayContent(rawText);
+      const text = displayContent !== undefined ? displayContent : stripInternalPromptEnvelopes(rawText);
+      messages.push({
+        id: `agy-user-${event.stepIndex}-${counter++}`,
+        role: 'user',
+        content: text,
+        ...(displayContent !== undefined ? { displayContent } : {}),
+        timestamp: eventTimestamp(event, Date.now()),
+      });
       continue;
     }
 

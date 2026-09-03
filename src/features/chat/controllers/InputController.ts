@@ -1346,7 +1346,7 @@ export class InputController {
     content: string;
     images?: ChatMessage['images'];
     /** Staged file chips whose `@relPath` refs are appended invisibly. */
-    attachments?: MessageAttachment[];
+    attachments?: ChatMessage['attachments'];
     outputSurface?: OutputSurface;
     editorContextOverride?: EditorSelectionContext | null;
     browserContextOverride?: BrowserSelectionContext | null;

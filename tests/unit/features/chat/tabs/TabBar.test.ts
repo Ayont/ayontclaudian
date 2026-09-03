@@ -153,7 +153,7 @@ describe('TabBar', () => {
       tabBar.update([createTabBarItem({ id: 'stream-tab', isStreaming: true, title: 'Analysis' })]);
 
       const badge = containerEl._children[0];
-      expect(badge._children.some(c => c._classList?.has('claudian-tab-streaming-indicator'))).toBe(true);
+      expect(badge._children.some((c: any) => c._classList?.has('claudian-tab-streaming-indicator'))).toBe(true);
       expect(badge.getAttribute('aria-label')).toBe('Analysis (arbeitet…)');
     });
   });

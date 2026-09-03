@@ -19,16 +19,43 @@ const CURRENT_NOTE_SUFFIX_REGEX = /\n\n<current_note>\n[\s\S]*?<\/current_note>$
  */
 export const XML_CONTEXT_PATTERN = /\n\n<(?:vault_context|memory_context|graph_context|current_note|editor_selection|editor_cursor|context_files|canvas_selection|browser_selection|claudian_output_contract)[\s>]/;
 const BRACKET_CONTEXT_PATTERN = /\n\[(?:Current note|Editor selection from|Browser selection from|Canvas selection from)\b/;
-const VAULT_CONTEXT_PATTERN = /<vault_context>\s*([\s\S]*?)\s*<\/vault_context>/i;
-const MEMORY_CONTEXT_PATTERN = /<memory_context>\s*([\s\S]*?)\s*<\/memory_context>/i;
-const GRAPH_CONTEXT_PATTERN = /<graph_context>\s*([\s\S]*?)\s*<\/graph_context>/i;
-const ATTACHED_FILE_PATTERN = /^Attached file:\s*@?\S.*(?:\n|$)/gm;
-const INJECTED_CONTEXT_PATTERN = /<(vault_context|memory_context|graph_context)>\s*([\s\S]*?)\s*<\/\1>/gi;
+export const ATTACHED_FILE_PATTERN = /^Attached files?:\s*@?\S.*(?:\n|$)/gim;
+
 // Codex persists image attachments as provider-internal XML before the human
 // prompt. These tags are transport metadata, never user-authored chat text.
 const INTERNAL_IMAGE_TAG_PATTERN = /<image\b(?=[^>]*\bname=\[Image\s+#\d+\])(?=[^>]*\bpath=(?:"[^"]*"|'[^']*'))[^>]*>(?:\s*<\/image>)?\s*/gi;
-const INTERNAL_PROMPT_ENVELOPE_PATTERN = /<(standing_goal|claudian_output_contract|claudian_system_preamble|conversation_context|goal_loop_work_so_far|goal_loop|recommended_plugins|available_plugins|plugins_info|installed_plugins|environment_details)\b[^>]*>(?:[\s\S]*?<\/\1>|[\s\S]*?$)\s*/gi;
+
+const SYSTEM_ENVELOPE_NAMES = 'standing_goal|claudian_output_contract|claudian_system_preamble|conversation_context|goal_loop_work_so_far|goal_loop|recommended_plugins|available_plugins|plugins_info|installed_plugins|environment_details';
+const ALL_CONTEXT_NAMES = `${SYSTEM_ENVELOPE_NAMES}|vault_context|memory_context|graph_context`;
+
+const VAULT_CONTEXT_PATTERN = new RegExp(
+  `<vault_context>\\s*([\\s\\S]*?)(?:<\\/vault_context>|(?=<(?:\/?(?:${ALL_CONTEXT_NAMES}|current_note|editor_selection|context_files))\\b)|$)`,
+  'i'
+);
+const MEMORY_CONTEXT_PATTERN = new RegExp(
+  `<memory_context>\\s*([\\s\\S]*?)(?:<\\/memory_context>|(?=<(?:\/?(?:${ALL_CONTEXT_NAMES}|current_note|editor_selection|context_files))\\b)|$)`,
+  'i'
+);
+const GRAPH_CONTEXT_PATTERN = new RegExp(
+  `<graph_context>\\s*([\\s\\S]*?)(?:<\\/graph_context>|(?=<(?:\/?(?:${ALL_CONTEXT_NAMES}|current_note|editor_selection|context_files))\\b)|$)`,
+  'i'
+);
+
+const INTERNAL_SYSTEM_ENVELOPE_PATTERN = new RegExp(
+  `<(${SYSTEM_ENVELOPE_NAMES})\\b[^>]*>[\\s\\S]*?<\\/\\1>\\s*|<(${SYSTEM_ENVELOPE_NAMES})\\b[^>]*>[\\s\\S]*?(?=<(?:\/?(?:${ALL_CONTEXT_NAMES}|current_note|editor_selection|context_files))\\b|$)\\s*`,
+  'gi'
+);
+const ORPHANED_SYSTEM_CLOSING_PATTERN = new RegExp(
+  `<\\/(?:${SYSTEM_ENVELOPE_NAMES})>\\s*`,
+  'gi'
+);
 const TRUNCATED_MARKER_PATTERN = /<truncated\s+\d+\s+(?:bytes|chars|lines)>/gi;
+
+const INJECTED_CONTEXT_PATTERN = new RegExp(
+  `<(vault_context|memory_context|graph_context)>\\s*[\\s\\S]*?<\\/\\1>\\s*|<(vault_context|memory_context|graph_context)>\\s*[\\s\\S]*?(?=<(?:\/?(?:${ALL_CONTEXT_NAMES}|current_note|editor_selection|context_files))\\b|$)\\s*`,
+  'gi'
+);
+const ORPHANED_INJECTED_CLOSING_PATTERN = /<\/(?:vault_context|memory_context|graph_context)>\s*/gi;
 
 export function stripInternalImageTags(text: string): string {
   return text.replace(INTERNAL_IMAGE_TAG_PATTERN, '').trim();
@@ -37,8 +64,10 @@ export function stripInternalImageTags(text: string): string {
 export function stripInternalPromptEnvelopes(text: string): string {
   if (!text) return '';
   return text
-    .replace(INTERNAL_PROMPT_ENVELOPE_PATTERN, '')
     .replace(TRUNCATED_MARKER_PATTERN, '')
+    .replace(INTERNAL_SYSTEM_ENVELOPE_PATTERN, '')
+    .replace(ORPHANED_SYSTEM_CLOSING_PATTERN, '')
+    .replace(ATTACHED_FILE_PATTERN, '')
     .trim();
 }
 
@@ -133,10 +162,12 @@ export function extractInjectedContextPrompt(text: string): InjectedContextPromp
   if (!vaultMatch && !memoryMatch && !graphMatch) return undefined;
 
   const withoutInjectedContext = stripInternalImageTags(
-    sanitizedText.replace(INJECTED_CONTEXT_PATTERN, ''),
+    sanitizedText
+      .replace(INJECTED_CONTEXT_PATTERN, '')
+      .replace(ORPHANED_INJECTED_CLOSING_PATTERN, ''),
   );
   const userContent = (extractContentBeforeXmlContext(withoutInjectedContext)
-    ?? withoutInjectedContext).replace(ATTACHED_FILE_PATTERN, "");
+    ?? withoutInjectedContext).replace(ATTACHED_FILE_PATTERN, '');
 
   return {
     ...(vaultMatch?.[1]?.trim() ? { vaultContext: vaultMatch[1].trim() } : {}),
@@ -160,15 +191,20 @@ export function extractUserDisplayContent(text: string): string | undefined {
 
   const xmlDisplayContent = extractContentBeforeXmlContext(withoutInternalEnvelopes);
   if (xmlDisplayContent !== undefined) {
-    return xmlDisplayContent;
+    return xmlDisplayContent.replace(ATTACHED_FILE_PATTERN, '').trim();
   }
 
   const bracketMatch = withoutInternalEnvelopes.match(BRACKET_CONTEXT_PATTERN);
   if (bracketMatch?.index !== undefined) {
-    return withoutInternalEnvelopes.substring(0, bracketMatch.index).trim();
+    return withoutInternalEnvelopes.substring(0, bracketMatch.index).replace(ATTACHED_FILE_PATTERN, '').trim();
   }
 
-  return removedInternalTransport ? withoutInternalEnvelopes : undefined;
+  const cleaned = withoutInternalEnvelopes.replace(ATTACHED_FILE_PATTERN, '').trim();
+  if (cleaned.length === 0 && (removedInternalTransport || text.includes('Attached file'))) {
+    return '';
+  }
+
+  return removedInternalTransport ? cleaned : undefined;
 }
 
 /**
@@ -191,11 +227,12 @@ export function extractUserQuery(prompt: string): string {
   // Try to extract content before XML context
   const extracted = extractContentBeforeXmlContext(sanitizedPrompt);
   if (extracted !== undefined) {
-    return extracted;
+    return extracted.replace(ATTACHED_FILE_PATTERN, '').trim();
   }
 
   // No XML context - return the whole prompt stripped of any remaining tags
   return stripInternalImageTags(sanitizedPrompt)
+    .replace(ATTACHED_FILE_PATTERN, '')
     .replace(/<current_note>[\s\S]*?<\/current_note>\s*/g, '')
     .replace(/<editor_selection[\s\S]*?<\/editor_selection>\s*/g, '')
     .replace(/<editor_cursor[\s\S]*?<\/editor_cursor>\s*/g, '')

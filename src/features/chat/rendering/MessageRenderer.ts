@@ -960,6 +960,10 @@ export class MessageRenderer {
     this.discoverLiveDocuments(msg);
     const msgEl = this.messagesEl.querySelector<HTMLElement>(`[data-message-id="${msg.id}"]`);
     if (!msgEl) return;
+    if (!this.hasVisibleContent(msg)) {
+      msgEl.remove();
+      return;
+    }
     this.renderAssistantHeader(msg, msgEl, false);
     const contentEl = msgEl.querySelector<HTMLElement>('.claudian-message-content');
     if (contentEl) {
@@ -1697,9 +1701,7 @@ export class MessageRenderer {
       card.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        showFileContextMenu(this.app, attachment.relPath, {
-          clientCoordinates: { x: e.clientX, y: e.clientY },
-        });
+        showFileContextMenu(this.app, e, attachment.relPath);
       });
       card.addEventListener('keydown', (event: KeyboardEvent) => {
         if (event.key === 'Enter' || event.key === ' ') {

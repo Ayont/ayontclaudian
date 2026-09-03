@@ -119,12 +119,20 @@
 .claudian-mode-quick-row {
   display: flex;
   padding: 0 0 8px;
+  overflow: hidden;
 }
 
 .claudian-mode-quick-group {
   display: none;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
   gap: 6px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+}
+.claudian-mode-quick-group::-webkit-scrollbar {
+  display: none;
 }
 
 .claudian-container:not(.claudian-mode-work) .claudian-mode-quick-group--code {
@@ -138,6 +146,8 @@
 .claudian-mode-quick-chip {
   display: inline-flex;
   align-items: center;
+  white-space: nowrap;
+  flex-shrink: 0;
   gap: 5px;
   height: auto;
   padding: 4px 10px;

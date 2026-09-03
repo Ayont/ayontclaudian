@@ -423,18 +423,14 @@ export class FilePreviewPanel {
     setIcon(moreBtn, 'more-horizontal');
     moreBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      showFileContextMenu(this.plugin.app, item.relPath, {
-        clientCoordinates: { x: e.clientX, y: e.clientY },
-      });
+      showFileContextMenu(this.plugin.app, e, item.relPath);
     });
 
     card.addEventListener('click', () => void this.openItem(item));
     card.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      showFileContextMenu(this.plugin.app, item.relPath, {
-        clientCoordinates: { x: e.clientX, y: e.clientY },
-      });
+      showFileContextMenu(this.plugin.app, e, item.relPath);
     });
   }
 

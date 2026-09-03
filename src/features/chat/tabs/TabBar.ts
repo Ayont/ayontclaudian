@@ -75,16 +75,15 @@ export class TabBar {
       badgeEl.setAttribute('aria-current', 'page');
     }
 
-    // Provider icon badge in the corner:
-    // Enables instant recognition of which AI provider is powering this chat (Claude, Codex, Antigravity, Grok, etc.)
+    // Provider icon: clearly identifies which provider runs this tab inline, never cut off
     const reg = ProviderRegistry.getProviderRegistrationSafe(item.providerId);
     const providerIcon = reg?.chatUIConfig?.getProviderIcon?.();
     if (providerIcon) {
       const providerBadge = badgeEl.createSpan({ cls: 'claudian-tab-provider-badge' });
       providerBadge.setAttribute('aria-hidden', 'true');
       const iconSvg = createProviderIconSvg(providerIcon, {
-        width: 10,
-        height: 10,
+        width: 11,
+        height: 11,
         className: 'claudian-tab-provider-icon',
         dataProvider: item.providerId,
         ownerDocument: this.containerEl.ownerDocument,
