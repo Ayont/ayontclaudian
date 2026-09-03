@@ -1,14 +1,13 @@
-import type ClaudianPlugin from "../../../main";
-import { getSmartPromptSuggestions, type SmartPromptItem } from "../services/SmartPromptService";
 import { setIcon, setTooltip } from 'obsidian';
 
 import {
   getWorkspaceModeClass,
   getWorkspaceModeMeta,
-  getWorkspaceQuickPrompts,
   WORKSPACE_MODE_CLASSES,
   type WorkspaceMode,
 } from '../../../core/workspace/workspaceMode';
+import type ClaudianPlugin from "../../../main";
+import { getSmartPromptSuggestions, type SmartPromptItem } from "../services/SmartPromptService";
 
 export interface WorkspaceModeToggleOptions {
   /** Current mode (read fresh on every render/interaction). */

@@ -3,10 +3,8 @@ import {
   copyFilePath,
   getFileManagerName,
   getPlatformName,
-  openInDefaultApp,
   renderFileActionPill,
   resolveToAbsolutePath,
-  revealInSystemFileManager,
   showFileContextMenu,
 } from '@/features/chat/services/FileActionService';
 

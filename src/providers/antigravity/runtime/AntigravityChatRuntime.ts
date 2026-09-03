@@ -865,6 +865,9 @@ export class AntigravityChatRuntime implements ChatRuntime {
     if (trimmed.includes('context_length_exceeded') || trimmed.includes('maximum context length')) {
       return `⚠️ **Kontextfenster überschritten**\n\nDie Unterhaltung hat das maximale Kontextfenster des Modells erreicht. Bitte starte einen neuen Chat über das \`+\`-Symbol.`;
     }
+    if (trimmed.includes('timeout waiting for response')) {
+      return `⚠️ **Antigravity Server Timeout**\n\nDer Server hat nicht rechtzeitig geantwortet (Timeout). Dies kann bei hoher Serverlast oder komplexen Berechnungen auftreten.\n\n- **Tipp:** Klicke unten auf ↻ (Erneut versuchen), um die Anfrage direkt fortzusetzen.\n- Du kannst das Zeitlimit in den Einstellungen unter *Antigravity → Print-Timeout* bei Bedarf auf z. B. \`20m\` erhöhen.`;
+    }
     if (!trimmed) {
       return `${message}\n\n*Hinweis: Der Antigravity CLI-Prozess wurde unerwartet beendet. Dies kann bei unterbrochenen Tool-Ausführungen oder Netzwerk-Timeouts auftreten. Versuche es bitte erneut.*`;
     }

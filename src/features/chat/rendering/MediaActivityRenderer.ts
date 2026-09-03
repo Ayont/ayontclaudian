@@ -10,8 +10,8 @@
 import { normalizePath, setIcon } from 'obsidian';
 
 import type { ToolCallInfo } from '../../../core/types';
-import { getFileManagerName, openInDefaultApp, revealInSystemFileManager, showFileContextMenu } from '../services/FileActionService';
 import { getLocale } from '../../../i18n/i18n';
+import { getFileManagerName, openInDefaultApp, revealInSystemFileManager, showFileContextMenu } from '../services/FileActionService';
 
 export type MediaKind = 'image' | 'video' | 'audio' | 'pdf';
 

@@ -1,4 +1,4 @@
-import { setIcon } from 'obsidian';
+
 import { getLocale } from '../../../i18n/i18n';
 
 /**
@@ -75,7 +75,7 @@ export function buildActivityLabels(
 ): { title: string; breakdown: string } {
   const isDe = locale === 'de';
 
-  let title = '';
+  let title: string;
   if (isWorkMode) {
     if (totalSteps === 1 && toolsCount === 1) {
       title = isDe ? '1 Recherche-Aktion ausgeführt' : '1 research step completed';

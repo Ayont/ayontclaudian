@@ -1,5 +1,4 @@
 import { setIcon } from 'obsidian';
-import { renderFileActionPill, showFileContextMenu } from '../services/FileActionService';
 
 import { describeBrowserActivity, resolveBrowserActivity } from '../../../core/tools/browserActivity';
 import type { TodoItem } from '../../../core/tools/todo';
@@ -30,6 +29,8 @@ import type { AskUserQuestionItem, AskUserQuestionOption, ToolCallInfo } from '.
 import type { DiffStats } from '../../../core/types/diff';
 import { appendMcpIcon } from '../../../shared/icons';
 import { parseApplyPatchDiffs, parseFileUpdateChangeDiffs } from '../../../utils/diff';
+import { renderFileActionPill, showFileContextMenu } from '../services/FileActionService';
+import { renderFileFormatBadge } from '../ui/file-drop/fileFormatIcons';
 import {
   decorateBrowserToolElement,
   getBrowserActionIcon,
@@ -829,7 +830,7 @@ export function renderExpandedContent(
       renderLinesExpanded(container, resolvedResult, 20);
       break;
     case TOOL_READ:
-      renderLinesExpanded(container, resolvedResult, 15);
+      renderFileReadExpanded(container, input, resolvedResult);
       break;
     case TOOL_GLOB:
     case TOOL_GREP:
@@ -1182,23 +1183,135 @@ function renderBashContent(
   result: string,
   initialText?: string,
 ): void {
-  container.addClass('claudian-tool-bash-panel');
-  const command = (input.command as string) || '';
+  container.addClass("claudian-tool-bash-panel");
+  const command = (input.command as string) || (input.CommandLine as string) || "";
   if (command) {
-    const shellEl = container.createDiv({ cls: 'claudian-tool-bash-shell' });
-    shellEl.createSpan({ cls: 'claudian-tool-bash-prompt', text: '$' });
-    const cmdEl = shellEl.createDiv({ cls: 'claudian-tool-bash-command' });
+    const shellEl = container.createDiv({ cls: "claudian-tool-bash-shell" });
+    const dotsEl = shellEl.createDiv({ cls: "claudian-tool-bash-dots" });
+    dotsEl.createSpan({ cls: "claudian-bash-dot claudian-bash-dot-red" });
+    dotsEl.createSpan({ cls: "claudian-bash-dot claudian-bash-dot-yellow" });
+    dotsEl.createSpan({ cls: "claudian-bash-dot claudian-bash-dot-green" });
+    shellEl.createSpan({ cls: "claudian-tool-bash-prompt", text: "$" });
+    const cmdEl = shellEl.createDiv({ cls: "claudian-tool-bash-command" });
     cmdEl.setText(command);
+    const copyBtn = shellEl.createEl("button", { cls: "claudian-bash-copy-btn" });
+    copyBtn.setAttribute("type", "button");
+    copyBtn.setAttribute("aria-label", "Befehl kopieren");
+    copyBtn.innerHTML = `<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><path d="M4 1.5A1.5 1.5 0 0 1 5.5 0h5A1.5 1.5 0 0 1 12 1.5V3h1.5A1.5 1.5 0 0 1 15 4.5v10a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 4 14.5V13H2.5A1.5 1.5 0 0 1 1 11.5v-10A1.5 1.5 0 0 1 2.5 0H4v1.5zm1 0V3h5V1.5a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 0-.5.5zm1 13a.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5v-10a.5.5 0 0 0-.5-.5H12V11.5a1.5 1.5 0 0 1-1.5 1.5H6v1.5zm-3.5-3a.5.5 0 0 0 .5.5H10a.5.5 0 0 0 .5-.5v-10a.5.5 0 0 0-.5-.5H2.5a.5.5 0 0 0-.5.5v10z"/></svg>`;
+    copyBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      void navigator.clipboard.writeText(command);
+    });
   }
   if (initialText) {
-    const runningEl = container.createDiv({ cls: 'claudian-tool-bash-running' });
-    runningEl.createSpan({ cls: 'claudian-tool-bash-running-dot' });
+    const runningEl = container.createDiv({ cls: "claudian-tool-bash-running" });
+    runningEl.createSpan({ cls: "claudian-tool-bash-running-dot" });
     runningEl.createSpan({ text: initialText });
-  } else if (result) {
-    const outputEl = container.createDiv({ cls: 'claudian-tool-bash-output' });
+  } else if (result && result.trim()) {
+    const outputEl = container.createDiv({ cls: "claudian-tool-bash-output" });
     renderLinesExpanded(outputEl, result, 20);
   } else {
-    container.createDiv({ cls: 'claudian-tool-empty', text: 'Kein Ergebnis' });
+    const successEl = container.createDiv({ cls: "claudian-tool-bash-success" });
+    const checkEl = successEl.createSpan({ cls: "claudian-tool-bash-success-icon" });
+    checkEl.innerHTML = `<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5 8.5 6.5 11.5 12.5 4.5"></polyline></svg>`;
+    successEl.createSpan({ text: "Befehl erfolgreich ausgeführt (Keine Ausgabe)" });
+  }
+}
+
+function renderFileReadExpanded(
+  container: HTMLElement,
+  input: Record<string, unknown>,
+  rawResult: string,
+): void {
+  container.addClass("claudian-tool-read-panel");
+  const filePath =
+    (input.file_path as string) ||
+    (input.path as string) ||
+    (input.target_file as string) ||
+    (input.absolute_path as string) ||
+    (input.FilePath as string) ||
+    (input.AbsolutePath as string) ||
+    "";
+
+  let rangeStart: number | undefined;
+  let rangeEnd: number | undefined;
+  let cleanFilePath = filePath;
+
+  const rawLines = rawResult.split(/\r?\n/);
+  const codeLines: Array<{ lineNum: string; text: string }> = [];
+
+  let isHeader = true;
+  for (const line of rawLines) {
+    if (isHeader) {
+      const pathMatch = line.match(/^File Path:\s*`?(?:file:\/\/)?([^`\n]+)`?/i);
+      if (pathMatch) {
+        cleanFilePath = cleanFilePath || pathMatch[1];
+        continue;
+      }
+      const rangeMatch = line.match(/^Showing lines\s*(\d+)\s*to\s*(\d+)/i);
+      if (rangeMatch) {
+        rangeStart = parseInt(rangeMatch[1], 10);
+        rangeEnd = parseInt(rangeMatch[2], 10);
+        continue;
+      }
+      if (/^Total Lines:/i.test(line) || /^Total Bytes:/i.test(line) || /^The following code has been modified/i.test(line)) {
+        continue;
+      }
+      isHeader = false;
+    }
+
+    const numMatch = line.match(/^(\d+)[:\t|]\s?(.*)$/);
+    if (numMatch) {
+      codeLines.push({ lineNum: numMatch[1], text: numMatch[2] });
+    } else {
+      const fallbackNum = rangeStart !== undefined ? String(rangeStart + codeLines.length) : "";
+      codeLines.push({ lineNum: fallbackNum, text: line });
+    }
+  }
+
+  const fileName = cleanFilePath.split(/[\\/]/).pop() || "Datei";
+
+  const viewerEl = container.createDiv({ cls: "claudian-code-viewer" });
+  const headerEl = viewerEl.createDiv({ cls: "claudian-code-header" });
+
+  const titleEl = headerEl.createDiv({ cls: "claudian-code-title" });
+  const iconContainer = titleEl.createSpan({ cls: "claudian-code-format-icon" });
+  renderFileFormatBadge(iconContainer, fileName);
+  titleEl.createSpan({ cls: "claudian-code-filename", text: fileName });
+
+  const metaEl = headerEl.createDiv({ cls: "claudian-code-meta" });
+  if (rangeStart !== undefined && rangeEnd !== undefined) {
+    metaEl.createSpan({ cls: "claudian-code-range-badge", text: `Zeilen ${rangeStart}–${rangeEnd}` });
+  } else if (codeLines.length > 0) {
+    metaEl.createSpan({ cls: "claudian-code-range-badge", text: `${codeLines.length} Zeilen` });
+  }
+
+  const copyBtn = metaEl.createEl("button", { cls: "claudian-code-copy-btn" });
+  copyBtn.setAttribute("type", "button");
+  copyBtn.setAttribute("aria-label", "Code kopieren");
+  copyBtn.innerHTML = `<svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor"><path d="M4 1.5A1.5 1.5 0 0 1 5.5 0h5A1.5 1.5 0 0 1 12 1.5V3h1.5A1.5 1.5 0 0 1 15 4.5v10a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 4 14.5V13H2.5A1.5 1.5 0 0 1 1 11.5v-10A1.5 1.5 0 0 1 2.5 0H4v1.5zm1 0V3h5V1.5a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 0-.5.5zm1 13a.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5v-10a.5.5 0 0 0-.5-.5H12V11.5a1.5 1.5 0 0 1-1.5 1.5H6v1.5zm-3.5-3a.5.5 0 0 0 .5.5H10a.5.5 0 0 0 .5-.5v-10a.5.5 0 0 0-.5-.5H2.5a.5.5 0 0 0-.5.5v10z"/></svg>`;
+  copyBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const cleanText = codeLines.map((c) => c.text).join("\n");
+    void navigator.clipboard.writeText(cleanText);
+  });
+
+  const bodyEl = viewerEl.createDiv({ cls: "claudian-code-body" });
+  const maxDisplay = 40;
+  const truncated = codeLines.length > maxDisplay;
+  const displayLines = truncated ? codeLines.slice(0, maxDisplay) : codeLines;
+
+  for (const line of displayLines) {
+    const rowEl = bodyEl.createDiv({ cls: "claudian-code-row" });
+    rowEl.createSpan({ cls: "claudian-code-gutter", text: line.lineNum || " " });
+    rowEl.createSpan({ cls: "claudian-code-content claudian-tool-line", text: line.text || " " });
+  }
+
+  if (truncated) {
+    viewerEl.createDiv({
+      cls: "claudian-code-truncated",
+      text: `… ${codeLines.length - maxDisplay} weitere Zeilen`,
+    });
   }
 }
 

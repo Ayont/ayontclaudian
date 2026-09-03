@@ -29,20 +29,20 @@ const SYSTEM_ENVELOPE_NAMES = 'standing_goal|claudian_output_contract|claudian_s
 const ALL_CONTEXT_NAMES = `${SYSTEM_ENVELOPE_NAMES}|vault_context|memory_context|graph_context`;
 
 const VAULT_CONTEXT_PATTERN = new RegExp(
-  `<vault_context>\\s*([\\s\\S]*?)(?:<\\/vault_context>|(?=<(?:\/?(?:${ALL_CONTEXT_NAMES}|current_note|editor_selection|context_files))\\b)|$)`,
+  `<vault_context>\\s*([\\s\\S]*?)(?:<\\/vault_context>|(?=<(?:/?(?:${ALL_CONTEXT_NAMES}|current_note|editor_selection|context_files))\\b)|$)`,
   'i'
 );
 const MEMORY_CONTEXT_PATTERN = new RegExp(
-  `<memory_context>\\s*([\\s\\S]*?)(?:<\\/memory_context>|(?=<(?:\/?(?:${ALL_CONTEXT_NAMES}|current_note|editor_selection|context_files))\\b)|$)`,
+  `<memory_context>\\s*([\\s\\S]*?)(?:<\\/memory_context>|(?=<(?:/?(?:${ALL_CONTEXT_NAMES}|current_note|editor_selection|context_files))\\b)|$)`,
   'i'
 );
 const GRAPH_CONTEXT_PATTERN = new RegExp(
-  `<graph_context>\\s*([\\s\\S]*?)(?:<\\/graph_context>|(?=<(?:\/?(?:${ALL_CONTEXT_NAMES}|current_note|editor_selection|context_files))\\b)|$)`,
+  `<graph_context>\\s*([\\s\\S]*?)(?:<\\/graph_context>|(?=<(?:/?(?:${ALL_CONTEXT_NAMES}|current_note|editor_selection|context_files))\\b)|$)`,
   'i'
 );
 
 const INTERNAL_SYSTEM_ENVELOPE_PATTERN = new RegExp(
-  `<(${SYSTEM_ENVELOPE_NAMES})\\b[^>]*>[\\s\\S]*?<\\/\\1>\\s*|<(${SYSTEM_ENVELOPE_NAMES})\\b[^>]*>[\\s\\S]*?(?=<(?:\/?(?:${ALL_CONTEXT_NAMES}|current_note|editor_selection|context_files))\\b|$)\\s*`,
+  `<(${SYSTEM_ENVELOPE_NAMES})\\b[^>]*>[\\s\\S]*?<\\/\\1>\\s*|<(${SYSTEM_ENVELOPE_NAMES})\\b[^>]*>[\\s\\S]*?(?=<(?:/?(?:${ALL_CONTEXT_NAMES}|current_note|editor_selection|context_files))\\b|$)\\s*`,
   'gi'
 );
 const ORPHANED_SYSTEM_CLOSING_PATTERN = new RegExp(
@@ -52,7 +52,7 @@ const ORPHANED_SYSTEM_CLOSING_PATTERN = new RegExp(
 const TRUNCATED_MARKER_PATTERN = /<truncated\s+\d+\s+(?:bytes|chars|lines)>/gi;
 
 const INJECTED_CONTEXT_PATTERN = new RegExp(
-  `<(vault_context|memory_context|graph_context)>\\s*[\\s\\S]*?<\\/\\1>\\s*|<(vault_context|memory_context|graph_context)>\\s*[\\s\\S]*?(?=<(?:\/?(?:${ALL_CONTEXT_NAMES}|current_note|editor_selection|context_files))\\b|$)\\s*`,
+  `<(vault_context|memory_context|graph_context)>\\s*[\\s\\S]*?<\\/\\1>\\s*|<(vault_context|memory_context|graph_context)>\\s*[\\s\\S]*?(?=<(?:/?(?:${ALL_CONTEXT_NAMES}|current_note|editor_selection|context_files))\\b|$)\\s*`,
   'gi'
 );
 const ORPHANED_INJECTED_CLOSING_PATTERN = /<\/(?:vault_context|memory_context|graph_context)>\s*/gi;

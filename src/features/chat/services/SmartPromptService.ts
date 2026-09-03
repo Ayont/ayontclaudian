@@ -1,7 +1,7 @@
-import { type App, TFile } from 'obsidian';
+import { TFile } from 'obsidian';
 
-import type ClaudianPlugin from '../../../main';
 import type { WorkspaceMode } from '../../../core/workspace/workspaceMode';
+import type ClaudianPlugin from '../../../main';
 
 export interface SmartPromptItem {
   id: string;

@@ -135,18 +135,18 @@
 .claudian-thinking-options {
   position: absolute;
   left: 0;
-  bottom: calc(100% + 6px);
+  bottom: calc(100% + 8px);
   z-index: 40;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  background: var(--cl-glass-sheen), var(--cl-glass-body-overlay);
-  -webkit-backdrop-filter: var(--cl-glass-filter);
-  backdrop-filter: var(--cl-glass-filter);
-  border: 0;
-  border-radius: var(--cl-radius-md);
-  box-shadow: var(--cl-glass-edge), var(--cl-glass-shadow-pop);
-  padding: var(--cl-space-1);
+  gap: 3px;
+  background: rgba(22, 22, 28, 0.92) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+  padding: 5px !important;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -157,14 +157,14 @@
     visibility var(--cl-dur-fast) var(--cl-ease-out);
 }
 
-/* Invisible hover bridge so the 6px gap does not dismiss the menu. */
+/* Invisible hover bridge so the 8px gap does not dismiss the menu. */
 .claudian-thinking-options::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   right: 0;
   top: 100%;
-  height: 8px;
+  height: 10px;
 }
 
 .claudian-thinking-gears:hover .claudian-thinking-options,
@@ -175,47 +175,60 @@
   transform: translateY(0) scale(1);
 }
 
-.claudian-thinking-gear {
-  appearance: none;
-  width: 100%;
-  margin: 0;
-  border: 0;
-  background: transparent;
-  text-align: start;
-  padding: var(--cl-space-1) var(--cl-space-2);
-  font-family: var(--cl-font-ui);
-  font-size: var(--cl-text-xs);
-  color: var(--text-muted);
-  cursor: pointer;
-  border-radius: var(--cl-radius-sm);
-  transition: background var(--cl-dur-fast) var(--cl-ease),
-    color var(--cl-dur-fast) var(--cl-ease);
-  white-space: nowrap;
+.claudian-thinking-gear,
+button.claudian-thinking-gear {
+  all: unset !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  margin: 0 !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  text-align: start !important;
+  padding: 6px 14px !important;
+  font-family: var(--cl-font-ui) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: var(--text-muted) !important;
+  cursor: pointer !important;
+  border-radius: 8px !important;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  white-space: nowrap !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
 }
 
 @media (pointer: coarse) {
   .claudian-thinking-current,
-  .claudian-thinking-gear {
-    min-height: 44px;
+  .claudian-thinking-gear,
+  button.claudian-thinking-gear {
+    min-height: 40px !important;
   }
 }
 
-.claudian-thinking-gear:hover {
-  background: var(--cl-accent-soft);
-  color: var(--text-normal);
+.claudian-thinking-gear:hover,
+button.claudian-thinking-gear:hover {
+  background: rgba(255, 255, 255, 0.07) !important;
+  color: var(--text-normal) !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
 }
 
-.claudian-thinking-gear:focus-visible {
-  outline: none;
-  background: var(--cl-accent-soft);
-  color: var(--text-normal);
-  box-shadow: inset 0 0 0 1px var(--cl-accent-line);
+.claudian-thinking-gear:focus-visible,
+button.claudian-thinking-gear:focus-visible {
+  outline: none !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-normal) !important;
+  box-shadow: 0 0 0 1px var(--cl-accent-line) !important;
 }
 
-.claudian-thinking-gear.selected {
-  background: var(--cl-accent-soft);
-  color: var(--cl-accent);
-  font-weight: 500;
+.claudian-thinking-gear.selected,
+button.claudian-thinking-gear.selected {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(168, 85, 247, 0.08)) !important;
+  color: #d8b4fe !important;
+  border-color: rgba(168, 85, 247, 0.4) !important;
+  font-weight: 600 !important;
+  box-shadow: inset 0 0 10px rgba(168, 85, 247, 0.15), 0 2px 6px rgba(0, 0, 0, 0.2) !important;
 }
 
 /* Two-line gear: label row + muted description, so each effort level explains

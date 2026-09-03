@@ -1,8 +1,6 @@
 import { Component, Notice, setIcon, TFile } from 'obsidian';
 
 import type ClaudianPlugin from '../../../main';
-import { getFileManagerName, openInDefaultApp, revealInSystemFileManager, showFileContextMenu } from '../services/FileActionService';
-import { createPdfPeekSrcFromPath } from './file-drop/pdfPeek';
 import {
   type LiveDocument,
   liveDocumentIdentity,
@@ -10,14 +8,13 @@ import {
   openLiveDocumentPreview,
   parseLiveDocument,
 } from '../rendering/LiveDocumentRenderer';
+import { getFileManagerName, openInDefaultApp, revealInSystemFileManager, showFileContextMenu } from '../services/FileActionService';
 import {
-  attachmentKindLabel,
-  attachmentPeekMode,
   attachmentTypeMeta,
 } from './file-drop/attachmentMeta';
+import { renderFileFormatBadge } from './file-drop/fileFormatIcons';
 
 const EMPTY_COPY = 'Erstellte Dokumente und Uploads erscheinen hier.';
-const DOCUMENT_FOLDER_PREFIX = '.claudian/documents/';
 const FULLSCREEN_MEDIA_QUERY = '(max-width: 768px)';
 let nextPanelId = 1;
 
@@ -26,15 +23,7 @@ function isChatImageUpload(upload: LibraryUpload): boolean {
   return attachmentTypeMeta(upload.name).kind === 'image';
 }
 
-function documentExcerpt(document: LiveDocument): string {
-  return document.body
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/[*_`~>]/g, '')
-    .replace(/\[|\]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 120);
-}
+
 
 export interface LibraryUpload {
   name: string;
@@ -384,7 +373,7 @@ export class FilePreviewPanel {
 
   private renderCard(parent: HTMLElement, item: LibraryItem): void {
     const isLive = item.type === 'live';
-    const isVault = Boolean(item.vaultPath);
+    const isVault = item.type === 'live' && Boolean(item.vaultPath);
     const name = isLive ? item.liveDocument.title : item.name;
     const path = isLive
       ? (item.vaultPath || `.claudian/documents/${item.liveDocument.title}.md`)
@@ -405,7 +394,7 @@ export class FilePreviewPanel {
     });
 
     const iconContainer = row.createSpan({ cls: 'claudian-preview-row-icon' });
-    setIcon(iconContainer, meta.icon);
+    renderFileFormatBadge(iconContainer, name);
 
     const textDetails = row.createDiv({ cls: 'claudian-preview-row-text' });
     textDetails.createSpan({ cls: 'claudian-preview-card-name claudian-preview-row-name', text: name });

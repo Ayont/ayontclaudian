@@ -1,9 +1,4 @@
 import { setIcon, TFile } from 'obsidian';
-import {
-  buildActivityLabels,
-  foldDownActivity,
-  unfoldActivity,
-} from '../rendering/activityFold';
 
 import { recordProviderError } from '../../../core/diagnostics/errorHistory';
 import { providerErrorRecoveryService } from '../../../core/diagnostics/errorRecovery';
@@ -51,6 +46,11 @@ import { createInlineThinkScrubber } from '../../../utils/inlineThinkScrubber';
 import { hasOpenCodeFence, hasStreamingMathDelimiters } from '../../../utils/markdownMath';
 import { getVaultPath, normalizePathForVault } from '../../../utils/path';
 import { FLAVOR_TEXTS } from '../constants';
+import {
+  buildActivityLabels,
+  foldDownActivity,
+  unfoldActivity,
+} from '../rendering/activityFold';
 import type { MessageRenderer, RenderContentOptions } from '../rendering/MessageRenderer';
 import {
   resolveRichOutputSurface,
@@ -949,7 +949,7 @@ export class StreamController {
 
     const summaryEl = groupEl.createEl('summary', { cls: 'claudian-tool-run-summary claudian-activity-summary' });
     const iconEl = summaryEl.createSpan({ cls: 'claudian-tool-run-icon claudian-activity-icon' });
-    setIcon(iconEl, 'sparkles');
+    iconEl.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2C12 7.523 7.523 12 2 12C7.523 12 12 16.477 12 22C12 16.477 16.477 12 22 12C16.477 12 12 7.523 12 2Z"/></svg>';
 
     const totalCount = activityEls.length;
     const toolsCount = activityEls.filter(el => !el.classList.contains('claudian-thinking-block')).length;

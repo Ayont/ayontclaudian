@@ -23,22 +23,16 @@ import type {
   ToolCallInfo,
 } from '../../../core/types';
 import { getLocale, t } from '../../../i18n/i18n';
-import {
-  buildActivityLabels,
-  foldDownActivity,
-  unfoldActivity,
-} from './activityFold';
 import type ClaudianPlugin from '../../../main';
+import { createProviderIconSvg } from '../../../shared/icons';
 import { extractInjectedContextPrompt, extractUserDisplayContent, stripInternalImageTags, stripInternalPromptEnvelopes } from '../../../utils/context';
 import { formatDurationMmSs } from '../../../utils/date';
 import { processFileLinks, registerFileLinkHandler } from '../../../utils/fileLink';
 import { replaceImageEmbedsWithHtml } from '../../../utils/imageEmbed';
 import { escapeMathDelimitersForStreaming } from '../../../utils/markdownMath';
 import { findRewindContext } from '../rewind';
+import { showFileContextMenu } from '../services/FileActionService';
 import { exportAssistantResponse } from '../services/ResponseExportService';
-import { resolveToAbsolutePath, showFileContextMenu } from '../services/FileActionService';
-import { createPdfPeekSrcFromPath, isRasterPeekSrc } from '../ui/file-drop/pdfPeek';
-import { createProviderIconSvg } from '../../../shared/icons';
 import { AppendToNoteModal } from '../ui/AppendToNoteModal';
 import {
   attachmentKindLabel,
@@ -46,6 +40,12 @@ import {
   attachmentTypeMeta,
   type FileDockTarget,
 } from '../ui/file-drop/attachmentMeta';
+import { isRasterPeekSrc } from '../ui/file-drop/pdfPeek';
+import {
+  buildActivityLabels,
+  foldDownActivity,
+  unfoldActivity,
+} from './activityFold';
 import { renderAutoMemoryChips } from './AutoMemoryChip';
 import {
   prepareDisplayOnlyCodeFences,
@@ -944,11 +944,7 @@ export class MessageRenderer {
 
     const statusEl = headerEl.createDiv({ cls: 'claudian-assistant-turn-status' });
     if (isStreaming) {
-      const isWorkMode = Boolean(this.messagesEl.closest('.claudian-mode-work'));
-      const livePill = statusEl.createSpan({ cls: 'claudian-assistant-turn-live-pill' });
-      livePill.createSpan({ cls: 'claudian-live-pulse-dot' });
-      const liveText = isWorkMode ? 'Recherchiert & verfasst…' : 'Codet mit Agenten…';
-      livePill.createSpan({ cls: 'claudian-live-text', text: liveText });
+      statusEl.createSpan({ cls: 'claudian-live-pulse-dot' });
     } else {
       setIcon(statusEl.createSpan({ cls: 'claudian-assistant-turn-done' }), 'check');
       statusEl.createSpan({ text: this.formatMessageTime(msg.timestamp) });
@@ -1342,7 +1338,7 @@ export class MessageRenderer {
 
     const summaryEl = groupEl.createEl('summary', { cls: 'claudian-tool-run-summary claudian-activity-summary' });
     const iconEl = summaryEl.createSpan({ cls: 'claudian-tool-run-icon claudian-activity-icon' });
-    setIcon(iconEl, isRunning ? 'loader-circle' : 'sparkles');
+    if (isRunning) { setIcon(iconEl, 'loader-circle'); } else { iconEl.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2C12 7.523 7.523 12 2 12C7.523 12 12 16.477 12 22C12 16.477 16.477 12 22 12C16.477 12 12 7.523 12 2Z"/></svg>'; }
 
     const totalCount = activityBlocks.length;
     const toolsCount = toolCalls.length;
@@ -2057,6 +2053,7 @@ export class MessageRenderer {
    * @param markdown The original markdown content to copy
    */
   addTextCopyButton(textEl: HTMLElement, markdown: string): void {
+    if (detectStatusCard(markdown) || textEl.querySelector('claudian-status-card')) return;
     const copyBtn = textEl.createSpan({ cls: 'claudian-text-copy-btn' });
     setIcon(copyBtn, 'copy');
 

@@ -762,7 +762,7 @@ describe('OpencodeChatRuntime', () => {
       sessionId: 'session-1',
       type: 'select',
       value: 'deepseek/deepseek-v4-pro',
-    });
+    }, { timeoutMs: 45000 });
     expect(plugin.settings.providerConfigs.opencode.thinkingOptionsByModel).toEqual({
       'deepseek/deepseek-v4-pro': [
         { label: 'Low', value: 'low' },
@@ -821,7 +821,7 @@ describe('OpencodeChatRuntime', () => {
       sessionId: 'session-1',
       type: 'select',
       value: 'high',
-    });
+    }, { timeoutMs: 45000 });
   });
 
   it('exposes the active display model for auxiliary OpenCode tasks', () => {

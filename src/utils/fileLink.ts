@@ -6,8 +6,8 @@
  */
 
 import type { App, Component } from 'obsidian';
-import { showFileContextMenu } from '../features/chat/services/FileActionService';
 
+import { showFileContextMenu } from '../features/chat/services/FileActionService';
 import { getVaultFileByPath } from './obsidianCompat';
 import { getVaultPath } from './path';
 

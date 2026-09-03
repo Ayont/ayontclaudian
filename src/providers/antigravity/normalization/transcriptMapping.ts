@@ -1,12 +1,12 @@
 import type { ChatMessage, StreamChunk, SubagentInfo, ToolCallInfo, ToolDiffData } from '../../../core/types';
 import {
-  countLineChanges,
-  diffFromToolInput,
-} from '../../../utils/diff';
-import {
   extractUserDisplayContent,
   stripInternalPromptEnvelopes,
 } from '../../../utils/context';
+import {
+  countLineChanges,
+  diffFromToolInput,
+} from '../../../utils/diff';
 import {
   type AntigravitySubagentRef,
   type AntigravityToolCall,

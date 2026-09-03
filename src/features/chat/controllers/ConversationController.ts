@@ -2,12 +2,12 @@ import { Menu, Notice, setIcon } from 'obsidian';
 
 import { ProviderRegistry } from '../../../core/providers/ProviderRegistry';
 import type { TitleGenerationService } from '../../../core/providers/types';
-import { createProviderIconSvg } from '../../../shared/icons';
 import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
 import type { ChatRewindMode } from '../../../core/runtime/types';
 import type { Conversation, ConversationMeta } from '../../../core/types';
 import { t } from '../../../i18n/i18n';
 import type ClaudianPlugin from '../../../main';
+import { createProviderIconSvg } from '../../../shared/icons';
 import { confirm } from '../../../shared/modals/ConfirmModal';
 import { extractUserDisplayContent } from '../../../utils/context';
 import type { MessageRenderer } from '../rendering/MessageRenderer';

@@ -199,7 +199,6 @@ export function showFileContextMenu(
 
   const isDe = getLocale() === 'de';
   const fileManager = getFileManagerName();
-  const fileName = options.fileName || targetPath.split(/[\\/]/).pop() || targetPath;
   const kind = options.kind || getMediaKindFromPath(targetPath);
 
   const menu = new Menu();

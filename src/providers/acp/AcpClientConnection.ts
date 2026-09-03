@@ -184,8 +184,9 @@ export class AcpClientConnection {
 
   setConfigOption(
     request: AcpSetSessionConfigOptionRequest,
+    options?: JsonRpcRequestOptions,
   ): Promise<AcpSetSessionConfigOptionResponse> {
-    return this.requestWithFallback<AcpSetSessionConfigOptionResponse>('setConfigOption', request);
+    return this.requestWithFallback<AcpSetSessionConfigOptionResponse>('setConfigOption', request, options);
   }
 
   private buildClientCapabilities(): AcpClientCapabilities | undefined {

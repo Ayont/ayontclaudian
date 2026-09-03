@@ -1193,3 +1193,8 @@ body.theme-light .claudian-response-provider-pill {
   text-overflow: ellipsis !important;
   text-align: left !important;
 }
+
+.claudian-text-block:has(.claudian-status-card) .claudian-text-copy-btn,
+.claudian-status-card ~ .claudian-text-copy-btn {
+  display: none !important;
+}

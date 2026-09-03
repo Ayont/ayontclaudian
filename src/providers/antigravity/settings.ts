@@ -97,7 +97,7 @@ export const DEFAULT_ANTIGRAVITY_PROVIDER_SETTINGS: Readonly<PersistedAntigravit
     enabled: false,
     environmentVariables: '',
     permissionMode: 'yolo',
-    printTimeout: '',
+    printTimeout: '15m',
     workspaceScope: 'vault-only',
     agent: 'default',
   });

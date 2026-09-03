@@ -257,7 +257,7 @@ export class OpencodeChatRuntime implements ChatRuntime {
       sessionId: this.sessionId,
       type: 'select',
       value: selectedBaseRawModelId,
-    });
+    }, { timeoutMs: 45000 });
     this.currentSessionModelId = selectedBaseRawModelId;
     await this.syncSessionModelState({
       configOptions: response.configOptions,
@@ -385,19 +385,20 @@ export class OpencodeChatRuntime implements ChatRuntime {
     this.toolStreamAdapter.reset();
 
     const activeTurn = this.activeTurn;
-    try {
+        try {
       await this.applySelectedMode(sessionId);
+    } catch (error) {
+      console.warn("Failed to apply OpenCode mode:", error);
+    }
+    try {
       await this.applySelectedModel(sessionId, queryOptions);
+    } catch (error) {
+      console.warn("Failed to apply OpenCode model:", error);
+    }
+    try {
       await this.applySelectedEffort(sessionId);
     } catch (error) {
-      yield {
-        type: 'error',
-        content: this.formatRuntimeError(error),
-      };
-      yield { type: 'done' };
-      activeTurn.queue.close();
-      this.activeTurn = null;
-      return;
+      console.warn("Failed to apply OpenCode effort:", error);
     }
 
     const promptPromise = this.connection.prompt({
@@ -804,7 +805,7 @@ export class OpencodeChatRuntime implements ChatRuntime {
       sessionId,
       type: 'select',
       value: selectedModeId,
-    });
+    }, { timeoutMs: 45000 });
     this.currentSessionModeId = selectedModeId;
     await this.syncSessionModeState({
       configOptions: response.configOptions,
@@ -829,7 +830,7 @@ export class OpencodeChatRuntime implements ChatRuntime {
       sessionId,
       type: 'select',
       value: selectedRawModelId,
-    });
+    }, { timeoutMs: 45000 });
     this.currentSessionModelId = selectedRawModelId;
     await this.syncSessionModelState({
       configOptions: response.configOptions,
@@ -865,7 +866,7 @@ export class OpencodeChatRuntime implements ChatRuntime {
       sessionId,
       type: 'select',
       value: selectedEffort,
-    });
+    }, { timeoutMs: 45000 });
     this.currentSessionEffortValue = selectedEffort;
     await this.syncSessionModelState({
       configOptions: response.configOptions,
