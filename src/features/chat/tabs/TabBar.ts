@@ -62,7 +62,7 @@ export class TabBar {
     }
 
     const badgeEl = this.containerEl.createEl('button', {
-      cls: `claudian-tab-badge ${stateClass}`,
+      cls: `claudian-tab-badge clickable-icon ${stateClass}`,
       text: String(item.index),
       attr: { type: 'button' },
     });

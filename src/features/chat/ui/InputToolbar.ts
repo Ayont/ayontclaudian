@@ -116,7 +116,7 @@ export class ModelSelector {
     this.container.empty();
 
     this.buttonEl = this.container.createEl('button', {
-      cls: 'claudian-model-btn',
+      cls: 'claudian-model-btn clickable-icon',
       attr: { type: 'button', 'aria-haspopup': 'dialog' },
     });
     this.buttonEl.addEventListener('click', (event) => {
@@ -693,7 +693,7 @@ export class ServiceTierToggle {
     this.container.empty();
 
     this.buttonEl = this.container.createEl('button', {
-      cls: 'claudian-service-tier-button',
+      cls: 'claudian-service-tier-button clickable-icon',
       attr: { type: 'button', 'aria-label': 'Schnellmodus' },
     });
     this.iconEl = this.buttonEl.createSpan({ cls: 'claudian-service-tier-icon' });
@@ -965,7 +965,7 @@ export class ExternalContextSelector {
     this.container.empty();
 
     this.triggerEl = this.container.createEl('button', {
-      cls: 'claudian-external-context-icon-wrapper',
+      cls: 'claudian-external-context-icon-wrapper clickable-icon',
       attr: { type: 'button', 'aria-label': 'Externen Kontext hinzufügen' },
     });
 

@@ -131,7 +131,7 @@ export function buildWorkspaceQuickPromptRow(
     });
     for (const quick of getWorkspaceQuickPrompts(mode)) {
       const chip = group.createEl('button', {
-        cls: 'claudian-mode-quick-chip',
+        cls: 'claudian-mode-quick-chip clickable-icon',
         attr: { type: 'button' },
       });
       const iconEl = chip.createSpan({ cls: 'claudian-mode-quick-icon' });

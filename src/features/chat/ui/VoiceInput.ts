@@ -69,7 +69,7 @@ export class VoiceInput {
   render(parent: HTMLElement): HTMLButtonElement {
     const wrap = parent.createDiv({ cls: 'claudian-voice' });
     const button = wrap.createEl('button', {
-      cls: 'claudian-voice-btn',
+      cls: 'claudian-voice-btn clickable-icon',
       attr: { type: 'button', 'aria-label': 'Spracheingabe — tippen, sprechen, fertig', title: 'Spracheingabe' },
     });
     setIcon(button, 'mic');

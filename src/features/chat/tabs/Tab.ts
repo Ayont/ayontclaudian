@@ -1556,7 +1556,7 @@ function initializeInputToolbar(
   // in a span like every other action button ('command' renders empty on
   // some Obsidian builds — 'gauge' is proven).
   const commandCenterButton = osActionsEl.createEl('button', {
-    cls: 'claudian-command-center-trigger',
+    cls: 'claudian-command-center-trigger clickable-icon',
     attr: { 'aria-label': 'Produktivitätszentrale öffnen', title: 'Produktivitätszentrale öffnen' },
   });
   setIcon(commandCenterButton.createSpan(), 'gauge');
@@ -1564,7 +1564,7 @@ function initializeInputToolbar(
 
   const createOSButton = (label: string, icon: string, onClick: () => void): HTMLButtonElement => {
     const btn = osActionsEl.createEl('button', {
-      cls: 'claudian-os-action-button',
+      cls: 'claudian-os-action-button clickable-icon',
       attr: { 'aria-label': label, title: label },
     });
     setIcon(btn.createSpan(), icon);

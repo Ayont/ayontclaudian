@@ -50,7 +50,7 @@ export class FileChipsView {
     const normalizedPath = filePath.replace(/\\/g, '/');
     const filename = normalizedPath.split('/').pop() || filePath;
     const openEl = chipEl.createEl('button', {
-      cls: 'claudian-file-chip-open',
+      cls: 'claudian-file-chip-open clickable-icon',
       attr: { type: 'button', 'aria-label': `${filename} öffnen` },
     });
 
@@ -62,7 +62,7 @@ export class FileChipsView {
     nameEl.setAttribute('title', filePath);
 
     const removeEl = chipEl.createEl('button', {
-      cls: 'claudian-file-chip-remove',
+      cls: 'claudian-file-chip-remove clickable-icon',
       attr: { type: 'button', 'aria-label': `${filename} entfernen` },
     });
     removeEl.setText('\u00D7');

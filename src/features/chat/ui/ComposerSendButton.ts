@@ -36,7 +36,7 @@ export function mountComposerSendButton(
   options: ComposerSendButtonOptions,
 ): ComposerSendButtonHandle {
   const el = parent.createEl('button', {
-    cls: 'claudian-send-btn is-idle',
+    cls: 'claudian-send-btn clickable-icon is-idle',
     attr: { type: 'button', 'aria-label': 'Senden' },
   });
   const iconEl = el.createSpan({ cls: 'claudian-send-btn-icon' });

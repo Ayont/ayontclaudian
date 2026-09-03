@@ -210,35 +210,39 @@
   gap: 10px;
 }
 
-.claudian-command-center-trigger {
-  appearance: none;
-  display: inline-flex;
-  width: 32px;
-  height: 32px;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  margin: 0;
-  border: 1px solid var(--cl-liquid-rim);
-  border-top-color: var(--cl-liquid-rim-top);
-  border-radius: 9999px;
-  color: var(--text-muted);
+.claudian-command-center-trigger,
+.claudian-container button.claudian-command-center-trigger {
+  appearance: none !important;
+  display: inline-flex !important;
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  min-height: 32px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 1px solid var(--cl-liquid-rim) !important;
+  border-top-color: var(--cl-liquid-rim-top) !important;
+  border-radius: 9999px !important;
+  color: var(--text-muted) !important;
   background:
     var(--cl-liquid-gradient-subtle),
-    color-mix(in srgb, var(--cl-surface-raised) 75%, transparent);
-  backdrop-filter: var(--cl-glass-filter-soft);
-  -webkit-backdrop-filter: var(--cl-glass-filter-soft);
+    color-mix(in srgb, var(--cl-surface-raised) 75%, transparent) !important;
+  backdrop-filter: var(--cl-glass-filter-soft) !important;
+  -webkit-backdrop-filter: var(--cl-glass-filter-soft) !important;
   box-shadow:
     inset 0 1px 1px rgba(255, 255, 255, 0.25),
-    0 2px 6px rgba(0, 0, 0, 0.16);
-  font: inherit;
-  cursor: pointer;
+    0 2px 6px rgba(0, 0, 0, 0.16) !important;
+  font: inherit !important;
+  cursor: pointer !important;
   transition:
     color var(--cl-dur-fast) var(--cl-ease),
     background var(--cl-dur-fast) var(--cl-ease),
     border-color var(--cl-dur-fast) var(--cl-ease),
     box-shadow var(--cl-dur-fast) var(--cl-ease),
-    transform var(--cl-dur-fast) var(--cl-ease);
+    transform var(--cl-dur-fast) var(--cl-ease) !important;
 }
 .claudian-command-center-trigger:hover {
   color: var(--cl-accent);
@@ -413,7 +417,8 @@
   height: 15px;
 }
 
-.claudian-send-btn.is-ready {
+.claudian-send-btn.is-ready,
+.claudian-container button.claudian-send-btn.is-ready {
   background: linear-gradient(135deg, color-mix(in srgb, var(--cl-accent) 88%, #ffffff), var(--cl-accent));
   border-color: rgba(255, 255, 255, 0.22);
   color: #ffffff;
@@ -429,7 +434,8 @@
     0 6px 22px color-mix(in srgb, var(--cl-accent) 60%, transparent);
 }
 
-.claudian-send-btn.is-streaming {
+.claudian-send-btn.is-streaming,
+.claudian-container button.claudian-send-btn.is-streaming {
   background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
   border-color: rgba(255, 255, 255, 0.2);
   color: #fff;
@@ -470,42 +476,47 @@
   gap: 6px;
 }
 
-.claudian-file-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
+.claudian-file-chip,
+.claudian-container .claudian-file-chip {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 4px 12px !important;
   background:
-    var(--cl-liquid-gradient-subtle),
-    color-mix(in srgb, var(--cl-surface-raised) 80%, transparent);
-  border: 1px solid var(--cl-liquid-rim);
-  border-top-color: var(--cl-liquid-rim-top);
-  border-radius: 9999px;
-  backdrop-filter: var(--cl-glass-filter-soft);
-  -webkit-backdrop-filter: var(--cl-glass-filter-soft);
+    var(--cl-liquid-gradient-medium),
+    color-mix(in srgb, var(--cl-surface-raised) 80%, transparent) !important;
+  border: 1px solid var(--cl-liquid-rim) !important;
+  border-top-color: var(--cl-liquid-rim-top) !important;
+  border-radius: 9999px !important;
+  backdrop-filter: var(--cl-glass-filter) !important;
+  -webkit-backdrop-filter: var(--cl-glass-filter) !important;
   box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.25),
-    0 2px 6px rgba(0, 0, 0, 0.15);
-  font-size: 12px;
-  line-height: 1;
-  max-width: 220px;
-  transition: all var(--cl-dur-fast) var(--cl-ease);
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.35),
+    var(--cl-liquid-glow),
+    0 2px 8px rgba(0, 0, 0, 0.20) !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  max-width: 260px !important;
+  transition: all var(--cl-dur-fast) var(--cl-ease) !important;
 }
 
-.claudian-file-chip-open {
-  appearance: none;
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  gap: 4px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  box-shadow: none;
-  font: inherit;
-  cursor: pointer;
+.claudian-file-chip-open,
+.claudian-container button.claudian-file-chip-open {
+  appearance: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 5px !important;
+  border: none !important;
+  border-radius: 9999px !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  color: inherit !important;
+  box-shadow: none !important;
+  font: inherit !important;
+  cursor: pointer !important;
 }
 
 .claudian-file-chip-open:focus-visible,
@@ -533,24 +544,36 @@
   color: var(--text-normal);
 }
 
-.claudian-file-chip-remove {
-  appearance: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  cursor: pointer;
-  color: var(--text-muted);
-  font-size: 14px;
-  line-height: 1;
-  transition: background 0.15s ease, color 0.15s ease;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
+.claudian-file-chip-remove,
+.claudian-container button.claudian-file-chip-remove {
+  appearance: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+  border-radius: 9999px !important;
+  cursor: pointer !important;
+  color: var(--text-muted) !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+  transition: all var(--cl-dur-fast) var(--cl-ease) !important;
+  margin: 0 0 0 4px !important;
+  padding: 0 !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: none !important;
+}
+
+.claudian-file-chip-remove:hover,
+.claudian-container button.claudian-file-chip-remove:hover {
+  background: rgba(var(--cl-accent-rgb), 0.35) !important;
+  background-color: rgba(var(--cl-accent-rgb), 0.35) !important;
+  border-color: var(--cl-liquid-rim-hover) !important;
+  color: #ffffff !important;
 }
 
 @media (pointer: coarse) {

@@ -50,7 +50,7 @@ export function renderWelcomeContent(welcomeEl: HTMLElement, greeting: string): 
     });
     for (const quick of getWorkspaceQuickPrompts(mode)) {
       const chip = group.createEl('button', {
-        cls: 'claudian-welcome-starter',
+        cls: 'claudian-welcome-starter clickable-icon',
         attr: { type: 'button' },
       });
       const iconEl = chip.createSpan({ cls: 'claudian-welcome-starter-icon' });
