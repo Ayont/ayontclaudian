@@ -90,6 +90,7 @@ const QUICK_PROMPTS: Readonly<Record<WorkspaceMode, readonly WorkspaceQuickPromp
       { label: 'Bugs finden', prompt: 'Finde Bugs, Race Conditions und Sicherheitslücken im aktuellen Projekt und priorisiere sie nach Schwere.', icon: 'bug' },
       { label: 'Änderungen reviewen', prompt: 'Reviewe meine aktuellen Änderungen (git diff) und gib konkretes Feedback zu Codequalität und Risiken.', icon: 'git-compare' },
       { label: 'Refactoring', prompt: 'Schlage sinnvolle Refactorings für den Code vor, an dem wir arbeiten: ', icon: 'wrench' },
+      { label: 'Architektur & Plan', prompt: 'Analysiere das System und erstelle einen fundierten Architektur- und Umsetzungsplan für: ', icon: 'layers' },
     ]),
     work: Object.freeze([
       { label: 'DSGVO-Audit', prompt: 'Führe ein DSGVO-Audit durch: Rechtsgrundlagen (Art. 6 DSGVO), AVV (Art. 28), TOMs (Art. 32) und Informationspflichten bewerten.', icon: 'scale' },

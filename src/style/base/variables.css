@@ -155,6 +155,38 @@ body,
   /* Foreground-tinted wash (was hardcoded rgba(255,255,255,x) in dark-only CSS). */
   --cl-wash: rgba(var(--mono-rgb-100, 255, 255, 255), 0.04);
   --cl-wash-strong: rgba(var(--mono-rgb-100, 255, 255, 255), 0.07);
+
+  /* ── Liquid Glass Material & Accent Gradients (Settings-driven) ──────────── */
+  --cl-liquid-gradient-subtle: linear-gradient(
+    135deg,
+    rgba(var(--cl-accent-rgb), 0.16) 0%,
+    rgba(var(--cl-accent-rgb), 0.05) 50%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+  --cl-liquid-gradient-medium: linear-gradient(
+    135deg,
+    rgba(var(--cl-accent-rgb), 0.24) 0%,
+    rgba(var(--cl-accent-rgb), 0.08) 55%,
+    rgba(255, 255, 255, 0.03) 100%
+  );
+  --cl-liquid-gradient-hover: linear-gradient(
+    135deg,
+    rgba(var(--cl-accent-rgb), 0.38) 0%,
+    rgba(var(--cl-accent-rgb), 0.15) 55%,
+    rgba(255, 255, 255, 0.06) 100%
+  );
+  --cl-liquid-gradient-active: linear-gradient(
+    135deg,
+    rgba(var(--cl-accent-rgb), 0.50) 0%,
+    rgba(var(--cl-accent-rgb), 0.24) 70%,
+    rgba(var(--cl-accent-rgb), 0.12) 100%
+  );
+  --cl-liquid-rim: rgba(var(--cl-accent-rgb), 0.30);
+  --cl-liquid-rim-hover: rgba(var(--cl-accent-rgb), 0.58);
+  --cl-liquid-rim-top: rgba(255, 255, 255, 0.38);
+  --cl-liquid-rim-top-hover: rgba(255, 255, 255, 0.60);
+  --cl-liquid-glow: 0 4px 18px rgba(var(--cl-accent-rgb), 0.18);
+  --cl-liquid-glow-hover: 0 8px 28px rgba(var(--cl-accent-rgb), 0.34);
 }
 
 /* Light theme: glass is brighter and less saturated; rims read as shade. */
@@ -179,6 +211,36 @@ body.theme-light .claudian-container {
   --cl-ink-soft: rgba(var(--mono-rgb-100, 0, 0, 0), 0.03);
   --cl-wash: rgba(var(--mono-rgb-100, 0, 0, 0), 0.025);
   --cl-wash-strong: rgba(var(--mono-rgb-100, 0, 0, 0), 0.045);
+
+  --cl-liquid-gradient-subtle: linear-gradient(
+    135deg,
+    rgba(var(--cl-accent-rgb), 0.16) 0%,
+    rgba(var(--cl-accent-rgb), 0.06) 50%,
+    rgba(255, 255, 255, 0.75) 100%
+  );
+  --cl-liquid-gradient-medium: linear-gradient(
+    135deg,
+    rgba(var(--cl-accent-rgb), 0.24) 0%,
+    rgba(var(--cl-accent-rgb), 0.09) 55%,
+    rgba(255, 255, 255, 0.82) 100%
+  );
+  --cl-liquid-gradient-hover: linear-gradient(
+    135deg,
+    rgba(var(--cl-accent-rgb), 0.34) 0%,
+    rgba(var(--cl-accent-rgb), 0.14) 55%,
+    rgba(255, 255, 255, 0.90) 100%
+  );
+  --cl-liquid-gradient-active: linear-gradient(
+    135deg,
+    rgba(var(--cl-accent-rgb), 0.45) 0%,
+    rgba(var(--cl-accent-rgb), 0.22) 100%
+  );
+  --cl-liquid-rim: rgba(var(--cl-accent-rgb), 0.32);
+  --cl-liquid-rim-hover: rgba(var(--cl-accent-rgb), 0.60);
+  --cl-liquid-rim-top: rgba(255, 255, 255, 0.95);
+  --cl-liquid-rim-top-hover: #ffffff;
+  --cl-liquid-glow: 0 4px 14px rgba(var(--cl-accent-rgb), 0.16);
+  --cl-liquid-glow-hover: 0 6px 22px rgba(var(--cl-accent-rgb), 0.28);
 }
 
 /* Accessibility / capability fallbacks: collapse the material to solid,

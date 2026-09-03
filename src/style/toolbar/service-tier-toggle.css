@@ -13,16 +13,23 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
-  min-height: 30px;
-  height: 30px;
+  min-height: 32px;
+  height: 32px;
   margin: 0;
-  padding: 3px 9px 3px 8px;
+  padding: 3px 10px;
   overflow: hidden;
-  border: 1px solid var(--cl-border-subtle);
-  border-radius: 10px;
+  border: 1px solid var(--cl-liquid-rim);
+  border-top-color: var(--cl-liquid-rim-top);
+  border-radius: 9999px;
   color: var(--text-muted);
-  background: color-mix(in srgb, var(--cl-surface-raised) 92%, transparent);
-  box-shadow: none;
+  background:
+    var(--cl-liquid-gradient-subtle),
+    color-mix(in srgb, var(--cl-surface-raised) 75%, transparent);
+  backdrop-filter: var(--cl-glass-filter-soft);
+  -webkit-backdrop-filter: var(--cl-glass-filter-soft);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.25),
+    0 2px 6px rgba(0, 0, 0, 0.16);
   font: inherit;
   cursor: pointer;
   transition:
@@ -31,6 +38,18 @@
     border-color 160ms var(--cl-ease-out),
     box-shadow 160ms var(--cl-ease-out),
     transform 140ms var(--cl-ease-out);
+}
+
+.claudian-service-tier-button:hover {
+  background:
+    var(--cl-liquid-gradient-hover),
+    color-mix(in srgb, var(--cl-surface-raised) 88%, transparent);
+  border-color: var(--cl-liquid-rim-hover);
+  border-top-color: var(--cl-liquid-rim-top-hover);
+  box-shadow:
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.40),
+    var(--cl-liquid-glow);
+  transform: translateY(-1px) scale(1.04);
 }
 
 .claudian-service-tier-button::before {

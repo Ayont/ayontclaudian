@@ -382,27 +382,50 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   margin: 0;
   padding: 0;
-  background: color-mix(in srgb, var(--cl-surface-raised) 88%, transparent);
+  background:
+    var(--cl-liquid-gradient-subtle),
+    color-mix(in srgb, var(--cl-surface-raised) 75%, transparent);
   color: var(--text-muted);
-  border: 1px solid var(--cl-border-subtle);
-  border-radius: 10px;
-  box-shadow: none;
+  border: 1px solid var(--cl-liquid-rim);
+  border-top-color: var(--cl-liquid-rim-top);
+  border-radius: 9999px;
+  backdrop-filter: var(--cl-glass-filter-soft);
+  -webkit-backdrop-filter: var(--cl-glass-filter-soft);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.25),
+    0 2px 6px rgba(0, 0, 0, 0.16);
   cursor: pointer;
-  transition: border-color 160ms ease, color 160ms ease;
+  transition:
+    background var(--cl-dur-fast) var(--cl-ease),
+    border-color var(--cl-dur-fast) var(--cl-ease),
+    color var(--cl-dur-fast) var(--cl-ease),
+    transform var(--cl-dur-fast) var(--cl-ease),
+    box-shadow var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-os-action-button:hover {
   color: var(--cl-accent);
-  background: var(--background-modifier-hover);
-  border-color: var(--cl-accent-line);
+  background:
+    var(--cl-liquid-gradient-hover),
+    color-mix(in srgb, var(--cl-surface-raised) 88%, transparent);
+  border-color: var(--cl-liquid-rim-hover);
+  border-top-color: var(--cl-liquid-rim-top-hover);
+  box-shadow:
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.40),
+    var(--cl-liquid-glow-hover);
+  transform: translateY(-1px) scale(1.06);
+}
+
+.claudian-os-action-button:active {
+  transform: scale(0.94);
 }
 
 .claudian-os-action-button:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--claudian-accent) 50%, transparent);
+  outline: 2px solid var(--cl-accent);
   outline-offset: 2px;
 }
 
@@ -417,22 +440,46 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   margin: 0;
   padding: 0;
-  background: color-mix(in srgb, var(--cl-surface-raised) 88%, transparent);
+  background:
+    var(--cl-liquid-gradient-subtle),
+    color-mix(in srgb, var(--cl-surface-raised) 75%, transparent);
   color: var(--text-muted);
-  border: 1px solid var(--cl-border-subtle);
-  border-radius: 10px;
-  box-shadow: none;
+  border: 1px solid var(--cl-liquid-rim);
+  border-top-color: var(--cl-liquid-rim-top);
+  border-radius: 9999px;
+  backdrop-filter: var(--cl-glass-filter-soft);
+  -webkit-backdrop-filter: var(--cl-glass-filter-soft);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.25),
+    0 2px 6px rgba(0, 0, 0, 0.16);
   cursor: pointer;
-  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+  transition:
+    background var(--cl-dur-fast) var(--cl-ease),
+    border-color var(--cl-dur-fast) var(--cl-ease),
+    color var(--cl-dur-fast) var(--cl-ease),
+    transform var(--cl-dur-fast) var(--cl-ease),
+    box-shadow var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-voice-btn:hover {
-  border-color: var(--claudian-accent);
-  color: var(--claudian-accent);
+  border-color: var(--cl-liquid-rim-hover);
+  border-top-color: var(--cl-liquid-rim-top-hover);
+  background:
+    var(--cl-liquid-gradient-hover),
+    color-mix(in srgb, var(--cl-surface-raised) 88%, transparent);
+  box-shadow:
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.40),
+    var(--cl-liquid-glow-hover);
+  color: var(--cl-accent);
+  transform: translateY(-1px) scale(1.06);
+}
+
+.claudian-voice-btn:active {
+  transform: scale(0.94);
 }
 
 .claudian-voice-btn svg {
