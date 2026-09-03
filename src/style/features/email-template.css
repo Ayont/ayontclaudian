@@ -1,13 +1,19 @@
 /* One compact, selectable plain-text workspace for every generated email variant. */
 .claudian-email-template {
   --email-accent: #4e6579;
-  --email-accent-soft: color-mix(in srgb, var(--email-accent) 11%, transparent);
-  margin: 14px 0 10px;
+  --email-accent-soft: color-mix(in srgb, var(--email-accent) 12%, transparent);
+  margin: var(--cl-space-3) 0 var(--cl-space-2);
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--email-accent) 30%, var(--background-modifier-border));
-  border-radius: 14px;
-  background: var(--background-secondary);
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.13);
+  border-radius: var(--cl-radius-lg);
+  border: 1px solid var(--cl-border-subtle);
+  background: var(--cl-glass-sheen), var(--cl-glass-body);
+  backdrop-filter: var(--cl-glass-filter);
+  box-shadow: var(--cl-glass-edge), var(--cl-shadow-md);
+  transition: border-color var(--cl-dur) var(--cl-ease), box-shadow var(--cl-dur) var(--cl-ease);
+}
+
+.claudian-email-template:hover {
+  border-color: color-mix(in srgb, var(--email-accent) 40%, var(--cl-border-subtle));
 }
 
 .claudian-email-template.template-concise { --email-accent: #607080; }
@@ -23,16 +29,16 @@
   justify-content: space-between;
   gap: 10px;
   min-height: 48px;
-  padding: 7px 9px 7px 12px;
-  border-bottom: 1px solid var(--background-modifier-border);
-  background: color-mix(in srgb, var(--background-primary) 94%, var(--email-accent) 6%);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--cl-border-subtle);
+  background: var(--cl-wash);
 }
 
 .claudian-email-identity,
 .claudian-email-actions {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -45,22 +51,24 @@
 .claudian-email-icon svg { width: 17px; height: 17px; }
 .claudian-email-label {
   color: var(--text-normal);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--cl-text-md);
+  font-weight: 650;
   white-space: nowrap;
 }
 
 .claudian-email-kind {
   overflow: hidden;
-  padding: 2px 7px;
+  padding: 2px 8px;
   border: 1px solid color-mix(in srgb, var(--email-accent) 30%, transparent);
-  border-radius: 999px;
+  border-radius: var(--cl-radius-pill);
   background: var(--email-accent-soft);
   color: var(--email-accent);
   font-size: 9px;
-  font-weight: 720;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-transform: uppercase;
 }
 
 .claudian-email-action,
@@ -80,11 +88,11 @@
   min-height: 30px;
   padding: 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--cl-radius-xs);
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  transition: background-color 120ms ease, color 120ms ease, transform 120ms ease;
+  transition: background-color var(--cl-dur-fast) var(--cl-ease), color var(--cl-dur-fast) var(--cl-ease), transform var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-email-action:hover {
@@ -101,15 +109,15 @@
   justify-content: center;
   gap: 6px;
   min-height: 32px;
-  padding: 6px 10px;
+  padding: 6px 12px;
   border: 1px solid color-mix(in srgb, var(--email-accent) 55%, transparent);
-  border-radius: 8px;
+  border-radius: var(--cl-radius-sm);
   background: var(--email-accent);
   color: white;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   cursor: pointer;
-  transition: filter 120ms ease, transform 120ms ease;
+  transition: filter var(--cl-dur-fast) var(--cl-ease), transform var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-email-copy-primary:hover {
@@ -124,24 +132,24 @@
   display: flex;
   gap: 4px;
   overflow-x: auto;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--background-modifier-border);
-  background: var(--background-secondary);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--cl-border-subtle);
+  background: var(--cl-wash);
   scrollbar-width: thin;
 }
 
 .claudian-email-tab {
   flex: 0 0 auto;
   min-height: 29px;
-  padding: 5px 10px;
+  padding: 5px 12px;
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: var(--cl-radius-xs);
   background: transparent;
   color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 630;
+  font-size: 11px;
+  font-weight: 600;
   cursor: pointer;
-  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+  transition: background-color var(--cl-dur-fast) var(--cl-ease), border-color var(--cl-dur-fast) var(--cl-ease), color var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-email-tab:hover {
@@ -156,8 +164,8 @@
 }
 
 .claudian-email-editor {
-  padding: clamp(16px, 2.8vw, 26px);
-  background: color-mix(in srgb, var(--background-primary) 97%, var(--email-accent) 3%);
+  padding: clamp(16px, 2.8vw, 24px);
+  background: var(--cl-wash);
 }
 
 .claudian-email-editor-row {
@@ -165,7 +173,7 @@
   grid-template-columns: 64px minmax(0, 1fr);
   align-items: center;
   min-height: 38px;
-  border-bottom: 1px solid var(--background-modifier-border);
+  border-bottom: 1px solid var(--cl-border-subtle);
 }
 
 .claudian-email-editor-row > label {
@@ -181,7 +189,7 @@
   height: auto;
   min-height: 34px;
   margin: 0;
-  padding: 5px 2px;
+  padding: 5px 4px;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -196,8 +204,8 @@
 }
 
 .claudian-email-subject-input {
-  font-size: 15px;
-  font-weight: 680;
+  font-size: 14px;
+  font-weight: 650;
   letter-spacing: -0.012em;
 }
 
@@ -205,9 +213,9 @@
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  margin: 18px 0 7px;
+  margin: 16px 0 8px;
   color: var(--text-faint);
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 680;
   letter-spacing: 0.08em;
 }
@@ -224,21 +232,21 @@
   min-height: 245px;
   max-height: 560px;
   margin: 0;
-  padding: 14px 15px;
+  padding: 14px 16px;
   resize: vertical;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 9px;
-  background: var(--background-primary);
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: var(--cl-radius-md);
+  background-color: var(--cl-ink-soft);
   color: var(--text-normal);
   font-family: var(--font-text);
   font-size: 13px;
-  line-height: 1.62;
+  line-height: var(--cl-leading);
   white-space: pre-wrap;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .claudian-email-body-input:focus {
-  border-color: color-mix(in srgb, var(--email-accent) 60%, var(--background-modifier-border));
+  border-color: color-mix(in srgb, var(--email-accent) 60%, var(--cl-border-subtle));
   box-shadow: 0 0 0 2px var(--email-accent-soft);
 }
 
@@ -246,10 +254,11 @@
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  padding: 7px 12px;
-  border-top: 1px solid var(--background-modifier-border);
+  padding: 8px 14px;
+  border-top: 1px solid var(--cl-border-subtle);
   color: var(--text-faint);
-  font-size: 9px;
+  font-size: var(--cl-text-xs);
+  background: var(--cl-wash);
 }
 
 @media (max-width: 620px) {
@@ -258,14 +267,13 @@
   .claudian-email-copy-primary-label { display: none; }
   .claudian-email-copy-primary { width: 30px; min-width: 30px; min-height: 30px; padding: 0; }
   .claudian-email-editor { padding: 14px 12px 18px; }
-  .claudian-email-editor-row { grid-template-columns: 54px minmax(0, 1fr); }
-  .claudian-email-footer span:last-child { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .claudian-email-action,
   .claudian-email-copy-primary,
-  .claudian-email-tab { transition: none; }
-  .claudian-email-action:hover,
-  .claudian-email-copy-primary:hover { transform: none; }
+  .claudian-email-tab {
+    transition: none;
+    transform: none;
+  }
 }

@@ -29,6 +29,20 @@ describe('modelRouterRules', () => {
     expect(route).toMatchObject({ task: 'code', model: 'kimi' });
   });
 
+  it('migrates legacy model aliases to available replacement models', () => {
+    const rules = normalizeRouterRules([
+      { task: 'planning', model: 'claude-sonnet-4-5' },
+      { task: 'cheap', model: 'haiku' },
+    ]);
+    const route = chooseModelRoute({
+      prompt: 'plan the quarterly architecture',
+      rules,
+      availableModels: [{ value: 'claude-sonnet-5', label: 'Claude Sonnet 5' } as any],
+      fallbackModel: 'fallback',
+    });
+    expect(route).toMatchObject({ task: 'planning', model: 'claude-sonnet-5' });
+  });
+
   it('falls back when rule model is unavailable', () => {
     const route = chooseModelRoute({
       prompt: 'fix bug',

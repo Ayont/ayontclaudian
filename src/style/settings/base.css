@@ -2,42 +2,61 @@
 
 .claudian-settings-tabs {
   display: flex;
-  /* Wrap instead of clipping: with 8+ provider tabs the row overflows the
-     settings pane and the trailing tabs (Kimi, Vibe, Grok, …) become
-     unreachable — their Enable toggles could never be clicked. */
   flex-wrap: wrap;
-  gap: 2px;
-  border-bottom: 1px solid var(--background-modifier-border);
-  margin-bottom: 16px;
+  gap: 6px;
+  background: var(--background-secondary);
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--background-modifier-border);
+  margin-bottom: 20px;
 }
 
 .claudian-settings-tab {
-  padding: 8px 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
   border: none;
   background: transparent;
   color: var(--text-muted);
   font-size: var(--font-ui-small);
   font-weight: var(--font-medium);
   cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: color 0.15s ease, border-color 0.15s ease;
-  margin-bottom: -1px;
+  border-radius: 8px;
+  transition: all 0.15s ease;
 }
 
 .claudian-settings-tab:hover {
   color: var(--text-normal);
+  background: var(--background-modifier-hover);
 }
 
 .claudian-settings-tab:focus-visible {
   outline: 2px solid var(--interactive-accent);
   outline-offset: -2px;
-  border-radius: 4px;
+  border-radius: 8px;
   color: var(--text-normal);
 }
 
 .claudian-settings-tab--active {
   color: var(--text-normal);
-  border-bottom-color: var(--interactive-accent);
+  background: var(--background-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.claudian-settings-tab-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+  flex-shrink: 0;
+}
+
+.claudian-settings-tab-dot.is-enabled {
+  background: var(--color-green, #10b981);
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
 }
 
 .claudian-settings-tab-content {

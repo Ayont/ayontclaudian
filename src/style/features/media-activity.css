@@ -1,0 +1,314 @@
+/* Media activity & analysis card — liquid-glass standard (DESIGN.md)
+   Renders when any model analyzes, views, or shows an image, video, audio, or PDF. */
+
+.claudian-tool-call-media {
+  position: relative;
+  margin-block: var(--cl-space-3);
+  border: 1px solid rgba(var(--claudian-brand-rgb), 0.22);
+  border-radius: var(--cl-radius-lg);
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(var(--claudian-brand-rgb), 0.14), transparent 46%),
+    var(--cl-glass-sheen),
+    var(--cl-glass-body-strong);
+  -webkit-backdrop-filter: var(--cl-glass-filter-soft);
+  backdrop-filter: var(--cl-glass-filter-soft);
+  box-shadow: var(--cl-glass-edge), var(--cl-shadow-sm);
+  overflow: hidden;
+  transition:
+    border-color var(--cl-dur) var(--cl-ease),
+    box-shadow var(--cl-dur) var(--cl-ease);
+}
+
+.claudian-tool-call-media:hover {
+  border-color: rgba(var(--claudian-brand-rgb), 0.42);
+  box-shadow: var(--cl-glass-edge), 0 8px 28px rgba(var(--claudian-brand-rgb), 0.10), var(--cl-shadow-md);
+}
+
+.claudian-tool-call-media .claudian-tool-header {
+  padding: 9px 12px;
+  border-bottom: 1px solid transparent;
+}
+
+.claudian-tool-call-media.expanded .claudian-tool-header {
+  border-bottom-color: rgba(var(--claudian-brand-rgb), 0.16);
+}
+
+.claudian-tool-call-media .claudian-tool-icon {
+  color: var(--cl-accent);
+}
+
+.claudian-tool-call-media .claudian-tool-content {
+  margin-inline-start: 0;
+  padding: 0;
+  border-inline-start: none;
+}
+
+.claudian-tool-call-media.expanded .claudian-tool-summary {
+  display: none;
+}
+
+/* Chrome bar (header strip of the media card) */
+.claudian-media-chrome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--cl-wash);
+  border-bottom: 1px solid var(--cl-glass-rim);
+}
+
+.claudian-media-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.claudian-media-icon {
+  display: inline-flex;
+  color: var(--cl-accent);
+}
+
+.claudian-media-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.claudian-media-title {
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-xs);
+  font-weight: 600;
+  color: var(--text-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claudian-media-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--cl-radius-xs);
+  background: color-mix(in srgb, var(--cl-accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cl-accent) 28%, transparent);
+  color: var(--cl-accent);
+  font-family: var(--cl-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.claudian-media-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.claudian-media-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--cl-radius-xs);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    background var(--cl-dur-fast) var(--cl-ease),
+    color var(--cl-dur-fast) var(--cl-ease),
+    transform var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-media-btn:hover {
+  background: var(--cl-ink-soft);
+  color: var(--text-normal);
+}
+
+.claudian-media-btn:active {
+  transform: scale(0.94);
+}
+
+.claudian-media-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.claudian-media-btn.is-copied {
+  color: var(--color-green);
+}
+
+/* Viewport — ink well for displaying media preview */
+.claudian-media-viewport {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  max-height: min(48vh, 460px);
+  padding: 12px;
+  background: var(--cl-ink-deep);
+  overflow: hidden;
+}
+
+.claudian-media-preview-img {
+  max-width: 100%;
+  max-height: min(44vh, 420px);
+  object-fit: contain;
+  border-radius: var(--cl-radius-sm);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  cursor: zoom-in;
+  transition: transform var(--cl-dur-fast) var(--cl-ease), box-shadow var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-media-preview-img:hover {
+  transform: scale(1.015);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+}
+
+.claudian-media-preview-video {
+  max-width: 100%;
+  max-height: min(44vh, 420px);
+  border-radius: var(--cl-radius-sm);
+  background: #000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.claudian-media-preview-audio {
+  width: min(100%, 400px);
+  margin: var(--cl-space-3) 0;
+}
+
+/* Running state */
+.claudian-media-viewport.is-running {
+  background:
+    radial-gradient(ellipse at center, rgba(var(--claudian-brand-rgb), 0.12), transparent 70%),
+    var(--cl-ink-deep);
+}
+
+.claudian-media-running {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border: 1px solid var(--cl-accent-line);
+  border-radius: var(--cl-radius-pill);
+  background: var(--cl-accent-softer);
+  color: var(--text-normal);
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-xs);
+}
+
+.claudian-media-running-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cl-accent);
+  animation: cl-tab-pulse 1.2s var(--cl-ease) infinite;
+}
+
+/* Fallback card when media cannot be loaded */
+.claudian-media-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-xs);
+}
+
+.claudian-media-fallback-icon svg {
+  width: 28px;
+  height: 28px;
+  color: var(--text-faint);
+}
+
+/* PDF Card */
+.claudian-media-pdf-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 420px;
+  padding: 14px 16px;
+  border: 1px solid rgba(var(--claudian-brand-rgb), 0.18);
+  border-radius: var(--cl-radius-md);
+  background: var(--cl-ink-soft);
+}
+
+.claudian-media-pdf-icon svg {
+  width: 24px;
+  height: 24px;
+  color: var(--cl-accent);
+}
+
+.claudian-media-pdf-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.claudian-media-pdf-name {
+  font-weight: 600;
+  font-size: var(--cl-text-xs);
+  color: var(--text-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claudian-media-pdf-path {
+  font-family: var(--cl-font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Caption / Model Analysis text section */
+.claudian-media-caption {
+  padding: 10px 14px 12px;
+  background: var(--cl-ink-soft);
+  border-top: 1px solid var(--cl-glass-rim);
+}
+
+.claudian-media-caption-header {
+  margin-bottom: 6px;
+}
+
+.claudian-media-caption-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--cl-accent);
+}
+
+.claudian-media-caption-body {
+  font-size: var(--cl-text-sm);
+  line-height: var(--cl-leading);
+  color: var(--text-normal);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-media-btn,
+  .claudian-media-preview-img,
+  .claudian-media-running-dot {
+    transition: none;
+    animation: none;
+  }
+}
+
+.claudian-modal-video {
+  max-width: min(94vw, 1200px);
+  max-height: calc(94vh - 50px);
+}

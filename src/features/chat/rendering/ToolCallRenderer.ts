@@ -36,12 +36,24 @@ import {
 } from './BrowserActivityRenderer';
 import { setupCollapsible } from './collapsible';
 import { renderDiffContent, renderDiffStats } from './DiffRenderer';
+import {
+  decorateMediaToolElement,
+  describeMediaActivity,
+  isMediaToolName,
+  renderMediaContent,
+  resolveMediaActivity,
+} from './MediaActivityRenderer';
 import { renderTodoItems } from './todoUtils';
 
 export function setToolIcon(el: HTMLElement, name: string, input: Record<string, unknown> = {}): void {
   const browserActivity = resolveBrowserActivity(name, input);
   if (browserActivity) {
     setIcon(el, getBrowserActionIcon(browserActivity));
+    return;
+  }
+  const mediaActivity = resolveMediaActivity(name, input);
+  if (mediaActivity) {
+    setIcon(el, describeMediaActivity(mediaActivity).icon);
     return;
   }
   const icon = getToolIcon(name);
@@ -69,6 +81,11 @@ function getInputText(input: Record<string, unknown>, key: string, fallback = ''
 }
 
 export function getToolName(name: string, input: Record<string, unknown>): string {
+  const mediaActivity = resolveMediaActivity(name, input);
+  if (mediaActivity && (isMediaToolName(name) || (name === TOOL_READ && mediaActivity.kind !== 'pdf'))) {
+    return describeMediaActivity(mediaActivity).title;
+  }
+
   switch (name) {
     case TOOL_TODO_WRITE: {
       const todos = input.todos as Array<{ status: string }> | undefined;
@@ -91,6 +108,11 @@ export function getToolName(name: string, input: Record<string, unknown>): strin
 }
 
 export function getToolSummary(name: string, input: Record<string, unknown>): string {
+  const mediaActivity = resolveMediaActivity(name, input);
+  if (mediaActivity && isMediaToolName(name)) {
+    return describeMediaActivity(mediaActivity).detail;
+  }
+
   switch (name) {
     case TOOL_READ:
     case TOOL_WRITE:
@@ -136,6 +158,12 @@ export function getToolSummary(name: string, input: Record<string, unknown>): st
 
 /** Combined name+summary for ARIA labels (collapsible regions need a single descriptive phrase). */
 export function getToolLabel(name: string, input: Record<string, unknown>): string {
+  const mediaActivity = resolveMediaActivity(name, input);
+  if (mediaActivity && isMediaToolName(name)) {
+    const { title, detail } = describeMediaActivity(mediaActivity);
+    return `${title}: ${detail}`;
+  }
+
   switch (name) {
     case TOOL_READ:
       return `Read: ${shortenPath(getInputText(input, 'file_path')) || 'file'}`;
@@ -609,7 +637,7 @@ function renderApplyPatchExpanded(
   }
 
   if (result) {
-    const fileMatches = [...result.matchAll(/(?:update|add|delete|create|modify|Applied:\s*)(?:\w+:\s*)?([^\n,]+)/gi)];
+    const fileMatches = [...result.matchAll(/(?:update|add|delete|create|modify|Applied:\s*)(?:\\w+:\s*)?([^\n,]+)/gi)];
     if (fileMatches.length > 0) {
       const linesEl = container.createDiv({ cls: 'claudian-tool-lines' });
       for (const match of fileMatches) {
@@ -719,6 +747,17 @@ export function renderExpandedContent(
   result: string | undefined,
   input: Record<string, unknown> = {},
 ): void {
+  const mediaActivity = resolveMediaActivity(toolName, input, result);
+  if (mediaActivity && (isMediaToolName(toolName) || toolName === TOOL_READ)) {
+    renderMediaContent(
+      container,
+      { id: '', name: toolName, input, result, status: 'completed' },
+      mediaActivity,
+      false,
+    );
+    return;
+  }
+
   if (!result && toolName !== TOOL_WEB_SEARCH && toolName !== TOOL_BASH && toolName !== TOOL_APPLY_PATCH) {
     container.createDiv({ cls: 'claudian-tool-empty', text: 'Kein Ergebnis' });
     return;
@@ -886,6 +925,10 @@ function createToolElementStructure(
   const browserActivity = resolveBrowserActivity(toolCall.name, toolCall.input);
   if (browserActivity) {
     decorateBrowserToolElement(toolEl, browserActivity);
+  }
+  const mediaActivity = resolveMediaActivity(toolCall.name, toolCall.input, toolCall.result);
+  if (mediaActivity) {
+    decorateMediaToolElement(toolEl, mediaActivity);
   }
 
   const header = toolEl.createDiv({ cls: 'claudian-tool-header' });
@@ -1083,6 +1126,9 @@ function renderToolContent(
   toolCall: ToolCallInfo,
   initialText?: string
 ): void {
+  const browserActivity = resolveBrowserActivity(toolCall.name, toolCall.input);
+  const mediaActivity = resolveMediaActivity(toolCall.name, toolCall.input, toolCall.result);
+
   if (toolCall.name === TOOL_TODO_WRITE) {
     content.addClass('claudian-tool-content-todo');
     renderTodoWriteResult(content, toolCall.input);
@@ -1095,11 +1141,18 @@ function renderToolContent(
     }
   } else if (toolCall.name === TOOL_BASH) {
     renderBashContent(content, toolCall.input, toolCall.result ?? '', initialText);
-  } else if (resolveBrowserActivity(toolCall.name, toolCall.input)) {
+  } else if (browserActivity) {
     renderBrowserContent(
       content,
       toolCall,
-      resolveBrowserActivity(toolCall.name, toolCall.input)!,
+      browserActivity,
+      Boolean(initialText) || toolCall.status === 'running',
+    );
+  } else if (mediaActivity) {
+    renderMediaContent(
+      content,
+      toolCall,
+      mediaActivity,
       Boolean(initialText) || toolCall.status === 'running',
     );
   } else if (initialText) {
@@ -1190,6 +1243,11 @@ export function updateToolCallResult(
     const browserActivity = resolveBrowserActivity(toolCall.name, toolCall.input);
     if (browserActivity) {
       renderBrowserContent(content, toolCall, browserActivity, toolCall.status === 'running');
+      return;
+    }
+    const mediaActivity = resolveMediaActivity(toolCall.name, toolCall.input, toolCall.result);
+    if (mediaActivity) {
+      renderMediaContent(content, toolCall, mediaActivity, toolCall.status === 'running');
       return;
     }
     content.empty();

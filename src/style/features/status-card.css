@@ -10,9 +10,12 @@
   border-radius: var(--cl-radius-md);
   /* Full status-tinted border (no side-stripe). The leading status icon + label
      carry severity, never a colored edge alone. */
-  border: 1px solid rgba(var(--cl-status-rgb), 0.45);
-  background: rgba(var(--cl-status-rgb), 0.06);
-  animation: claudian-status-card-in var(--duration-normal, 300ms) var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  border: 1px solid rgba(var(--cl-status-rgb), 0.42);
+  background:
+    linear-gradient(165deg, rgba(var(--cl-status-rgb), 0.08) 0%, transparent 60%),
+    rgba(var(--cl-status-rgb), 0.04);
+  box-shadow: var(--cl-shadow-sm);
+  animation: claudian-status-card-in var(--cl-dur, 200ms) var(--cl-ease-out, cubic-bezier(0.22, 1, 0.36, 1));
 }
 
 .claudian-status-card--error {
@@ -68,8 +71,8 @@
 }
 
 .claudian-status-card-title {
-  font-size: var(--cl-text-lg);
-  font-weight: 600;
+  font-size: var(--cl-text-md);
+  font-weight: 650;
   color: var(--text-normal);
 }
 
@@ -78,7 +81,7 @@
   padding: 1px 8px;
   border-radius: var(--cl-radius-pill);
   font-size: var(--cl-text-xs);
-  font-weight: 600;
+  font-weight: 650;
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--cl-status-accent);
@@ -89,7 +92,7 @@
 
 .claudian-status-card-explanation {
   margin: var(--cl-space-2) 0 0;
-  font-size: var(--cl-text-md);
+  font-size: var(--cl-text-sm);
   line-height: var(--cl-leading);
   color: var(--text-normal);
 }
@@ -143,7 +146,7 @@
   content: '›';
   display: inline-block;
   margin-inline-end: 6px;
-  transition: transform var(--duration-fast, 150ms) ease;
+  transition: transform var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-status-card-raw[open] .claudian-status-card-raw-summary::before {
@@ -164,7 +167,7 @@
   margin: var(--cl-space-2) 0 0;
   padding: var(--cl-space-2) var(--cl-space-3);
   border-radius: var(--cl-radius-sm);
-  background: var(--background-primary);
+  background: var(--cl-ink-soft);
   border: 1px solid var(--cl-border-subtle);
   font-family: var(--cl-font-mono);
   font-size: var(--cl-text-sm);

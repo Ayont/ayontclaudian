@@ -390,9 +390,56 @@ const chatSurface = (mode) => `
           <a class="claudian-tool-link" href="https://t3.chat"><span class="claudian-tool-link-icon"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></span><span class="claudian-web-result-copy"><span class="claudian-web-result-domain">t3.chat</span><span class="claudian-tool-link-title">T3 Chat</span></span></a>
         </div>
       </div>
+      <!-- Media Activity Preview -->
+      <div class="claudian-tool-call claudian-tool-call-media claudian-tool-call-media-image expanded" data-media-kind="image" data-media-action="analyze">
+        <div class="claudian-media-panel">
+          <div class="claudian-media-chrome">
+            <div class="claudian-media-left">
+              <span class="claudian-media-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></span>
+              <span class="claudian-media-title" title="design-mockup.png">design-mockup.png</span>
+              <span class="claudian-media-badge">PNG</span>
+            </div>
+            <div class="claudian-media-actions">
+              <button class="claudian-media-btn claudian-media-btn--expand" type="button" title="View full size"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
+              <button class="claudian-media-btn claudian-media-btn--copy" type="button" title="Copy path"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>
+            </div>
+          </div>
+          <div class="claudian-media-viewport">
+            <img class="claudian-media-preview-img" alt="design-mockup.png" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAUAAAACMCAIAAACCr+eGAAABoUlEQVR42u3bsQnAIBBAUQexSmGZCazFAQIZxVmzTYqMEAQPH7wJDn91ZyrlBIJKRgACBgQMCBgEDAgYEDAgYBAwIGBAwCBgQMCAgAEBg4ABAQMTAs75AIISMAgYEDAgYBAwIGBAwICAQcCAgAEBg4CBHQNu7QL+EDAIWMAgYEDAIGABg4AFDAIGBAwCFjAIWMAgYBCwgEHAgO+EgIABAYOAAQEDAgYEDAIGBAwIGAQMCBhYOOBaO8wjUQEjYAELGAELGAQsYASMgBGwgEHA9sCAgEHAgIABAQMCBgEDAgYEDAJ2iYXLJwEjYASMgBEwAhawgAWMgBEwAkbA2AODgAEBAwIGAQMCBgQMCBgEDAgYEDAgYBAwIGBAwCBgQMBAgICfcfPxmBCwgEHAAkbAAhYwAhYwCFjAIGABI2ABCxgBCxgELGAELGABI2ABg4AFDAIWMAIWsIARsIBBwAIGAQsYAQtYwAhYwCBgASNgAQsYAQsYBCxgELCAETAgYEDAgIBBwICAAQGDgAEBAwIGBAwCBgQMCBgEDAgYEDAgYNjBC07J+kbrIA+9AAAAAElFTkSuQmCC" style="max-height:160px;object-fit:cover;width:100%;border-radius:6px;cursor:pointer;">
+          </div>
+          <div class="claudian-media-caption">
+            <div class="claudian-media-caption-header"><span class="claudian-media-caption-title">Analysis</span></div>
+            <div class="claudian-media-caption-body">Glassmorphism card layout with 6 stat widgets and interactive quick actions detected.</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
   <div class="claudian-input-container">
+    <!-- Git Commit Bar with interactive branch switcher -->
+    <div class="claudian-commit-bar">
+      <div class="claudian-commit-bar-header">
+        <div class="claudian-commit-bar-branch claudian-commit-bar-branch--clickable" role="button" tabindex="0" title="Click to switch branch">
+          <span class="claudian-commit-bar-branch-icon"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span>
+          <span class="claudian-commit-bar-branch-name">main</span>
+          <span class="claudian-commit-bar-branch-chevron"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </div>
+        <span class="claudian-commit-bar-count">2 changed files</span>
+      </div>
+      <div class="claudian-commit-bar-repo">
+        <span class="claudian-commit-bar-repo-icon"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></span>
+        <a class="claudian-commit-bar-remote" href="https://github.com/Ayont/ayontclaudian" target="_blank" rel="noopener"><span class="claudian-commit-bar-remote-name">github.com/Ayont/ayontclaudian</span></a>
+        <span class="claudian-commit-bar-sync"><span class="claudian-commit-bar-sync-ahead" title="Ahead of upstream">↑1</span></span>
+      </div>
+      <div class="claudian-commit-bar-row">
+        <input class="claudian-commit-bar-input" type="text" placeholder="Commit message…" value="feat(git): add branch switcher to commit bar">
+        <button class="claudian-commit-bar-suggest" type="button" title="Suggest message"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg></button>
+      </div>
+      <div class="claudian-commit-bar-actions">
+        <button class="claudian-commit-bar-btn claudian-commit-bar-commit" type="button">Commit</button>
+        <button class="claudian-commit-bar-btn claudian-commit-bar-push" type="button">Commit &amp; Push</button>
+      </div>
+    </div>
     <div class="claudian-mode-quick-row"><div class="claudian-mode-quick-group claudian-mode-quick-group--code"><button class="claudian-mode-quick-chip" type="button"><span class="claudian-mode-quick-icon"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg></span><span>Bugs finden</span></button><button class="claudian-mode-quick-chip" type="button"><span class="claudian-mode-quick-icon"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg></span><span>Änderungen reviewen</span></button><button class="claudian-mode-quick-chip" type="button"><span class="claudian-mode-quick-icon"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg></span><span>Build &amp; Tests</span></button><button class="claudian-mode-quick-chip" type="button"><span class="claudian-mode-quick-icon"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg></span><span>Refactoring</span></button></div><div class="claudian-mode-quick-group claudian-mode-quick-group--work"><button class="claudian-mode-quick-chip" type="button"><span class="claudian-mode-quick-icon"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg></span><span>Dokument erstellen</span></button><button class="claudian-mode-quick-chip" type="button"><span class="claudian-mode-quick-icon"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg></span><span>Notiz strukturieren</span></button><button class="claudian-mode-quick-chip" type="button"><span class="claudian-mode-quick-icon"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg></span><span>E-Mail schreiben</span></button><button class="claudian-mode-quick-chip" type="button"><span class="claudian-mode-quick-icon"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg></span><span>Vault-Recherche</span></button></div></div>
     <div class="claudian-input-wrapper">
       <textarea class="claudian-input" rows="3" placeholder="${mode === 'work' ? 'Woran arbeiten wir?' : 'Was bauen wir?'}"></textarea>

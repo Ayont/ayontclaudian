@@ -1,15 +1,19 @@
 /* Skill Creator card — rendered from a claudian-skill fenced block */
 
 .claudian-skill-card {
-  margin: 10px 0;
-  border-radius: 16px;
+  margin: var(--cl-space-3) 0 var(--cl-space-2);
+  border-radius: var(--cl-radius-lg);
   overflow: hidden;
-  border: 1px solid var(--background-modifier-border);
-  background:
-    linear-gradient(180deg, rgba(var(--claudian-brand-rgb), 0.06), transparent 120px),
-    var(--cl-surface-raised, var(--background-secondary));
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--cl-border-subtle);
+  background: var(--cl-glass-sheen), var(--cl-glass-body);
+  backdrop-filter: var(--cl-glass-filter);
+  box-shadow: var(--cl-glass-edge), var(--cl-shadow-md);
   animation: claudian-skill-card-in var(--cl-dur, 220ms) var(--cl-ease-out, ease-out);
+  transition: border-color var(--cl-dur) var(--cl-ease), box-shadow var(--cl-dur) var(--cl-ease);
+}
+
+.claudian-skill-card:hover {
+  border-color: var(--cl-accent-line);
 }
 
 .claudian-skill-card-toolbar {
@@ -17,9 +21,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--background-modifier-border);
-  background: color-mix(in srgb, var(--background-primary) 80%, transparent);
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--cl-border-subtle);
+  background: var(--cl-wash);
 }
 
 .claudian-skill-card-identity {
@@ -36,24 +40,25 @@
 }
 
 .claudian-skill-card-icon svg {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
 }
 
 .claudian-skill-card-label {
   font-size: var(--cl-text-sm);
-  font-weight: 600;
+  font-weight: 650;
   color: var(--text-normal);
 }
 
 .claudian-skill-card-live {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--cl-accent, var(--interactive-accent));
-  background: rgba(var(--claudian-brand-rgb), 0.12);
-  padding: 2px 7px;
-  border-radius: 100px;
+  background: var(--cl-accent-soft);
+  padding: 2px 8px;
+  border-radius: var(--cl-radius-pill);
 }
 
 .claudian-skill-card-actions {
@@ -71,12 +76,12 @@
   height: 26px;
   padding: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--cl-radius-xs);
   background: transparent;
   box-shadow: none;
   color: var(--text-faint);
   cursor: pointer;
-  transition: color 120ms ease, background 120ms ease, transform 120ms ease;
+  transition: color var(--cl-dur-fast) var(--cl-ease), background var(--cl-dur-fast) var(--cl-ease), transform var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-skill-card-action svg {
@@ -94,13 +99,14 @@
 }
 
 .claudian-skill-card-action:focus-visible {
-  outline: 2px solid var(--interactive-accent);
+  outline: 2px solid var(--cl-accent, var(--interactive-accent));
   outline-offset: 1px;
 }
 
 .claudian-skill-card-head {
-  padding: 12px 14px 6px;
-  border-bottom: 1px solid var(--background-modifier-border-hover, var(--background-modifier-border));
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid var(--cl-border-subtle);
+  background: var(--cl-wash);
 }
 
 .claudian-skill-card-name {
@@ -109,36 +115,36 @@
   font-size: var(--cl-text-sm);
   font-weight: 700;
   color: var(--cl-accent, var(--interactive-accent));
-  background: rgba(var(--claudian-brand-rgb), 0.1);
+  background: var(--cl-accent-soft);
   padding: 2px 8px;
-  border-radius: 6px;
+  border-radius: var(--cl-radius-xs);
 }
 
 .claudian-skill-card-description {
   margin: 8px 0 0;
   font-size: var(--cl-text-sm);
-  line-height: 1.5;
+  line-height: var(--cl-leading);
   color: var(--text-muted);
 }
 
 .claudian-skill-card-tools {
   display: inline-block;
   margin-top: 6px;
-  font-size: 11px;
+  font-size: var(--cl-text-xs);
   color: var(--text-faint);
 }
 
 .claudian-skill-card-body {
-  padding: 6px 14px 14px;
+  padding: 10px 14px 14px;
   font-size: var(--cl-text-sm);
-  line-height: 1.55;
+  line-height: var(--cl-leading);
 }
 
 .claudian-skill-card-body h1,
 .claudian-skill-card-body h2,
 .claudian-skill-card-body h3 {
   margin: 12px 0 6px;
-  font-size: var(--cl-text-base, 1em);
+  font-size: var(--cl-text-md);
 }
 
 .claudian-skill-card-body :first-child {
@@ -165,6 +171,9 @@
 @media (prefers-reduced-motion: reduce) {
   .claudian-skill-card {
     animation: none;
+  }
+  .claudian-skill-card-action {
+    transition: none;
   }
   .claudian-skill-card-action:active {
     transform: none;

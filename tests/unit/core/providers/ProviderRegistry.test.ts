@@ -315,6 +315,21 @@ describe('ProviderRegistry', () => {
     expect(recordAuxiliaryUsage.mock.calls.map(([record]) => record.providerId))
       .toEqual(['dsh', 'dsh', 'dsh']);
   });
+
+  describe('resolveProviderForModel', () => {
+    it('safely handles empty, blank, or invalid model strings by returning fallback', () => {
+      expect(ProviderRegistry.resolveProviderForModel('')).toBe('claude');
+      expect(ProviderRegistry.resolveProviderForModel('   ')).toBe('claude');
+      expect(ProviderRegistry.resolveProviderForModel(null as any)).toBe('claude');
+      expect(ProviderRegistry.resolveProviderForModel(undefined as any)).toBe('claude');
+      expect(ProviderRegistry.resolveProviderForModel('', {}, { fallbackProviderId: 'codex' })).toBe('codex');
+    });
+
+    it('resolves model to the owning provider', () => {
+      expect(ProviderRegistry.resolveProviderForModel('gpt-5.6-sol')).toBe('codex');
+      expect(ProviderRegistry.resolveProviderForModel('deepseek/deepseek-v4-flash')).toBe('freebuff');
+    });
+  });
 });
 
 function createMockTitleService(providerId: ProviderId): TitleGenerationService {

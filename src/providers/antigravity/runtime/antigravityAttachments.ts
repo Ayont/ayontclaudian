@@ -31,7 +31,7 @@ export function safeAttachmentStem(name: string, fallback: string): string {
  * staged attachment. Returns '' when there are no paths.
  */
 export function buildAttachmentMentionPrefix(absPaths: string[]): string {
-  const mentions = absPaths.filter(Boolean).map((p) => `@${p}`);
+  const mentions = absPaths.filter(Boolean).map((p) => (p.includes(' ') ? `@"${p}"` : `@${p}`));
   if (mentions.length === 0) return '';
   const label = mentions.length === 1 ? 'Attached file' : 'Attached files';
   return `${label}: ${mentions.join(' ')}\n\n`;

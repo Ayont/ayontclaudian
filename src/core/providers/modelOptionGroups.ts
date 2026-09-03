@@ -1,6 +1,16 @@
 import type { ProviderUIOption } from './types';
 
-export type ModelEffortLevel = 'low' | 'medium' | 'high' | 'thinking';
+export type ModelEffortLevel =
+  | 'off'
+  | 'none'
+  | 'minimal'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'xhigh'
+  | 'max'
+  | 'thinking'
+  | 'ultracode';
 
 export interface ModelEffortVariant {
   level: ModelEffortLevel;
@@ -20,15 +30,37 @@ export interface GroupedModelOption {
   primaryValue: string;
 }
 
-const EFFORT_RE = /\s*\((Low|Medium|High|Thinking)\)\s*$/i;
-const EFFORT_ORDER: ModelEffortLevel[] = ['low', 'medium', 'high', 'thinking'];
+const EFFORT_RE = /\s*\((None|Off|Minimal|Low|Medium|High|XHigh|Max|Thinking|Ultracode)\)\s*$/i;
+const EFFORT_ORDER: ModelEffortLevel[] = [
+  'off',
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+  'thinking',
+  'ultracode',
+];
 
 function asLevel(raw: string): ModelEffortLevel {
   const lower = raw.toLowerCase();
-  if (lower === 'low' || lower === 'medium' || lower === 'high' || lower === 'thinking') {
-    return lower;
+  switch (lower) {
+    case 'off':
+    case 'none':
+    case 'minimal':
+    case 'low':
+    case 'medium':
+    case 'high':
+    case 'xhigh':
+    case 'max':
+    case 'thinking':
+    case 'ultracode':
+      return lower;
+    default:
+      return 'medium';
   }
-  return 'medium';
 }
 
 export function parseModelEffort(value: string, label = value): {
@@ -42,69 +74,65 @@ export function parseModelEffort(value: string, label = value): {
     return { family: label.replace(/^.*·\s*/, '').trim() || value, level: null, effortLabel: null };
   }
   const family = source.slice(0, match.index).replace(/^.*·\s*/, '').trim();
+  const rawEffort = match[1];
+  const effortLabel = rawEffort.toLowerCase() === 'xhigh'
+    ? 'XHigh'
+    : rawEffort.charAt(0).toUpperCase() + rawEffort.slice(1).toLowerCase();
+
   return {
     family,
-    level: asLevel(match[1]),
-    effortLabel: match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase(),
+    level: asLevel(rawEffort),
+    effortLabel,
   };
 }
 
 function preferredPrimary(variants: ModelEffortVariant[]): string {
   return variants.find((variant) => variant.level === 'high')?.value
     ?? variants.find((variant) => variant.level === 'medium')?.value
+    ?? variants.find((variant) => variant.level === 'max')?.value
+    ?? variants.find((variant) => variant.level === 'xhigh')?.value
     ?? variants[variants.length - 1]?.value
     ?? '';
 }
 
-/** Collapses Low/Medium/High/Thinking siblings into one picker row. */
+/** Collapses effort variant siblings into one picker row. */
 export function groupModelOptions(models: readonly ProviderUIOption[]): GroupedModelOption[] {
-  const groups = new Map<string, { option: GroupedModelOption; seen: Set<string> }>();
-  const order: string[] = [];
+  const groups = new Map<string, GroupedModelOption>();
 
   for (const model of models) {
-    const parsed = parseModelEffort(model.value, model.label);
-    const familyKey = `${model.providerId ?? ''}::${parsed.family}`;
-    let entry = groups.get(familyKey);
-    if (!entry) {
-      entry = {
-        seen: new Set(),
-        option: {
-          familyKey,
-          familyLabel: parsed.family,
-          description: model.description,
-          group: model.group,
-          providerId: model.providerId,
-          providerIcon: model.providerIcon,
-          isDefault: model.isDefault,
-          variants: [],
-          primaryValue: model.value,
-        },
-      };
-      groups.set(familyKey, entry);
-      order.push(familyKey);
+    const { family, level, effortLabel } = parseModelEffort(model.value, model.label);
+    const key = `${model.providerId ?? model.group ?? ''}::${family}`;
+    const existing = groups.get(key);
+
+    if (!existing) {
+      groups.set(key, {
+        familyKey: key,
+        familyLabel: family,
+        description: model.description,
+        group: model.group,
+        providerId: model.providerId,
+        providerIcon: model.providerIcon,
+        isDefault: model.isDefault,
+        variants: level && effortLabel ? [{ level, label: effortLabel, value: model.value }] : [],
+        primaryValue: model.value,
+      });
+      continue;
     }
 
-    if (parsed.level && parsed.effortLabel && !entry.seen.has(parsed.level)) {
-      entry.seen.add(parsed.level);
-      entry.option.variants.push({
-        level: parsed.level,
-        label: parsed.effortLabel,
-        value: model.value,
-      });
+    if (level && effortLabel && !existing.variants.some((v) => v.value === model.value)) {
+      existing.variants.push({ level, label: effortLabel, value: model.value });
+      existing.variants.sort(
+        (a, b) => EFFORT_ORDER.indexOf(a.level) - EFFORT_ORDER.indexOf(b.level),
+      );
+      existing.primaryValue = preferredPrimary(existing.variants);
     }
-    if (model.isDefault) entry.option.isDefault = true;
-    if (model.description && !entry.option.description) entry.option.description = model.description;
+    if (model.isDefault) {
+      existing.isDefault = true;
+    }
+    if (!existing.description && model.description) {
+      existing.description = model.description;
+    }
   }
 
-  return order.map((key) => {
-    const option = groups.get(key)!.option;
-    option.variants.sort((a, b) => EFFORT_ORDER.indexOf(a.level) - EFFORT_ORDER.indexOf(b.level));
-    if (option.variants.length === 1) {
-      option.variants = [];
-    }
-    if (option.variants.length > 1) {
-      option.primaryValue = preferredPrimary(option.variants);
-    }
-    return option;
-  });
+  return Array.from(groups.values());
 }

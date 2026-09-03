@@ -1,15 +1,12 @@
 import type { ProviderId, ProviderUIOption } from '../providers/types';
 
-/** Sentinel value used when the user selects "Auto" in the model dropdown. */
-export const AUTO_MODEL_VALUE = '__auto__';
-
 export type ModelRouterTask =
   | 'code'
-  | 'writing'
   | 'planning'
-  | 'vision'
+  | 'writing'
   | 'analysis'
   | 'document'
+  | 'vision'
   | 'cheap'
   | 'longcontext'
   | 'default';
@@ -29,17 +26,14 @@ export interface ModelRouteDecision {
   reason: string;
 }
 
+export const AUTO_MODEL_VALUE = '__auto__';
+
 const DEFAULT_KEYWORDS: Record<ModelRouterTask, string[]> = {
   code: [
-    'code', 'bug', 'fix', 'refactor', 'typescript', 'javascript', 'python', 'rust', 'test',
-    'lint', 'build', 'stacktrace', 'diff', 'compile', 'error', 'debug', 'function', 'class',
-    'api', 'endpoint', 'sql', 'query', 'regex', 'algorithm', 'git', 'merge', 'commit',
-    'programm', 'fehler', 'funktion', 'kompilier', 'skript',
-  ],
-  writing: [
-    'write', 'rewrite', 'summarize', 'summary', 'blog', 'email', 'copy', 'tone',
-    'übersetze', 'zusammenfassung', 'schreib', 'text', 'artikel', 'brief', 'dokumentation',
-    'markdown', 'formatier', 'formulieren', 'verfassen', 'redigieren',
+    'code', 'bug', 'fix', 'refactor', 'function', 'class', 'test', 'implement',
+    'debug', 'typescript', 'javascript', 'python', 'rust', 'go', 'html', 'css',
+    'api', 'endpoint', 'database', 'sql', 'fehler', 'beheben', 'funktion',
+    'komponente', 'schnittstelle',
   ],
   planning: [
     'plan', 'roadmap', 'strategy', 'brainstorm', 'todo', 'architecture', 'design', 'konzept',
@@ -60,6 +54,11 @@ const DEFAULT_KEYWORDS: Record<ModelRouterTask, string[]> = {
     'pdf', 'docx', 'word', 'document', 'read file', 'parse file', 'extract text',
     'dokument', 'datei', 'lesen', 'extrahieren', 'konvertieren', 'ocr',
   ],
+  writing: [
+    'write', 'draft', 'edit', 'summarize', 'translate', 'blog', 'email', 'readme',
+    'schreibe', 'zusammenfassen', 'übersetze', 'text', 'artikel', 'notiz',
+    'überarbeite', 'formulierung', 'korrigiere',
+  ],
   cheap: [
     'quick', 'kurz', 'simple', 'yes/no', 'klein', 'schnell', 'short', 'brief',
     'danke', 'thanks', 'ok', 'ja', 'nein', 'hello', 'hi', 'hallo',
@@ -70,6 +69,26 @@ const DEFAULT_KEYWORDS: Record<ModelRouterTask, string[]> = {
   ],
   default: [],
 };
+
+const ROUTER_MODEL_MIGRATIONS: Record<string, string> = {
+  'haiku': 'claude-sonnet-5',
+  'claude-haiku-4-5': 'claude-sonnet-5',
+  'claude-sonnet-4-5': 'claude-sonnet-5',
+  'sonnet': 'claude-sonnet-5',
+  'opus': 'claude-opus-5',
+  'fable': 'claude-fable-5-1',
+  'gemini-3.5-flash': 'gemini-3.8-flash',
+  'gemini-3.5-flash-low': 'gemini-3.8-flash-low',
+  'gemini-3.5-flash-high': 'gemini-3.8-flash-high',
+  'gpt-5.1': 'gpt-5.6-luna',
+};
+
+function resolveCandidateModel(model: string, availableValues: Set<string>): string | null {
+  if (availableValues.has(model)) return model;
+  const migrated = ROUTER_MODEL_MIGRATIONS[model.toLowerCase().trim()];
+  if (migrated && availableValues.has(migrated)) return migrated;
+  return null;
+}
 
 function normalize(value: string): string {
   return value.toLowerCase();
@@ -132,9 +151,10 @@ export function chooseModelRoute(options: {
   if (ctx.hasImages && inferredTask !== 'vision') {
     // Try to find a vision-capable model
     const visionRule = options.rules.find(rule =>
-      rule.enabled !== false && rule.task === 'vision' && availableValues.has(rule.model));
+      rule.enabled !== false && rule.task === 'vision' && resolveCandidateModel(rule.model, availableValues) !== null);
     if (visionRule) {
-      return { task: 'vision', model: visionRule.model, providerId: visionRule.providerId, reason: 'images attached → vision model' };
+      const resolved = resolveCandidateModel(visionRule.model, availableValues)!;
+      return { task: 'vision', model: resolved, providerId: visionRule.providerId, reason: 'images attached → vision model' };
     }
     // No explicit vision rule — try to find a model with "vision" or "gpt" or "gemini" in its name
     const visionModel = options.availableModels.find(m =>
@@ -162,7 +182,7 @@ export function chooseModelRoute(options: {
       /claude|gemini|kimi/i.test(`${m.value} ${m.label}`));
     if (longContextModel && availableValues.has(longContextModel.value)) {
       // Only override if the current task's model isn't already a long-context model
-      const currentTaskRule = options.rules.find(r => r.enabled !== false && r.task === inferredTask && availableValues.has(r.model));
+      const currentTaskRule = options.rules.find(r => r.enabled !== false && r.task === inferredTask && resolveCandidateModel(r.model, availableValues) !== null);
       if (!currentTaskRule || !/claude|gemini|kimi/i.test(currentTaskRule.model)) {
         return { task: 'longcontext', model: longContextModel.value, reason: `large context (~${ctx.estimatedTokens.toLocaleString()} tokens) → long-context model` };
       }
@@ -173,22 +193,27 @@ export function chooseModelRoute(options: {
   for (const rule of options.rules.filter(rule => rule.enabled !== false)) {
     const keywords = rule.keywords ?? DEFAULT_KEYWORDS[rule.task] ?? [];
     if (keywords.length > 0 && keywords.some(keyword => normalizedPrompt.includes(normalize(keyword)))) {
-      if (availableValues.has(rule.model)) {
-        return { task: rule.task, model: rule.model, providerId: rule.providerId, reason: `keyword matched ${rule.task}` };
+      const resolved = resolveCandidateModel(rule.model, availableValues);
+      if (resolved) {
+        return { task: rule.task, model: resolved, providerId: rule.providerId, reason: `keyword matched ${rule.task}` };
       }
     }
   }
 
   // Match by inferred task
-  const exactRule = options.rules.find(rule => rule.enabled !== false && rule.task === inferredTask && availableValues.has(rule.model));
-  if (exactRule) {
-    return { task: inferredTask, model: exactRule.model, providerId: exactRule.providerId, reason: `task inferred as ${inferredTask}` };
+  for (const rule of options.rules.filter(rule => rule.enabled !== false && rule.task === inferredTask)) {
+    const resolved = resolveCandidateModel(rule.model, availableValues);
+    if (resolved) {
+      return { task: inferredTask, model: resolved, providerId: rule.providerId, reason: `task inferred as ${inferredTask}` };
+    }
   }
 
   // Default rule
-  const defaultRule = options.rules.find(rule => rule.enabled !== false && rule.task === 'default' && availableValues.has(rule.model));
-  if (defaultRule) {
-    return { task: inferredTask, model: defaultRule.model, providerId: defaultRule.providerId, reason: 'default router rule' };
+  for (const rule of options.rules.filter(rule => rule.enabled !== false && rule.task === 'default')) {
+    const resolved = resolveCandidateModel(rule.model, availableValues);
+    if (resolved) {
+      return { task: inferredTask, model: resolved, providerId: rule.providerId, reason: 'default router rule' };
+    }
   }
 
   return { task: inferredTask, model: options.fallbackModel, reason: 'no matching router rule' };
@@ -198,9 +223,9 @@ export function formatRouterRulesExample(): string {
   return [
     '[',
     '  { "task": "code", "model": "kimi-code/kimi-for-coding" },',
-    '  { "task": "writing", "model": "gpt-5.1" },',
-    '  { "task": "planning", "model": "claude-sonnet-4-5" },',
-    '  { "task": "cheap", "model": "haiku" }',
+    '  { "task": "writing", "model": "gpt-5.6-luna" },',
+    '  { "task": "planning", "model": "claude-sonnet-5" },',
+    '  { "task": "cheap", "model": "deepseek/deepseek-v4-flash" }',
     ']',
   ].join('\n');
 }

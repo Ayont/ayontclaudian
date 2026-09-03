@@ -42,6 +42,13 @@ describe('buildAttachmentMentionPrefix', () => {
       'Attached files: @/tmp/a.png @/tmp/b.pdf\n\n',
     );
   });
+
+  it('quotes paths that contain spaces', () => {
+    expect(buildAttachmentMentionPrefix(['/tmp/my photo.png'])).toBe('Attached file: @"/tmp/my photo.png"\n\n');
+    expect(buildAttachmentMentionPrefix(['/tmp/a.png', '/tmp/b file.pdf'])).toBe(
+      'Attached files: @/tmp/a.png @"/tmp/b file.pdf"\n\n',
+    );
+  });
 });
 
 describe('decodeBase64Attachment', () => {

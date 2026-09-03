@@ -1,7 +1,9 @@
-import { setIcon } from 'obsidian';
+import type { App } from 'obsidian';
+import { Menu, Modal, Notice, setIcon } from 'obsidian';
 
 import type { AheadBehind, GitFileChange, GitService } from '../../../core/git/GitService';
 import { toGitHubHttpsUrl } from '../../../core/git/GitService';
+import { getLocale } from '../../../i18n/i18n';
 
 /** Cap on file names listed in an auto-suggested commit message. */
 const SUGGEST_FILE_LIMIT = 3;
@@ -38,11 +40,72 @@ export function suggestCommitMessage(files: ReadonlyArray<GitFileChange>): strin
 }
 
 /** Human-readable summary of the change count, e.g. "1 changed file". */
-export function describeChangeCount(count: number): string {
+export function describeChangeCount(count: number, locale: string = getLocale()): string {
+  if (locale === 'en') {
+    if (count === 0) {
+      return 'No changes';
+    }
+    return count === 1 ? '1 changed file' : `${count} changed files`;
+  }
   if (count === 0) {
     return 'Keine Änderungen';
   }
   return count === 1 ? '1 geänderte Datei' : `${count} geänderte Dateien`;
+}
+
+
+export class BranchPromptModal extends Modal {
+  constructor(
+    app: App,
+    private readonly titleText: string,
+    private readonly placeholderText: string,
+    private readonly submitText: string,
+    private readonly onSubmit: (branchName: string) => void | Promise<void>,
+  ) {
+    super(app);
+  }
+
+  onOpen(): void {
+    this.titleEl.setText(this.titleText);
+    this.contentEl.empty();
+    const isDe = getLocale() === "de";
+    const form = this.contentEl.createDiv({ cls: "claudian-branch-prompt-form" });
+    const input = form.createEl("input", {
+      type: "text",
+      cls: "claudian-branch-prompt-input",
+      attr: { placeholder: this.placeholderText, spellcheck: "false" },
+    });
+    const actions = form.createDiv({ cls: "claudian-branch-prompt-actions" });
+    const cancelBtn = actions.createEl("button", {
+      text: isDe ? "Abbrechen" : "Cancel",
+      attr: { type: "button" },
+    });
+    cancelBtn.addEventListener("click", () => this.close());
+    const submitBtn = actions.createEl("button", {
+      cls: "mod-cta",
+      text: this.submitText,
+      attr: { type: "button" },
+    });
+    const doSubmit = (): void => {
+      const val = input.value.trim();
+      if (val) {
+        void this.onSubmit(val);
+        this.close();
+      }
+    };
+    submitBtn.addEventListener("click", doSubmit);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        doSubmit();
+      }
+    });
+    window.requestAnimationFrame(() => input.focus());
+  }
+
+  onClose(): void {
+    this.contentEl.empty();
+  }
 }
 
 type FeedbackKind = 'success' | 'error';
@@ -89,10 +152,37 @@ export class CommitBar {
     this.container.empty();
 
     this.headerEl = this.container.createDiv({ cls: 'claudian-commit-bar-header' });
-    const branchWrap = this.headerEl.createDiv({ cls: 'claudian-commit-bar-branch' });
+    const isDe = getLocale() === 'de';
+    const branchWrap = this.headerEl.createDiv({
+      cls: 'claudian-commit-bar-branch claudian-commit-bar-branch--clickable',
+    });
+    branchWrap.setAttribute('role', 'button');
+    branchWrap.setAttribute('tabindex', '0');
+    branchWrap.setAttribute(
+      'aria-label',
+      isDe ? 'Git-Branch wechseln oder erstellen' : 'Switch or create Git branch',
+    );
+    branchWrap.setAttribute(
+      'title',
+      isDe ? 'Klicken, um Branch zu wechseln' : 'Click to switch branch',
+    );
+
     const branchIcon = branchWrap.createSpan({ cls: 'claudian-commit-bar-branch-icon' });
     setIcon(branchIcon, 'git-branch');
     this.branchEl = branchWrap.createSpan({ cls: 'claudian-commit-bar-branch-name' });
+    const branchChevron = branchWrap.createSpan({ cls: 'claudian-commit-bar-branch-chevron' });
+    setIcon(branchChevron, 'chevron-down');
+
+    branchWrap.addEventListener('click', (e) => {
+      e.stopPropagation();
+      void this.showBranchPicker(branchWrap);
+    });
+    branchWrap.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        void this.showBranchPicker(branchWrap);
+      }
+    });
     this.countEl = this.headerEl.createSpan({ cls: 'claudian-commit-bar-count' });
 
     // Remote/GitHub row — populated (and shown) by updateRepoRow when a remote exists.
@@ -385,6 +475,71 @@ export class CommitBar {
   }
 
   /** Removes listeners and timers; safe to call multiple times. */
+  private async showBranchPicker(anchorEl: HTMLElement): Promise<void> {
+    const isDe = getLocale() === "de";
+    let branches: { name: string; current: boolean }[];
+    try {
+      branches = await this.git.listBranches();
+    } catch {
+      branches = this.branch ? [{ name: this.branch, current: true }] : [];
+    }
+
+    if (branches.length === 0 && this.branch) {
+      branches = [{ name: this.branch, current: true }];
+    }
+
+    const menu = new Menu();
+    for (const b of branches) {
+      menu.addItem((item) => {
+        item
+          .setTitle(b.name)
+          .setIcon(b.current ? "check" : "git-branch")
+          .setDisabled(b.current)
+          .onClick(async () => {
+            if (b.current) return;
+            const res = await this.git.checkoutBranch(b.name);
+            if (res.ok) {
+              new Notice(isDe ? `Branch gewechselt zu: ${b.name}` : `Switched to branch: ${b.name}`);
+              await this.refresh();
+            } else {
+              new Notice(isDe ? `Branch-Wechsel fehlgeschlagen: ${res.error}` : `Branch checkout failed: ${res.error}`);
+            }
+          });
+      });
+    }
+
+    if (typeof (menu as any).addSeparator === 'function') (menu as any).addSeparator();
+    menu.addItem((item) => {
+      item
+        .setTitle(isDe ? "Neuer Branch…" : "New branch…")
+        .setIcon("plus")
+        .onClick(() => {
+          const app = (window as unknown as { app?: App }).app;
+          if (!app) return;
+          new BranchPromptModal(
+            app,
+            isDe ? "Neuen Git-Branch erstellen" : "Create new Git branch",
+            isDe ? "Branch-Name (z.B. feature/design)" : "Branch name (e.g. feature/design)",
+            isDe ? "Erstellen & Wechseln" : "Create & Switch",
+            async (newName) => {
+              const res = await this.git.createBranch(newName);
+              if (res.ok) {
+                new Notice(isDe ? `Branch erstellt: ${newName}` : `Created branch: ${newName}`);
+                await this.refresh();
+              } else {
+                new Notice(isDe ? `Erstellen fehlgeschlagen: ${res.error}` : `Branch creation failed: ${res.error}`);
+              }
+            },
+          ).open();
+        });
+    });
+
+    const rect = anchorEl.getBoundingClientRect();
+    if (typeof (menu as any).showAtPosition === 'function') {
+      (menu as any).showAtPosition({ x: rect.left, y: rect.bottom + 4 }, anchorEl.ownerDocument);
+    }
+  }
+
   destroy(): void {
     this.destroyed = true;
     if (this.feedbackTimer !== null) {

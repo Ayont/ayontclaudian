@@ -236,8 +236,8 @@ describe('AntigravityChatRuntime stream/transcript interleaving', () => {
 
   beforeEach(() => {
     spawn.mockReset();
-    brain.readAntigravityTranscriptIfChanged.mockReset();
-    brain.splitTranscriptLines.mockReset();
+    brain.readAntigravityTranscriptIfChanged.mockReset().mockReturnValue(null);
+    brain.splitTranscriptLines.mockReset().mockReturnValue([]);
   });
 
   it('emits transcript thinking before the streamed text of the same answer, never in between', async () => {
@@ -290,5 +290,56 @@ describe('AntigravityChatRuntime stream/transcript interleaving', () => {
     expect(thinkingAt < firstText || thinkingAt > order.lastIndexOf('text')).toBe(true);
     const text = chunks.filter((c) => c.type === 'text').map((c) => (c as { content: string }).content).join('');
     expect(text).toBe('```powershell\nGet-ChildItem *.log\n```\n');
+  });
+  it("stages multiple images with duplicate or identical names to distinct files without collision", async () => {
+    const proc = makeFakeProcess(5501);
+    const stream = [
+      JSON.stringify({ event: "init", conversation_id: "agy-multi", init: {} }),
+      JSON.stringify({ event: "result", conversation_id: "agy-multi", status: "SUCCESS", response: "Analysiert", usage: { total_tokens: 10 } }),
+    ].join("\n") + "\n";
+
+    spawn.mockImplementationOnce(() => {
+      setImmediate(() => {
+        proc.stdout.emit("data", Buffer.from(stream, "utf-8"));
+        proc.exitCode = 0;
+        proc.emit("exit", 0);
+      });
+      return proc;
+    });
+
+    const runtime = new AntigravityChatRuntime(makePlugin());
+    const turn = {
+      isCompact: false,
+      mcpMentions: new Set<string>(),
+      persistedContent: "",
+      prompt: "Analysiere diese 6 Bilder",
+      request: {
+        text: "Analysiere diese 6 Bilder",
+        images: [
+          { name: "image.png", mediaType: "image/png", data: "AQID" },
+          { name: "image.png", mediaType: "image/png", data: "BAUG" },
+          { name: "image.png", mediaType: "image/png", data: "BwgJ" },
+          { name: "screenshot.jpg", mediaType: "image/jpeg", data: "CgsM" },
+          { name: "screenshot.jpg", mediaType: "image/jpeg", data: "DQ4P" },
+          { name: "chart.png", mediaType: "image/png", data: "EBEc" },
+        ],
+      },
+    } as Parameters<AntigravityChatRuntime["query"]>[0];
+
+    const chunks: StreamChunk[] = [];
+    for await (const chunk of runtime.query(turn, [])) {
+      chunks.push(chunk);
+    }
+
+    expect(spawn).toHaveBeenCalledTimes(1);
+    const promptArg = promptFromSpawnCall(0);
+
+    // Prompt contains 6 @-references
+    const mentionMatches = promptArg.match(/@([^\s]+)/g);
+    expect(mentionMatches).toHaveLength(6);
+
+    // Ensure all 6 paths are distinct
+    const uniquePaths = new Set(mentionMatches);
+    expect(uniquePaths.size).toBe(6);
   });
 });

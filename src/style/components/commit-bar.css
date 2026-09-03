@@ -26,7 +26,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--cl-space-1);
-  padding: 2px var(--cl-space-2);
+  padding: 3px 9px;
   color: var(--cl-accent);
   background: var(--cl-accent-soft);
   border: 1px solid var(--cl-accent-line);
@@ -34,6 +34,62 @@
   font-family: var(--cl-font-mono);
   font-weight: 600;
   letter-spacing: 0.01em;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.claudian-commit-bar-branch--clickable {
+  cursor: pointer;
+  user-select: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.claudian-commit-bar-branch--clickable:hover {
+  background: color-mix(in srgb, var(--cl-accent) 22%, transparent);
+  border-color: var(--cl-accent);
+  transform: translateY(-0.5px);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--cl-accent) 25%, transparent);
+}
+
+.claudian-commit-bar-branch-chevron {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 2px;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+
+.claudian-commit-bar-branch-chevron svg {
+  width: 10px;
+  height: 10px;
+}
+
+.claudian-commit-bar-branch--clickable:hover .claudian-commit-bar-branch-chevron {
+  opacity: 1;
+}
+
+/* Branch Prompt Modal */
+.claudian-branch-prompt-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 0;
+}
+
+.claudian-branch-prompt-input {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-family: var(--font-monospace);
+  font-size: 13px;
+}
+
+.claudian-branch-prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .claudian-commit-bar-branch-icon {

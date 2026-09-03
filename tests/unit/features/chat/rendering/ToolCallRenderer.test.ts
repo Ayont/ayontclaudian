@@ -991,4 +991,55 @@ describe('ToolCallRenderer', () => {
       expect(toolEl).toBeDefined();
     });
   });
+  describe("media activity card", () => {
+    it("renders analyze_image tool as a media card with German title and filename", () => {
+      const parentEl = createMockEl();
+      const toolCall = createToolCall({
+        id: "m1",
+        name: "analyze_image",
+        input: { file_path: "/vault/images/chart.jpg" },
+      });
+
+      const toolEl = renderToolCall(parentEl, toolCall, new Map());
+
+      expect(toolEl.hasClass("claudian-tool-call-media")).toBe(true);
+      expect(toolEl.dataset.mediaKind).toBe("image");
+      expect(toolEl.dataset.mediaAction).toBe("analyze");
+      expect(toolEl.querySelector(".claudian-tool-name")?.textContent).toMatch(/^(?:Bild analysieren|Analyze image)$/);
+      expect(toolEl.querySelector(".claudian-tool-summary")?.textContent).toBe("chart.jpg");
+    });
+
+    it("renders show_image tool as Bild anzeigen", () => {
+      const parentEl = createMockEl();
+      const toolCall = createToolCall({
+        id: "m2",
+        name: "show_image",
+        input: { file_path: "mockup.png" },
+      });
+
+      const toolEl = renderToolCall(parentEl, toolCall, new Map());
+
+      expect(toolEl.hasClass("claudian-tool-call-media")).toBe(true);
+      expect(toolEl.querySelector(".claudian-tool-name")?.textContent).toMatch(/^(?:Bild anzeigen|View image)$/);
+      expect(toolEl.querySelector(".claudian-tool-summary")?.textContent).toBe("mockup.png");
+    });
+
+    it("renders Read tool targeting an image as media card with full preview and caption", () => {
+      const parentEl = createMockEl();
+      const toolCall = createToolCall({
+        id: "m3",
+        name: "Read",
+        input: { file_path: "screenshot.png" },
+        status: "completed",
+        result: "Das Bild zeigt eine Benutzeroberfläche.",
+      });
+
+      const toolEl = renderStoredToolCall(parentEl, toolCall);
+
+      expect(toolEl.hasClass("claudian-tool-call-media")).toBe(true);
+      expect(toolEl.querySelector(".claudian-tool-name")?.textContent).toMatch(/^(?:Bild laden|Load image)$/);
+      expect(toolEl.querySelector(".claudian-media-badge")?.textContent).toBe("PNG");
+      expect(toolEl.querySelector(".claudian-media-caption-body")?.textContent).toContain("Benutzeroberfläche");
+    });
+  });
 });

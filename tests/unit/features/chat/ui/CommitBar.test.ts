@@ -4,9 +4,6 @@ import type { GitFileChange } from '@/core/git/GitService';
 import { toGitHubHttpsUrl } from '@/core/git/GitService';
 import { CommitBar, describeChangeCount, suggestCommitMessage } from '@/features/chat/ui/CommitBar';
 
-jest.mock('obsidian', () => ({
-  setIcon: jest.fn(),
-}));
 
 function makeFile(path: string): GitFileChange {
   return { path, index: 'M', worktree: ' ', staged: true, untracked: false };
@@ -20,6 +17,9 @@ function createMockGit(overrides: Partial<Record<string, jest.Mock>> = {}) {
     push: jest.fn().mockResolvedValue({ ok: true }),
     getRemoteUrl: jest.fn().mockResolvedValue(null),
     aheadBehind: jest.fn().mockResolvedValue(null),
+    listBranches: jest.fn().mockResolvedValue([{ name: 'main', current: true }]),
+    checkoutBranch: jest.fn().mockResolvedValue({ ok: true }),
+    createBranch: jest.fn().mockResolvedValue({ ok: true }),
     ...overrides,
   };
 }
@@ -53,10 +53,19 @@ describe('suggestCommitMessage', () => {
 });
 
 describe('describeChangeCount', () => {
-  test('handles zero, singular, and plural', () => {
-    expect(describeChangeCount(0)).toBe('Keine Änderungen');
-    expect(describeChangeCount(1)).toBe('1 geänderte Datei');
-    expect(describeChangeCount(3)).toBe('3 geänderte Dateien');
+  test("supports English change count formatting", () => {
+    expect(describeChangeCount(0, "en")).toBe("No changes");
+    expect(describeChangeCount(1, "en")).toBe("1 changed file");
+    expect(describeChangeCount(4, "en")).toBe("4 changed files");
+  });
+
+  test('handles zero, singular, and plural in German and English', () => {
+    expect(describeChangeCount(0, 'de')).toBe('Keine Änderungen');
+    expect(describeChangeCount(1, 'de')).toBe('1 geänderte Datei');
+    expect(describeChangeCount(3, 'de')).toBe('3 geänderte Dateien');
+    expect(describeChangeCount(0, 'en')).toBe('No changes');
+    expect(describeChangeCount(1, 'en')).toBe('1 changed file');
+    expect(describeChangeCount(3, 'en')).toBe('3 changed files');
   });
 });
 
@@ -104,7 +113,7 @@ describe('CommitBar', () => {
     const bar = findByClass(parent, 'claudian-commit-bar');
     expect(bar.hasClass('claudian-hidden')).toBe(false);
     expect(findByClass(parent, 'claudian-commit-bar-branch-name').textContent).toBe('main');
-    expect(findByClass(parent, 'claudian-commit-bar-count').textContent).toBe('1 geänderte Datei');
+    expect(findByClass(parent, 'claudian-commit-bar-count').textContent).toMatch(/^(?:1 changed file|1 geänderte Datei)$/);
   });
 
   test('uses native buttons and a live feedback region', async () => {
@@ -244,6 +253,28 @@ describe('CommitBar', () => {
     await flush();
 
     expect(findByClass(parent, 'claudian-commit-bar-repo').hasClass('claudian-hidden')).toBe(true);
+  });
+
+
+  test("renders clickable branch button with chevron and triggers branch list on click", async () => {
+    const parent = createMockEl();
+    const git = createMockGit({
+      listBranches: jest.fn().mockResolvedValue([
+        { name: "main", current: true },
+        { name: "feature/awesome", current: false },
+      ]),
+    });
+    new CommitBar(parent, git as never);
+    await flush();
+
+    const branchWrap = findByClass(parent, "claudian-commit-bar-branch");
+    expect(branchWrap.hasClass("claudian-commit-bar-branch--clickable")).toBe(true);
+    expect(branchWrap.getAttribute("role")).toBe("button");
+    expect(findByClass(parent, "claudian-commit-bar-branch-chevron")).not.toBeNull();
+
+    branchWrap.click();
+    await flush();
+    expect(git.listBranches).toHaveBeenCalled();
   });
 
   test('destroy removes the input listener and is idempotent', async () => {

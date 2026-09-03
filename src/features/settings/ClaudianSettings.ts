@@ -140,10 +140,17 @@ export class ClaudianSettingTab extends PluginSettingTab {
       const label = id === 'general'
         ? t('settings.tabs.general' as TranslationKey)
         : ProviderRegistry.getProviderDisplayName(id);
+      const isEnabled = id === 'general' ? true : ProviderRegistry.isEnabled(id, this.plugin.settings as unknown as Record<string, unknown>);
       const button = tabBar.createEl('button', {
-        cls: `claudian-settings-tab${id === this.activeTab ? ' claudian-settings-tab--active' : ''}`,
-        text: label,
+        cls: `claudian-settings-tab${id === this.activeTab ? ' claudian-settings-tab--active' : ''}${isEnabled && id !== 'general' ? ' claudian-settings-tab--enabled' : ''}`,
       });
+      if (id !== 'general') {
+        button.createSpan({
+          cls: `claudian-settings-tab-dot${isEnabled ? ' is-enabled' : ''}`,
+          attr: { title: isEnabled ? 'Aktiv / Enabled' : 'Inaktiv / Disabled' },
+        });
+      }
+      button.createSpan({ text: label });
       button.addEventListener('click', () => {
         this.activeTab = id;
         for (const tabId of tabIds) {

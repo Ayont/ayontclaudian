@@ -259,11 +259,19 @@ export class AntigravityChatRuntime implements ChatRuntime {
     if (attachments.length > 0) {
       try {
         attachmentDir = await fs.mkdtemp(path.join(os.tmpdir(), 'claudian-agy-'));
+        const usedNames = new Set<string>();
         for (let i = 0; i < attachments.length; i++) {
           const att = attachments[i];
           const ext = extensionForMediaType(att.mediaType);
           const stem = safeAttachmentStem(att.name, `attachment-${i + 1}`);
-          const filePath = path.join(attachmentDir, `${stem}.${ext}`);
+          // Disambiguate when multiple attachments share identical or default names
+          // (e.g. 6 pasted images or screenshots) so files never overwrite each other
+          let fileName = attachments.length > 1 ? `${i + 1}-${stem}.${ext}` : `${stem}.${ext}`;
+          if (usedNames.has(fileName.toLowerCase())) {
+            fileName = `${i + 1}-${stem}-${i + 1}.${ext}`;
+          }
+          usedNames.add(fileName.toLowerCase());
+          const filePath = path.join(attachmentDir, fileName);
           await fs.writeFile(filePath, decodeBase64Attachment(att.data));
           attachmentPaths.push(filePath);
         }
@@ -465,7 +473,7 @@ export class AntigravityChatRuntime implements ChatRuntime {
       // transcript from being re-read and re-split on every tick. The cached
       // stat is path-keyed, so switching conversations never suppresses reads.
       const read = readAntigravityTranscriptIfChanged(this.conversationId, this.lastTranscriptStat);
-      if (read === null) {
+      if (!read) {
         return [];
       }
       this.lastTranscriptStat = read.stat;

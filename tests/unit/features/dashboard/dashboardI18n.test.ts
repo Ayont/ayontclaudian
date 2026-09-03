@@ -25,6 +25,20 @@ describe('dashboardStrings', () => {
     expect(dashboardStrings().cardProjects).toBe('Projects');
   });
 
+  it("provides localized capabilities, relative times, and events", () => {
+    setLocale("de");
+    let s = dashboardStrings();
+    expect(s.capImagesAndVision).toBe("Bilder & Vision");
+    expect(s.relSeconds(12)).toBe("vor 12s");
+    expect(s.evMissionStarted(2)).toBe("Mission gestartet (2 Agents)");
+
+    setLocale("en");
+    s = dashboardStrings();
+    expect(s.capImagesAndVision).toBe("Images & Vision");
+    expect(s.relSeconds(12)).toBe("12s ago");
+    expect(s.evMissionStarted(2)).toBe("Mission started (2 agents)");
+  });
+
   it('interpolates dynamic strings per locale', () => {
     setLocale('de');
     expect(dashboardStrings().latest('Veylor')).toBe('Zuletzt: Veylor');

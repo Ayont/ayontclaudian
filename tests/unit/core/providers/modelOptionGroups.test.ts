@@ -18,6 +18,29 @@ describe('parseModelEffort', () => {
     });
   });
 
+  it('parses extended effort levels (XHigh, Max, Minimal, Off)', () => {
+    expect(parseModelEffort('GPT-5.5 (XHigh)', 'GPT-5.5 (XHigh)')).toEqual({
+      family: 'GPT-5.5',
+      level: 'xhigh',
+      effortLabel: 'XHigh',
+    });
+    expect(parseModelEffort('Claude Opus 5 (Max)', 'Claude Opus 5 (Max)')).toEqual({
+      family: 'Claude Opus 5',
+      level: 'max',
+      effortLabel: 'Max',
+    });
+    expect(parseModelEffort('Pi Reasoning (Minimal)', 'Pi Reasoning (Minimal)')).toEqual({
+      family: 'Pi Reasoning',
+      level: 'minimal',
+      effortLabel: 'Minimal',
+    });
+    expect(parseModelEffort('Opencode Fast (Off)', 'Opencode Fast (Off)')).toEqual({
+      family: 'Opencode Fast',
+      level: 'off',
+      effortLabel: 'Off',
+    });
+  });
+
   it('leaves models without an effort suffix ungrouped', () => {
     expect(parseModelEffort('Opus 1M', 'Opus 1M')).toEqual({
       family: 'Opus 1M',
@@ -41,6 +64,25 @@ describe('groupModelOptions', () => {
     expect(grouped[0].familyLabel).toBe('Gemini 3.7 Flash');
     expect(grouped[0].variants.map((variant) => variant.level)).toEqual(['low', 'medium', 'high']);
     expect(grouped[0].primaryValue).toBe('Gemini 3.7 Flash (High)');
+  });
+
+  it('collapses extended variants (Medium, High, XHigh, Max)', () => {
+    const codex = (suffix: string): ProviderUIOption => ({
+      value: `GPT-5.5 (${suffix})`,
+      label: `Codex · GPT-5.5 (${suffix})`,
+      group: 'CODEX',
+      providerId: 'codex',
+    });
+    const grouped = groupModelOptions([
+      codex('High'),
+      codex('Medium'),
+      codex('XHigh'),
+      codex('Max'),
+    ]);
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0].familyLabel).toBe('GPT-5.5');
+    expect(grouped[0].variants.map((variant) => variant.level)).toEqual(['medium', 'high', 'xhigh', 'max']);
+    expect(grouped[0].primaryValue).toBe('GPT-5.5 (High)');
   });
 
   it('keeps unrelated models as their own rows', () => {

@@ -219,6 +219,10 @@ export class ProviderRegistry {
         ? this.resolveSettingsProviderId(settings)
         : DEFAULT_CHAT_PROVIDER_ID);
 
+    if (!model || typeof model !== 'string' || !model.trim()) {
+      return fallbackProviderId;
+    }
+
     for (const providerId of providerIds) {
       if (providerId === fallbackProviderId) {
         continue;

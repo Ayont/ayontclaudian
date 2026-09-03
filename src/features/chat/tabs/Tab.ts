@@ -2241,7 +2241,7 @@ export function initializeTabControllers(
     // analyze each attachment via a vision-capable provider and return a German
     // description. The InputController then retries the turn with descriptions
     // instead of raw images so the conversation continues uninterrupted.
-    analyzeImageViaVision: (image) => plugin.runVisionPrompt(image, '').catch(() => null),
+    analyzeImageViaVision: (image) => plugin.runVisionPrompt(image, 'Beschreibe dieses Bild im Detail. Was ist darauf zu sehen?').catch(() => null),
     consumePendingContextBootstrap: async () => {
       const conversation = tab.conversationId
         ? plugin.getConversationSync(tab.conversationId)

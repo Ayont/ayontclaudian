@@ -259,4 +259,51 @@ export class GitService {
     }
     return { ahead, behind };
   }
+
+  /**
+   * Lists local git branches and marks the active HEAD branch.
+   */
+  async listBranches(): Promise<{ name: string; current: boolean }[]> {
+    const result = await this.run(["branch", "--list", "--no-color"]);
+    if (result.code !== 0) {
+      return [];
+    }
+    const lines = result.stdout.split("\n");
+    const branches: { name: string; current: boolean }[] = [];
+    for (const rawLine of lines) {
+      const line = rawLine.trimEnd();
+      if (!line) continue;
+      const isCurrent = line.startsWith("* ");
+      const name = line.replace(/^[*+ ]\s*/, "").trim();
+      if (name && !name.includes("(HEAD detached")) {
+        branches.push({ name, current: isCurrent });
+      }
+    }
+    return branches;
+  }
+
+  /**
+   * Switches/checkouts an existing branch.
+   */
+  async checkoutBranch(branchName: string): Promise<GitResult> {
+    const trimmed = branchName.trim();
+    if (!trimmed) {
+      return { ok: false, error: "Branch name is empty" };
+    }
+    const result = await this.run(["checkout", trimmed]);
+    return result.code === 0 ? { ok: true } : { ok: false, error: result.stderr.trim() || "git checkout failed" };
+  }
+
+  /**
+   * Creates and switches to a new branch.
+   */
+  async createBranch(branchName: string): Promise<GitResult> {
+    const trimmed = branchName.trim();
+    if (!trimmed) {
+      return { ok: false, error: "Branch name is empty" };
+    }
+    const result = await this.run(["checkout", "-b", trimmed]);
+    return result.code === 0 ? { ok: true } : { ok: false, error: result.stderr.trim() || "git checkout -b failed" };
+  }
 }
+

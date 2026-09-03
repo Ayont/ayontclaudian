@@ -10,6 +10,26 @@
 import { getLocale } from '../../i18n/i18n';
 
 export interface DashboardStrings {
+  // Capabilities
+  capImagesAndVision: string;
+  capPlanMode: string;
+  capMcpTools: string;
+  capMultiAgent: string;
+  capRewind: string;
+  capFork: string;
+  capInstructions: string;
+  capLiveSteering: string;
+  // Relative times
+  relSeconds: (s: number) => string;
+  relMinutes: (m: number) => string;
+  relHours: (h: number) => string;
+  // Events
+  evMissionStarted: (agents: number | string) => string;
+  evMissionCompleted: (agents: number) => string;
+  evMissionFailed: string;
+  evMemoryUpdated: (topic?: string) => string;
+  evWorkflowTriggered: (name?: string) => string;
+  evProjectSwitched: (name?: string) => string;
   // Header
   headerSubtitle: string;
   badgeActive: string;
@@ -114,6 +134,24 @@ export interface DashboardStrings {
 }
 
 const EN: DashboardStrings = {
+  capImagesAndVision: "Images & Vision",
+  capPlanMode: "Plan Mode",
+  capMcpTools: "MCP Tools",
+  capMultiAgent: "Multi-Agent",
+  capRewind: "Rewind",
+  capFork: "Fork",
+  capInstructions: "Instructions",
+  capLiveSteering: "Live Steering",
+  relSeconds: (s) => `${s}s ago`,
+  relMinutes: (m) => `${m}m ago`,
+  relHours: (h) => `${h}h ago`,
+  evMissionStarted: (agents) => `Mission started (${agents} agents)`,
+  evMissionCompleted: (agents) => `Mission completed (${agents} agents)`,
+  evMissionFailed: "Mission failed",
+  evMemoryUpdated: (topic) => `Memory updated${topic ? `: ${topic}` : ""}`,
+  evWorkflowTriggered: (name) => `Workflow triggered${name ? `: ${name}` : ""}`,
+  evProjectSwitched: (name) => `Project switched${name ? `: ${name}` : ""}`,
+
   headerSubtitle: 'Agent workspace for your vault',
   badgeActive: 'Active',
   badgeMissions: (n) => `${n} mission${n > 1 ? 's' : ''} active`,
@@ -209,6 +247,24 @@ const EN: DashboardStrings = {
 };
 
 const DE: DashboardStrings = {
+  capImagesAndVision: "Bilder & Vision",
+  capPlanMode: "Plan-Modus",
+  capMcpTools: "MCP Tools",
+  capMultiAgent: "Multi-Agent",
+  capRewind: "Rewind",
+  capFork: "Fork",
+  capInstructions: "Instruktionen",
+  capLiveSteering: "Live Steering",
+  relSeconds: (s) => `vor ${s}s`,
+  relMinutes: (m) => `vor ${m}m`,
+  relHours: (h) => `vor ${h}h`,
+  evMissionStarted: (agents) => `Mission gestartet (${agents} Agents)`,
+  evMissionCompleted: (agents) => `Mission abgeschlossen (${agents} Agents)`,
+  evMissionFailed: "Mission fehlgeschlagen",
+  evMemoryUpdated: (topic) => `Memory aktualisiert${topic ? `: ${topic}` : ""}`,
+  evWorkflowTriggered: (name) => `Workflow ausgelöst${name ? `: ${name}` : ""}`,
+  evProjectSwitched: (name) => `Projekt gewechselt${name ? `: ${name}` : ""}`,
+
   headerSubtitle: 'Dein Agenten-Arbeitsbereich für den Vault',
   badgeActive: 'Aktiv',
   badgeMissions: (n) => `${n} Mission${n > 1 ? 'en' : ''} aktiv`,

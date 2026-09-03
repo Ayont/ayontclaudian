@@ -3,6 +3,7 @@ import { type App, Modal } from 'obsidian';
 import { type GroupedModelOption, groupModelOptions } from '../../../core/providers/modelOptionGroups';
 import type { ProviderUIOption } from '../../../core/providers/types';
 import { AUTO_MODEL_VALUE } from '../../../core/routing/modelRouterRules';
+import { getLocale } from '../../../i18n/i18n';
 import { createProviderIconSvg } from '../../../shared/icons';
 
 export class ModelSelectModal extends Modal {
@@ -21,7 +22,8 @@ export class ModelSelectModal extends Modal {
   }
 
   onOpen(): void {
-    this.titleEl.setText('Modell wählen');
+    const isDe = getLocale() === 'de';
+    this.titleEl.setText(isDe ? 'Modell wählen' : 'Select Model');
     this.modalEl.addClass('claudian-model-select-modal');
     this.contentEl.addClass('claudian-model-select-content');
 
@@ -29,16 +31,23 @@ export class ModelSelectModal extends Modal {
 
     const summary = frame.createDiv({ cls: 'claudian-model-select-summary' });
     const providerCount = new Set(this.models.map((model) => model.providerId).filter(Boolean)).size;
-    summary.createSpan({ text: `${this.models.length} Modelle · ${providerCount} Anbieter` });
-    summary.createSpan({ cls: 'claudian-model-select-summary-hint', text: 'Esc zum Schließen' });
+    summary.createSpan({
+      text: isDe
+        ? `${this.models.length} Modelle · ${providerCount} Anbieter`
+        : `${this.models.length} models · ${providerCount} providers`,
+    });
+    summary.createSpan({
+      cls: 'claudian-model-select-summary-hint',
+      text: isDe ? 'Esc zum Schließen' : 'Esc to close',
+    });
 
     const searchContainer = frame.createDiv({ cls: 'claudian-model-select-search' });
     this.searchInput = searchContainer.createEl('input', {
       type: 'text',
-      placeholder: 'Modelle durchsuchen…',
+      placeholder: isDe ? 'Modelle durchsuchen…' : 'Search models…',
       cls: 'claudian-model-select-search-input',
     });
-    this.searchInput.setAttribute('aria-label', 'Modelle durchsuchen');
+    this.searchInput.setAttribute('aria-label', isDe ? 'Modelle durchsuchen' : 'Search models');
     this.searchInput.addEventListener('input', (event) => {
       this.filter = (event.target as HTMLInputElement).value.toLowerCase();
       this.renderList();
@@ -67,7 +76,8 @@ export class ModelSelectModal extends Modal {
 
     if (filtered.length === 0) {
       const emptyEl = this.listEl.createDiv({ cls: 'claudian-model-select-empty' });
-      emptyEl.setText('Keine Modelle passen zur Suche.');
+      const isDe = getLocale() === 'de';
+      emptyEl.setText(isDe ? 'Keine Modelle passen zur Suche.' : 'No models match your search.');
       return;
     }
 
@@ -157,11 +167,9 @@ export class ModelSelectModal extends Modal {
       checkEl.setText('✓');
     }
 
-    if (!hasVariants) {
-      optionEl.addEventListener('click', () => {
-        void this.selectModel(selectedValue ?? family.primaryValue);
-      });
-    }
+    optionEl.addEventListener('click', () => {
+      void this.selectModel(selectedValue ?? family.primaryValue);
+    });
   }
 
   private async selectModel(value: string): Promise<void> {

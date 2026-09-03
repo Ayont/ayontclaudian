@@ -143,15 +143,16 @@ export class ClaudianDashboardView extends ItemView {
   }
 
   private getCapabilityItems(capabilities: ProviderCapabilities): Array<{ label: string; icon: string; supported: boolean }> {
+    const s = dashboardStrings();
     return [
-      { label: 'Bilder & Vision', icon: 'image', supported: capabilities.supportsImageAttachments },
-      { label: 'Plan Mode', icon: 'list-checks', supported: capabilities.supportsPlanMode },
-      { label: 'MCP Tools', icon: 'plug', supported: capabilities.supportsMcpTools },
-      { label: 'Multi-Agent', icon: 'users', supported: capabilities.supportsMultiAgent },
-      { label: 'Rewind', icon: 'history', supported: capabilities.supportsRewind },
-      { label: 'Fork', icon: 'git-fork', supported: capabilities.supportsFork },
-      { label: 'Instructions', icon: 'message-square-code', supported: capabilities.supportsInstructionMode },
-      { label: 'Live Steering', icon: 'route', supported: capabilities.supportsTurnSteer === true },
+      { label: s.capImagesAndVision, icon: 'image', supported: capabilities.supportsImageAttachments },
+      { label: s.capPlanMode, icon: 'list-checks', supported: capabilities.supportsPlanMode },
+      { label: s.capMcpTools, icon: 'plug', supported: capabilities.supportsMcpTools },
+      { label: s.capMultiAgent, icon: 'users', supported: capabilities.supportsMultiAgent },
+      { label: s.capRewind, icon: 'history', supported: capabilities.supportsRewind },
+      { label: s.capFork, icon: 'git-fork', supported: capabilities.supportsFork },
+      { label: s.capInstructions, icon: 'message-square-code', supported: capabilities.supportsInstructionMode },
+      { label: s.capLiveSteering, icon: 'route', supported: capabilities.supportsTurnSteer === true },
     ];
   }
 
@@ -256,22 +257,42 @@ export class ClaudianDashboardView extends ItemView {
     const grid = this.gridEl;
     grid.empty();
 
-    const projects = await this.plugin.projectService.listProjects();
+    const projects = await this.plugin.projectService.listProjects().catch(() => []);
     // Memories live in two stores: chat memory notes (v1, settings.memoryFolder)
     // and agentic facts (v2). The card shows the REAL combined total — not the
     // length of a limit-1 recall.
     const memoryFolder = this.plugin.settings.memoryFolder ?? '.claudian/memory';
     const [memories, factCount, chatNotes] = await Promise.all([
-      this.plugin.agenticMemoryService.recall({ limit: 1 }),
-      this.plugin.agenticMemoryService.count(),
+      this.plugin.agenticMemoryService.recall({ limit: 1 }).catch(() => []),
+      this.plugin.agenticMemoryService.count().catch(() => 0),
       loadMemoryNotes(this.app.vault, memoryFolder).catch(() => []),
     ]);
     const memoryTotal = factCount + chatNotes.length;
     const latestMemoryTopic = memories[0]?.topic ?? chatNotes[0]?.topic ?? null;
-    const usage = this.plugin.tokenBudgetTracker.getState();
-    const ragSize = this.plugin.vectorStore.size();
-    const workflows = this.plugin.workflowEngine.list();
-    const agents = this.plugin.multiAgentService.listAgents();
+    let usage = { dailyTotal: 0, sessionTotal: 0 };
+    try {
+      usage = this.plugin.tokenBudgetTracker.getState();
+    } catch {
+      // safe fallback
+    }
+    let ragSize = 0;
+    try {
+      ragSize = this.plugin.vectorStore.size();
+    } catch {
+      // safe fallback
+    }
+    let workflows: any[] = [];
+    try {
+      workflows = this.plugin.workflowEngine.list();
+    } catch {
+      // safe fallback
+    }
+    let agents: any[] = [];
+    try {
+      agents = this.plugin.multiAgentService.listAgents();
+    } catch {
+      // safe fallback
+    }
     const s = dashboardStrings();
 
     const cards: DashboardCard[] = [
@@ -453,11 +474,12 @@ export class ClaudianDashboardView extends ItemView {
   }
 
   private relativeTime(ts: number): string {
+    const s = dashboardStrings();
     const secs = Math.max(0, Math.round((Date.now() - ts) / 1000));
-    if (secs < 60) return `vor ${secs}s`;
+    if (secs < 60) return s.relSeconds(secs);
     const mins = Math.round(secs / 60);
-    if (mins < 60) return `vor ${mins}m`;
-    return `vor ${Math.round(mins / 60)}h`;
+    if (mins < 60) return s.relMinutes(mins);
+    return s.relHours(Math.round(mins / 60));
   }
 
   // ── Event wiring + auto-refresh ──────────────────────────────────────────────
@@ -467,10 +489,11 @@ export class ClaudianDashboardView extends ItemView {
       this.unsubscribers.push(globalEventBus.on<T>(type, handler));
     };
 
+    const s = dashboardStrings();
     on<{ prompt?: string; agents?: number }>('mission:started', (e) => {
       this.liveMissions += 1;
       this.updateLiveBadge();
-      this.pushActivity({ ts: e.timestamp, icon: 'rocket', kind: 'mission', text: `Mission gestartet (${e.payload.agents ?? '?'} Agents)` });
+      this.pushActivity({ ts: e.timestamp, icon: 'rocket', kind: 'mission', text: s.evMissionStarted(e.payload.agents ?? '?') });
     });
     on<{ ok?: boolean; agents?: number }>('mission:completed', (e) => {
       this.liveMissions = Math.max(0, this.liveMissions - 1);
@@ -479,7 +502,7 @@ export class ClaudianDashboardView extends ItemView {
         ts: e.timestamp,
         icon: e.payload.ok ? 'check-circle' : 'alert-circle',
         kind: 'mission',
-        text: e.payload.ok ? `Mission abgeschlossen (${e.payload.agents ?? 0} Agents)` : 'Mission fehlgeschlagen',
+        text: e.payload.ok ? s.evMissionCompleted(e.payload.agents ?? 0) : s.evMissionFailed,
       });
       void this.refreshCards();
     });
@@ -494,13 +517,13 @@ export class ClaudianDashboardView extends ItemView {
       });
     });
     on<{ topic?: string }>('memory:updated', (e) => {
-      this.pushActivity({ ts: e.timestamp, icon: 'brain-circuit', kind: 'memory', text: `Memory aktualisiert${e.payload.topic ? `: ${e.payload.topic}` : ''}` });
+      this.pushActivity({ ts: e.timestamp, icon: 'brain-circuit', kind: 'memory', text: s.evMemoryUpdated(e.payload.topic) });
     });
     on<{ name?: string }>('workflow:trigger', (e) => {
-      this.pushActivity({ ts: e.timestamp, icon: 'workflow', kind: 'workflow', text: `Workflow ausgelöst${e.payload.name ? `: ${e.payload.name}` : ''}` });
+      this.pushActivity({ ts: e.timestamp, icon: 'workflow', kind: 'workflow', text: s.evWorkflowTriggered(e.payload.name) });
     });
     on<{ name?: string }>('project:switched', (e) => {
-      this.pushActivity({ ts: e.timestamp, icon: 'folder-kanban', kind: 'project', text: `Projekt gewechselt${e.payload.name ? `: ${e.payload.name}` : ''}` });
+      this.pushActivity({ ts: e.timestamp, icon: 'folder-kanban', kind: 'project', text: s.evProjectSwitched(e.payload.name) });
     });
   }
 

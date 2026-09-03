@@ -1442,7 +1442,8 @@ export default class ClaudianPlugin extends Plugin {
       }
       // The image rides inside the prepared turn (request.images); the 2nd
       // query arg is conversation history, which is empty for a one-shot.
-      const prepared = runtime.prepareTurn({ text: prompt, images: [image] });
+      const effectivePrompt = prompt?.trim() || 'Beschreibe dieses Bild im Detail. Was ist darauf zu sehen?';
+      const prepared = runtime.prepareTurn({ text: effectivePrompt, images: [image] });
       let text = '';
       for await (const chunk of runtime.query(prepared, [], { model })) {
         if (chunk.type === 'text') {
@@ -1847,12 +1848,16 @@ export default class ClaudianPlugin extends Plugin {
   }
 
   async openDashboard(): Promise<void> {
-    const leaf = this.app.workspace.getRightLeaf(false);
+    // Reuse an already-open dashboard leaf instead of stacking duplicates indefinitely.
+    const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN_DASHBOARD)[0];
+    const leaf = existing ?? this.app.workspace.getRightLeaf(false);
     if (!leaf) {
       new Notice('Could not open dashboard.');
       return;
     }
-    await leaf.setViewState({ type: VIEW_TYPE_CLAUDIAN_DASHBOARD });
+    if (!existing) {
+      await leaf.setViewState({ type: VIEW_TYPE_CLAUDIAN_DASHBOARD });
+    }
     this.app.workspace.revealLeaf(leaf);
   }
 

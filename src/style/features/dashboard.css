@@ -23,12 +23,36 @@ body {
 }
 
 .claudian-dashboard {
-  padding: 28px;
+  box-sizing: border-box;
+  height: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  padding: 28px 28px 72px 28px;
   max-width: 1100px;
   margin: 0 auto;
   font-family: var(--font-interface);
   color: var(--claudian-text);
   animation: claudian-fade-in 220ms var(--cl-ease, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+.claudian-dashboard::-webkit-scrollbar {
+  width: 6px;
+}
+
+.claudian-dashboard::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.claudian-dashboard::-webkit-scrollbar-thumb {
+  background: var(--background-modifier-border-hover);
+  border-radius: 9999px;
+}
+
+.claudian-dashboard::-webkit-scrollbar-thumb:hover {
+  background: var(--claudian-accent);
 }
 
 @keyframes claudian-fade-in {
