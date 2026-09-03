@@ -15,15 +15,21 @@ import {
 import { extractToolResultContent } from '../../../core/tools/toolResultContent';
 import type {
   ChatMessage,
+  ContentBlock,
   ImageAttachment,
   MessageAttachment,
   OutputSurface,
   SubagentInfo,
   ToolCallInfo,
 } from '../../../core/types';
-import { t } from '../../../i18n/i18n';
+import { getLocale, t } from '../../../i18n/i18n';
+import {
+  buildActivityLabels,
+  foldDownActivity,
+  unfoldActivity,
+} from './activityFold';
 import type ClaudianPlugin from '../../../main';
-import { extractInjectedContextPrompt, extractUserDisplayContent } from '../../../utils/context';
+import { extractInjectedContextPrompt, extractUserDisplayContent, stripInternalImageTags, stripInternalPromptEnvelopes } from '../../../utils/context';
 import { formatDurationMmSs } from '../../../utils/date';
 import { processFileLinks, registerFileLinkHandler } from '../../../utils/fileLink';
 import { replaceImageEmbedsWithHtml } from '../../../utils/imageEmbed';
@@ -398,15 +404,30 @@ export class MessageRenderer {
     memoryContext?: string;
     graphContext?: string;
   } {
-    const injectedContext = extractInjectedContextPrompt(msg.content);
-    const displayContent = msg.displayContent
+    const injectedFromContent = extractInjectedContextPrompt(msg.content);
+    const injectedFromDisplay = msg.displayContent ? extractInjectedContextPrompt(msg.displayContent) : undefined;
+    const injectedContext = injectedFromContent || injectedFromDisplay;
+
+    const displayCandidate = msg.displayContent
       ? extractUserDisplayContent(msg.displayContent) ?? msg.displayContent
       : undefined;
+
+    const rawText = displayCandidate
+      ?? injectedContext?.userContent
+      ?? extractUserDisplayContent(msg.content)
+      ?? msg.content;
+
+    const text = stripInternalPromptEnvelopes(stripInternalImageTags(rawText));
+
+    const vaultContext = injectedFromContent?.vaultContext ?? injectedFromDisplay?.vaultContext;
+    const memoryContext = injectedFromContent?.memoryContext ?? injectedFromDisplay?.memoryContext;
+    const graphContext = injectedFromContent?.graphContext ?? injectedFromDisplay?.graphContext;
+
     return {
-      text: displayContent ?? injectedContext?.userContent ?? extractUserDisplayContent(msg.content) ?? msg.content,
-      ...(injectedContext?.vaultContext ? { vaultContext: injectedContext.vaultContext } : {}),
-      ...(injectedContext?.memoryContext ? { memoryContext: injectedContext.memoryContext } : {}),
-      ...(injectedContext?.graphContext ? { graphContext: injectedContext.graphContext } : {}),
+      text,
+      ...(vaultContext ? { vaultContext } : {}),
+      ...(memoryContext ? { memoryContext } : {}),
+      ...(graphContext ? { graphContext } : {}),
     };
   }
 
@@ -865,24 +886,43 @@ export class MessageRenderer {
 
     const identityEl = headerEl.createDiv({ cls: 'claudian-assistant-turn-identity' });
     identityEl.createSpan({ cls: 'claudian-assistant-turn-dot', attr: { 'aria-hidden': 'true' } });
-    const providerLabel = msg.agentLabel ?? this.getProviderShortLabel(this.resolveMessageProvider(msg));
-    identityEl.createSpan({
-      cls: 'claudian-assistant-turn-provider',
-      text: providerLabel,
-    });
+    const resolvedProvider = this.resolveMessageProvider(msg);
+    const shortProvider = this.getProviderShortLabel(resolvedProvider);
+    let providerLabel = shortProvider;
     let modelText = msg.agentModel;
-    if (modelText && providerLabel) {
+
+    if (msg.agentLabel) {
+      const parts = msg.agentLabel.split(' · ').map(s => s.trim());
+      if (parts.length > 0 && parts[0].toLowerCase() === shortProvider.toLowerCase()) {
+        providerLabel = shortProvider;
+        if (!modelText && parts.length > 1) {
+          modelText = parts.slice(1).join(' · ');
+        }
+      } else if (parts.length > 0) {
+        providerLabel = parts[0];
+        if (!modelText && parts.length > 1) {
+          modelText = parts.slice(1).join(' · ');
+        }
+      }
+    }
+
+    if (modelText) {
       if (modelText.startsWith(providerLabel + ' · ')) {
         modelText = modelText.slice(providerLabel.length + 3);
       } else if (modelText.startsWith(providerLabel + ' - ')) {
         modelText = modelText.slice(providerLabel.length + 3);
       } else if (modelText.startsWith(providerLabel + ': ')) {
         modelText = modelText.slice(providerLabel.length + 2);
-      } else if (modelText.trim() === providerLabel.trim()) {
+      } else if (modelText.trim().toLowerCase() === providerLabel.trim().toLowerCase()) {
         modelText = undefined;
       }
     }
-    if (modelText && !providerLabel?.includes(modelText)) {
+
+    identityEl.createSpan({
+      cls: 'claudian-assistant-turn-provider',
+      text: providerLabel,
+    });
+    if (modelText && modelText.trim().toLowerCase() !== providerLabel.trim().toLowerCase()) {
       identityEl.createSpan({ cls: 'claudian-assistant-turn-model', text: modelText });
     }
 
@@ -904,7 +944,13 @@ export class MessageRenderer {
     if (!msgEl) return;
     this.renderAssistantHeader(msg, msgEl, false);
     const contentEl = msgEl.querySelector<HTMLElement>('.claudian-message-content');
-    if (contentEl) this.renderAssistantFooter(msg, contentEl);
+    if (contentEl) {
+      const openFolds = contentEl.querySelectorAll<HTMLDetailsElement>('.claudian-activity-fold[open]');
+      for (let i = 0; i < openFolds.length; i++) {
+        foldDownActivity(openFolds[i]);
+      }
+      this.renderAssistantFooter(msg, contentEl);
+    }
   }
 
   private hasVisibleContent(msg: ChatMessage): boolean {
@@ -954,77 +1000,87 @@ export class MessageRenderer {
     if (msg.contentBlocks && msg.contentBlocks.length > 0) {
       const contentBlocks = coalesceRichOutputBlocks(msg.contentBlocks, msg.outputSurface);
       const renderedToolIds = new Set<string>();
-      for (let blockIndex = 0; blockIndex < contentBlocks.length; blockIndex += 1) {
-        const block = contentBlocks[blockIndex];
-        if (block.type === 'thinking') {
-          renderStoredThinkingBlock(
-            contentEl,
-            block.content,
-            block.durationSeconds,
-            (el, md) => this.renderContent(el, md)
-          );
-        } else if (block.type === 'text') {
-          // Skip empty or whitespace-only text blocks to avoid extra gaps
-          if (!block.content || !block.content.trim()) {
-            continue;
-          }
-          const textEl = contentEl.createDiv({ cls: 'claudian-text-block' });
-          const outputSurface = block.outputSurface && block.outputSurface !== 'chat'
-            ? block.outputSurface
-            : undefined;
-          if (outputSurface) {
-            void this.renderContent(textEl, block.content, { outputSurface });
-          } else {
-            void this.renderContent(textEl, block.content);
-          }
-          this.addTextCopyButton(textEl, block.content);
-        } else if (block.type === 'tool_use') {
-          const toolCall = msg.toolCalls?.find(tc => tc.id === block.toolId);
-          if (toolCall) {
-            const groupedRun: ToolCallInfo[] = [];
-            let nextIndex = blockIndex;
-            while (nextIndex < contentBlocks.length) {
-              const candidateBlock = contentBlocks[nextIndex];
-              if (candidateBlock.type !== 'tool_use') break;
-              const candidate = msg.toolCalls?.find(tc => tc.id === candidateBlock.toolId);
-              if (!candidate || !LOW_SIGNAL_STORED_TOOLS.has(candidate.name.toLowerCase())) break;
-              if (this.shouldRenderToolCall(candidate)) groupedRun.push(candidate);
-              renderedToolIds.add(candidate.id);
-              nextIndex += 1;
-            }
 
-            if (shouldGroupStoredToolCalls(groupedRun)) {
-              this.renderStoredToolGroup(contentEl, groupedRun, msg);
-              blockIndex = nextIndex - 1;
-            } else {
-              this.renderToolCall(contentEl, toolCall, msg);
-              renderedToolIds.add(toolCall.id);
-            }
-          }
-        } else if (block.type === 'context_compacted') {
+      let blockIndex = 0;
+      while (blockIndex < contentBlocks.length) {
+        const block = contentBlocks[blockIndex];
+
+        if (block.type === 'context_compacted') {
           const boundaryEl = contentEl.createDiv({ cls: 'claudian-compact-boundary' });
           boundaryEl.createSpan({ cls: 'claudian-compact-boundary-label', text: 'Unterhaltung verdichtet' });
-        } else if (block.type === 'subagent') {
-          const taskToolCall = msg.toolCalls?.find(
-            tc => tc.id === block.subagentId && isSubagentToolName(tc.name)
-          );
-          if (!taskToolCall) continue;
-
-          this.renderTaskSubagent(contentEl, taskToolCall, block.mode);
-          renderedToolIds.add(taskToolCall.id);
+          blockIndex += 1;
+          continue;
         }
+
+        if (block.type === 'text') {
+          if (block.content && block.content.trim()) {
+            const textEl = contentEl.createDiv({ cls: 'claudian-text-block' });
+            const outputSurface = block.outputSurface && block.outputSurface !== 'chat'
+              ? block.outputSurface
+              : undefined;
+            if (outputSurface) {
+              void this.renderContent(textEl, block.content, { outputSurface });
+            } else {
+              void this.renderContent(textEl, block.content);
+            }
+            this.addTextCopyButton(textEl, block.content);
+          }
+          blockIndex += 1;
+          continue;
+        }
+
+        // Activity run: consecutive non-text blocks (thinking, tool_use, subagent)
+        const activityRun: ContentBlock[] = [];
+        let nextIndex = blockIndex;
+        while (nextIndex < contentBlocks.length) {
+          const candidate = contentBlocks[nextIndex];
+          if (candidate.type === 'text' || candidate.type === 'context_compacted') {
+            break;
+          }
+          activityRun.push(candidate);
+          nextIndex += 1;
+        }
+
+        const hasTool = activityRun.some(b => b.type === 'tool_use' || b.type === 'subagent');
+        const hasMultiple = activityRun.length >= 2;
+
+        if (hasTool || hasMultiple) {
+          this.renderActivityFold(contentEl, activityRun, msg, renderedToolIds);
+        } else {
+          for (const act of activityRun) {
+            this.renderSingleActivityBlock(contentEl, act, msg, renderedToolIds);
+          }
+        }
+
+        blockIndex = nextIndex;
       }
 
       // Defensive fallback: preserve tool visibility when contentBlocks/toolCalls drift on reload.
       if (msg.toolCalls && msg.toolCalls.length > 0) {
-        for (const toolCall of msg.toolCalls) {
-          if (renderedToolIds.has(toolCall.id)) continue;
-          this.renderToolCall(contentEl, toolCall, msg);
-          renderedToolIds.add(toolCall.id);
+        const unrendered = msg.toolCalls.filter(tc => !renderedToolIds.has(tc.id) && this.shouldRenderToolCall(tc));
+        if (unrendered.length > 0) {
+          if (unrendered.length >= 2) {
+            this.renderStoredToolGroup(contentEl, unrendered, msg);
+          } else {
+            for (const toolCall of unrendered) {
+              this.renderToolCall(contentEl, toolCall, msg);
+              renderedToolIds.add(toolCall.id);
+            }
+          }
         }
       }
     } else {
-      // Fallback for old conversations without contentBlocks
+      // Fallback for old conversations without contentBlocks: tools above text, folded if multiple
+      if (msg.toolCalls && msg.toolCalls.length > 0) {
+        const visibleTools = msg.toolCalls.filter((toolCall) => this.shouldRenderToolCall(toolCall));
+        if (visibleTools.length >= 2 || shouldGroupStoredToolCalls(visibleTools)) {
+          this.renderStoredToolGroup(contentEl, visibleTools, msg);
+        } else {
+          for (const toolCall of visibleTools) {
+            this.renderToolCall(contentEl, toolCall, msg);
+          }
+        }
+      }
       if (msg.content) {
         const textEl = contentEl.createDiv({ cls: 'claudian-text-block' });
         const outputSurface = msg.outputSurface && msg.outputSurface !== 'chat'
@@ -1036,16 +1092,6 @@ export class MessageRenderer {
           void this.renderContent(textEl, msg.content);
         }
         this.addTextCopyButton(textEl, msg.content);
-      }
-      if (msg.toolCalls) {
-        const visibleTools = msg.toolCalls.filter((toolCall) => this.shouldRenderToolCall(toolCall));
-        if (shouldGroupStoredToolCalls(visibleTools)) {
-          this.renderStoredToolGroup(contentEl, visibleTools, msg);
-        } else {
-          for (const toolCall of visibleTools) {
-            this.renderToolCall(contentEl, toolCall, msg);
-          }
-        }
       }
     }
 
@@ -1205,48 +1251,175 @@ export class MessageRenderer {
     }
   }
 
+  private renderActivityFold(
+    contentEl: HTMLElement,
+    activityBlocks: ContentBlock[],
+    msg: ChatMessage,
+    renderedToolIds: Set<string>,
+    options?: { initiallyOpen?: boolean },
+  ): HTMLElement {
+    const groupEl = contentEl.createEl('details', { cls: 'claudian-tool-run-group claudian-activity-fold' });
+    groupEl.open = options?.initiallyOpen ?? false;
+
+    const thinkingBlocks = activityBlocks.filter((b): b is Extract<ContentBlock, { type: 'thinking' }> => b.type === 'thinking');
+    const toolBlocks = activityBlocks.filter((b): b is Extract<ContentBlock, { type: 'tool_use' }> => b.type === 'tool_use');
+    const subagentBlocks = activityBlocks.filter((b): b is Extract<ContentBlock, { type: 'subagent' }> => b.type === 'subagent');
+
+    const toolCalls: ToolCallInfo[] = [];
+    for (const b of toolBlocks) {
+      const tc = msg.toolCalls?.find(t => t.id === b.toolId);
+      if (tc && this.shouldRenderToolCall(tc)) toolCalls.push(tc);
+    }
+    for (const b of subagentBlocks) {
+      const tc = msg.toolCalls?.find(t => t.id === b.subagentId && isSubagentToolName(t.name));
+      if (tc && this.shouldRenderToolCall(tc)) toolCalls.push(tc);
+    }
+
+    const hasError = toolCalls.some((tc) => tc.status === 'error' || tc.status === 'blocked');
+    const isRunning = toolCalls.some((tc) => tc.status === 'running');
+    groupEl.toggleClass('has-error', hasError);
+    groupEl.toggleClass('is-running', isRunning);
+
+    const summaryEl = groupEl.createEl('summary', { cls: 'claudian-tool-run-summary claudian-activity-summary' });
+    const iconEl = summaryEl.createSpan({ cls: 'claudian-tool-run-icon claudian-activity-icon' });
+    setIcon(iconEl, isRunning ? 'loader-circle' : 'sparkles');
+
+    const totalCount = activityBlocks.length;
+    const toolsCount = toolCalls.length;
+    const thoughtsCount = thinkingBlocks.length;
+    const distinctNames = toolCalls.map((tc) => tc.name);
+
+    const labels = buildActivityLabels(totalCount, toolsCount, thoughtsCount, distinctNames);
+    const titleEl = summaryEl.createSpan({ cls: 'claudian-tool-run-title claudian-activity-title' });
+    titleEl.createSpan({ text: labels.title });
+    if (labels.breakdown) {
+      titleEl.createSpan({
+        cls: 'claudian-tool-run-breakdown claudian-activity-breakdown',
+        text: labels.breakdown,
+      });
+    }
+
+    const statusEl = summaryEl.createSpan({ cls: 'claudian-tool-run-status claudian-activity-status' });
+    const isDe = getLocale() === 'de';
+    if (hasError) {
+      statusEl.addClass('has-error');
+      setIcon(statusEl, 'alert-triangle');
+      statusEl.setAttribute('aria-label', isDe ? 'Mindestens ein Schritt fehlgeschlagen' : 'At least one step failed');
+    } else if (isRunning) {
+      statusEl.addClass('is-running');
+      setIcon(statusEl, 'loader-circle');
+      statusEl.setAttribute('aria-label', isDe ? 'Schritte laufen…' : 'Steps running…');
+    } else {
+      setIcon(statusEl, 'check');
+      statusEl.setAttribute('aria-label', isDe ? 'Alle Schritte abgeschlossen' : 'All steps completed');
+    }
+
+    const chevronEl = summaryEl.createSpan({ cls: 'claudian-tool-run-chevron claudian-activity-chevron' });
+    setIcon(chevronEl, 'chevron-down');
+
+    const bodyEl = groupEl.createDiv({ cls: 'claudian-tool-run-body claudian-activity-body' });
+
+    const isPureLowSignalExec = activityBlocks.length >= 4 &&
+      activityBlocks.every(b => b.type === 'tool_use' && (() => {
+        const tc = msg.toolCalls?.find(t => t.id === b.toolId);
+        return Boolean(tc && LOW_SIGNAL_STORED_TOOLS.has(tc.name.toLowerCase()));
+      })());
+
+    let hydrated = !isPureLowSignalExec || groupEl.open;
+
+    const hydrateBody = () => {
+      bodyEl.empty();
+      for (const block of activityBlocks) {
+        if (block.type === 'thinking') {
+          renderStoredThinkingBlock(
+            bodyEl,
+            block.content,
+            block.durationSeconds,
+            (el, md) => this.renderContent(el, md),
+          );
+        } else if (block.type === 'tool_use') {
+          const toolCall = msg.toolCalls?.find((tc) => tc.id === block.toolId);
+          if (toolCall) {
+            this.renderToolCall(bodyEl, toolCall, msg);
+            renderedToolIds.add(toolCall.id);
+          }
+        } else if (block.type === 'subagent') {
+          const taskToolCall = msg.toolCalls?.find(
+            (tc) => tc.id === block.subagentId && isSubagentToolName(tc.name),
+          );
+          if (taskToolCall) {
+            this.renderTaskSubagent(bodyEl, taskToolCall, block.mode);
+            renderedToolIds.add(taskToolCall.id);
+          }
+        }
+      }
+    };
+
+    if (hydrated) {
+      hydrateBody();
+    } else {
+      bodyEl.createDiv({ cls: 'claudian-tool-run-loading', text: isDe ? 'Details beim Öffnen laden …' : 'Loading details on open …' });
+      groupEl.addEventListener('toggle', () => {
+        if (!groupEl.open || hydrated) return;
+        hydrated = true;
+        hydrateBody();
+      });
+    }
+
+    summaryEl.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (!hydrated) {
+        hydrated = true;
+        hydrateBody();
+      }
+      if (groupEl.open) {
+        foldDownActivity(groupEl);
+      } else {
+        unfoldActivity(groupEl);
+      }
+    });
+
+    return groupEl;
+  }
+
   private renderStoredToolGroup(
     contentEl: HTMLElement,
     toolCalls: ToolCallInfo[],
     msg: ChatMessage,
   ): void {
-    const groupEl = contentEl.createEl('details', { cls: 'claudian-tool-run-group' });
-    const hasError = toolCalls.some((toolCall) => toolCall.status === 'error' || toolCall.status === 'blocked');
-    const isRunning = toolCalls.some((toolCall) => toolCall.status === 'running');
-    groupEl.toggleClass('has-error', hasError);
-    groupEl.toggleClass('is-running', isRunning);
+    const activityBlocks: ContentBlock[] = toolCalls.map((tc) => ({ type: 'tool_use', toolId: tc.id }));
+    const renderedToolIds = new Set<string>();
+    this.renderActivityFold(contentEl, activityBlocks, msg, renderedToolIds);
+  }
 
-    const summaryEl = groupEl.createEl('summary', { cls: 'claudian-tool-run-summary' });
-    const iconEl = summaryEl.createSpan({ cls: 'claudian-tool-run-icon' });
-    setIcon(iconEl, 'terminal-square');
-    const titleEl = summaryEl.createSpan({ cls: 'claudian-tool-run-title' });
-    titleEl.createSpan({ text: `${toolCalls.length} Ausführungen` });
-
-    const counts = new Map<string, number>();
-    toolCalls.forEach((toolCall) => counts.set(toolCall.name, (counts.get(toolCall.name) ?? 0) + 1));
-    titleEl.createSpan({
-      cls: 'claudian-tool-run-breakdown',
-      text: Array.from(counts, ([name, count]) => `${count}× ${name}`).join(' · '),
-    });
-
-    const statusEl = summaryEl.createSpan({ cls: 'claudian-tool-run-status' });
-    setIcon(statusEl, hasError ? 'alert-triangle' : isRunning ? 'loader-circle' : 'check');
-    statusEl.setAttribute(
-      'aria-label',
-      hasError ? 'Mindestens eine Ausführung fehlgeschlagen' : isRunning ? 'Ausführungen laufen' : 'Alle Ausführungen abgeschlossen',
-    );
-    const chevronEl = summaryEl.createSpan({ cls: 'claudian-tool-run-chevron' });
-    setIcon(chevronEl, 'chevron-down');
-
-    const bodyEl = groupEl.createDiv({ cls: 'claudian-tool-run-body' });
-    bodyEl.createDiv({ cls: 'claudian-tool-run-loading', text: 'Details beim Öffnen laden …' });
-    let hydrated = false;
-    groupEl.addEventListener('toggle', () => {
-      if (!groupEl.open || hydrated) return;
-      hydrated = true;
-      bodyEl.empty();
-      for (const toolCall of toolCalls) this.renderToolCall(bodyEl, toolCall, msg);
-    });
+  private renderSingleActivityBlock(
+    contentEl: HTMLElement,
+    block: ContentBlock,
+    msg: ChatMessage,
+    renderedToolIds: Set<string>,
+  ): void {
+    if (block.type === 'thinking') {
+      renderStoredThinkingBlock(
+        contentEl,
+        block.content,
+        block.durationSeconds,
+        (el, md) => this.renderContent(el, md),
+      );
+    } else if (block.type === 'tool_use') {
+      const toolCall = msg.toolCalls?.find((tc) => tc.id === block.toolId);
+      if (toolCall) {
+        this.renderToolCall(contentEl, toolCall, msg);
+        renderedToolIds.add(toolCall.id);
+      }
+    } else if (block.type === 'subagent') {
+      const taskToolCall = msg.toolCalls?.find(
+        (tc) => tc.id === block.subagentId && isSubagentToolName(tc.name),
+      );
+      if (taskToolCall) {
+        this.renderTaskSubagent(contentEl, taskToolCall, block.mode);
+        renderedToolIds.add(taskToolCall.id);
+      }
+    }
   }
 
   private shouldRenderToolCall(toolCall: ToolCallInfo): boolean {
@@ -1671,7 +1844,11 @@ export class MessageRenderer {
     markdown: string,
     options?: RenderContentOptions
   ): Promise<void> {
-    const richMarkdown = prepareRichOutputMarkdown(markdown, options?.outputSurface);
+    const formattedMarkdown = (markdown || '').replace(
+      /<truncated\s+(\d+)\s+(bytes|chars|lines)>/gi,
+      '\n\n> ✂️ *$1 $2 gekürzt (Truncated)*\n\n'
+    );
+    const richMarkdown = prepareRichOutputMarkdown(formattedMarkdown, options?.outputSurface);
     const renderSignature = [
       options?.deferMath === true ? 'defer-math' : 'final-math',
       options?.outputSurface ?? 'chat',

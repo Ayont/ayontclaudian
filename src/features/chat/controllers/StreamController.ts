@@ -1,4 +1,9 @@
-import { TFile } from 'obsidian';
+import { setIcon, TFile } from 'obsidian';
+import {
+  buildActivityLabels,
+  foldDownActivity,
+  unfoldActivity,
+} from '../rendering/activityFold';
 
 import { recordProviderError } from '../../../core/diagnostics/errorHistory';
 import { providerErrorRecoveryService } from '../../../core/diagnostics/errorRecovery';
@@ -902,6 +907,84 @@ export class StreamController {
     this.showThinkingIndicator();
   }
 
+  private foldPrecedingActivity(contentEl: HTMLElement): void {
+    const activityEls: HTMLElement[] = [];
+    for (let i = 0; i < contentEl.children.length; i++) {
+      const child = contentEl.children[i] as HTMLElement;
+      if (!child) continue;
+      if (
+        child.classList.contains('claudian-tool-run-group') ||
+        child.classList.contains('claudian-activity-fold') ||
+        child.classList.contains('claudian-text-block') ||
+        child.classList.contains('claudian-compact-boundary')
+      ) {
+        continue;
+      }
+      if (
+        child.classList.contains('claudian-tool-call') ||
+        child.classList.contains('claudian-write-edit-block') ||
+        child.classList.contains('claudian-subagent') ||
+        child.classList.contains('claudian-thinking-block')
+      ) {
+        activityEls.push(child);
+      }
+    }
+
+    if (activityEls.length === 0) return;
+
+    const hasTools = activityEls.some(el =>
+      el.classList.contains('claudian-tool-call') ||
+      el.classList.contains('claudian-write-edit-block') ||
+      el.classList.contains('claudian-subagent')
+    );
+    if (!hasTools && activityEls.length < 2) return;
+
+    const firstEl = activityEls[0];
+    const groupEl = contentEl.createEl('details', { cls: 'claudian-tool-run-group claudian-activity-fold' });
+    groupEl.open = true;
+    contentEl.insertBefore(groupEl, firstEl);
+
+    const summaryEl = groupEl.createEl('summary', { cls: 'claudian-tool-run-summary claudian-activity-summary' });
+    const iconEl = summaryEl.createSpan({ cls: 'claudian-tool-run-icon claudian-activity-icon' });
+    setIcon(iconEl, 'sparkles');
+
+    const totalCount = activityEls.length;
+    const toolsCount = activityEls.filter(el => !el.classList.contains('claudian-thinking-block')).length;
+    const thoughtsCount = activityEls.filter(el => el.classList.contains('claudian-thinking-block')).length;
+
+    const labels = buildActivityLabels(totalCount, toolsCount, thoughtsCount);
+    const titleEl = summaryEl.createSpan({ cls: 'claudian-tool-run-title claudian-activity-title' });
+    titleEl.createSpan({ text: labels.title });
+    if (labels.breakdown) {
+      titleEl.createSpan({
+        cls: 'claudian-tool-run-breakdown claudian-activity-breakdown',
+        text: labels.breakdown,
+      });
+    }
+
+    const statusEl = summaryEl.createSpan({ cls: 'claudian-tool-run-status claudian-activity-status' });
+    setIcon(statusEl, 'check');
+
+    const chevronEl = summaryEl.createSpan({ cls: 'claudian-tool-run-chevron claudian-activity-chevron' });
+    setIcon(chevronEl, 'chevron-down');
+
+    const bodyEl = groupEl.createDiv({ cls: 'claudian-tool-run-body claudian-activity-body' });
+    for (const el of activityEls) {
+      bodyEl.appendChild(el);
+    }
+
+    summaryEl.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (groupEl.open) {
+        foldDownActivity(groupEl);
+      } else {
+        unfoldActivity(groupEl);
+      }
+    });
+
+    foldDownActivity(groupEl);
+  }
+
   // ============================================
   // Text Block Management
   // ============================================
@@ -913,6 +996,7 @@ export class StreamController {
     this.hideThinkingIndicator();
 
     if (!state.currentTextEl) {
+      this.foldPrecedingActivity(state.currentContentEl);
       state.currentTextEl = state.currentContentEl.createDiv({ cls: 'claudian-text-block' });
       state.currentTextContent = '';
       this.currentTextOutputSurface = outputSurface;

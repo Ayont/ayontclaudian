@@ -1,4 +1,5 @@
 import { setIcon } from 'obsidian';
+import { renderFileActionPill, showFileContextMenu } from '../services/FileActionService';
 
 import { describeBrowserActivity, resolveBrowserActivity } from '../../../core/tools/browserActivity';
 import type { TodoItem } from '../../../core/tools/todo';
@@ -1025,9 +1026,37 @@ function createToolElementStructure(
   const summaryEl = header.createSpan({ cls: 'claudian-tool-summary' });
   summaryEl.setText(getToolSummary(toolCall.name, toolCall.input));
 
+  function extractToolFilePath(input: Record<string, unknown> = {}): string | null {
+    const keys = ['file_path', 'filePath', 'path', 'target_file', 'targetFile', 'file', 'image_path', 'imagePath'];
+    for (const k of keys) {
+      const val = input[k];
+      if (typeof val === 'string' && val.trim() && !val.includes('*') && !val.includes('?')) {
+        return val.trim();
+      }
+    }
+    return null;
+  }
+
+  const targetPath = extractToolFilePath(toolCall.input);
+  if (targetPath) {
+    toolEl.addEventListener('contextmenu', (e) => {
+      const app = (window as unknown as { app?: any }).app;
+      if (app) {
+        showFileContextMenu(app, e, targetPath);
+      }
+    });
+  }
+
   const currentTaskEl = toolCall.name === TOOL_TODO_WRITE
     ? createCurrentTaskPreview(header, toolCall.input)
     : null;
+
+  if (targetPath) {
+    const app = (window as unknown as { app?: any }).app;
+    if (app) {
+      renderFileActionPill(header, app, targetPath);
+    }
+  }
 
   const statusEl = header.createSpan({ cls: 'claudian-tool-status' });
 

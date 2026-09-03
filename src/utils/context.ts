@@ -27,14 +27,19 @@ const INJECTED_CONTEXT_PATTERN = /<(vault_context|memory_context|graph_context)>
 // Codex persists image attachments as provider-internal XML before the human
 // prompt. These tags are transport metadata, never user-authored chat text.
 const INTERNAL_IMAGE_TAG_PATTERN = /<image\b(?=[^>]*\bname=\[Image\s+#\d+\])(?=[^>]*\bpath=(?:"[^"]*"|'[^']*'))[^>]*>(?:\s*<\/image>)?\s*/gi;
-const INTERNAL_PROMPT_ENVELOPE_PATTERN = /<(standing_goal|claudian_output_contract|claudian_system_preamble|conversation_context|goal_loop_work_so_far|goal_loop)\b[^>]*>[\s\S]*?<\/\1>\s*/gi;
+const INTERNAL_PROMPT_ENVELOPE_PATTERN = /<(standing_goal|claudian_output_contract|claudian_system_preamble|conversation_context|goal_loop_work_so_far|goal_loop|recommended_plugins|available_plugins|plugins_info|installed_plugins|environment_details)\b[^>]*>(?:[\s\S]*?<\/\1>|[\s\S]*?$)\s*/gi;
+const TRUNCATED_MARKER_PATTERN = /<truncated\s+\d+\s+(?:bytes|chars|lines)>/gi;
 
 export function stripInternalImageTags(text: string): string {
   return text.replace(INTERNAL_IMAGE_TAG_PATTERN, '').trim();
 }
 
 export function stripInternalPromptEnvelopes(text: string): string {
-  return text.replace(INTERNAL_PROMPT_ENVELOPE_PATTERN, '').trim();
+  if (!text) return '';
+  return text
+    .replace(INTERNAL_PROMPT_ENVELOPE_PATTERN, '')
+    .replace(TRUNCATED_MARKER_PATTERN, '')
+    .trim();
 }
 
 export interface VaultContextPrompt {

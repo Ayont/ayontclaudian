@@ -10,6 +10,7 @@
 import { normalizePath, setIcon } from 'obsidian';
 
 import type { ToolCallInfo } from '../../../core/types';
+import { getFileManagerName, openInDefaultApp, revealInSystemFileManager, showFileContextMenu } from '../services/FileActionService';
 import { getLocale } from '../../../i18n/i18n';
 
 export type MediaKind = 'image' | 'video' | 'audio' | 'pdf';
@@ -201,6 +202,28 @@ export function decorateMediaToolElement(toolEl: HTMLElement, activity: MediaAct
 /**
  * Resolves a file path, URL, or data URI into an accessible browser URL.
  */
+export function tryReadImageAsDataUri(filePath: string): string | null {
+  try {
+    const electronWindow = window as unknown as {
+      require?: (moduleName: string) => any;
+    };
+    const nodeFs = electronWindow.require?.('fs');
+    if (nodeFs && nodeFs.existsSync(filePath)) {
+      const ext = filePath.split('.').pop()?.toLowerCase() ?? 'png';
+      const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
+        : ext === 'gif' ? 'image/gif'
+        : ext === 'webp' ? 'image/webp'
+        : ext === 'svg' ? 'image/svg+xml'
+        : 'image/png';
+      const buf = nodeFs.readFileSync(filePath);
+      return `data:${mime};base64,${buf.toString('base64')}`;
+    }
+  } catch {
+    // Best-effort
+  }
+  return null;
+}
+
 export function resolveMediaResourceUrl(target: string): string {
   if (!target) return '';
   const trimmed = target.trim();
@@ -212,26 +235,51 @@ export function resolveMediaResourceUrl(target: string): string {
   const cleanPath = trimmed.replace(/^@/, '').replace(/^file:\/\//, '');
 
   try {
-    const app = (window as unknown as { app?: { vault?: { adapter?: { getResourcePath?: (p: string) => string } } } }).app;
-    if (app?.vault?.adapter?.getResourcePath) {
-      const normalized = normalizePath(cleanPath);
-      const res = app.vault.adapter.getResourcePath(normalized);
-      if (res) return res;
-    }
-  } catch {
-    // Ignore and fallback
-  }
+    const app = (window as unknown as {
+      app?: {
+        metadataCache?: { getFirstLinkpathDest?: (p: string, r: string) => any };
+        vault?: {
+          getAbstractFileByPath?: (p: string) => any;
+          getFiles?: () => Array<{ path: string; name: string }>;
+          getResourcePath?: (file: any) => string;
+          adapter?: { getResourcePath?: (p: string) => string; getFullPath?: (p: string) => string };
+        };
+      };
+    }).app;
 
-  if (cleanPath.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(cleanPath)) {
-    try {
-      const app = (window as unknown as { app?: { vault?: { adapter?: { getResourcePath?: (p: string) => string } } } }).app;
-      if (app?.vault?.adapter?.getResourcePath) {
-        const res = app.vault.adapter.getResourcePath(cleanPath);
+    if (app) {
+      // 1. Check if first link destination exists
+      const file = app.metadataCache?.getFirstLinkpathDest?.(cleanPath, '')
+        ?? app.vault?.getAbstractFileByPath?.(cleanPath);
+      if (file && app.vault?.getResourcePath) {
+        return app.vault.getResourcePath(file);
+      }
+
+      // 2. Search vault files for matching file name
+      const fileName = cleanPath.split(/[\\/]/).pop()?.toLowerCase();
+      if (fileName && app.vault?.getFiles && app.vault?.getResourcePath) {
+        const matchingFile = app.vault.getFiles().find(f => f.name.toLowerCase() === fileName);
+        if (matchingFile) {
+          return app.vault.getResourcePath(matchingFile);
+        }
+      }
+
+      // 3. Adapter getResourcePath
+      if (app.vault?.adapter?.getResourcePath) {
+        const normalized = normalizePath(cleanPath);
+        const res = app.vault.adapter.getResourcePath(normalized);
         if (res) return res;
       }
-    } catch {
-      // Fall through
     }
+  } catch {
+    // Fall through
+  }
+
+  // 4. Try reading absolute or relative path from disk as base64 data URI
+  const dataUri = tryReadImageAsDataUri(cleanPath);
+  if (dataUri) return dataUri;
+
+  if (cleanPath.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(cleanPath)) {
     return `file://${encodeURI(cleanPath)}`;
   }
 
@@ -372,6 +420,37 @@ export function renderMediaContent(
     });
   });
 
+  const fileManager = getFileManagerName();
+  const revealBtn = actions.createEl('button', {
+    cls: 'claudian-media-btn claudian-media-btn--reveal',
+    attr: {
+      type: 'button',
+      'aria-label': isDe ? `Im ${fileManager} anzeigen` : `Reveal in ${fileManager}`,
+      title: isDe ? `Im ${fileManager} anzeigen` : `Reveal in ${fileManager}`,
+    },
+  });
+  setIcon(revealBtn, 'folder');
+  revealBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const app = (window as unknown as { app?: any }).app;
+    if (app) void revealInSystemFileManager(app, activity.target);
+  });
+
+  const openDefaultBtn = actions.createEl('button', {
+    cls: 'claudian-media-btn claudian-media-btn--open',
+    attr: {
+      type: 'button',
+      'aria-label': isDe ? 'Mit Standard-App öffnen' : 'Open in default app',
+      title: isDe ? 'Mit Standard-App öffnen' : 'Open in default app',
+    },
+  });
+  setIcon(openDefaultBtn, 'external-link');
+  openDefaultBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const app = (window as unknown as { app?: any }).app;
+    if (app) void openInDefaultApp(app, activity.target);
+  });
+
   const copyBtn = actions.createEl('button', {
     cls: 'claudian-media-btn claudian-media-btn--copy',
     attr: {
@@ -389,6 +468,16 @@ export function renderMediaContent(
       window.setTimeout(() => copyBtn.removeClass('is-copied'), 1500);
     } catch {
       // Best-effort copy
+    }
+  });
+
+  container.addEventListener('contextmenu', (e) => {
+    const app = (window as unknown as { app?: any }).app;
+    if (app) {
+      showFileContextMenu(app, e, activity.target, {
+        kind: activity.kind,
+        fileName: detail,
+      });
     }
   });
 
@@ -423,6 +512,24 @@ export function renderMediaContent(
     });
 
     img.addEventListener('error', () => {
+      const app = (window as unknown as { app?: any }).app;
+      if (app) {
+        const found = app.metadataCache?.getFirstLinkpathDest?.(activity.fileName, '')
+          ?? app.vault?.getFiles?.()?.find?.((f: any) => f.name.toLowerCase() === activity.fileName.toLowerCase());
+        if (found && app.vault?.getResourcePath) {
+          const alternateSrc = app.vault.getResourcePath(found);
+          if (alternateSrc && img.getAttribute('src') !== alternateSrc) {
+            img.setAttribute('src', alternateSrc);
+            return;
+          }
+        }
+      }
+      const dataUri = tryReadImageAsDataUri(activity.target);
+      if (dataUri && img.getAttribute('src') !== dataUri) {
+        img.setAttribute('src', dataUri);
+        return;
+      }
+
       img.remove();
       const fallback = viewport.createDiv({ cls: 'claudian-media-fallback' });
       const fallbackIcon = fallback.createSpan({ cls: 'claudian-media-fallback-icon' });

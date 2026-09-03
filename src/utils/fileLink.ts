@@ -6,6 +6,7 @@
  */
 
 import type { App, Component } from 'obsidian';
+import { showFileContextMenu } from '../features/chat/services/FileActionService';
 
 import { getVaultFileByPath } from './obsidianCompat';
 import { getVaultPath } from './path';
@@ -243,6 +244,20 @@ export function registerFileLinkHandler(
       const linkTarget = link.dataset.href || link.getAttribute('href');
       if (linkTarget) {
         void app.workspace.openLinkText(linkTarget, '', 'tab');
+      }
+    }
+  });
+
+  component.registerDomEvent(container, 'contextmenu', (event: MouseEvent) => {
+    const target = event.target as HTMLElement;
+    const link = target.closest('.claudian-file-link, .internal-link, .claudian-message-attachment, .claudian-file-action-pill') as HTMLElement | null;
+    if (link) {
+      const linkTarget = link.dataset.href
+        || link.getAttribute('href')
+        || link.getAttribute('title')
+        || (link.querySelector('.claudian-message-attachment-name') as HTMLElement)?.getAttribute('title');
+      if (linkTarget) {
+        showFileContextMenu(app, event, linkTarget);
       }
     }
   });

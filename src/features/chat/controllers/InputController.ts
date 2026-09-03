@@ -288,7 +288,10 @@ export class InputController {
         modelLabel = model;
       }
     }
-    const agentLabel = modelLabel
+    const hasDistinctModel = Boolean(
+      modelLabel && modelLabel.trim().toLowerCase() !== providerName.trim().toLowerCase()
+    );
+    const agentLabel = hasDistinctModel
       ? `${providerName} · ${modelLabel}`
       : providerName;
     return {
@@ -872,6 +875,7 @@ export class InputController {
       userMsg.currentNote = preparedTurn.isCompact
         ? undefined
         : preparedTurn.request.currentNotePath;
+      this.deps.renderer.updateLiveUserMessage?.(userMsg);
 
       // Auto-retry loop: if the watchdog force-cancels a hung stream, re-send the
       // SAME turn automatically (up to MAX_AUTO_RETRIES) instead of abandoning it.

@@ -455,3 +455,29 @@ describe('appendContextFiles', () => {
     expect(result).toBe('Query\n\n<context_files>\n\n</context_files>');
   });
 });
+
+describe("injected prompt envelopes and truncation", () => {
+  it("extracts prompt cleanly when graph_context and recommended_plugins are present", () => {
+    const prompt = [
+      "<graph_context>",
+      "Direkt verknüpfte Notizen zu 🏠 Home.md:",
+      "• Claudian/Conversations/test.md",
+      "</graph_context>",
+      "",
+      "Wir machen jetzt eine dokumentations liste der VLA...",
+      "",
+      "<recommended_plugins>",
+      "Here is a list of plugins that are available but not installed.",
+      "• Airtable (airtable@openai-curated-remote)",
+      "</recommended_plugins>",
+    ].join("\n");
+
+    expect(extractUserDisplayContent(prompt)).toBe("Wir machen jetzt eine dokumentations liste der VLA...");
+    expect(extractUserQuery(prompt)).toBe("Wir machen jetzt eine dokumentations liste der VLA...");
+  });
+
+  it("strips truncated marker tags from user display content", () => {
+    const prompt = "<truncated 774 bytes>\nklare KI-Merkmale ergab:\n• hunari-hq.png";
+    expect(extractUserDisplayContent(prompt)).toBe("klare KI-Merkmale ergab:\n• hunari-hq.png");
+  });
+});
