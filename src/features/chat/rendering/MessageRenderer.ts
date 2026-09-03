@@ -944,9 +944,11 @@ export class MessageRenderer {
 
     const statusEl = headerEl.createDiv({ cls: 'claudian-assistant-turn-status' });
     if (isStreaming) {
+      const isWorkMode = Boolean(this.messagesEl.closest('.claudian-mode-work'));
       const livePill = statusEl.createSpan({ cls: 'claudian-assistant-turn-live-pill' });
       livePill.createSpan({ cls: 'claudian-live-pulse-dot' });
-      livePill.createSpan({ cls: 'claudian-live-text', text: 'Arbeitet…' });
+      const liveText = isWorkMode ? 'Recherchiert & verfasst…' : 'Codet mit Agenten…';
+      livePill.createSpan({ cls: 'claudian-live-text', text: liveText });
     } else {
       setIcon(statusEl.createSpan({ cls: 'claudian-assistant-turn-done' }), 'check');
       statusEl.createSpan({ text: this.formatMessageTime(msg.timestamp) });
@@ -1165,6 +1167,19 @@ export class MessageRenderer {
       text: this.getProviderShortLabel(footerResolvedProvider),
     });
 
+    const isWorkMode = Boolean(this.messagesEl.closest('.claudian-mode-work'));
+    const modePill = footerEl.createSpan({
+      cls: `claudian-response-mode-pill ${isWorkMode ? 'claudian-response-mode-pill--work' : 'claudian-response-mode-pill--code'}`,
+      attr: {
+        title: isWorkMode
+          ? 'ChatGPT Work · DSGVO & EU AI Act Intelligence'
+          : 'Codex Dev Studio · Multi-Agent Swarm',
+      },
+    });
+    const modeIconEl = modePill.createSpan({ cls: 'claudian-response-mode-icon' });
+    setIcon(modeIconEl, isWorkMode ? 'scale' : 'code-2');
+    modePill.createSpan({ text: isWorkMode ? 'Work' : 'Code' });
+
     const telemetryEl = footerEl.createDiv({ cls: 'claudian-response-telemetry' });
     const wordsEl = telemetryEl.createSpan({ cls: 'claudian-response-metric' });
     setIcon(wordsEl.createSpan(), 'text');
@@ -1330,7 +1345,8 @@ export class MessageRenderer {
     const thoughtsCount = thinkingBlocks.length;
     const distinctNames = toolCalls.map((tc) => tc.name);
 
-    const labels = buildActivityLabels(totalCount, toolsCount, thoughtsCount, distinctNames);
+    const isWorkModeActivity = Boolean(this.messagesEl.closest('.claudian-mode-work'));
+    const labels = buildActivityLabels(totalCount, toolsCount, thoughtsCount, distinctNames, undefined, isWorkModeActivity);
     const titleEl = summaryEl.createSpan({ cls: 'claudian-tool-run-title claudian-activity-title' });
     titleEl.createSpan({ text: labels.title });
     if (labels.breakdown) {

@@ -356,6 +356,7 @@ export class AntigravityChatRuntime implements ChatRuntime {
     let emittedAnyToolFromStream = false;
     let sawStreamJson = false;
     let sawFailedStreamResult = false;
+    let lastStreamError: string | null = null;
     const contextWindow = getAntigravityContextWindow(selectedModel ?? '');
     const streamToolUseEmitted = new Set<number>();
     // Keeps transcript `thinking` out of the middle of a streaming text step.
@@ -366,6 +367,7 @@ export class AntigravityChatRuntime implements ChatRuntime {
         sawStreamJson = true;
         if (event.kind === 'result' && event.status.toUpperCase() !== 'SUCCESS') {
           sawFailedStreamResult = true;
+          lastStreamError = event.error || event.response || (event.status ? `Antigravity Status: ${event.status}` : null);
         }
         if (event.kind === 'init' && event.conversationId) {
           this.conversationId = event.conversationId;
@@ -599,9 +601,10 @@ export class AntigravityChatRuntime implements ChatRuntime {
       }
 
       if (exited && exited.code !== 0 && exited.code !== null) {
+        const errorDetail = lastStreamError || stderr;
         yield {
           type: 'error',
-          content: this.formatError(`agy exited with code ${exited.code}`, stderr),
+          content: this.formatError(`agy exited with code ${exited.code}`, errorDetail),
         };
         yield { type: 'done' };
         return;
@@ -856,6 +859,15 @@ export class AntigravityChatRuntime implements ChatRuntime {
     if (trimmed.includes('You are not logged into Antigravity')) {
       return `⚠️ **Authentication Required**\n\nYou are not logged into Antigravity. Please run the CLI once in your local terminal to complete the Google Sign-In authentication flow:\n\n\`\`\`bash\nagy -p "hello"\n\`\`\`\n\nOnce completed, restart your chat session in Obsidian.`;
     }
-    return trimmed ? `${message}\n\n${trimmed}` : message;
+    if (trimmed.includes('ResourceExhausted') || trimmed.toLowerCase().includes('quota') || trimmed.includes('429')) {
+      return `⚠️ **Gemini API-Limit erreicht (Quota / Rate Limit)**\n\nDas Kontingent für das ausgewählte Modell wurde temporär erreicht.\n\n- Bitte kurz warten (1–2 Minuten) oder\n- Auf ein anderes Modell im Modellwähler umschalten (z. B. Gemini 2.5 Flash).`;
+    }
+    if (trimmed.includes('context_length_exceeded') || trimmed.includes('maximum context length')) {
+      return `⚠️ **Kontextfenster überschritten**\n\nDie Unterhaltung hat das maximale Kontextfenster des Modells erreicht. Bitte starte einen neuen Chat über das \`+\`-Symbol.`;
+    }
+    if (!trimmed) {
+      return `${message}\n\n*Hinweis: Der Antigravity CLI-Prozess wurde unerwartet beendet. Dies kann bei unterbrochenen Tool-Ausführungen oder Netzwerk-Timeouts auftreten. Versuche es bitte erneut.*`;
+    }
+    return `${message}\n\n${trimmed}`;
   }
 }

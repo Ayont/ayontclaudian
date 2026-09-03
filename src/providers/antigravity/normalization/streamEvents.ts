@@ -44,6 +44,7 @@ export interface AgyStreamResult {
   conversationId: string;
   status: string;
   response?: string;
+  error?: string;
   durationSeconds?: number;
   numTurns?: number;
   usage?: AgyStreamUsage;
@@ -162,14 +163,36 @@ export function parseAgyStreamLine(line: string): AgyStreamEvent | null {
     if (!result) {
       return null;
     }
+    const error =
+      asString(result.error) ??
+      asString(result.error_message) ??
+      asString(result.message) ??
+      asString(record.error) ??
+      asString(record.message);
     return {
       kind: 'result',
       conversationId: asString(result.conversation_id) ?? conversationId,
-      status: asString(result.status) ?? 'UNKNOWN',
+      status: asString(result.status) ?? (error ? 'ERROR' : 'UNKNOWN'),
       response: asString(result.response),
+      error,
       durationSeconds: asNumber(result.duration_seconds),
       numTurns: asNumber(result.num_turns),
       usage: parseUsage(result.usage),
+    };
+  }
+
+  if (kind === 'error' || record.error) {
+    const error =
+      asString(record.error) ??
+      asString(record.message) ??
+      asString(record.error_message) ??
+      'Antigravity CLI error';
+    return {
+      kind: 'result',
+      conversationId,
+      status: 'ERROR',
+      error,
+      response: error,
     };
   }
 

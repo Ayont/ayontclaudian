@@ -70,27 +70,41 @@ export function buildActivityLabels(
   toolsCount: number,
   thoughtsCount: number,
   distinctToolNames: readonly string[] = [],
-  locale: string = getLocale()
+  locale: string = getLocale(),
+  isWorkMode: boolean = false
 ): { title: string; breakdown: string } {
   const isDe = locale === 'de';
 
   let title = '';
-  if (totalSteps === 1 && toolsCount === 1) {
-    title = isDe ? '1 Aktion ausgeführt' : '1 action completed';
-  } else if (totalSteps === 1 && thoughtsCount === 1) {
-    title = isDe ? '1 Gedankengang' : '1 thought';
+  if (isWorkMode) {
+    if (totalSteps === 1 && toolsCount === 1) {
+      title = isDe ? '1 Recherche-Aktion ausgeführt' : '1 research step completed';
+    } else if (totalSteps === 1 && thoughtsCount === 1) {
+      title = isDe ? '1 Analyse-Schritt' : '1 analysis step';
+    } else {
+      title = isDe ? `${totalSteps} Arbeitsschritte ausgeführt` : `${totalSteps} work steps completed`;
+    }
   } else {
-    title = isDe ? `${totalSteps} Schritte ausgeführt` : `${totalSteps} steps completed`;
+    if (totalSteps === 1 && toolsCount === 1) {
+      title = isDe ? '1 Coding-Aktion ausgeführt' : '1 coding action completed';
+    } else if (totalSteps === 1 && thoughtsCount === 1) {
+      title = isDe ? '1 Architektur-Überlegung' : '1 architecture thought';
+    } else {
+      title = isDe ? `${totalSteps} Schritte ausgeführt` : `${totalSteps} steps completed`;
+    }
   }
 
   const parts: string[] = [];
+  const toolsLabel = isDe ? (isWorkMode ? 'Recherche-Tools' : 'Werkzeuge') : 'tools';
+  const thoughtsLabel = isDe ? (isWorkMode ? 'Analysen' : 'Überlegungen') : 'thoughts';
+
   if (toolsCount > 0 && thoughtsCount > 0) {
-    parts.push(isDe ? `${toolsCount} Werkzeuge` : `${toolsCount} tools`);
-    parts.push(isDe ? `${thoughtsCount} Überlegungen` : `${thoughtsCount} thoughts`);
+    parts.push(isDe ? `${toolsCount} ${toolsLabel}` : `${toolsCount} tools`);
+    parts.push(isDe ? `${thoughtsCount} ${thoughtsLabel}` : `${thoughtsCount} thoughts`);
   } else if (toolsCount > 1) {
-    parts.push(isDe ? `${toolsCount} Werkzeuge` : `${toolsCount} tools`);
+    parts.push(isDe ? `${toolsCount} ${toolsLabel}` : `${toolsCount} tools`);
   } else if (thoughtsCount > 1) {
-    parts.push(isDe ? `${thoughtsCount} Überlegungen` : `${thoughtsCount} thoughts`);
+    parts.push(isDe ? `${thoughtsCount} ${thoughtsLabel}` : `${thoughtsCount} thoughts`);
   }
 
   if (distinctToolNames.length > 0) {

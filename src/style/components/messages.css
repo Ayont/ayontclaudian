@@ -77,6 +77,60 @@
   animation: cl-hairline-draw 480ms var(--cl-ease) 160ms both;
 }
 
+/* Mode-aware environment headers & badges */
+.claudian-welcome-env {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  text-align: center;
+}
+
+.claudian-container:not(.claudian-mode-work) .claudian-welcome-env--code {
+  display: flex;
+}
+
+.claudian-container.claudian-mode-work .claudian-welcome-env--work {
+  display: flex;
+}
+
+.claudian-welcome-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--cl-radius-pill);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.claudian-welcome-mode-badge--code {
+  background: rgba(var(--claudian-brand-rgb, 124, 108, 242), 0.15);
+  border: 1px solid rgba(var(--claudian-brand-rgb, 124, 108, 242), 0.35);
+  color: var(--text-normal);
+  box-shadow: 0 0 14px rgba(var(--claudian-brand-rgb, 124, 108, 242), 0.18);
+}
+
+.claudian-welcome-mode-badge--work {
+  background: rgba(47, 191, 180, 0.15);
+  border: 1px solid rgba(47, 191, 180, 0.35);
+  color: var(--text-normal);
+  box-shadow: 0 0 14px rgba(47, 191, 180, 0.18);
+}
+
+.claudian-welcome-mode-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.claudian-welcome-mode-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
 /* Mode-aware subline: both variants are in the DOM, the container's
    claudian-mode-* class decides which one shows (zero re-render on switch). */
 .claudian-welcome-sub {

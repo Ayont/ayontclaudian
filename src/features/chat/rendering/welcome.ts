@@ -22,13 +22,25 @@ export function applyWelcomePrompt(welcomeEl: HTMLElement, prompt: string): HTML
 
 export function renderWelcomeContent(welcomeEl: HTMLElement, greeting: string): void {
   welcomeEl.createDiv({ cls: 'claudian-welcome-greeting', text: greeting });
-  welcomeEl.createDiv({
+
+  const codeEnv = welcomeEl.createDiv({ cls: 'claudian-welcome-env claudian-welcome-env--code' });
+  const codeBadge = codeEnv.createDiv({ cls: 'claudian-welcome-mode-badge claudian-welcome-mode-badge--code' });
+  const codeIcon = codeBadge.createSpan({ cls: 'claudian-welcome-mode-icon' });
+  setIcon(codeIcon, 'cpu');
+  codeBadge.createSpan({ text: 'CODEX DEV STUDIO · MULTI-AGENT SWARM' });
+  codeEnv.createDiv({
     cls: 'claudian-welcome-sub claudian-welcome-sub--code',
-    text: 'Code-Modus · Dein Vault ist das Arbeitsverzeichnis',
+    text: 'Spezialisiert auf Software-Entwicklung, Multi-Agenten-Orchestrierung, Tests & Refactoring',
   });
-  welcomeEl.createDiv({
+
+  const workEnv = welcomeEl.createDiv({ cls: 'claudian-welcome-env claudian-welcome-env--work' });
+  const workBadge = workEnv.createDiv({ cls: 'claudian-welcome-mode-badge claudian-welcome-mode-badge--work' });
+  const workIcon = workBadge.createSpan({ cls: 'claudian-welcome-mode-icon' });
+  setIcon(workIcon, 'scale');
+  workBadge.createSpan({ text: 'CHATGPT WORK · LEGAL & ENTERPRISE' });
+  workEnv.createDiv({
     cls: 'claudian-welcome-sub claudian-welcome-sub--work',
-    text: 'Work-Modus · Dokumente, Notizen, Recherche',
+    text: 'Spezialisiert auf DSGVO, EU AI Act, Dokument-Versionen, Verträge & akademische Normen',
   });
 
   const starters = welcomeEl.createDiv({ cls: 'claudian-welcome-starters' });

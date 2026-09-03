@@ -951,8 +951,9 @@ export class StreamController {
     const totalCount = activityEls.length;
     const toolsCount = activityEls.filter(el => !el.classList.contains('claudian-thinking-block')).length;
     const thoughtsCount = activityEls.filter(el => el.classList.contains('claudian-thinking-block')).length;
+    const isWorkMode = Boolean(contentEl.closest('.claudian-mode-work'));
 
-    const labels = buildActivityLabels(totalCount, toolsCount, thoughtsCount);
+    const labels = buildActivityLabels(totalCount, toolsCount, thoughtsCount, [], undefined, isWorkMode);
     const titleEl = summaryEl.createSpan({ cls: 'claudian-tool-run-title claudian-activity-title' });
     titleEl.createSpan({ text: labels.title });
     if (labels.breakdown) {
