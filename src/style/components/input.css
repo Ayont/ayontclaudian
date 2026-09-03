@@ -373,20 +373,36 @@
 }
 
 .claudian-send-btn.is-ready {
-  background: var(--cl-accent);
-  border-color: transparent;
-  color: var(--text-on-accent, #fff);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--cl-accent) 28%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--cl-accent) 88%, #ffffff), var(--cl-accent));
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 4px 16px color-mix(in srgb, var(--cl-accent) 45%, transparent);
 }
 
 .claudian-send-btn.is-ready:hover {
-  transform: scale(1.04);
+  transform: translateY(-1px) scale(1.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 6px 22px color-mix(in srgb, var(--cl-accent) 60%, transparent);
 }
 
 .claudian-send-btn.is-streaming {
-  background: var(--cl-danger);
-  border-color: transparent;
+  background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+  border-color: rgba(255, 255, 255, 0.2);
   color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 4px 16px rgba(239, 68, 68, 0.45);
+  animation: cl-tab-pulse 1.8s var(--cl-ease) infinite;
+}
+
+.claudian-send-btn.is-streaming:hover {
+  transform: translateY(-1px) scale(1.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 6px 20px rgba(239, 68, 68, 0.6);
 }
 
 .claudian-send-btn.is-idle {
@@ -661,13 +677,18 @@
   margin-bottom: var(--cl-space-2);
   font-size: var(--cl-text-sm);
   color: var(--text-muted);
-  border: 1px solid var(--cl-accent-line);
-  border-radius: var(--cl-radius-md);
+  border: 1px solid rgba(var(--claudian-brand-rgb), 0.32);
+  border-radius: 14px;
   background:
-    linear-gradient(90deg, rgba(var(--claudian-brand-rgb), 0.12), transparent 46%),
-    var(--cl-surface-raised);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  animation: cl-rise var(--cl-dur) var(--cl-ease) both;
+    linear-gradient(135deg, rgba(var(--claudian-brand-rgb), 0.14) 0%, rgba(var(--claudian-brand-rgb), 0.04) 100%),
+    rgba(18, 20, 26, 0.85);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 8px 30px -4px rgba(0, 0, 0, 0.4),
+    0 0 16px -4px rgba(var(--claudian-brand-rgb), 0.3);
+  animation: cl-spring-up 0.28s var(--cl-spring-smooth) both;
 }
 
 .claudian-stream-status::before {
@@ -800,20 +821,22 @@
 
 /* Inline Stop button — a real, always-clickable control. */
 .claudian-stream-status-cancel {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   flex-shrink: 0;
-  padding: 0 12px;
+  padding: 4px 12px;
   margin: 6px 8px 6px 0;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--cl-radius-pill);
-  background: var(--background-primary);
-  color: var(--text-muted);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 999px;
+  background:
+    linear-gradient(135deg, rgba(239, 68, 68, 0.18) 0%, rgba(239, 68, 68, 0.06) 100%),
+    rgba(20, 10, 12, 0.6);
+  color: #ff8888;
   font-size: var(--cl-text-xs);
-  font-weight: 600;
+  font-weight: 650;
   cursor: pointer;
-  transition: color 120ms ease, background 120ms ease, border-color 120ms ease, transform 120ms ease;
+  transition: all 0.18s var(--cl-spring-bounce);
 }
 
 .claudian-stream-status-cancel-icon {

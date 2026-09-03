@@ -512,6 +512,21 @@ describe('ToolCallRenderer', () => {
     it('should return empty for unknown tools', () => {
       expect(getToolSummary('CustomTool', {})).toBe('');
     });
+
+    it('extracts smart summaries for CLI, Antigravity, and MCP tools', () => {
+      expect(getToolSummary('find_by_name', { Pattern: '*.png', SearchDirectory: '/Users/ayont/Downloads' }))
+        .toBe('*.png in .../ayont/Downloads');
+      expect(getToolSummary('find_by_name', { Pattern: 'main.ts' }))
+        .toBe('main.ts');
+      expect(getToolSummary('grep_search', { Query: 'interface User', SearchPath: '/Users/ayont/src' }))
+        .toBe('"interface User" in .../ayont/src');
+      expect(getToolSummary('run_command', { CommandLine: 'git status' }))
+        .toBe('git status');
+      expect(getToolSummary('custom_tool', { toolAction: 'Searching repo', toolSummary: 'Fast index' }))
+        .toBe('Searching repo (Fast index)');
+      expect(getToolSummary('custom_tool', { toolSummary: 'Deep analysis' }))
+        .toBe('Deep analysis');
+    });
   });
 
   describe('getToolSummary - Codex native tools', () => {

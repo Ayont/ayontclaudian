@@ -151,7 +151,55 @@ export function getToolSummary(name: string, input: Record<string, unknown>): st
       }
       const browserActivity = resolveBrowserActivity(name, input);
       if (browserActivity) return describeBrowserActivity(browserActivity).detail;
-      return '';
+
+      // Smart extraction for CLI, MCP, and Antigravity tools
+      const pattern = getInputText(input, "Pattern") || getInputText(input, "pattern");
+      const searchDir = getInputText(input, "SearchDirectory") || getInputText(input, "directory") || getInputText(input, "SearchPath");
+      if (pattern && searchDir) {
+        return truncateText(`${pattern} in ${shortenPath(searchDir)}`, 60);
+      }
+      if (pattern) {
+        return truncateText(pattern, 60);
+      }
+
+      const query = getInputText(input, "Query") || getInputText(input, "query");
+      if (query && searchDir) {
+        return truncateText(`"${query}" in ${shortenPath(searchDir)}`, 60);
+      }
+      if (query) {
+        return truncateText(`"${query}"`, 60);
+      }
+
+      const cmd = getInputText(input, "CommandLine") || (name !== TOOL_BASH ? getInputText(input, "command") : "");
+      if (cmd) {
+        return truncateText(cmd, 60);
+      }
+
+      const dirPath = getInputText(input, "DirectoryPath");
+      if (dirPath) {
+        return truncateText(shortenPath(dirPath), 60);
+      }
+
+      const filePath = getInputText(input, "absolute_path") || getInputText(input, "target_file");
+      if (filePath) {
+        return fileNameOnly(filePath) || truncateText(shortenPath(filePath), 60);
+      }
+
+      const toolAction = getInputText(input, "toolAction");
+      const toolSummary = getInputText(input, "toolSummary");
+      if (toolAction && toolSummary && toolAction !== toolSummary) {
+        return truncateText(`${toolAction} (${toolSummary})`, 60);
+      }
+      if (toolSummary) return truncateText(toolSummary, 60);
+      if (toolAction) return truncateText(toolAction, 60);
+
+      const url = getInputText(input, "url") || getInputText(input, "Url");
+      if (url) return truncateText(url, 60);
+
+      const prompt = getInputText(input, "Prompt") || getInputText(input, "prompt");
+      if (prompt) return truncateText(prompt, 60);
+
+      return "";
     }
   }
 }
@@ -218,12 +266,14 @@ export function getToolLabel(name: string, input: Record<string, unknown>): stri
       const summary = getWriteStdinSummary(input);
       return summary ? `write_stdin: ${summary}` : 'write_stdin';
     }
-    default:
+    default: {
       if (isAgentLifecycleTool(name)) {
         const summary = getAgentLifecycleSummary(name, input);
         return summary ? `${name}: ${summary}` : name;
       }
-      return name;
+      const summary = getToolSummary(name, input);
+      return summary ? `${name}: ${summary}` : name;
+    }
   }
 }
 
@@ -798,8 +848,38 @@ export function renderExpandedContent(
       renderApplyPatchExpanded(container, input, result);
       break;
     default:
-      renderLinesExpanded(container, resolvedResult, 20);
+      renderGenericToolContent(container, input, resolvedResult);
       break;
+  }
+}
+
+function renderGenericToolContent(
+  container: HTMLElement,
+  input: Record<string, unknown>,
+  result: string,
+): void {
+  const keys = Object.keys(input).filter(k => !k.startsWith("_") && k !== "toolSummary" && k !== "toolAction" && k !== "ctx");
+  if (keys.length > 0) {
+    const paramsEl = container.createDiv({ cls: "claudian-tool-params-panel" });
+    for (const key of keys.slice(0, 6)) {
+      const val = stringifyToolValue(input[key]);
+      if (!val) continue;
+      const paramRow = paramsEl.createDiv({ cls: "claudian-tool-param-row" });
+      paramRow.createSpan({ cls: "claudian-tool-param-name", text: `${key}:` });
+      paramRow.createSpan({ cls: "claudian-tool-param-val", text: truncateText(val, 120) });
+    }
+  }
+
+  if (result && result.trim()) {
+    const outputEl = container.createDiv({ cls: "claudian-tool-output-panel" });
+    const isFileListing = /^(?:[^\n]+\/)?[\w.-]+\.\w+(?::\d+)?$/m.test(result.trim());
+    if (isFileListing) {
+      renderFileSearchExpanded(outputEl, result);
+    } else {
+      renderLinesExpanded(outputEl, result, 25);
+    }
+  } else {
+    container.createDiv({ cls: "claudian-tool-empty", text: "Kein Ergebnis" });
   }
 }
 

@@ -165,6 +165,16 @@ function buildRunContextLabel(tab: TabData, plugin: ClaudianPlugin): string | nu
     const providerName = ProviderRegistry.getProviderDisplayName(getTabProviderId(tab, plugin));
     const modelLabel = tab.ui.modelSelector?.getCurrentModelLabel() ?? null;
     if (providerName && modelLabel) {
+      if (
+        modelLabel.startsWith(providerName + ' · ') ||
+        modelLabel.startsWith(providerName + ' - ') ||
+        modelLabel.startsWith(providerName + ': ')
+      ) {
+        return modelLabel;
+      }
+      if (modelLabel.trim() === providerName.trim()) {
+        return providerName;
+      }
       return `${providerName} · ${modelLabel}`;
     }
     return providerName || modelLabel || null;

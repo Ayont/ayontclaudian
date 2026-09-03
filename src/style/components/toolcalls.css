@@ -1,9 +1,45 @@
 .claudian-tool-call {
-  margin: var(--cl-space-2) 0;
-  /* Each tool activity rises in as it streams — the coding heartbeat.
-     (cl-rise on .claudian-message only covers the FIRST paint; cards
-     appended later during the same turn were popping in unanimated.) */
-  animation: cl-rise var(--cl-dur) var(--cl-ease) both;
+  position: relative;
+  margin-block: var(--cl-space-2);
+  border: 1px solid rgba(var(--claudian-brand-rgb), 0.22);
+  border-radius: var(--cl-radius-lg);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(var(--claudian-brand-rgb), 0.14), transparent 45%),
+    var(--cl-glass-sheen),
+    var(--cl-glass-body-strong);
+  -webkit-backdrop-filter: var(--cl-glass-filter-soft);
+  backdrop-filter: var(--cl-glass-filter-soft);
+  box-shadow: var(--cl-glass-edge), var(--cl-shadow-sm);
+  overflow: hidden;
+  transition: 
+    border-color var(--cl-dur) var(--cl-ease),
+    box-shadow var(--cl-dur) var(--cl-ease),
+    transform var(--cl-dur-fast) var(--cl-ease);
+  animation: cl-spring-up 0.28s var(--cl-spring-smooth) both;
+}
+
+.claudian-tool-call:hover {
+  border-color: rgba(var(--claudian-brand-rgb), 0.48);
+  box-shadow:
+    0 6px 24px rgba(var(--claudian-brand-rgb), 0.16),
+    0 0 18px -2px rgba(var(--claudian-brand-rgb), 0.35),
+    var(--cl-shadow-md);
+  transform: translateY(-1px);
+}
+
+.claudian-tool-call.expanded {
+  border-color: rgba(var(--claudian-brand-rgb), 0.4);
+  box-shadow:
+    0 6px 26px rgba(var(--claudian-brand-rgb), 0.18),
+    0 0 20px -2px rgba(var(--claudian-brand-rgb), 0.35),
+    var(--cl-shadow-md);
+}
+
+.claudian-tool-call.is-running {
+  border-color: rgba(var(--claudian-brand-rgb), 0.7);
+  box-shadow:
+    0 0 24px 2px rgba(var(--claudian-brand-rgb), 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 /* Persisted providers can reconstruct dozens of low-level exec events for one
@@ -135,11 +171,24 @@
   display: flex;
   align-items: center;
   gap: var(--cl-space-2);
-  padding: var(--cl-space-1) 0;
+  padding: 8px 12px;
   cursor: pointer;
   user-select: none;
   overflow: hidden;
-  transition: color var(--cl-dur-fast) var(--cl-ease);
+  border-bottom: 1px solid transparent;
+  transition:
+    background var(--cl-dur-fast) var(--cl-ease),
+    border-color var(--cl-dur-fast) var(--cl-ease),
+    color var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-tool-header:hover {
+  background: rgba(var(--claudian-brand-rgb), 0.08);
+}
+
+.claudian-tool-call.expanded > .claudian-tool-header {
+  border-bottom-color: rgba(var(--claudian-brand-rgb), 0.18);
+  background: rgba(var(--claudian-brand-rgb), 0.04);
 }
 
 /* Refined hover: lift the tool name toward accent rather than fading the row. */
@@ -356,17 +405,46 @@
   color: var(--color-orange);
 }
 
-/* Tool call content — calm inset on an accent rail, matching the thinking
-   block but quieter so nested results read as a contained aside. */
+/* Contained tool call content panel */
 .claudian-tool-content {
-  padding: var(--cl-space-1) 0 var(--cl-space-1) var(--cl-space-4);
-  margin-inline-start: var(--cl-space-2);
-  border-inline-start: 2px solid rgba(var(--claudian-brand-rgb), 0.25);
-  transition: border-color var(--cl-dur) var(--cl-ease);
+  margin-inline-start: 0;
+  padding: 0;
+  border-inline-start: none;
+  background: var(--cl-ink-soft);
 }
 
-.claudian-tool-call:hover .claudian-tool-content {
-  border-inline-start-color: var(--cl-accent);
+.claudian-tool-params-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 14px;
+  background: var(--cl-ink-deep);
+  border-bottom: 1px solid rgba(var(--claudian-brand-rgb), 0.14);
+}
+
+.claudian-tool-param-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--cl-font-mono);
+  font-size: 11.5px;
+}
+
+.claudian-tool-param-name {
+  color: var(--cl-accent);
+  font-weight: 650;
+  flex-shrink: 0;
+}
+
+.claudian-tool-param-val {
+  color: var(--text-normal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.claudian-tool-output-panel {
+  padding: 8px 12px 10px;
 }
 
 /* Tool content variants that render inline widgets instead of bordered results */

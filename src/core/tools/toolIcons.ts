@@ -68,6 +68,20 @@ const TOOL_ICONS: Record<string, string> = {
   [TOOL_WAIT_AGENT]: 'clock',
   [TOOL_RESUME_AGENT]: 'bot',
   [TOOL_CLOSE_AGENT]: 'bot',
+  // Common CLI / MCP / Antigravity tools
+  find_by_name: 'folder-search',
+  grep_search: 'search',
+  run_command: 'terminal',
+  list_dir: 'list',
+  view_file: 'file-text',
+  client_view_file: 'file-text',
+  client_edit_file: 'file-pen',
+  client_create_file: 'file-plus',
+  read_url_content: 'globe',
+  search_web: 'globe',
+  invoke_subagent: 'bot',
+  manage_subagents: 'bot',
+  generate_image: 'image',
 };
 
 /** Special marker for MCP tools - signals to use custom SVG. */

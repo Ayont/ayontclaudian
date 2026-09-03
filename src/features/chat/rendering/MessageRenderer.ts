@@ -865,12 +865,25 @@ export class MessageRenderer {
 
     const identityEl = headerEl.createDiv({ cls: 'claudian-assistant-turn-identity' });
     identityEl.createSpan({ cls: 'claudian-assistant-turn-dot', attr: { 'aria-hidden': 'true' } });
+    const providerLabel = msg.agentLabel ?? this.getProviderShortLabel(this.resolveMessageProvider(msg));
     identityEl.createSpan({
       cls: 'claudian-assistant-turn-provider',
-      text: msg.agentLabel ?? this.getProviderShortLabel(this.resolveMessageProvider(msg)),
+      text: providerLabel,
     });
-    if (msg.agentModel && !msg.agentLabel?.includes(msg.agentModel)) {
-      identityEl.createSpan({ cls: 'claudian-assistant-turn-model', text: msg.agentModel });
+    let modelText = msg.agentModel;
+    if (modelText && providerLabel) {
+      if (modelText.startsWith(providerLabel + ' · ')) {
+        modelText = modelText.slice(providerLabel.length + 3);
+      } else if (modelText.startsWith(providerLabel + ' - ')) {
+        modelText = modelText.slice(providerLabel.length + 3);
+      } else if (modelText.startsWith(providerLabel + ': ')) {
+        modelText = modelText.slice(providerLabel.length + 2);
+      } else if (modelText.trim() === providerLabel.trim()) {
+        modelText = undefined;
+      }
+    }
+    if (modelText && !providerLabel?.includes(modelText)) {
+      identityEl.createSpan({ cls: 'claudian-assistant-turn-model', text: modelText });
     }
 
     const statusEl = headerEl.createDiv({ cls: 'claudian-assistant-turn-status' });

@@ -9,33 +9,37 @@
   }
 }
 
-/* Streaming "Thinking…" pulse line (shown while reasoning streams in). */
+/* Apple Dynamic Island / Siri reasoning pill */
 .claudian-thinking {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  color: var(--cl-accent);
-  font-style: italic;
-  padding: 6px 14px;
+  gap: 9px;
+  color: var(--text-normal);
+  font-style: normal;
+  padding: 7px 16px 7px 14px;
   margin: var(--cl-space-2) 0;
-  border: 1px solid var(--cl-accent-line);
-  border-radius: var(--cl-radius-pill);
+  border: 1px solid rgba(var(--claudian-brand-rgb), 0.35);
+  border-radius: 999px;
   background:
-    linear-gradient(90deg, var(--cl-accent-soft), var(--cl-accent-softer) 75%),
-    var(--cl-surface-raised);
+    linear-gradient(135deg, rgba(var(--claudian-brand-rgb), 0.18) 0%, rgba(var(--claudian-brand-rgb), 0.05) 100%),
+    rgba(16, 18, 24, 0.88);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
   text-align: start;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  animation: thinking-glow-pulse 2s ease-in-out infinite;
+  font-weight: 550;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+  animation: cl-island-pulse 2.6s cubic-bezier(0.4, 0, 0.6, 1) infinite, cl-spring-up 0.3s var(--cl-spring-smooth) both;
 }
 
 .claudian-thinking::before {
   content: "";
   width: 8px;
   height: 8px;
-  border-radius: 999px;
+  border-radius: 50%;
   background: var(--cl-accent);
-  box-shadow: 0 0 0 4px var(--cl-accent-softer);
+  box-shadow: 0 0 8px rgba(var(--claudian-brand-rgb), 0.7);
+  animation: cl-apple-radar 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   flex: 0 0 auto;
 }
 
