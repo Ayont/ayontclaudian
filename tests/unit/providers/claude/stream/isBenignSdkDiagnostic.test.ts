@@ -1,6 +1,14 @@
 import { isBenignSdkDiagnostic } from '@/providers/claude/stream/transformClaudeMessage';
 
 describe('isBenignSdkDiagnostic', () => {
+  it('treats background task completed with stop_reason=null as benign (exact user report)', () => {
+    expect(
+      isBenignSdkDiagnostic(
+        '[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=null(background task completed)',
+      ),
+    ).toBe(true);
+  });
+
   it('treats the reported bug case as benign (interrupt during a background task)', () => {
     expect(
       isBenignSdkDiagnostic(

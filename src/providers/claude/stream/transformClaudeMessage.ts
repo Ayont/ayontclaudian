@@ -203,7 +203,7 @@ const FATAL_TERMINAL_REASONS = new Set<string>([
  */
 function shouldSurfaceResultError(message: SDKResultError): boolean {
   // Real error content is always worth surfacing.
-  const hasRealErrors = Array.isArray(message.errors) && message.errors.some((e) => e.trim().length > 0);
+  const hasRealErrors = Array.isArray(message.errors) && message.errors.some((e) => e.trim().length > 0 && !isBenignSdkDiagnostic(e));
   if (hasRealErrors) return true;
   // Inherently-fatal subtypes (hard limits) surface even without error text.
   if (FATAL_RESULT_SUBTYPES.has(message.subtype)) return true;
@@ -240,8 +240,8 @@ export function isBenignSdkDiagnostic(message: string): boolean {
   if (!message || !message.includes('[ede_diagnostic]')) {
     return false;
   }
-  // An aborted/interrupted turn is always a benign cancellation boundary.
-  if (/turn aborted/i.test(message)) {
+  // An aborted/interrupted turn or background task completion is always a benign boundary.
+  if (/turn aborted/i.test(message) || /background task completed/i.test(message)) {
     return true;
   }
   const stopReasonMatch = message.match(/stop_reason=([^\s(]+)/i);
@@ -257,7 +257,7 @@ export function isBenignSdkDiagnostic(message: string): boolean {
 
 /** Human-readable message for a genuine error result that carries no `errors[]`. */
 function describeResultError(message: SDKResultError): string {
-  const realErrors = (message.errors ?? []).filter((e) => e.trim().length > 0);
+  const realErrors = (message.errors ?? []).filter((e) => e.trim().length > 0 && !isBenignSdkDiagnostic(e));
   if (realErrors.length > 0) return realErrors.join('\n');
   switch (message.terminal_reason) {
     case 'prompt_too_long': return 'Die Anfrage ist zu lang für das Kontextfenster des Modells.';

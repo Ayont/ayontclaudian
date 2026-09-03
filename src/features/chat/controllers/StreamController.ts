@@ -35,6 +35,7 @@ import type {
 } from '../../../core/types';
 import type { SDKToolUseResult } from '../../../core/types/diff';
 import type ClaudianPlugin from '../../../main';
+import { isBenignSdkDiagnostic } from '../../../providers/claude/stream/transformClaudeMessage';
 import {
   cancelScheduledAnimationFrame,
   scheduleAnimationFrame,
@@ -400,6 +401,9 @@ export class StreamController {
         break;
 
       case 'error': {
+        if (isBenignSdkDiagnostic(chunk.content)) {
+          break;
+        }
         const providerId = this.getActiveProviderId();
         this.deps.updateLiveActivity?.({
           primary: 'Provider-Fehler',

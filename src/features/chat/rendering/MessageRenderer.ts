@@ -24,6 +24,7 @@ import type {
 } from '../../../core/types';
 import { getLocale, t } from '../../../i18n/i18n';
 import type ClaudianPlugin from '../../../main';
+import { isBenignSdkDiagnostic } from '../../../providers/claude/stream/transformClaudeMessage';
 import { createProviderIconSvg } from '../../../shared/icons';
 import { extractInjectedContextPrompt, extractUserDisplayContent, stripInternalImageTags, stripInternalPromptEnvelopes } from '../../../utils/context';
 import { formatDurationMmSs } from '../../../utils/date';
@@ -1930,6 +1931,11 @@ export class MessageRenderer {
     const statusCard = detectStatusCard(markdown);
     if (statusCard) {
       renderStatusCard(el, statusCard);
+      this.contentRenderSignatures.set(el, renderSignature);
+      return;
+    }
+    if (isBenignSdkDiagnostic(markdown)) {
+      el.empty();
       this.contentRenderSignatures.set(el, renderSignature);
       return;
     }

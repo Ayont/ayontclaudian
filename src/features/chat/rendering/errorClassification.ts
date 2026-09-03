@@ -1,4 +1,5 @@
 import { getLocale } from '../../../i18n/i18n';
+import { isBenignSdkDiagnostic } from '../../../providers/claude/stream/transformClaudeMessage';
 
 /**
  * Turns a raw provider error/notice string into a structured, human-friendly
@@ -304,7 +305,9 @@ function noticeCard(severity: 'warning' | 'info', raw: string): ClassifiedError 
 export function detectStatusCard(markdown: string): ClassifiedError | null {
   const trimmed = (markdown ?? '').trim();
   if (trimmed.startsWith(ERROR_MARKER)) {
-    return classifyProviderError(trimmed.slice(ERROR_MARKER.length));
+    const raw = trimmed.slice(ERROR_MARKER.length);
+    if (isBenignSdkDiagnostic(raw)) return null;
+    return classifyProviderError(raw);
   }
   if (trimmed.startsWith(BLOCKED_MARKER)) {
     return noticeCard('warning', trimmed.slice(BLOCKED_MARKER.length));
