@@ -1,6 +1,5 @@
 import {
   CODEX_GPT_6_ASTRA_MODEL,
-  CODEX_GPT_6_ASTRA_MINI_MODEL,
   CODEX_GPT_55_MODEL,
   CODEX_GPT_56_LUNA_MODEL,
   CODEX_GPT_56_SOL_MODEL,
@@ -15,10 +14,9 @@ describe('CodexChatUIConfig', () => {
   describe('getModelOptions', () => {
     it('should return default models when no env vars', () => {
       const options = codexChatUIConfig.getModelOptions({});
-      expect(options).toHaveLength(7);
+      expect(options).toHaveLength(6);
       expect(options.map(o => o.value)).toEqual([
         CODEX_GPT_6_ASTRA_MODEL,
-        CODEX_GPT_6_ASTRA_MINI_MODEL,
         DEFAULT_CODEX_PRIMARY_MODEL,
         CODEX_GPT_56_TERRA_MODEL,
         CODEX_GPT_56_LUNA_MODEL,
@@ -41,13 +39,6 @@ describe('CodexChatUIConfig', () => {
           value: CODEX_GPT_6_ASTRA_MODEL,
           label: 'GPT-6 Astra',
           description: 'OpenAI Frontier-Flagship (AGI-Ära, native Computer-Use & autonome Workflows) · Rollout läuft',
-          badge: 'Coming Soon',
-          comingSoon: true,
-        },
-        {
-          value: CODEX_GPT_6_ASTRA_MINI_MODEL,
-          label: 'GPT-6 Astra Mini',
-          description: 'Schnelles Astra-Modell für latenzkritische Aufgaben & Code · Rollout läuft',
           badge: 'Coming Soon',
           comingSoon: true,
         },
@@ -95,7 +86,7 @@ describe('CodexChatUIConfig', () => {
       });
       expect(options[0].value).toBe('my-custom-model');
       expect(options[0].description).toBe('Custom (env)');
-      expect(options.length).toBe(8);
+      expect(options.length).toBe(7);
     });
 
     it('deduplicates env and settings-defined custom models', () => {
@@ -111,7 +102,6 @@ describe('CodexChatUIConfig', () => {
       expect(options.map(option => option.value)).toEqual([
         'my-custom-model',
         CODEX_GPT_6_ASTRA_MODEL,
-        CODEX_GPT_6_ASTRA_MINI_MODEL,
         DEFAULT_CODEX_PRIMARY_MODEL,
         CODEX_GPT_56_TERRA_MODEL,
         CODEX_GPT_56_LUNA_MODEL,
@@ -125,7 +115,7 @@ describe('CodexChatUIConfig', () => {
       const options = codexChatUIConfig.getModelOptions({
         environmentVariables: `OPENAI_MODEL=${DEFAULT_CODEX_PRIMARY_MODEL}`,
       });
-      expect(options.length).toBe(7);
+      expect(options.length).toBe(6);
     });
   });
 
