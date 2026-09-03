@@ -1076,10 +1076,9 @@ export class InputController {
           }
         }
 
-        state.currentContentEl = null;
-
         await streamController.finalizeCurrentThinkingBlock(finalAssistantMsg);
         await streamController.finalizeCurrentTextBlock(finalAssistantMsg);
+        state.currentContentEl = null;
         renderer.finalizeLiveAssistantMessage?.(finalAssistantMsg);
         this.deps.getSubagentManager().resetStreamingState();
 

@@ -152,7 +152,7 @@ export class StreamStatusBar {
     // buttons can't nest, so Cancel lives next to the toggle, not inside it.
     const rowEl = this.el.createDiv({ cls: 'claudian-stream-status-row' });
 
-    this.toggleEl = rowEl.createEl('button', { cls: 'claudian-stream-status-toggle' });
+    this.toggleEl = rowEl.createEl('button', { cls: 'claudian-stream-status-toggle clickable-icon' });
     this.toggleEl.setAttribute('type', 'button');
     this.toggleEl.setAttribute('aria-expanded', 'false');
     this.toggleEl.setAttribute('aria-label', 'Live-Aktivität anzeigen');
@@ -176,7 +176,7 @@ export class StreamStatusBar {
 
     // Real, always-clickable Cancel button (replaces the old "klicke Cancel"
     // text that was rendered into the stream and could not be clicked).
-    this.cancelButton = rowEl.createEl('button', { cls: 'claudian-stream-status-cancel' });
+    this.cancelButton = rowEl.createEl('button', { cls: 'claudian-stream-status-cancel clickable-icon' });
     this.cancelButton.setAttribute('type', 'button');
     this.cancelButton.setAttribute('aria-label', 'Antwort abbrechen');
     this.cancelButton.setAttribute('title', 'Antwort abbrechen (Esc)');

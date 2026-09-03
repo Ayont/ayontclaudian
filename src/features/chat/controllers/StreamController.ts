@@ -420,6 +420,9 @@ export class StreamController {
       case 'done':
         // Flush any remaining pending tools
         this.flushPendingTools();
+        if (state.currentContentEl) {
+          this.foldPrecedingActivity(state.currentContentEl, msg);
+        }
         break;
 
       case 'context_compacted': {
@@ -907,7 +910,7 @@ export class StreamController {
     this.showThinkingIndicator();
   }
 
-  private foldPrecedingActivity(contentEl: HTMLElement): void {
+  foldPrecedingActivity(contentEl: HTMLElement, msg?: ChatMessage): void {
     const activityEls: HTMLElement[] = [];
     for (let i = 0; i < contentEl.children.length; i++) {
       const child = contentEl.children[i] as HTMLElement;
@@ -953,7 +956,8 @@ export class StreamController {
     const thoughtsCount = activityEls.filter(el => el.classList.contains('claudian-thinking-block')).length;
     const isWorkMode = Boolean(contentEl.closest('.claudian-mode-work'));
 
-    const labels = buildActivityLabels(totalCount, toolsCount, thoughtsCount, [], undefined, isWorkMode);
+    const distinctNames = msg?.toolCalls?.map(tc => tc.name) ?? [];
+    const labels = buildActivityLabels(totalCount, toolsCount, thoughtsCount, distinctNames, undefined, isWorkMode);
     const titleEl = summaryEl.createSpan({ cls: 'claudian-tool-run-title claudian-activity-title' });
     titleEl.createSpan({ text: labels.title });
     if (labels.breakdown) {
@@ -1015,6 +1019,9 @@ export class StreamController {
   ): Promise<void> {
     const { state, renderer } = this.deps;
     await this.flushPendingTextRender();
+    if (state.currentContentEl) {
+      this.foldPrecedingActivity(state.currentContentEl, msg);
+    }
 
     if (msg && state.currentTextContent) {
       const requestedOutputSurface = this.currentTextOutputSurface ?? msg.outputSurface;
