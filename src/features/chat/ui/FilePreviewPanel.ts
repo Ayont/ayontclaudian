@@ -383,138 +383,92 @@ export class FilePreviewPanel {
   }
 
   private renderCard(parent: HTMLElement, item: LibraryItem): void {
-    if (item.type === 'live') {
-      const card = parent.createEl('button', {
-        cls: `claudian-preview-card claudian-preview-card--live${item.vaultPath ? ' claudian-preview-card--vault' : ''}`,
-        attr: {
-          type: 'button',
-          'aria-label': `${item.liveDocument.title} öffnen`,
-          'data-library-id': item.id,
-        },
-      });
-      const peek = card.createDiv({ cls: 'claudian-preview-card-peek' });
-      peek.createSpan({
-        cls: 'claudian-preview-card-live-label',
-        text: item.vaultPath ? 'Vault' : 'Live',
-      });
-      peek.createEl('strong', { text: item.liveDocument.title });
-      const excerpt = documentExcerpt(item.liveDocument);
-      if (excerpt) peek.createEl('p', { cls: 'claudian-preview-card-excerpt', text: excerpt });
-      const footer = card.createDiv({ cls: 'claudian-preview-card-footer' });
-      footer.createSpan({ cls: 'claudian-preview-card-name', text: item.liveDocument.title });
+    const isLive = item.type === 'live';
+    const isVault = Boolean(item.vaultPath);
+    const name = isLive ? item.liveDocument.title : item.name;
+    const path = isLive
+      ? (item.vaultPath || `.claudian/documents/${item.liveDocument.title}.md`)
+      : item.relPath;
+    const meta = isLive
+      ? { kind: 'document', icon: 'file-text' }
+      : attachmentTypeMeta(item.name);
 
-      const actions = footer.createDiv({ cls: 'claudian-preview-card-actions' });
-      const fileMgrName = getFileManagerName();
-      const targetPath = item.vaultPath || `.claudian/documents/${item.liveDocument.title}.md`;
+    const liveClasses = isLive ? ` claudian-preview-card--live${isVault ? ' claudian-preview-card--vault' : ''}` : '';
 
-      const revealBtn = actions.createEl('button', {
-        cls: 'claudian-preview-card-btn clickable-icon',
-        attr: { type: 'button', 'aria-label': `In ${fileMgrName} anzeigen`, title: `In ${fileMgrName} anzeigen` },
-      });
-      setIcon(revealBtn, 'folder');
-      revealBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        void revealInSystemFileManager(this.plugin.app, targetPath);
-      });
-
-      const extBtn = actions.createEl('button', {
-        cls: 'claudian-preview-card-btn clickable-icon',
-        attr: { type: 'button', 'aria-label': 'In Standard-App öffnen', title: 'In Standard-App öffnen' },
-      });
-      setIcon(extBtn, 'external-link');
-      extBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        void openInDefaultApp(this.plugin.app, targetPath);
-      });
-
-      const moreBtn = actions.createEl('button', {
-        cls: 'claudian-preview-card-btn clickable-icon',
-        attr: { type: 'button', 'aria-label': 'Weitere Aktionen', title: 'Weitere Aktionen' },
-      });
-      setIcon(moreBtn, 'more-horizontal');
-      moreBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        showFileContextMenu(this.plugin.app, e, targetPath);
-      });
-
-      card.addEventListener('click', () => void this.openItem(item));
-      card.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        showFileContextMenu(this.plugin.app, e, targetPath);
-      });
-      return;
-    }
-
-    const meta = attachmentTypeMeta(item.name);
-    const peekMode = attachmentPeekMode(item.name);
-    const card = parent.createEl('button', {
-      cls: `claudian-preview-card claudian-preview-card--${meta.kind}`,
+    const row = parent.createEl('button', {
+      cls: `claudian-preview-card claudian-preview-row claudian-preview-row--${meta.kind}${liveClasses}`,
       attr: {
         type: 'button',
-        'aria-label': `${item.name} öffnen`,
+        'aria-label': `${name} öffnen`,
         'data-library-id': item.id,
       },
     });
-    const peek = card.createDiv({ cls: 'claudian-preview-card-peek' });
-    const resourcePath = item.previewSrc ?? this.resolveResourcePath(item.relPath);
 
-    if (peekMode === 'thumb' && resourcePath) {
-      peek.createEl('img', {
-        cls: 'claudian-preview-card-image',
-        attr: { src: resourcePath, alt: '' },
-      });
-    } else {
-      setIcon(peek.createSpan({ cls: 'claudian-preview-card-icon' }), meta.icon);
-      peek.createSpan({ cls: 'claudian-preview-card-kind', text: attachmentKindLabel(meta.kind) });
+    const iconContainer = row.createSpan({ cls: 'claudian-preview-row-icon' });
+    setIcon(iconContainer, meta.icon);
+
+    const textDetails = row.createDiv({ cls: 'claudian-preview-row-text' });
+    textDetails.createSpan({ cls: 'claudian-preview-card-name claudian-preview-row-name', text: name });
+
+    const folder = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
+    if (folder) {
+      textDetails.createSpan({ cls: 'claudian-preview-row-folder', text: folder });
     }
 
-    const footer = card.createDiv({ cls: 'claudian-preview-card-footer' });
-    footer.createSpan({ cls: 'claudian-preview-card-name', text: item.name });
-    
-    // Actions: Finder/Explorer, Default OS app, 3-dots context menu
-    const actions = footer.createDiv({ cls: 'claudian-preview-card-actions' });
+    const actions = row.createDiv({ cls: 'claudian-preview-card-actions claudian-preview-row-actions' });
     const fileMgrName = getFileManagerName();
 
     const revealBtn = actions.createEl('button', {
-      cls: 'claudian-preview-card-btn',
-      attr: { type: 'button', 'aria-label': `In ${fileMgrName} anzeigen`, title: `In ${fileMgrName} anzeigen` },
+      cls: 'claudian-preview-card-btn clickable-icon',
+      attr: {
+        type: 'button',
+        'aria-label': `In ${fileMgrName} anzeigen`,
+        title: `In ${fileMgrName} anzeigen`,
+      },
     });
     setIcon(revealBtn, 'folder');
     revealBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      void revealInSystemFileManager(this.plugin.app, item.relPath);
+      void revealInSystemFileManager(this.plugin.app, path);
     });
 
     const extBtn = actions.createEl('button', {
-      cls: 'claudian-preview-card-btn',
-      attr: { type: 'button', 'aria-label': 'In Standard-App öffnen', title: 'In Standard-App öffnen' },
+      cls: 'claudian-preview-card-btn clickable-icon',
+      attr: {
+        type: 'button',
+        'aria-label': 'In Standard-App öffnen',
+        title: 'In Standard-App öffnen',
+      },
     });
     setIcon(extBtn, 'external-link');
     extBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      void openInDefaultApp(this.plugin.app, item.relPath);
+      void openInDefaultApp(this.plugin.app, path);
     });
 
     const moreBtn = actions.createEl('button', {
-      cls: 'claudian-preview-card-btn',
-      attr: { type: 'button', 'aria-label': 'Weitere Aktionen (3 Punkte)', title: 'Weitere Aktionen' },
+      cls: 'claudian-preview-card-btn clickable-icon',
+      attr: {
+        type: 'button',
+        'aria-label': 'Weitere Aktionen',
+        title: 'Weitere Aktionen',
+      },
     });
     setIcon(moreBtn, 'more-horizontal');
     moreBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      showFileContextMenu(this.plugin.app, e, item.relPath);
+      showFileContextMenu(this.plugin.app, e, path);
     });
 
-    card.addEventListener('click', () => void this.openItem(item));
-    card.addEventListener('contextmenu', (e) => {
+    row.addEventListener('click', () => void this.openItem(item));
+    row.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      showFileContextMenu(this.plugin.app, e, item.relPath);
+      showFileContextMenu(this.plugin.app, e, path);
     });
   }
 
-  private async openItem(item: LibraryItem): Promise<void> {
+    private async openItem(item: LibraryItem): Promise<void> {
     try {
       if (item.type === 'live' && !item.vaultPath) {
         await openLiveDocumentPreview(this.plugin.app, this.host, item.liveDocument, item.theme);

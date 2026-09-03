@@ -48,11 +48,9 @@ export function renderWelcomeContent(
     text: 'Spezialisiert auf DSGVO, EU AI Act, Dokument-Versionen, Verträge & akademische Normen',
   });
 
-  // "Was steht an?" - Dynamic History & Memory suggestions section
+  // "Was steht an?" - Clean Dynamic History & Memory suggestions
   const agendaSection = welcomeEl.createDiv({ cls: 'claudian-welcome-agenda' });
   const agendaHeader = agendaSection.createDiv({ cls: 'claudian-welcome-agenda-header' });
-  const sparkleIcon = agendaHeader.createSpan({ cls: 'claudian-welcome-agenda-icon' });
-  setIcon(sparkleIcon, 'sparkles');
   agendaHeader.createSpan({ cls: 'claudian-welcome-agenda-title', text: 'Was steht an?' });
 
   const agendaList = agendaSection.createDiv({ cls: 'claudian-welcome-agenda-list' });
@@ -60,24 +58,24 @@ export function renderWelcomeContent(
   const renderItems = (items: SmartPromptItem[]): void => {
     agendaList.empty();
     for (const item of items) {
-      const card = agendaList.createEl('button', {
-        cls: `claudian-welcome-agenda-card claudian-welcome-agenda-card--${item.kind} clickable-icon`,
-        attr: { type: 'button', 'data-prompt': item.prompt },
+      const row = agendaList.createDiv({
+        cls: 'claudian-welcome-agenda-card claudian-welcome-agenda-row',
+        attr: { role: 'button', tabindex: '0', 'data-prompt': item.prompt },
       });
 
-      const iconEl = card.createSpan({ cls: 'claudian-welcome-agenda-item-icon' });
-      setIcon(iconEl, item.icon);
+      const arrowEl = row.createSpan({ cls: 'claudian-welcome-agenda-arrow' });
+      setIcon(arrowEl, 'arrow-right');
 
-      const contentWrap = card.createDiv({ cls: 'claudian-welcome-agenda-item-content' });
-      const topRow = contentWrap.createDiv({ cls: 'claudian-welcome-agenda-item-top' });
-      topRow.createSpan({ cls: `claudian-welcome-agenda-tag claudian-welcome-agenda-tag--${item.kind}`, text: item.tag });
-      contentWrap.createSpan({ cls: 'claudian-welcome-agenda-label', text: item.label });
+      row.createSpan({ cls: 'claudian-welcome-agenda-label', text: item.label });
 
-      const arrowEl = card.createSpan({ cls: 'claudian-welcome-agenda-arrow' });
-      setIcon(arrowEl, 'arrow-up-right');
-
-      card.addEventListener('click', () => {
+      row.addEventListener('click', () => {
         applyWelcomePrompt(welcomeEl, item.prompt);
+      });
+      row.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          applyWelcomePrompt(welcomeEl, item.prompt);
+        }
       });
     }
   };
