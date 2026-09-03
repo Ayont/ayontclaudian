@@ -891,9 +891,10 @@ export class MessageRenderer {
     identityEl.createSpan({ cls: 'claudian-assistant-turn-dot', attr: { 'aria-hidden': 'true' } });
     const resolvedProvider = this.resolveMessageProvider(msg);
     const reg = ProviderRegistry.getProviderRegistrationSafe(resolvedProvider);
-    if (reg?.chatUIConfig?.icon) {
+    const headerIcon = reg?.chatUIConfig?.getProviderIcon?.();
+    if (headerIcon) {
       const iconWrap = identityEl.createSpan({ cls: 'claudian-assistant-turn-icon-wrap' });
-      const iconSvg = createProviderIconSvg(reg.chatUIConfig.icon, {
+      const iconSvg = createProviderIconSvg(headerIcon, {
         width: 13,
         height: 13,
         className: 'claudian-assistant-turn-provider-icon',
@@ -942,11 +943,11 @@ export class MessageRenderer {
     }
 
     const statusEl = headerEl.createDiv({ cls: 'claudian-assistant-turn-status' });
-    // While streaming, the live state is already shown by the StreamStatusBar
-    // (progress bar + timer + Stop button), so the redundant "Live" badge in
-    // the card corner is intentionally omitted. The completed state keeps its
-    // useful check + timestamp.
-    if (!isStreaming) {
+    if (isStreaming) {
+      const livePill = statusEl.createSpan({ cls: 'claudian-assistant-turn-live-pill' });
+      livePill.createSpan({ cls: 'claudian-live-pulse-dot' });
+      livePill.createSpan({ cls: 'claudian-live-text', text: 'Arbeitet…' });
+    } else {
       setIcon(statusEl.createSpan({ cls: 'claudian-assistant-turn-done' }), 'check');
       statusEl.createSpan({ text: this.formatMessageTime(msg.timestamp) });
     }
@@ -1148,8 +1149,9 @@ export class MessageRenderer {
         title: `Generiert von ${this.getProviderShortLabel(footerResolvedProvider)}`,
       },
     });
-    if (footerReg?.chatUIConfig?.icon) {
-      const iconSvg = createProviderIconSvg(footerReg.chatUIConfig.icon, {
+    const footerIcon = footerReg?.chatUIConfig?.getProviderIcon?.();
+    if (footerIcon) {
+      const iconSvg = createProviderIconSvg(footerIcon, {
         width: 12,
         height: 12,
         className: 'claudian-response-provider-icon',

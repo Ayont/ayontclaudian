@@ -124,6 +124,38 @@ describe('TabBar', () => {
 
       expect(containerEl._children[0].getAttribute('data-provider')).toBe('opencode');
     });
+
+    it('renders custom topic titles and suppresses generic New Chat titles', () => {
+      const containerEl = createMockEl();
+      const callbacks = createMockCallbacks();
+      const tabBar = new TabBar(containerEl, callbacks);
+
+      tabBar.update([
+        createTabBarItem({ id: 'tab-1', title: 'Fortinet Firewall' }),
+        createTabBarItem({ id: 'tab-2', title: 'New Chat' }),
+        createTabBarItem({ id: 'tab-3', title: 'Neuer Chat' }),
+      ]);
+
+      const badge1 = containerEl._children[0];
+      const badge2 = containerEl._children[1];
+      const badge3 = containerEl._children[2];
+
+      expect(badge1.getAttribute('data-tab-title')).toBe('Fortinet Firewall');
+      expect(badge2.getAttribute('data-tab-title')).toBeNull();
+      expect(badge3.getAttribute('data-tab-title')).toBeNull();
+    });
+
+    it('renders streaming indicator when tab is actively streaming', () => {
+      const containerEl = createMockEl();
+      const callbacks = createMockCallbacks();
+      const tabBar = new TabBar(containerEl, callbacks);
+
+      tabBar.update([createTabBarItem({ id: 'stream-tab', isStreaming: true, title: 'Analysis' })]);
+
+      const badge = containerEl._children[0];
+      expect(badge._children.some(c => c._classList?.has('claudian-tab-streaming-indicator'))).toBe(true);
+      expect(badge.getAttribute('aria-label')).toBe('Analysis (arbeitet…)');
+    });
   });
 
   describe('badge state classes', () => {

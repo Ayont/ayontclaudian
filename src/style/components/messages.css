@@ -352,6 +352,51 @@ body.theme-light .claudian-welcome-starter:hover {
 .claudian-assistant-turn-done,
 .claudian-assistant-turn-done svg { width: 12px; height: 12px; }
 
+/* Live streaming status pill in assistant message header */
+.claudian-assistant-turn-live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--claudian-brand, var(--cl-accent));
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.claudian-live-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--claudian-brand, var(--cl-accent));
+  box-shadow: 0 0 8px rgba(var(--claudian-brand-rgb, 124, 108, 242), 0.7);
+  animation: cl-tab-pulse 1.2s infinite ease-in-out;
+}
+
+.claudian-live-text {
+  font-family: var(--cl-font-sans, inherit);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+/* Streaming turn initial empty state spinner */
+.is-streaming-turn .claudian-message-content:empty {
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+}
+
+.is-streaming-turn .claudian-message-content:empty::before {
+  content: '';
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid rgba(var(--claudian-brand-rgb, 124, 108, 242), 0.2);
+  border-top-color: var(--claudian-brand, var(--cl-accent));
+  animation: spin 0.8s linear infinite;
+  margin: 4px 2px;
+}
+
 .claudian-message-assistant:hover {
   border-color: transparent;
   box-shadow: none;

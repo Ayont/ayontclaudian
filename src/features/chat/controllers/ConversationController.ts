@@ -732,8 +732,9 @@ export class ConversationController {
       // Grok-style mascot avatar / squircle provider badge
       const iconEl = item.createDiv({ cls: 'claudian-history-item-icon claudian-history-avatar' });
       const reg = ProviderRegistry.getProviderRegistrationSafe(conv.providerId);
-      if (reg?.chatUIConfig?.icon) {
-        const iconSvg = createProviderIconSvg(reg.chatUIConfig.icon, {
+      const providerIcon = reg?.chatUIConfig?.getProviderIcon?.();
+      if (providerIcon) {
+        const iconSvg = createProviderIconSvg(providerIcon, {
           width: 18,
           height: 18,
           className: 'claudian-history-avatar-icon',

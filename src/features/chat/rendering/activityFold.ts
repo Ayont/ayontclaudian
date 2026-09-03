@@ -9,12 +9,12 @@ export function foldDownActivity(groupEl: HTMLDetailsElement): void {
   groupEl.classList.add('is-folding');
   const body = groupEl.querySelector<HTMLElement>('.claudian-activity-body, .claudian-tool-run-body');
   if (body && typeof body.animate === 'function') {
-    const currentHeight = body.scrollHeight || 200;
+    const currentHeight = body.getBoundingClientRect().height || Math.min(body.scrollHeight || 200, 650);
     const anim = body.animate([
       { opacity: '1', maxHeight: `${currentHeight}px`, transform: 'translateY(0)' },
       { opacity: '0', maxHeight: '0px', transform: 'translateY(-6px)' }
     ], {
-      duration: 280,
+      duration: 250,
       easing: 'cubic-bezier(0.16, 1, 0.3, 1)'
     });
     anim.onfinish = () => {
@@ -35,12 +35,12 @@ export function unfoldActivity(groupEl: HTMLDetailsElement): void {
   groupEl.classList.remove('is-folding');
   const body = groupEl.querySelector<HTMLElement>('.claudian-activity-body, .claudian-tool-run-body');
   if (body && typeof body.animate === 'function') {
-    const targetHeight = body.scrollHeight || 380;
+    const targetHeight = Math.min(body.scrollHeight || 380, 650);
     body.animate([
       { opacity: '0', maxHeight: '0px', transform: 'translateY(-6px)' },
       { opacity: '1', maxHeight: `${targetHeight}px`, transform: 'translateY(0)' }
     ], {
-      duration: 300,
+      duration: 280,
       easing: 'cubic-bezier(0.16, 1, 0.3, 1)'
     });
   }

@@ -90,6 +90,12 @@
   justify-content: space-between;
   width: 100%;
   min-width: 0;
+  gap: 8px;
+}
+
+.claudian-input-nav-content > .claudian-header-actions {
+  flex-shrink: 0;
+  margin-inline-start: auto;
 }
 
 /* Header mode: hide nav row above input (content moved to header) */

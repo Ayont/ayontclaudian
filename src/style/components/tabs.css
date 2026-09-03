@@ -2,12 +2,25 @@
   display: flex;
   align-items: center;
   gap: var(--cl-space-1);
+  min-width: 0;
+  max-width: 100%;
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 
 .claudian-tab-badges {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.claudian-tab-badges::-webkit-scrollbar {
+  display: none;
 }
 
 .claudian-tab-badge {
@@ -107,10 +120,32 @@ body.theme-light .claudian-tab-provider-badge {
   flex-shrink: 0;
 }
 
-/* Recognized conversation topic/title inside tab pill */
-.claudian-tab-badge-title {
+/* Recognized conversation topic/title inside tab pill:
+   Intelligently collapses on inactive tabs to keep the bar compact and prevent
+   pushing the toolbar actions off the screen. Expands on hover or when active. */
+.claudian-tab-badge:not(.claudian-tab-badge-active) .claudian-tab-badge-title {
   display: inline-block;
-  max-width: 120px;
+  max-width: 0;
+  opacity: 0;
+  margin-left: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  transition: max-width 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.18s ease, margin-left 0.18s ease;
+}
+
+.claudian-tab-badge:not(.claudian-tab-badge-active):hover .claudian-tab-badge-title {
+  max-width: 110px;
+  opacity: 0.95;
+  margin-left: 5px;
+}
+
+.claudian-tab-badge-active .claudian-tab-badge-title {
+  display: inline-block;
+  max-width: 130px;
   margin-left: 5px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -119,6 +154,22 @@ body.theme-light .claudian-tab-provider-badge {
   font-weight: 550;
   color: var(--text-normal);
   letter-spacing: -0.01em;
+  opacity: 1;
+}
+
+/* Pulsing beacon indicator when agent is streaming in this tab */
+.claudian-tab-streaming-indicator {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--claudian-brand, var(--cl-accent, #7c6cf2));
+  box-shadow: 0 0 6px var(--claudian-brand, var(--cl-accent, #7c6cf2));
+  animation: cl-tab-pulse 1.2s infinite ease-in-out;
+  pointer-events: none;
+  z-index: 3;
 }
 
 /* Close button on hover */
