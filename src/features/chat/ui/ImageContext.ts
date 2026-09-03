@@ -153,9 +153,9 @@ export class ImageContextManager {
    * appends their `@relPath` references invisibly to the provider-bound prompt —
    * they are deliberately NOT part of the visible input or chat transcript.
    */
-  getStagedAttachments(): { name: string; relPath: string }[] {
+  getStagedAttachments(): { name: string; relPath: string; previewSrc?: string }[] {
     return Array.from(this.stagedAttachments.values())
-      .map(({ name, relPath }) => ({ name, relPath }));
+      .map(({ name, relPath, previewSrc }) => ({ name, relPath, previewSrc }));
   }
 
   hasImages(): boolean {

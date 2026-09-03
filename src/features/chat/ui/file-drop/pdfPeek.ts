@@ -63,3 +63,22 @@ export async function createPdfPeekSrc(file: File): Promise<string | null> {
     return null;
   }
 }
+
+export async function createPdfPeekSrcFromBytes(bytes: Uint8Array): Promise<string | null> {
+  try {
+    const jpeg = extractJpegFromPdf(bytes);
+    if (jpeg) return rasterPeekFromBytes(jpeg);
+    return await renderWithQuickLook(bytes);
+  } catch {
+    return null;
+  }
+}
+
+export async function createPdfPeekSrcFromPath(targetPath: string): Promise<string | null> {
+  try {
+    const buf = await fs.readFile(targetPath);
+    return await createPdfPeekSrcFromBytes(new Uint8Array(buf));
+  } catch {
+    return null;
+  }
+}

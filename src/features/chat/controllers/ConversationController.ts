@@ -1,6 +1,8 @@
 import { Menu, Notice, setIcon } from 'obsidian';
 
+import { ProviderRegistry } from '../../../core/providers/ProviderRegistry';
 import type { TitleGenerationService } from '../../../core/providers/types';
+import { createProviderIconSvg } from '../../../shared/icons';
 import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
 import type { ChatRewindMode } from '../../../core/runtime/types';
 import type { Conversation, ConversationMeta } from '../../../core/types';
@@ -723,8 +725,25 @@ export class ConversationController {
         item.addClass('is-pinned');
       }
 
-      const iconEl = item.createDiv({ cls: 'claudian-history-item-icon' });
-      setIcon(iconEl, isCurrent ? 'message-square-dot' : 'message-square');
+      if (conv.providerId) {
+        item.setAttribute('data-provider', conv.providerId);
+      }
+
+      // Grok-style mascot avatar / squircle provider badge
+      const iconEl = item.createDiv({ cls: 'claudian-history-item-icon claudian-history-avatar' });
+      const reg = ProviderRegistry.getProviderRegistrationSafe(conv.providerId);
+      if (reg?.chatUIConfig?.icon) {
+        const iconSvg = createProviderIconSvg(reg.chatUIConfig.icon, {
+          width: 18,
+          height: 18,
+          className: 'claudian-history-avatar-icon',
+          dataProvider: conv.providerId,
+          ownerDocument: list.ownerDocument,
+        });
+        iconEl.appendChild(iconSvg);
+      } else {
+        setIcon(iconEl, isCurrent ? 'message-square-dot' : 'message-square');
+      }
 
       const content = item.createEl('button', {
         cls: 'claudian-history-item-content',
@@ -735,12 +754,28 @@ export class ConversationController {
         },
       });
       content.disabled = isCurrent;
-      const titleEl = content.createSpan({ cls: 'claudian-history-item-title', text: conv.title });
+
+      const headerRow = content.createDiv({ cls: 'claudian-history-item-header-row' });
+      const titleEl = headerRow.createSpan({ cls: 'claudian-history-item-title', text: conv.title });
       titleEl.setAttribute('title', conv.title);
-      content.createSpan({
+
+      const tagLabel = this.inferConversationTag(conv);
+      if (tagLabel) {
+        headerRow.createSpan({ cls: 'claudian-history-item-tag', text: tagLabel });
+      }
+
+      headerRow.createSpan({
         cls: 'claudian-history-item-date',
         text: isCurrent ? 'Aktuelle Unterhaltung' : this.formatDate(conv.lastResponseAt ?? conv.createdAt),
       });
+
+      if (conv.preview && conv.preview.trim()) {
+        const cleanPreview = conv.preview.replace(/\s+/g, ' ').trim();
+        content.createDiv({
+          cls: 'claudian-history-item-snippet',
+          text: cleanPreview,
+        });
+      }
 
       // Pin toggle at the row end: pinned rows sort to the top of the history.
       const pinBtn = item.createEl('button', {
@@ -875,6 +910,16 @@ export class ConversationController {
       });
       }
     }
+  }
+
+  private inferConversationTag(conv: ConversationMeta): string | null {
+    const text = `${conv.title} ${conv.preview ?? ''}`.toLowerCase();
+    if (/firewall|fortinet|security|vpn|cert|auth|proxy|network/i.test(text)) return 'Firewall';
+    if (/bug|fix|error|issue|problem|patch/i.test(text)) return 'Bugfix';
+    if (/dev|code|script|component|test|refactor|ts|typescript|python/i.test(text)) return 'Entwicklung';
+    if (/video|audio|media|image|animation|framer|css|design/i.test(text)) return 'UI & Design';
+    if (/doc|readme|notiz|note|guide|doku/i.test(text)) return 'Notizen';
+    return null;
   }
 
   private isHistoryNewTabModifierClick(event: MouseEvent): boolean {

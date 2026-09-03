@@ -36,6 +36,9 @@ import { replaceImageEmbedsWithHtml } from '../../../utils/imageEmbed';
 import { escapeMathDelimitersForStreaming } from '../../../utils/markdownMath';
 import { findRewindContext } from '../rewind';
 import { exportAssistantResponse } from '../services/ResponseExportService';
+import { resolveToAbsolutePath, showFileContextMenu } from '../services/FileActionService';
+import { createPdfPeekSrcFromPath, isRasterPeekSrc } from '../ui/file-drop/pdfPeek';
+import { createProviderIconSvg } from '../../../shared/icons';
 import { AppendToNoteModal } from '../ui/AppendToNoteModal';
 import {
   attachmentKindLabel,
@@ -887,6 +890,18 @@ export class MessageRenderer {
     const identityEl = headerEl.createDiv({ cls: 'claudian-assistant-turn-identity' });
     identityEl.createSpan({ cls: 'claudian-assistant-turn-dot', attr: { 'aria-hidden': 'true' } });
     const resolvedProvider = this.resolveMessageProvider(msg);
+    const reg = ProviderRegistry.getProviderRegistrationSafe(resolvedProvider);
+    if (reg?.chatUIConfig?.icon) {
+      const iconWrap = identityEl.createSpan({ cls: 'claudian-assistant-turn-icon-wrap' });
+      const iconSvg = createProviderIconSvg(reg.chatUIConfig.icon, {
+        width: 13,
+        height: 13,
+        className: 'claudian-assistant-turn-provider-icon',
+        dataProvider: resolvedProvider,
+        ownerDocument: this.messagesEl.ownerDocument,
+      });
+      iconWrap.appendChild(iconSvg);
+    }
     const shortProvider = this.getProviderShortLabel(resolvedProvider);
     let providerLabel = shortProvider;
     let modelText = msg.agentModel;
@@ -1123,6 +1138,30 @@ export class MessageRenderer {
         text: `${flavorWord} · ${formatDurationMmSs(msg.durationSeconds)}`,
       });
     }
+
+    const footerResolvedProvider = this.resolveMessageProvider(msg);
+    const footerReg = ProviderRegistry.getProviderRegistrationSafe(footerResolvedProvider);
+    const providerPill = footerEl.createSpan({
+      cls: `claudian-response-provider-pill claudian-provider-${footerResolvedProvider}`,
+      attr: {
+        'data-provider': footerResolvedProvider,
+        title: `Generiert von ${this.getProviderShortLabel(footerResolvedProvider)}`,
+      },
+    });
+    if (footerReg?.chatUIConfig?.icon) {
+      const iconSvg = createProviderIconSvg(footerReg.chatUIConfig.icon, {
+        width: 12,
+        height: 12,
+        className: 'claudian-response-provider-icon',
+        dataProvider: footerResolvedProvider,
+        ownerDocument: this.messagesEl.ownerDocument,
+      });
+      providerPill.appendChild(iconSvg);
+    }
+    providerPill.createSpan({
+      cls: 'claudian-response-provider-label',
+      text: this.getProviderShortLabel(footerResolvedProvider),
+    });
 
     const telemetryEl = footerEl.createDiv({ cls: 'claudian-response-telemetry' });
     const wordsEl = telemetryEl.createSpan({ cls: 'claudian-response-metric' });
@@ -1637,6 +1676,13 @@ export class MessageRenderer {
         dock();
       };
       card.addEventListener('click', onActivate);
+      card.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        showFileContextMenu(this.app, attachment.relPath, {
+          clientCoordinates: { x: e.clientX, y: e.clientY },
+        });
+      });
       card.addEventListener('keydown', (event: KeyboardEvent) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
@@ -1670,6 +1716,19 @@ export class MessageRenderer {
     }
 
     const peekEl = card.createDiv({ cls: 'claudian-message-attachment-peek' });
+    const effectiveThumb = (attachment.previewSrc && isRasterPeekSrc(attachment.previewSrc))
+      ? attachment.previewSrc
+      : (peek === 'thumb' && resourcePath ? resourcePath : null);
+
+    if (effectiveThumb) {
+      const img = peekEl.createEl('img', {
+        cls: 'claudian-message-attachment-thumb',
+        attr: { src: effectiveThumb, alt: attachment.name },
+      });
+      img.addClass('claudian-message-attachment-thumb');
+      return;
+    }
+
     if (peek === 'iframe' && resourcePath) {
       const iframe = peekEl.createEl('iframe', {
         cls: 'claudian-message-attachment-pdf',
@@ -1681,15 +1740,6 @@ export class MessageRenderer {
         },
       });
       iframe.addClass('claudian-message-attachment-pdf');
-      return;
-    }
-
-    if (peek === 'thumb' && resourcePath) {
-      const img = peekEl.createEl('img', {
-        cls: 'claudian-message-attachment-thumb',
-        attr: { src: resourcePath, alt: attachment.name },
-      });
-      img.addClass('claudian-message-attachment-thumb');
       return;
     }
 

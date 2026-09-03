@@ -33,6 +33,8 @@ export interface MessageAttachment {
   name: string;
   /** Vault-relative path of the staged file (e.g. `.claudian/attachments/x.mp4`). */
   relPath: string;
+  /** Optional data-URI preview (e.g. first-page PDF thumbnail). */
+  previewSrc?: string;
 }
 
 export type OutputSurface =

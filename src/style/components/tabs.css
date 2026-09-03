@@ -7,113 +7,197 @@
 .claudian-tab-badges {
   display: flex;
   align-items: center;
-  gap: var(--cl-space-1);
+  gap: 6px;
 }
 
 .claudian-tab-badge {
   appearance: none;
-  display: flex;
+  position: relative;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  min-width: 26px;
+  height: 26px;
   margin: 0;
-  padding: 0;
-  border-radius: var(--cl-radius-sm);
-  border: 1px solid var(--cl-border-subtle);
-  font-size: var(--cl-text-xs);
-  font-weight: 500;
+  padding: 0 7px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 11px;
+  font-weight: 550;
   cursor: pointer;
   color: var(--text-muted);
-  background: var(--cl-surface-base);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   font-family: inherit;
   line-height: 1;
-  transition: border-color var(--cl-dur-fast) var(--cl-ease),
-    color var(--cl-dur-fast) var(--cl-ease),
-    background var(--cl-dur-fast) var(--cl-ease),
-    box-shadow var(--cl-dur-fast) var(--cl-ease),
-    transform var(--cl-dur-fast) var(--cl-ease);
+  transition: all var(--cl-dur-fast) var(--cl-ease);
+}
+
+body.theme-light .claudian-tab-badge {
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 @media (pointer: coarse) {
   .claudian-tab-badge {
-    width: 44px;
-    height: 44px;
+    min-width: 44px;
+    height: 38px;
+    padding: 0 10px;
   }
 }
 
 .claudian-tab-badge:hover {
-  background: var(--cl-accent-soft);
+  background: rgba(255, 255, 255, 0.1);
   color: var(--text-normal);
-  border-color: var(--cl-accent-line);
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   transform: translateY(-1px);
 }
 
+body.theme-light .claudian-tab-badge:hover {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.18);
+}
+
 .claudian-tab-badge:active {
-  transform: scale(0.94);
+  transform: scale(0.96);
 }
 
 .claudian-tab-badge:focus-visible {
-  outline: 2px solid var(--cl-accent-line);
+  outline: 2px solid var(--cl-accent);
   outline-offset: 2px;
 }
 
 .claudian-tab-badge-active {
-  border-color: var(--cl-accent-line);
-  color: var(--cl-accent);
-  background: var(--cl-accent-soft);
+  border-color: var(--cl-accent-line, rgba(124, 108, 242, 0.6));
+  color: var(--text-normal);
+  background: rgba(255, 255, 255, 0.12);
   font-weight: 600;
+  box-shadow: 0 0 12px rgba(124, 108, 242, 0.22), inset 0 1px 1px rgba(255, 255, 255, 0.15);
 }
 
-/* Persistent per-provider accent: a brand-colored underline on every tab badge
-   so each tab's provider is identifiable at a glance (multitasking). Sits under
-   the state border (active/attention/streaming) without fighting it. */
+/* Provider badge attached to bottom-left corner of each tab */
+.claudian-tab-provider-badge {
+  position: absolute;
+  bottom: -3px;
+  left: -3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--cl-surface-elevated, #1a1b1e);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45);
+  z-index: 2;
+  pointer-events: none;
+}
+
+body.theme-light .claudian-tab-provider-badge {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.claudian-tab-provider-icon {
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+}
+
+/* Recognized conversation topic/title inside tab pill */
+.claudian-tab-badge-title {
+  display: inline-block;
+  max-width: 120px;
+  margin-left: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 550;
+  color: var(--text-normal);
+  letter-spacing: -0.01em;
+}
+
+/* Close button on hover */
+.claudian-tab-badge-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 4px;
+  border-radius: 50%;
+  opacity: 0;
+  transition: all 120ms ease;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.claudian-tab-badge-close svg {
+  width: 10px;
+  height: 10px;
+}
+
+.claudian-tab-badge:hover .claudian-tab-badge-close {
+  opacity: 0.7;
+}
+
+.claudian-tab-badge-close:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--text-error, #f87171);
+}
+
+/* Persistent per-provider accent: a brand-colored subtle glow on every tab badge */
 .claudian-tab-badge[data-provider="claude"] {
-  box-shadow: inset 0 -2px 0 var(--claudian-brand-claude);
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-claude, #D97757);
 }
 
 .claudian-tab-badge[data-provider="codex"] {
-  box-shadow: inset 0 -2px 0 var(--claudian-brand-codex);
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-codex, #10a37f);
 }
 
 .claudian-tab-badge[data-provider="opencode"] {
-  box-shadow: inset 0 -2px 0 var(--claudian-brand-opencode);
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-opencode, #C8C8C8);
 }
 
 .claudian-tab-badge[data-provider="pi"] {
-  box-shadow: inset 0 -2px 0 var(--claudian-brand-pi);
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-pi, #ffffff);
 }
 
 .claudian-tab-badge[data-provider="kimi"] {
-  box-shadow: inset 0 -2px 0 var(--claudian-brand-kimi);
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-kimi, #7C6CF2);
 }
 
 .claudian-tab-badge[data-provider="antigravity"] {
-  box-shadow: inset 0 -2px 0 var(--claudian-brand-antigravity);
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-antigravity, #4286F4);
 }
 
 .claudian-tab-badge[data-provider="vibe"] {
-  box-shadow: inset 0 -2px 0 var(--claudian-brand-vibe);
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-vibe, #FF7A00);
 }
 
 .claudian-tab-badge[data-provider="grok"] {
-  box-shadow: inset 0 -2px 0 var(--claudian-brand-grok);
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-grok, #E8E8E8);
 }
 
 .claudian-tab-badge[data-provider="dsh"] {
-  box-shadow: inset 0 -2px 0 var(--claudian-brand-dsh);
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-dsh, #4D6BFE);
 }
 
 .claudian-tab-badge[data-provider="freebuff"] {
-  box-shadow: inset 0 -2px 0 var(--claudian-brand-freebuff);
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-freebuff, #E8A33D);
 }
 
 .claudian-tab-badge[data-provider="hermes"] {
-  box-shadow: inset 0 -2px 0 var(--claudian-brand-hermes);
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-hermes, #8B5CF6);
 }
 
 .claudian-tab-badge[data-provider="cline"] {
-  box-shadow: inset 0 -2px 0 var(--claudian-brand-cline);
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-cline, #00C9A7);
 }
 
 .claudian-tab-badge-streaming {
@@ -126,7 +210,7 @@
 }
 
 .claudian-tab-badge-streaming[data-provider="codex"] {
-  border-color: var(--claudian-brand-codex, #d0d0d0);
+  border-color: var(--claudian-brand-codex, #10a37f);
 }
 
 .claudian-tab-badge-streaming[data-provider="opencode"] {

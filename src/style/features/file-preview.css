@@ -41,9 +41,11 @@
   }
 }
 
-.claudian-preview-toggle--active {
-  opacity: 0;
-  pointer-events: none;
+.claudian-preview-toggle--active,
+.claudian-preview-open .claudian-preview-toggle {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  display: none !important;
 }
 
 .claudian-preview-panel {
@@ -562,4 +564,39 @@
     transition: opacity 160ms ease;
     transform: none;
   }
+}
+
+.claudian-preview-card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.claudian-preview-card-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-preview-card-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+  border-color: var(--cl-border-subtle);
+  transform: scale(1.05);
+}
+
+.claudian-preview-card-btn svg {
+  width: 12px;
+  height: 12px;
 }

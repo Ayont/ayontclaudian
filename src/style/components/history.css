@@ -181,41 +181,81 @@
 
 .claudian-history-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
-  margin: 1px 6px;
-  min-height: 44px;
+  margin: 2px 6px;
+  min-height: 48px;
   padding: 8px 10px;
-  border: none;
-  border-radius: 10px;
+  border: 1px solid transparent;
+  border-radius: 12px;
   contain: layout style;
   content-visibility: auto;
-  contain-intrinsic-size: auto 44px;
-  transition: background var(--cl-dur-fast) var(--cl-ease);
-}
-
-.claudian-history-item-icon {
-  display: flex;
-  align-items: center;
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-
-.claudian-history-item-icon svg {
-  width: 16px;
-  height: 16px;
-}
-
-.claudian-history-item:last-child {
-  border-bottom: none;
+  contain-intrinsic-size: auto 48px;
+  transition:
+    background var(--cl-dur-fast) var(--cl-ease),
+    border-color var(--cl-dur-fast) var(--cl-ease),
+    box-shadow var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-history-item:hover {
-  background: var(--background-modifier-hover);
+  background: color-mix(in srgb, var(--cl-surface-raised, var(--background-secondary)) 70%, transparent);
+  border-color: color-mix(in srgb, var(--cl-border-subtle, var(--background-modifier-border)) 80%, transparent);
 }
 
 .claudian-history-item.active {
-  background: color-mix(in srgb, var(--interactive-accent) 8%, var(--background-secondary));
+  background: color-mix(in srgb, var(--interactive-accent) 12%, var(--background-secondary));
+  border-color: color-mix(in srgb, var(--interactive-accent) 28%, transparent);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Grok-style mascot avatar / squircle provider badge */
+.claudian-history-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  background: color-mix(in srgb, var(--cl-surface-overlay, var(--background-secondary)) 85%, transparent);
+  border: 1px solid var(--cl-border-subtle, var(--background-modifier-border));
+  color: var(--text-muted);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  transition: transform var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-history-item:hover .claudian-history-avatar {
+  transform: scale(1.04);
+}
+
+.claudian-history-avatar-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.claudian-history-item[data-provider="claude"] .claudian-history-avatar {
+  background: linear-gradient(135deg, rgba(217, 119, 87, 0.18), rgba(217, 119, 87, 0.06));
+  border-color: rgba(217, 119, 87, 0.32);
+  color: var(--claudian-brand-claude, #d97757);
+}
+
+.claudian-history-item[data-provider="codex"] .claudian-history-avatar {
+  background: linear-gradient(135deg, rgba(16, 163, 127, 0.18), rgba(16, 163, 127, 0.06));
+  border-color: rgba(16, 163, 127, 0.32);
+  color: var(--claudian-brand-codex, #10a37f);
+}
+
+.claudian-history-item[data-provider="antigravity"] .claudian-history-avatar {
+  background: linear-gradient(135deg, rgba(66, 134, 244, 0.18), rgba(66, 134, 244, 0.06));
+  border-color: rgba(66, 134, 244, 0.32);
+  color: var(--claudian-brand-antigravity, #4286f4);
+}
+
+.claudian-history-item[data-provider="grok"] .claudian-history-avatar {
+  background: linear-gradient(135deg, rgba(245, 130, 32, 0.22), rgba(230, 60, 30, 0.1));
+  border-color: rgba(245, 130, 32, 0.36);
+  color: #ff8c00;
 }
 
 /* Pin toggle — quiet until hover; pinned rows keep it visible in accent. */
@@ -289,21 +329,62 @@
   opacity: 1;
 }
 
+.claudian-history-item-header-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
 .claudian-history-item-title {
   display: block;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-normal);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.claudian-history-item-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--interactive-accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--interactive-accent) 26%, transparent);
+  color: var(--interactive-accent);
+  flex-shrink: 0;
+  line-height: 1.2;
 }
 
 .claudian-history-item-date {
   display: block;
   font-size: 11px;
   color: var(--text-faint);
+  margin-left: auto;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.claudian-history-item-snippet {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.35;
   margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .claudian-history-item-actions {

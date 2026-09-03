@@ -1,6 +1,8 @@
 import { Component, Notice, setIcon, TFile } from 'obsidian';
 
 import type ClaudianPlugin from '../../../main';
+import { getFileManagerName, openInDefaultApp, revealInSystemFileManager, showFileContextMenu } from '../services/FileActionService';
+import { createPdfPeekSrcFromPath } from './file-drop/pdfPeek';
 import {
   type LiveDocument,
   liveDocumentIdentity,
@@ -84,7 +86,7 @@ export class FilePreviewPanel {
         'aria-controls': this.panelId,
       },
     });
-    setIcon(this.toggleBtn, 'panel-right');
+    setIcon(this.toggleBtn, 'menu');
     this.toggleBtn.addEventListener('click', () => this.toggle());
 
     this.panelEl = this.containerEl.createDiv({ cls: 'claudian-preview-panel' });
@@ -137,6 +139,7 @@ export class FilePreviewPanel {
     if (this.toggleBtn) {
       this.toggleBtn.disabled = true;
       this.toggleBtn.setAttribute('aria-hidden', 'true');
+      this.toggleBtn.style.display = 'none';
     }
     this.updatePanelSemantics();
     this.renderLibrary();
@@ -157,6 +160,7 @@ export class FilePreviewPanel {
     if (this.toggleBtn) {
       this.toggleBtn.disabled = false;
       this.toggleBtn.removeAttribute('aria-hidden');
+      this.toggleBtn.style.display = '';
     }
     this.updatePanelSemantics();
     if (!restoreFocus) return;
@@ -387,8 +391,51 @@ export class FilePreviewPanel {
 
     const footer = card.createDiv({ cls: 'claudian-preview-card-footer' });
     footer.createSpan({ cls: 'claudian-preview-card-name', text: item.name });
-    footer.createSpan({ cls: 'claudian-preview-card-action', text: 'Öffnen' });
+    
+    // Actions: Finder/Explorer, Default OS app, 3-dots context menu
+    const actions = footer.createDiv({ cls: 'claudian-preview-card-actions' });
+    const fileMgrName = getFileManagerName();
+
+    const revealBtn = actions.createEl('button', {
+      cls: 'claudian-preview-card-btn',
+      attr: { type: 'button', 'aria-label': `In ${fileMgrName} anzeigen`, title: `In ${fileMgrName} anzeigen` },
+    });
+    setIcon(revealBtn, 'folder');
+    revealBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      void revealInSystemFileManager(this.plugin.app, item.relPath);
+    });
+
+    const extBtn = actions.createEl('button', {
+      cls: 'claudian-preview-card-btn',
+      attr: { type: 'button', 'aria-label': 'In Standard-App öffnen', title: 'In Standard-App öffnen' },
+    });
+    setIcon(extBtn, 'external-link');
+    extBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      void openInDefaultApp(this.plugin.app, item.relPath);
+    });
+
+    const moreBtn = actions.createEl('button', {
+      cls: 'claudian-preview-card-btn',
+      attr: { type: 'button', 'aria-label': 'Weitere Aktionen (3 Punkte)', title: 'Weitere Aktionen' },
+    });
+    setIcon(moreBtn, 'more-horizontal');
+    moreBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showFileContextMenu(this.plugin.app, item.relPath, {
+        clientCoordinates: { x: e.clientX, y: e.clientY },
+      });
+    });
+
     card.addEventListener('click', () => void this.openItem(item));
+    card.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showFileContextMenu(this.plugin.app, item.relPath, {
+        clientCoordinates: { x: e.clientX, y: e.clientY },
+      });
+    });
   }
 
   private async openItem(item: LibraryItem): Promise<void> {
