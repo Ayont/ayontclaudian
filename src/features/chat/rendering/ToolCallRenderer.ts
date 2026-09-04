@@ -119,7 +119,13 @@ export function getToolSummary(name: string, input: Record<string, unknown>): st
     case TOOL_READ:
     case TOOL_WRITE:
     case TOOL_EDIT: {
-      const filePath = getInputText(input, 'file_path');
+      const filePath = getInputText(input, 'file_path')
+        || getInputText(input, 'target_file')
+        || getInputText(input, 'targetFile')
+        || getInputText(input, 'path')
+        || getInputText(input, 'absolute_path')
+        || getInputText(input, 'FilePath')
+        || getInputText(input, 'AbsolutePath');
       return fileNameOnly(filePath);
     }
     case TOOL_BASH: {
@@ -574,13 +580,186 @@ function renderWebSearchExpanded(
   container.createDiv({ cls: 'claudian-tool-empty', text: 'Kein Ergebnis' });
 }
 
-function renderFileSearchExpanded(container: HTMLElement, result: string): void {
-  const lines = result.split(/\r?\n/).filter(line => line.trim());
+interface SearchMatchItem {
+  file: string;
+  line?: number;
+  snippet?: string;
+}
+
+function parseSearchOutput(result: string): { isStructured: boolean; isGrep: boolean; matches: SearchMatchItem[] } {
+  try {
+    const parsed = JSON.parse(result);
+    const arr = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.results) ? parsed.results : null);
+    if (arr && arr.length > 0) {
+      const matches: SearchMatchItem[] = arr.map((item: any) => ({
+        file: String(item.Filename || item.filename || item.file || item.path || item.filePath || item.target_file || ''),
+        line: typeof item.LineNumber === 'number' ? item.LineNumber : (typeof item.line === 'number' ? item.line : undefined),
+        snippet: typeof item.LineContent === 'string' ? item.LineContent : (typeof item.snippet === 'string' ? item.snippet : (typeof item.content === 'string' ? item.content : undefined)),
+      })).filter((m: SearchMatchItem) => Boolean(m.file));
+
+      if (matches.length > 0) {
+        return { isStructured: true, isGrep: matches.some(m => m.line !== undefined), matches };
+      }
+    }
+  } catch {
+    // Plaintext fallback
+  }
+
+  const lines = result.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   if (lines.length === 0) {
-    container.createDiv({ cls: 'claudian-tool-empty', text: 'Keine Treffer' });
+    return { isStructured: false, isGrep: false, matches: [] };
+  }
+
+  const grepMatches: SearchMatchItem[] = [];
+  const fileMatches: SearchMatchItem[] = [];
+
+  for (const line of lines) {
+    const gm = line.match(/^([^:\r\n]+):(\d+):(.*)$/);
+    if (gm) {
+      grepMatches.push({
+        file: gm[1].trim(),
+        line: parseInt(gm[2], 10),
+        snippet: gm[3].trim(),
+      });
+      continue;
+    }
+    if (/^[a-zA-Z0-9_.\-\\/]+\.[a-zA-Z0-9]+(?::\d+)?$/.test(line)) {
+      fileMatches.push({ file: line });
+    }
+  }
+
+  if (grepMatches.length > 0 && grepMatches.length >= lines.length * 0.4) {
+    return { isStructured: true, isGrep: true, matches: grepMatches };
+  }
+
+  if (fileMatches.length > 0 && fileMatches.length >= lines.length * 0.5) {
+    return { isStructured: true, isGrep: false, matches: fileMatches };
+  }
+
+  return { isStructured: false, isGrep: false, matches: [] };
+}
+
+function renderFileSearchExpanded(container: HTMLElement, result: string): void {
+  const parsed = parseSearchOutput(result);
+  if (!parsed.isStructured || parsed.matches.length === 0) {
+    const lines = result.split(/\r?\n/).filter(line => line.trim());
+    if (lines.length === 0) {
+      container.createDiv({ cls: 'claudian-tool-empty', text: 'Keine Treffer' });
+      return;
+    }
+    renderLinesExpanded(container, result, 15, true);
     return;
   }
-  renderLinesExpanded(container, result, 15, true);
+
+  const app = (window as unknown as { app?: any }).app;
+  const panel = container.createDiv({ cls: 'claudian-search-panel' });
+
+  const header = panel.createDiv({ cls: 'claudian-search-summary-header' });
+  const totalCount = parsed.matches.length;
+  const uniqueFiles = new Set(parsed.matches.map(m => m.file)).size;
+
+  const countBadge = header.createSpan({ cls: 'claudian-search-count-badge' });
+  setIcon(countBadge.createSpan(), parsed.isGrep ? 'search' : 'folder');
+  countBadge.createSpan({
+    text: parsed.isGrep
+      ? `${totalCount} ${totalCount === 1 ? 'Treffer' : 'Treffer'} in ${uniqueFiles} ${uniqueFiles === 1 ? 'Datei' : 'Dateien'}`
+      : `${totalCount} ${totalCount === 1 ? 'Datei' : 'Dateien'} gefunden`
+  });
+
+  if (parsed.isGrep) {
+    const grouped = new Map<string, SearchMatchItem[]>();
+    for (const m of parsed.matches) {
+      const list = grouped.get(m.file) || [];
+      list.push(m);
+      grouped.set(m.file, list);
+    }
+
+    for (const [filePath, fileMatches] of grouped) {
+      const fileGroup = panel.createDiv({ cls: 'claudian-search-file-group' });
+      const fileHeader = fileGroup.createDiv({ cls: 'claudian-search-file-header' });
+
+      const iconSpan = fileHeader.createSpan({ cls: 'claudian-search-file-icon' });
+      renderFileFormatBadge(iconSpan, filePath);
+
+      fileHeader.createSpan({ cls: 'claudian-search-file-name', text: filePath });
+
+      fileHeader.createSpan({
+        cls: 'claudian-search-file-badge',
+        text: `${fileMatches.length}`
+      });
+
+      if (app) {
+        fileHeader.addClass('is-clickable');
+        fileHeader.setAttribute('title', 'In Obsidian öffnen');
+        fileHeader.addEventListener('click', (e) => {
+          e.stopPropagation();
+          void app.workspace.openLinkText(filePath, '', false);
+        });
+      }
+
+      const matchesList = fileGroup.createDiv({ cls: 'claudian-search-matches-list' });
+      const maxMatches = 6;
+      const displayMatches = fileMatches.slice(0, maxMatches);
+
+      for (const match of displayMatches) {
+        const row = matchesList.createDiv({ cls: 'claudian-search-match-row' });
+        if (match.line !== undefined) {
+          row.createSpan({ cls: 'claudian-search-line-chip', text: `:${match.line}` });
+        }
+        row.createSpan({ cls: 'claudian-search-snippet', text: match.snippet || ' ' });
+
+        if (app && match.line !== undefined) {
+          row.addClass('is-clickable');
+          row.addEventListener('click', (e) => {
+            e.stopPropagation();
+            void app.workspace.openLinkText(filePath, '', false);
+          });
+        }
+      }
+
+      if (fileMatches.length > maxMatches) {
+        matchesList.createDiv({
+          cls: 'claudian-tool-truncated',
+          text: `… + ${fileMatches.length - maxMatches} weitere Treffer in dieser Datei`
+        });
+      }
+    }
+  } else {
+    const grid = panel.createDiv({ cls: 'claudian-file-chips-grid' });
+    const maxFiles = 30;
+    const displayFiles = parsed.matches.slice(0, maxFiles);
+
+    for (const match of displayFiles) {
+      const chip = grid.createDiv({ cls: 'claudian-file-chip' });
+      const iconSpan = chip.createSpan({ cls: 'claudian-file-chip-icon' });
+      renderFileFormatBadge(iconSpan, match.file);
+
+      const parts = match.file.split(/[\\/]/);
+      const fileName = parts.pop() || match.file;
+      const dir = parts.join('/');
+
+      chip.createSpan({ cls: 'claudian-file-chip-name', text: fileName });
+      if (dir) {
+        chip.createSpan({ cls: 'claudian-file-chip-dir', text: dir });
+      }
+
+      if (app) {
+        chip.addClass('is-clickable');
+        chip.setAttribute('title', 'In Obsidian öffnen');
+        chip.addEventListener('click', (e) => {
+          e.stopPropagation();
+          void app.workspace.openLinkText(match.file, '', false);
+        });
+      }
+    }
+
+    if (parsed.matches.length > maxFiles) {
+      panel.createDiv({
+        cls: 'claudian-tool-truncated',
+        text: `… + ${parsed.matches.length - maxFiles} weitere Dateien`
+      });
+    }
+  }
 }
 
 function renderLinesExpanded(
@@ -601,6 +780,15 @@ function renderLinesExpanded(
       const stripped = line.replace(/^\s*\d+→/, '');
       const lineEl = linesEl.createDiv({ cls: 'claudian-tool-line' });
       if (hoverable) lineEl.addClass('hoverable');
+
+      if (/^\s*(?:error|err!|failed|fatal:|exception:)/i.test(stripped)) {
+        lineEl.addClass('claudian-tool-line-error');
+      } else if (/^\s*(?:warn|warning:)/i.test(stripped)) {
+        lineEl.addClass('claudian-tool-line-warn');
+      } else if (/^\s*(?:success|done|completed|passed)/i.test(stripped)) {
+        lineEl.addClass('claudian-tool-line-success');
+      }
+
       lineEl.setText(stripped || ' ');
     }
 
@@ -1233,6 +1421,21 @@ function renderBashContent(
     });
   } else if (result && result.trim()) {
     const outputEl = container.createDiv({ cls: "claudian-tool-bash-output" });
+    const outputLines = result.split(/\r?\n/);
+    if (outputLines.length > 3) {
+      const outHeader = outputEl.createDiv({ cls: "claudian-bash-output-header" });
+      outHeader.createSpan({ cls: "claudian-bash-output-badge", text: `${outputLines.length} Zeilen Ausgabe` });
+
+      const copyOutputBtn = outHeader.createEl("button", {
+        cls: "claudian-bash-copy-btn",
+        attr: { type: "button", "aria-label": "Ausgabe kopieren", title: "Ausgabe kopieren" }
+      });
+      copyOutputBtn.innerHTML = `<svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor"><path d="M4 1.5A1.5 1.5 0 0 1 5.5 0h5A1.5 1.5 0 0 1 12 1.5V3h1.5A1.5 1.5 0 0 1 15 4.5v10a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 4 14.5V13H2.5A1.5 1.5 0 0 1 1 11.5v-10A1.5 1.5 0 0 1 2.5 0H4v1.5zm1 0V3h5V1.5a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 0-.5.5zm1 13a.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5v-10a.5.5 0 0 0-.5-.5H12V11.5a1.5 1.5 0 0 1-1.5 1.5H6v1.5zm-3.5-3a.5.5 0 0 0 .5.5H10a.5.5 0 0 0 .5-.5v-10a.5.5 0 0 0-.5-.5H2.5a.5.5 0 0 0-.5.5v10z"/></svg><span>Kopieren</span>`;
+      copyOutputBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        void navigator.clipboard.writeText(result);
+      });
+    }
     renderLinesExpanded(outputEl, result, 20);
   } else {
     const successEl = container.createDiv({ cls: "claudian-tool-bash-success" });
@@ -1313,6 +1516,7 @@ function renderFileReadExpanded(
   const copyBtn = metaEl.createEl("button", { cls: "claudian-code-copy-btn" });
   copyBtn.setAttribute("type", "button");
   copyBtn.setAttribute("aria-label", "Code kopieren");
+  copyBtn.setAttribute("title", "Code kopieren");
   copyBtn.innerHTML = `<svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor"><path d="M4 1.5A1.5 1.5 0 0 1 5.5 0h5A1.5 1.5 0 0 1 12 1.5V3h1.5A1.5 1.5 0 0 1 15 4.5v10a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 4 14.5V13H2.5A1.5 1.5 0 0 1 1 11.5v-10A1.5 1.5 0 0 1 2.5 0H4v1.5zm1 0V3h5V1.5a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 0-.5.5zm1 13a.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5v-10a.5.5 0 0 0-.5-.5H12V11.5a1.5 1.5 0 0 1-1.5 1.5H6v1.5zm-3.5-3a.5.5 0 0 0 .5.5H10a.5.5 0 0 0 .5-.5v-10a.5.5 0 0 0-.5-.5H2.5a.5.5 0 0 0-.5.5v10z"/></svg>`;
   copyBtn.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -1320,23 +1524,48 @@ function renderFileReadExpanded(
     void navigator.clipboard.writeText(cleanText);
   });
 
+  const app = (window as unknown as { app?: any }).app;
+  if (cleanFilePath && app) {
+    const openBtn = metaEl.createEl("button", { cls: "claudian-code-open-btn" });
+    openBtn.setAttribute("type", "button");
+    openBtn.setAttribute("aria-label", "In Obsidian öffnen");
+    openBtn.setAttribute("title", "In Obsidian öffnen");
+    openBtn.innerHTML = `<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h4"/><polyline points="10 2 14 2 14 6"/><line x1="7" y1="9" x2="14" y2="2"/></svg>`;
+    openBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      void app.workspace.openLinkText(cleanFilePath, "", false);
+    });
+  }
+
   const bodyEl = viewerEl.createDiv({ cls: "claudian-code-body" });
   const maxDisplay = 40;
   const truncated = codeLines.length > maxDisplay;
-  const displayLines = truncated ? codeLines.slice(0, maxDisplay) : codeLines;
+  let isExpanded = false;
 
-  for (const line of displayLines) {
-    const rowEl = bodyEl.createDiv({ cls: "claudian-code-row" });
-    rowEl.createSpan({ cls: "claudian-code-gutter", text: line.lineNum || " " });
-    rowEl.createSpan({ cls: "claudian-code-content claudian-tool-line", text: line.text || " " });
-  }
+  const renderLines = () => {
+    bodyEl.empty();
+    const displayLines = (!isExpanded && truncated) ? codeLines.slice(0, maxDisplay) : codeLines;
 
-  if (truncated) {
-    viewerEl.createDiv({
-      cls: "claudian-code-truncated",
-      text: `… ${codeLines.length - maxDisplay} weitere Zeilen`,
-    });
-  }
+    for (const line of displayLines) {
+      const rowEl = bodyEl.createDiv({ cls: "claudian-code-row" });
+      rowEl.createSpan({ cls: "claudian-code-gutter", text: line.lineNum || " " });
+      rowEl.createSpan({ cls: "claudian-code-content claudian-tool-line", text: line.text || " " });
+    }
+
+    if (truncated) {
+      const toggleEl = bodyEl.createEl("button", {
+        cls: "claudian-tool-expand-btn",
+        attr: { type: "button" }
+      });
+      toggleEl.setText(isExpanded ? "▲ Weniger Zeilen anzeigen" : `▼ + ${codeLines.length - maxDisplay} weitere Zeilen anzeigen`);
+      toggleEl.addEventListener("click", (e) => {
+        e.stopPropagation();
+        isExpanded = !isExpanded;
+        renderLines();
+      });
+    }
+  };
+  renderLines();
 }
 
 function createCurrentTaskPreview(

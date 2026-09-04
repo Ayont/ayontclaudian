@@ -35,6 +35,54 @@ describe('ToolCallRenderer', () => {
     jest.clearAllMocks();
   });
 
+
+  describe("file search & grep expanded rendering", () => {
+    it("renders grep matches with line chips and file headers", () => {
+      const parentEl = createMockEl();
+      const toolCall = createToolCall({
+        id: "grep-1",
+        name: "Grep",
+        input: { pattern: "test" },
+        result: "src/file1.ts:10:console.log('test');\nsrc/file1.ts:25:return test;\nsrc/file2.ts:5:const test = true;",
+        status: "completed",
+      });
+      const el = renderStoredToolCall(parentEl, toolCall, { initiallyExpanded: true });
+      expect(el.querySelector(".claudian-search-panel")).toBeDefined();
+      expect(el.querySelector(".claudian-search-count-badge")).toBeDefined();
+      expect(el.querySelectorAll(".claudian-search-file-group").length).toBe(2);
+      expect(el.querySelectorAll(".claudian-search-line-chip").length).toBe(3);
+    });
+
+    it("renders file listings as interactive file chips", () => {
+      const parentEl = createMockEl();
+      const toolCall = createToolCall({
+        id: "glob-1",
+        name: "Glob",
+        input: { pattern: "*.ts" },
+        result: "src/file1.ts\nsrc/file2.ts\nsrc/components/button.tsx",
+        status: "completed",
+      });
+      const el = renderStoredToolCall(parentEl, toolCall, { initiallyExpanded: true });
+      expect(el.querySelector(".claudian-file-chips-grid")).toBeDefined();
+      expect(el.querySelectorAll(".claudian-file-chip").length).toBe(3);
+    });
+  });
+
+  describe("code viewer open and copy buttons", () => {
+    it("renders copy button and open button for file reads", () => {
+      const parentEl = createMockEl();
+      const toolCall = createToolCall({
+        id: "read-1",
+        name: "Read",
+        input: { file_path: "src/example.ts" },
+        result: "1: const a = 1;\n2: const b = 2;",
+        status: "completed",
+      });
+      const el = renderStoredToolCall(parentEl, toolCall, { initiallyExpanded: true });
+      expect(el.querySelector(".claudian-code-copy-btn")).toBeDefined();
+    });
+  });
+
   describe('renderToolCall', () => {
     it('should store element in toolCallElements map', () => {
       const parentEl = createMockEl();

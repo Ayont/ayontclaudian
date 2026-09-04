@@ -236,7 +236,7 @@
   overflow-x: hidden;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: rgba(var(--claudian-brand-rgb, 124, 108, 242), 0.4) transparent;
+  scrollbar-color: rgba(var(--claudian-brand-rgb), 0.4) transparent;
   border-top: 1px solid rgba(var(--claudian-brand-rgb), 0.18);
   background: rgba(0, 0, 0, 0.16);
   display: flex;
@@ -252,7 +252,7 @@
 
 .claudian-tool-run-body::-webkit-scrollbar-thumb,
 .claudian-activity-body::-webkit-scrollbar-thumb {
-  background: rgba(var(--claudian-brand-rgb, 124, 108, 242), 0.35);
+  background: rgba(var(--claudian-brand-rgb), 0.35);
   border-radius: 9999px;
 }
 
@@ -994,4 +994,255 @@
 
 .claudian-tool-expand-btn:hover {
   background: var(--cl-surface-active, rgba(255, 255, 255, 0.12)) !important;
+}
+
+/* ==========================================================================
+   Interactive Search & Grep Visualizations
+   ========================================================================== */
+.claudian-search-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.claudian-search-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.claudian-search-count-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--cl-radius-pill, 9999px);
+  background: rgba(var(--claudian-brand-rgb), 0.12);
+  border: 1px solid rgba(var(--claudian-brand-rgb), 0.25);
+  color: var(--cl-accent);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.claudian-search-count-badge svg {
+  width: 12px;
+  height: 12px;
+}
+
+.claudian-search-file-group {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--cl-radius-md, 8px);
+  background: rgba(14, 14, 18, 0.7);
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.claudian-search-file-group:hover {
+  border-color: rgba(var(--claudian-brand-rgb), 0.35);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+}
+
+.claudian-search-file-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-family: var(--cl-font-mono, monospace);
+  font-size: 11.5px;
+  color: var(--text-normal);
+  user-select: none;
+}
+
+.claudian-search-file-header.is-clickable {
+  cursor: pointer;
+}
+
+.claudian-search-file-header.is-clickable:hover {
+  background: rgba(var(--claudian-brand-rgb), 0.1);
+}
+
+.claudian-search-file-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.claudian-search-file-name {
+  flex: 1;
+  font-weight: 550;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claudian-search-file-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.claudian-search-matches-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.claudian-search-match-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 10px;
+  line-height: 1.5;
+  font-family: var(--cl-font-mono, monospace);
+  font-size: 11px;
+  color: var(--text-normal);
+  transition: background 0.1s ease;
+}
+
+.claudian-search-match-row.is-clickable {
+  cursor: pointer;
+}
+
+.claudian-search-match-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.claudian-search-line-chip {
+  display: inline-flex;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(var(--claudian-brand-rgb), 0.15);
+  color: var(--cl-accent);
+  font-size: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.claudian-search-snippet {
+  flex: 1;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* File Listing Grid (glob / find / ls) */
+.claudian-file-chips-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 6px;
+}
+
+.claudian-file-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: var(--cl-radius-sm, 6px);
+  background: rgba(18, 18, 22, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  font-family: var(--cl-font-mono, monospace);
+  font-size: 11px;
+  overflow: hidden;
+  transition: all 0.15s ease;
+}
+
+.claudian-file-chip.is-clickable {
+  cursor: pointer;
+}
+
+.claudian-file-chip:hover {
+  border-color: rgba(var(--claudian-brand-rgb), 0.4);
+  background: rgba(var(--claudian-brand-rgb), 0.08);
+  transform: translateY(-0.5px);
+}
+
+.claudian-file-chip-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.claudian-file-chip-name {
+  font-weight: 550;
+  color: var(--text-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claudian-file-chip-dir {
+  color: var(--text-faint);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Code Viewer Action Buttons */
+.claudian-code-open-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.claudian-code-open-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-normal);
+}
+
+/* Bash Terminal Output Header */
+.claudian-bash-output-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  padding: 2px 4px;
+}
+
+.claudian-bash-output-badge {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  font-family: var(--cl-font-mono, monospace);
+}
+
+/* Smart Line Highlighting in Terminal & Outputs */
+.claudian-tool-line-error {
+  border-left: 2px solid #ef4444 !important;
+  background: rgba(239, 68, 68, 0.08) !important;
+  color: #fca5a5 !important;
+  padding-left: 6px !important;
+}
+
+.claudian-tool-line-warn {
+  border-left: 2px solid #f59e0b !important;
+  background: rgba(245, 158, 11, 0.08) !important;
+  color: #fcd34d !important;
+  padding-left: 6px !important;
+}
+
+.claudian-tool-line-success {
+  border-left: 2px solid #10b981 !important;
+  background: rgba(16, 185, 129, 0.08) !important;
+  color: #6ee7b7 !important;
+  padding-left: 6px !important;
+}
+
+.claudian-code-viewer .claudian-tool-expand-btn {
+  margin: 6px 12px 10px !important;
 }
