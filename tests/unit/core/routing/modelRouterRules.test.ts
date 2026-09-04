@@ -63,6 +63,18 @@ describe('modelRouterRules', () => {
     expect(route).toMatchObject({ task: 'vision', model: 'gpt-vision' });
   });
 
+  it('recognizes GPT-6 as vision-capable when images are attached', () => {
+    const route = chooseModelRoute({
+      prompt: 'Beschreibe den Inhalt',
+      rules: [],
+      availableModels: [{ value: 'gpt-6-astra', label: 'GPT-6 Astra', providerId: 'codex' }],
+      fallbackModel: 'fallback',
+      context: { hasImages: true },
+    });
+
+    expect(route).toMatchObject({ task: 'vision', model: 'gpt-6-astra' });
+  });
+
   it('routes cheap prompts to a cheap model', () => {
     const route = chooseModelRoute({
       prompt: 'simple yes/no answer',

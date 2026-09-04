@@ -6,7 +6,7 @@ import * as path from 'path';
 
 import type { PreparedChatTurn } from '@/core/runtime/types';
 import type { StreamChunk } from '@/core/types/chat';
-import { CODEX_SPARK_MODEL, DEFAULT_CODEX_PRIMARY_MODEL } from '@/providers/codex/types/models';
+import { CODEX_GPT_6_ASTRA_MODEL, CODEX_SPARK_MODEL, DEFAULT_CODEX_PRIMARY_MODEL } from '@/providers/codex/types/models';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -1435,8 +1435,8 @@ describe('CodexChatRuntime', () => {
       rt.cleanup();
     });
 
-    it('sends serviceTier on thread/resume when fast mode is enabled', async () => {
-      const plugin = createMockPlugin({ model: DEFAULT_CODEX_PRIMARY_MODEL, serviceTier: 'fast' });
+    it.each([DEFAULT_CODEX_PRIMARY_MODEL, CODEX_GPT_6_ASTRA_MODEL])('sends model and serviceTier on thread/resume for %s with fast mode enabled', async (model) => {
+      const plugin = createMockPlugin({ model, serviceTier: 'fast' });
       const rt = new CodexChatRuntime(plugin);
 
       rt.syncConversationState({
@@ -1451,7 +1451,7 @@ describe('CodexChatRuntime', () => {
 
       const resumeCall = findCall('thread/resume');
       expect(resumeCall).toBeDefined();
-      expect(resumeCall[1].serviceTier).toBe('fast');
+      expect(resumeCall[1]).toEqual(expect.objectContaining({ model, serviceTier: 'fast' }));
 
       rt.cleanup();
     });
@@ -1492,16 +1492,34 @@ describe('CodexChatRuntime', () => {
       yoloRuntime.cleanup();
     });
 
-    it('sends serviceTier fast on thread/start and turn/start when fast mode is enabled', async () => {
-      const plugin = createMockPlugin({ serviceTier: 'fast' });
+    it.each([
+      { model: DEFAULT_CODEX_PRIMARY_MODEL, effortLevel: 'medium' },
+      ...['low', 'medium', 'high', 'xhigh', 'max', 'ultra'].map(effortLevel => ({
+        model: CODEX_GPT_6_ASTRA_MODEL,
+        effortLevel,
+      })),
+    ])('sends $model with $effortLevel effort and fast tier to the app-server', async ({ model, effortLevel }) => {
+      const plugin = createMockPlugin({ model, effortLevel, serviceTier: 'fast' });
       const rt = new CodexChatRuntime(plugin);
 
       await collectChunks(rt.query(createTurn()));
 
       const threadStartCall = findCall('thread/start');
       const turnStartCall = findCall('turn/start');
-      expect(threadStartCall[1].serviceTier).toBe('fast');
-      expect(turnStartCall[1].serviceTier).toBe('fast');
+      expect(threadStartCall[1]).toEqual(expect.objectContaining({ model, serviceTier: 'fast' }));
+      expect(turnStartCall[1]).toEqual(expect.objectContaining({
+        model,
+        effort: effortLevel,
+        serviceTier: 'fast',
+        collaborationMode: {
+          mode: 'default',
+          settings: {
+            model,
+            reasoning_effort: effortLevel,
+            developer_instructions: null,
+          },
+        },
+      }));
 
       rt.cleanup();
     });

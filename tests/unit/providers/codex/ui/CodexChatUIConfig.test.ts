@@ -16,8 +16,8 @@ describe('CodexChatUIConfig', () => {
       const options = codexChatUIConfig.getModelOptions({});
       expect(options).toHaveLength(6);
       expect(options.map(o => o.value)).toEqual([
-        CODEX_GPT_6_ASTRA_MODEL,
         DEFAULT_CODEX_PRIMARY_MODEL,
+        CODEX_GPT_6_ASTRA_MODEL,
         CODEX_GPT_56_TERRA_MODEL,
         CODEX_GPT_56_LUNA_MODEL,
         CODEX_GPT_55_MODEL,
@@ -36,16 +36,14 @@ describe('CodexChatUIConfig', () => {
 
       expect(options).toEqual([
         {
-          value: CODEX_GPT_6_ASTRA_MODEL,
-          label: 'GPT-6 Astra',
-          description: 'OpenAI Frontier-Flagship (AGI-Ära, native Computer-Use & autonome Workflows) · Rollout läuft',
-          badge: 'Coming Soon',
-          comingSoon: true,
-        },
-        {
           value: CODEX_GPT_56_SOL_MODEL,
           label: 'GPT-5.6 Sol',
           description: 'Flagship GPT-5.6 model for complex coding',
+        },
+        {
+          value: CODEX_GPT_6_ASTRA_MODEL,
+          label: 'GPT-6 Astra',
+          description: 'Leistungsfähigstes OpenAI-Modell für komplexe, anspruchsvolle Aufgaben',
         },
         {
           value: CODEX_GPT_56_TERRA_MODEL,
@@ -101,8 +99,8 @@ describe('CodexChatUIConfig', () => {
 
       expect(options.map(option => option.value)).toEqual([
         'my-custom-model',
-        CODEX_GPT_6_ASTRA_MODEL,
         DEFAULT_CODEX_PRIMARY_MODEL,
+        CODEX_GPT_6_ASTRA_MODEL,
         CODEX_GPT_56_TERRA_MODEL,
         CODEX_GPT_56_LUNA_MODEL,
         CODEX_GPT_55_MODEL,
@@ -127,6 +125,11 @@ describe('CodexChatUIConfig', () => {
   });
 
   describe('getReasoningOptions', () => {
+    it('offers all six verified reasoning levels for GPT-6 Astra', () => {
+      expect(codexChatUIConfig.getReasoningOptions(CODEX_GPT_6_ASTRA_MODEL, {}).map(option => option.value))
+        .toEqual(['low', 'medium', 'high', 'xhigh', 'max', 'ultra']);
+    });
+
     it('adds max and ultra effort levels for GPT-5.6 Sol/Terra', () => {
       const options = codexChatUIConfig.getReasoningOptions(DEFAULT_CODEX_PRIMARY_MODEL, {});
       expect(options.map(o => o.value)).toEqual(['low', 'medium', 'high', 'xhigh', 'max', 'ultra']);
@@ -150,6 +153,13 @@ describe('CodexChatUIConfig', () => {
   });
 
   describe('getContextWindowSize', () => {
+    it('uses the effective Codex default context for Astra until live telemetry arrives', () => {
+      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_6_ASTRA_MODEL)).toBe(258_400);
+      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_6_ASTRA_MODEL, {
+        [CODEX_GPT_6_ASTRA_MODEL]: 828_400,
+      })).toBe(828_400);
+    });
+
     it('should return 1.05M for GPT-5.6 models', () => {
       expect(codexChatUIConfig.getContextWindowSize(DEFAULT_CODEX_PRIMARY_MODEL)).toBe(1_050_000);
       expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_56_TERRA_MODEL)).toBe(1_050_000);

@@ -1,9 +1,48 @@
-import { createMockEl } from '@test/helpers/mockElement';
-import { App } from 'obsidian';
+import '@/providers';
 
+import { createMockEl } from '@test/helpers/mockElement';
+import { App, Notice } from 'obsidian';
+
+import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ModelSelectModal } from '@/features/chat/ui/ModelSelectModal';
 
 describe('ModelSelectModal', () => {
+  it('selects GPT-6 Astra from the real Codex catalog without a rollout warning', async () => {
+    const settings = { providerConfigs: { codex: { enabled: true } } };
+    const onSelect = jest.fn();
+    const modal = new ModelSelectModal(
+      new App(),
+      ProviderRegistry.getAggregatedModelOptions(settings),
+      'gpt-5.6-sol',
+      onSelect,
+    );
+    (modal as any).modalEl = createMockEl();
+    (modal as any).titleEl = createMockEl();
+    (modal as any).contentEl = createMockEl();
+    (modal as any).close = jest.fn();
+    (Notice as jest.Mock).mockClear();
+    ModelSelectModal.prototype.onOpen.call(modal);
+
+    const astra = (modal as any).contentEl
+      .querySelectorAll('.claudian-model-select-option')
+      .find((option: HTMLElement) => option.dataset.modelValue === 'gpt-6-astra');
+    expect(astra).toBeDefined();
+    expect(astra.tagName).toBe('BUTTON');
+    expect(astra.dataset.provider).toBe('codex');
+    expect(astra.querySelector('.claudian-model-select-option-label')?.textContent).toBe('GPT-6 Astra');
+
+    astra.click();
+    await Promise.resolve();
+
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onSelect).toHaveBeenCalledWith('gpt-6-astra');
+    expect(ProviderRegistry.resolveProviderForModel(onSelect.mock.calls[0][0], settings)).toBe('codex');
+    expect((modal as any).close).toHaveBeenCalledTimes(1);
+    expect(Notice).not.toHaveBeenCalled();
+    expect(astra.hasClass('is-coming-soon')).toBe(false);
+    expect(astra.querySelector('.claudian-model-select-badge')).toBeNull();
+  });
+
   it('renders single models as buttons and variant families as labelled groups', () => {
     const modal = new ModelSelectModal(
       new App(),

@@ -10,7 +10,7 @@ import {
 export type AutoComplexity = 'trivial' | 'standard' | 'hard';
 
 const TASK_PATTERNS: Record<ModelRouterTask, RegExp[]> = {
-  code: [/kimi.*code/i, /for-coding/i, /cline/i, /codex/i, /grok/i, /sonnet/i, /opus/i, /gpt-5/i],
+  code: [/kimi.*code/i, /for-coding/i, /cline/i, /codex/i, /grok/i, /sonnet/i, /opus/i, /gpt-[56]/i],
   writing: [/claude/i, /sonnet/i, /gpt/i, /opus/i],
   planning: [/opus/i, /grok-4/i, /kimi.*k3/i, /sonnet/i, /reason/i],
   vision: [/claude/i, /gpt/i, /gemini/i, /kimi/i],
@@ -18,7 +18,7 @@ const TASK_PATTERNS: Record<ModelRouterTask, RegExp[]> = {
   document: [/claude/i, /gpt/i, /kimi/i, /gemini/i],
   cheap: [/haiku/i, /flash/i, /mini/i, /highspeed/i, /nano/i, /air/i],
   longcontext: [/claude/i, /gemini/i, /kimi/i],
-  default: [/sonnet/i, /grok/i, /gpt-5/i, /kimi/i],
+  default: [/sonnet/i, /grok/i, /gpt-[56]/i, /kimi/i],
 };
 
 export function inferAutoComplexity(prompt: string, context?: ModelRouteContext): AutoComplexity {

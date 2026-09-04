@@ -159,7 +159,7 @@ export function chooseModelRoute(options: {
     }
     // No explicit vision rule — try to find a model with "vision" or "gpt" or "gemini" in its name
     const visionModel = options.availableModels.find(m =>
-      /vision|gpt-4|gpt-5|gemini|kimi|claude/i.test(`${m.value} ${m.label}`));
+      /vision|gpt-[456]|gemini|kimi|claude/i.test(`${m.value} ${m.label}`));
     if (visionModel) {
       return { task: 'vision', model: visionModel.value, reason: 'images attached → vision-capable model' };
     }

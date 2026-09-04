@@ -23,6 +23,22 @@ describe('inferAutoComplexity', () => {
 });
 
 describe('chooseBestAutoModel', () => {
+  it.each([
+    ['code', 'fix this TypeScript bug'],
+    ['default', 'Erkläre Quantenverschränkung'],
+  ])('considers GPT-6 alongside GPT-5 for %s prompts', (task, prompt) => {
+    const route = chooseBestAutoModel({
+      prompt,
+      availableModels: [
+        { value: 'gpt-6-astra', label: 'GPT-6 Astra', providerId: 'codex' },
+        { value: 'gpt-5.6-sol', label: 'GPT-5.6 Sol', providerId: 'codex' },
+      ],
+      fallbackModel: 'gpt-5.6-sol',
+    });
+
+    expect(route).toMatchObject({ task, model: 'gpt-6-astra', providerId: 'codex' });
+  });
+
   it('picks a cheap or low-effort model for trivial prompts', () => {
     const route = chooseBestAutoModel({
       prompt: 'danke',
