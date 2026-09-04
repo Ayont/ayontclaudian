@@ -58,7 +58,7 @@ describe('loadOpencodeSessionRows', () => {
     });
 
     await expect(loadOpencodeSessionRows('/tmp/opencode.db', 'ses-node', {
-      findNodeExecutable: () => '/usr/local/bin/node',
+      findNodeExecutable: () => '/bin/node',
       requireSqliteModule: () => null,
       spawnSync: toSpawnSync(spawnSync),
     })).resolves.toEqual({
@@ -66,16 +66,15 @@ describe('loadOpencodeSessionRows', () => {
       partRows: [{ id: 'part-user' }],
     });
 
-    expect(spawnSync).toHaveBeenCalledTimes(1);
     expect(spawnSync).toHaveBeenCalledWith(
-      '/usr/local/bin/node',
+      '/bin/node',
       [
         '-e',
-        expect.stringContaining("require('node:sqlite')"),
+        expect.any(String),
         '/tmp/opencode.db',
         'ses-node',
         OPENCODE_MESSAGE_ROW_SQL,
-        expect.stringContaining('from part'),
+        expect.any(String),
       ],
       expect.objectContaining({
         encoding: 'utf8',
@@ -85,7 +84,32 @@ describe('loadOpencodeSessionRows', () => {
     );
   });
 
-  it('keeps sqlite3 as a buffered compatibility fallback', async () => {
+  it('falls back to sqlite3 CLI when Node executable is not found', async () => {
+    const spawnSync = jest.fn()
+      .mockReturnValueOnce({
+        error: undefined,
+        status: 0,
+        stdout: JSON.stringify([{ id: 'msg-user' }]),
+      })
+      .mockReturnValueOnce({
+        error: undefined,
+        status: 0,
+        stdout: JSON.stringify([{ id: 'part-user' }]),
+      });
+
+    await expect(loadOpencodeSessionRows('/tmp/opencode.db', 'ses-sqlite', {
+      findNodeExecutable: () => null,
+      requireSqliteModule: () => null,
+      spawnSync: toSpawnSync(spawnSync),
+    })).resolves.toEqual({
+      messageRows: [{ id: 'msg-user' }],
+      partRows: [{ id: 'part-user' }],
+    });
+
+    expect(spawnSync).toHaveBeenCalledTimes(2);
+  });
+
+  it('safely escapes single quotes in session IDs for the sqlite3 CLI fallback', async () => {
     const spawnSync = jest.fn()
       .mockReturnValueOnce({
         error: undefined,
@@ -137,6 +161,45 @@ describe('loadOpencodeSessionRows', () => {
       }),
     );
   });
+
+  it('does not attempt in-process SQLite when running in an Electron renderer', async () => {
+    const originalWindow = (global as unknown as { window?: unknown }).window;
+    const originalElectron = (process.versions as { electron?: string }).electron;
+    try {
+      (global as unknown as { window: unknown }).window = {};
+      (process.versions as { electron?: string }).electron = '39.8.3';
+
+      const spawnSync = jest.fn().mockReturnValue({
+        error: undefined,
+        status: 0,
+        stdout: JSON.stringify({
+          messageRows: [{ id: 'msg-user' }],
+          partRows: [{ id: 'part-user' }],
+        }),
+      });
+
+      await expect(loadOpencodeSessionRows('/tmp/opencode.db', 'ses-electron', {
+        findNodeExecutable: () => '/bin/node',
+        spawnSync: toSpawnSync(spawnSync),
+      })).resolves.toEqual({
+        messageRows: [{ id: 'msg-user' }],
+        partRows: [{ id: 'part-user' }],
+      });
+
+      expect(spawnSync).toHaveBeenCalled();
+    } finally {
+      if (originalWindow === undefined) {
+        delete (global as unknown as { window?: unknown }).window;
+      } else {
+        (global as unknown as { window: unknown }).window = originalWindow;
+      }
+      if (originalElectron === undefined) {
+        delete (process.versions as { electron?: string }).electron;
+      } else {
+        (process.versions as { electron?: string }).electron = originalElectron;
+      }
+    }
+  });
 });
 
 function toSpawnSync(mock: jest.Mock): SpawnSync {
@@ -148,19 +211,7 @@ function createFixtureDatabase(tmpRoot: string): string {
   const db = new DatabaseSync(dbPath);
   try {
     db.exec(`
-      create table message (
-        id text primary key,
-        session_id text not null,
-        time_created integer not null,
-        data text not null
-      );
-      create table part (
-        id text primary key,
-        session_id text not null,
-        message_id text not null,
-        data text not null
-      );
-    `);
+      create table message (\n        id text primary key,\n        session_id text not null,\n        time_created integer not null,\n        data text not null\n      );\n      create table part (\n        id text primary key,\n        session_id text not null,\n        message_id text not null,\n        data text not null\n      );\n    `);
 
     db.prepare('insert into message (id, session_id, time_created, data) values (?, ?, ?, ?)').run(
       'msg-user',
@@ -180,6 +231,5 @@ function createFixtureDatabase(tmpRoot: string): string {
   } finally {
     db.close();
   }
-
   return dbPath;
 }

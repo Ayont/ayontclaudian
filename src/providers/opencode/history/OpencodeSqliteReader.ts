@@ -86,8 +86,27 @@ function resolveDependencies(
   };
 }
 
+function isElectronRendererProcess(): boolean {
+  if (typeof window !== 'undefined') {
+    const proc = typeof process !== 'undefined'
+      ? (process as unknown as { versions?: { electron?: string }; type?: string })
+      : undefined;
+    if (proc?.versions?.electron || proc?.type === 'renderer') {
+      return true;
+    }
+  }
+  return false;
+}
+
 function requireSqliteModule(): SqliteModule | null {
   try {
+    // In Electron's renderer process, node:sqlite native bindings crash during V8 GC
+    // (SIGTRAP / Trace trap in node::sqlite::UserDefinedFunction::xDestroy).
+    // Always fall back to spawning a child Node process or the sqlite3 CLI instead.
+    if (isElectronRendererProcess()) {
+      return null;
+    }
+
     if (typeof module === 'undefined' || typeof module.require !== 'function') {
       return null;
     }
@@ -255,8 +274,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 
 function buildOpencodeMessageRowsSql(sessionIdExpression: string): string {
   return `
-with message_json as (
-  select
+with message_json as (\n  select
     id,
     time_created,
     data,

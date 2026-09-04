@@ -43,8 +43,9 @@ try {
 `.trim();
 
 /**
- * Reads a session's messages through the first strategy that works: the
- * renderer's own `node:sqlite`, a child Node process, then the `sqlite3` CLI.
+ * Reads a session's messages through the first strategy that works: a
+ * child Node process, the `sqlite3` CLI, or the current process if outside Electron.
+ * (Direct node:sqlite inside Electron renderer crashes V8 GC with SIGTRAP).
  * Returns null when every strategy failed, so callers can tell "no messages"
  * apart from "could not read".
  */
@@ -71,8 +72,27 @@ function resolveDependencies(
   };
 }
 
+function isElectronRendererProcess(): boolean {
+  if (typeof window !== 'undefined') {
+    const proc = typeof process !== 'undefined'
+      ? (process as unknown as { versions?: { electron?: string }; type?: string })
+      : undefined;
+    if (proc?.versions?.electron || proc?.type === 'renderer') {
+      return true;
+    }
+  }
+  return false;
+}
+
 function requireSqliteModule(): SqliteModule | null {
   try {
+    // In Electron's renderer process, node:sqlite native bindings crash during V8 GC
+    // (SIGTRAP / Trace trap in node::sqlite::UserDefinedFunction::xDestroy).
+    // Always fall back to spawning a child Node process or the sqlite3 CLI instead.
+    if (isElectronRendererProcess()) {
+      return null;
+    }
+
     if (typeof module === 'undefined' || typeof module.require !== 'function') {
       return null;
     }
