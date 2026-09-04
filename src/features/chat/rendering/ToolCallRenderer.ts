@@ -591,22 +591,33 @@ function renderLinesExpanded(
 ): void {
   const lines = result.split(/\r?\n/);
   const truncated = lines.length > maxLines;
-  const displayLines = truncated ? lines.slice(0, maxLines) : lines;
+  let isExpanded = false;
 
   const linesEl = container.createDiv({ cls: 'claudian-tool-lines' });
-  for (const line of displayLines) {
-    const stripped = line.replace(/^\s*\d+→/, '');
-    const lineEl = linesEl.createDiv({ cls: 'claudian-tool-line' });
-    if (hoverable) lineEl.addClass('hoverable');
-    lineEl.setText(stripped || ' ');
-  }
+  const render = () => {
+    linesEl.empty();
+    const displayLines = (!isExpanded && truncated) ? lines.slice(0, maxLines) : lines;
+    for (const line of displayLines) {
+      const stripped = line.replace(/^\s*\d+→/, '');
+      const lineEl = linesEl.createDiv({ cls: 'claudian-tool-line' });
+      if (hoverable) lineEl.addClass('hoverable');
+      lineEl.setText(stripped || ' ');
+    }
 
-  if (truncated) {
-    linesEl.createDiv({
-      cls: 'claudian-tool-truncated',
-      text: `... ${lines.length - maxLines} more lines`,
-    });
-  }
+    if (truncated) {
+      const toggleEl = linesEl.createEl('button', {
+        cls: 'claudian-tool-expand-btn',
+        attr: { type: 'button' }
+      });
+      toggleEl.setText(isExpanded ? '▲ Weniger Zeilen anzeigen' : `▼ + ${lines.length - maxLines} weitere Zeilen anzeigen`);
+      toggleEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        isExpanded = !isExpanded;
+        render();
+      });
+    }
+  };
+  render();
 }
 
 function renderToolSearchExpanded(container: HTMLElement, result: string): void {
@@ -1205,8 +1216,21 @@ function renderBashContent(
   }
   if (initialText) {
     const runningEl = container.createDiv({ cls: "claudian-tool-bash-running" });
-    runningEl.createSpan({ cls: "claudian-tool-bash-running-dot" });
-    runningEl.createSpan({ text: initialText });
+    const infoEl = runningEl.createDiv({ cls: "claudian-tool-bash-running-info" });
+    infoEl.createSpan({ cls: "claudian-tool-bash-running-dot" });
+    infoEl.createSpan({ text: initialText });
+
+    const killBtn = runningEl.createEl("button", {
+      cls: "claudian-tool-bash-kill-btn",
+      attr: { type: "button", "aria-label": "Befehl abbrechen" }
+    });
+    killBtn.innerHTML = `<svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1.5"/></svg><span>Abbrechen</span>`;
+    killBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      killBtn.disabled = true;
+      killBtn.setText("Wird gestoppt…");
+      container.dispatchEvent(new CustomEvent("claudian:cancel-turn", { bubbles: true }));
+    });
   } else if (result && result.trim()) {
     const outputEl = container.createDiv({ cls: "claudian-tool-bash-output" });
     renderLinesExpanded(outputEl, result, 20);

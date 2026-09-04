@@ -8,7 +8,7 @@
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import type { ProviderCapabilities, ProviderId } from '../providers/types';
 
-export type BuiltInCommandAction = 'clear' | 'add-dir' | 'resume' | 'fork' | 'undo' | 'branches' | 'command-center' | 'export-html' | 'export-pdf' | 'goal' | 'workflow' | 'schedule' | 'team' | 'template' | 'vault-health' | 'artifact' | 'document' | 'email' | 'image' | 'skill' | 'packet-tracer' | 'status' | 'fast';
+export type BuiltInCommandAction = 'clear' | 'add-dir' | 'resume' | 'fork' | 'undo' | 'branches' | 'command-center' | 'export-html' | 'export-pdf' | 'goal' | 'workflow' | 'schedule' | 'team' | 'template' | 'vault-health' | 'artifact' | 'document' | 'email' | 'image' | 'skill' | 'packet-tracer' | 'status' | 'fast' | 'daily' | 'summary' | 'todo' | 'canvas';
 type BuiltInCommandCapability = 'supportsNativeHistory' | 'supportsFork';
 type BuiltInCommandSupportContext = ProviderId | Pick<ProviderCapabilities, BuiltInCommandCapability>;
 
@@ -32,6 +32,29 @@ export interface BuiltInCommandResult {
 }
 
 export const BUILT_IN_COMMANDS: BuiltInCommand[] = [
+  {
+    name: 'daily',
+    aliases: ['today'],
+    description: 'Aktuelle Daily Note als Kontext anhängen',
+    action: 'daily',
+  },
+  {
+    name: 'summary',
+    aliases: ['zusammenfassung'],
+    description: 'Aktive Notiz strukturiert zusammenfassen',
+    action: 'summary',
+  },
+  {
+    name: 'todo',
+    aliases: ['tasks'],
+    description: 'Offene Aufgaben (- [ ]) im Vault extrahieren',
+    action: 'todo',
+  },
+  {
+    name: 'canvas',
+    description: 'Aktives Obsidian Canvas analysieren oder Karten generieren',
+    action: 'canvas',
+  },
   {
     name: 'clear',
     aliases: ['new'],

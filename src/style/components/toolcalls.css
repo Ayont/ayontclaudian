@@ -928,3 +928,70 @@
 .claudian-tool-bash-success-icon {
   display: inline-flex;
 }
+
+
+.claudian-tool-bash-running {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 12px;
+  padding: 4px 10px;
+  border: 1px solid var(--cl-accent-line);
+  border-radius: var(--cl-radius-pill);
+  color: var(--text-muted);
+  background: var(--cl-accent-softer);
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-sm);
+}
+
+.claudian-tool-bash-running-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.claudian-tool-bash-kill-btn {
+  all: unset !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  padding: 2px 8px !important;
+  border-radius: 9999px !important;
+  background: rgba(239, 68, 68, 0.16) !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+  color: #ef4444 !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  line-height: 1 !important;
+  transition: all 0.15s ease !important;
+}
+
+.claudian-tool-bash-kill-btn:hover {
+  background: rgba(239, 68, 68, 0.28) !important;
+  border-color: rgba(239, 68, 68, 0.5) !important;
+  color: #f87171 !important;
+  transform: translateY(-0.5px) !important;
+}
+
+.claudian-tool-expand-btn {
+  all: unset !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  margin-top: 6px !important;
+  padding: 3px 10px !important;
+  border-radius: 6px !important;
+  background: var(--cl-surface-hover, rgba(255, 255, 255, 0.06)) !important;
+  border: 1px solid var(--cl-border-subtle, rgba(255, 255, 255, 0.1)) !important;
+  color: var(--cl-accent) !important;
+  font-size: 11px !important;
+  font-family: var(--font-text) !important;
+  font-weight: 550 !important;
+  cursor: pointer !important;
+  transition: background 0.15s ease !important;
+}
+
+.claudian-tool-expand-btn:hover {
+  background: var(--cl-surface-active, rgba(255, 255, 255, 0.12)) !important;
+}

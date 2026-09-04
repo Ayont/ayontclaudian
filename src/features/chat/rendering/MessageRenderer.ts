@@ -1191,6 +1191,24 @@ export class MessageRenderer {
       toolsEl.createSpan({ text: `${metrics.tools} ${metrics.tools === 1 ? 'Werkzeug' : 'Werkzeuge'}` });
     }
 
+    if (msg.usage && msg.usage.contextTokens > 0 && msg.usage.contextWindow > 0) {
+      const is1M = msg.usage.contextWindow >= 1_000_000;
+      const formattedUsed = msg.usage.contextTokens >= 1000
+        ? `${(msg.usage.contextTokens / 1000).toFixed(1)}k`
+        : `${msg.usage.contextTokens}`;
+      const formattedTotal = is1M
+        ? '1.000k'
+        : `${Math.round(msg.usage.contextWindow / 1000)}k`;
+      const pct = (msg.usage.percentage ?? ((msg.usage.contextTokens / msg.usage.contextWindow) * 100)).toFixed(1);
+
+      const usageEl = telemetryEl.createSpan({
+        cls: `claudian-response-metric claudian-response-usage ${is1M ? 'is-1m' : ''}`,
+        attr: { title: `Kontextfenster: ${msg.usage.contextTokens.toLocaleString('de-DE')} / ${msg.usage.contextWindow.toLocaleString('de-DE')} Tokens (${pct}%)` }
+      });
+      setIcon(usageEl.createSpan(), 'gauge');
+      usageEl.createSpan({ text: `${formattedUsed} / ${formattedTotal} (${pct}%)` });
+    }
+
     // Two primary actions stay visible (icon-only); everything else lives in
     // the "Mehr"-menu so the footer reads calm instead of button soup.
     const actionsEl = footerEl.createDiv({ cls: 'claudian-response-actions' });

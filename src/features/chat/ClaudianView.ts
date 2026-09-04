@@ -932,6 +932,14 @@ export class ClaudianView extends ItemView {
   private wireEventHandlers(): void {
     const activeDocument = this.containerEl.ownerDocument;
 
+    // DOM-level cancel-turn handler (e.g. from bash tool kill button)
+    this.registerDomEvent(this.containerEl, 'claudian:cancel-turn' as any, () => {
+      const activeTab = this.tabManager?.getActiveTab();
+      if (activeTab) {
+        activeTab.controllers.inputController?.cancelStreaming?.();
+      }
+    });
+
     // Document-level click to close dropdowns
     this.registerDomEvent(activeDocument, 'click', () => {
       this.closeHistoryDropdown(false);

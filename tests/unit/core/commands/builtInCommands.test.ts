@@ -291,8 +291,8 @@ describe('builtInCommands', () => {
     it('returns only commands supported by codex capabilities', () => {
       const commands = getBuiltInCommandsForDropdown('codex');
       // Universal commands (no required capability) join the supported set.
-      expect(commands.length).toBe(23);
-      expect(commands.map(c => c.name)).toEqual(['clear', 'add-dir', 'resume', 'fork', 'undo', 'branches', 'commands', 'export-html', 'export-pdf', 'goal', 'workflow', 'schedule', 'team', 'template', 'vault-health', 'artifact', 'document', 'email', 'image', 'skill', 'packet-tracer', 'status', 'fast']);
+      expect(commands.length).toBe(27);
+      expect(commands.map(c => c.name)).toEqual(['daily', 'summary', 'todo', 'canvas', 'clear', 'add-dir', 'resume', 'fork', 'undo', 'branches', 'commands', 'export-html', 'export-pdf', 'goal', 'workflow', 'schedule', 'team', 'template', 'vault-health', 'artifact', 'document', 'email', 'image', 'skill', 'packet-tracer', 'status', 'fast']);
     });
   });
 

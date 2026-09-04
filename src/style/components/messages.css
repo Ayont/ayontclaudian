@@ -932,6 +932,19 @@ body.theme-light .claudian-response-provider-pill {
 
 .claudian-response-metric svg { width: 12px; height: 12px; }
 
+.claudian-response-usage {
+  background: color-mix(in srgb, var(--cl-surface-overlay) 80%, transparent);
+  border: 1px solid var(--cl-border-subtle, rgba(255, 255, 255, 0.08));
+}
+
+.claudian-response-usage.is-1m {
+  background: color-mix(in srgb, var(--cl-accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--cl-accent) 28%, transparent);
+  color: var(--cl-accent);
+  font-weight: 550;
+}
+
+
 .claudian-baked-duration {
   color: var(--text-muted);
   font-size: var(--cl-text-sm);

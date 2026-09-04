@@ -74,7 +74,14 @@ export class CanvasSelectionController {
         && this.storedSelection.nodeIds.every(id => nodeIds.includes(id));
 
       if (!sameSelection) {
-        this.storedSelection = { canvasPath, nodeIds };
+        const nodesData = [...selection].map((n: any) => ({
+          id: String(n.id || ""),
+          type: String(n.type || (n.text ? "text" : n.file ? "file" : n.url ? "link" : "node")),
+          text: typeof n.text === "string" ? n.text : (typeof n.unknownText === "string" ? n.unknownText : undefined),
+          file: typeof n.file?.path === "string" ? n.file.path : (typeof n.filePath === "string" ? n.filePath : undefined),
+          url: typeof n.url === "string" ? n.url : undefined,
+        }));
+        this.storedSelection = { canvasPath, nodeIds, nodes: nodesData };
         this.updateIndicator();
       }
     } else if (this.getActiveElement() !== this.inputEl) {

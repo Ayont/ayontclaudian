@@ -1076,6 +1076,9 @@ export class InputController {
           }
         }
 
+        if (state.usage) {
+          finalAssistantMsg.usage = { ...state.usage };
+        }
         await streamController.finalizeCurrentThinkingBlock(finalAssistantMsg);
         await streamController.finalizeCurrentTextBlock(finalAssistantMsg);
         state.currentContentEl = null;
@@ -2689,6 +2692,66 @@ export class InputController {
     }
 
     switch (command.action) {
+      case 'daily': {
+        const app = this.deps.plugin.app;
+        const now = new Date();
+        const dateStr = now.toISOString().slice(0, 10);
+        const files = app.vault.getMarkdownFiles();
+        const dailyFile = files.find(f => f.basename.includes(dateStr) || f.path.toLowerCase().includes(dateStr));
+        const inputEl = this.deps.getInputEl();
+        if (dailyFile) {
+          inputEl.value = `Was steht heute in meiner Daily Note [[${dailyFile.basename}]] an? Fasse Prioritäten und Termine prägnant zusammen.`;
+          new Notice(`📅 Daily Note [[${dailyFile.basename}]] verknüpft.`);
+        } else {
+          inputEl.value = `Führe ein Tages-Briefing für heute (${dateStr}) durch. Was sind die wichtigsten Schwerpunkte?`;
+          new Notice(`Keine Daily Note für ${dateStr} gefunden – Briefing vorbereitet.`);
+        }
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        inputEl.focus();
+        break;
+      }
+      case 'summary': {
+        const activeFile = this.deps.plugin.app.workspace.getActiveFile();
+        const inputEl = this.deps.getInputEl();
+        if (activeFile) {
+          inputEl.value = `Erstelle eine prägnante, strukturierte Zusammenfassung der Datei [[${activeFile.basename}]] mit Kernbotschaften und nächsten Schritten.`;
+          new Notice(`📝 Zusammenfassung für [[${activeFile.basename}]] vorbereitet.`);
+        } else {
+          inputEl.value = `Erstelle eine strukturierte Zusammenfassung der relevanten Notizen zu folgendem Thema: `;
+          new Notice('Keine aktive Notiz geöffnet.');
+        }
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        inputEl.focus();
+        break;
+      }
+      case 'todo': {
+        const activeFile = this.deps.plugin.app.workspace.getActiveFile();
+        const inputEl = this.deps.getInputEl();
+        if (activeFile) {
+          inputEl.value = `Analysiere [[${activeFile.basename}]] und extrahiere alle offenen Aufgaben (- [ ]). Gruppiere sie nach Dringlichkeit.`;
+          new Notice(`✅ Aufgaben-Extraktion für [[${activeFile.basename}]] vorbereitet.`);
+        } else {
+          inputEl.value = `Durchsuche meinen Vault nach allen unerledigten Aufgaben (- [ ]) und erstelle eine saubere Prioritätenliste.`;
+          new Notice('Aufgaben-Suche im Vault vorbereitet.');
+        }
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        inputEl.focus();
+        break;
+      }
+      case 'canvas': {
+        const activeFile = this.deps.plugin.app.workspace.getActiveFile();
+        const inputEl = this.deps.getInputEl();
+        if (activeFile && activeFile.extension === 'canvas') {
+          inputEl.value = `Analysiere das geöffnete Canvas [[${activeFile.basename}]] und schlage 3 bis 5 neue thematische Kacheln mit Verbindungen vor.`;
+          new Notice(`🎨 Canvas [[${activeFile.basename}]] erkannt.`);
+        } else {
+          inputEl.value = `Hilf mir beim Strukturieren eines neuen Obsidian Canvas für folgendes Thema: `;
+          new Notice('Kein aktives Canvas geöffnet.');
+        }
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        inputEl.focus();
+        break;
+      }
       case 'clear':
         await conversationController.createNew();
         break;

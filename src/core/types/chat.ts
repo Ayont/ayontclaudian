@@ -101,6 +101,8 @@ export interface ChatMessage {
   agentLabel?: string;
   /** Model id that produced (or received, for user turns) this message. */
   agentModel?: string;
+  /** Turn-specific token usage metrics if captured for this message. */
+  usage?: UsageInfo;
 }
 
 /** Persisted conversation with messages and session state. */
