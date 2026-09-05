@@ -47,12 +47,14 @@ const SUBAGENT_TOOL_STATUS_ICONS: Partial<Record<ToolCallInfo['status'], string>
   blocked: 'shield-off',
 };
 
-function extractTaskDescription(input: Record<string, unknown>): string {
-  return (input.description as string) || 'Subagent task';
+function extractTaskDescription(input: Record<string, unknown> = {}): string {
+  const safeInput = input ?? {};
+  return (safeInput.description as string) || 'Subagent task';
 }
 
-function extractTaskPrompt(input: Record<string, unknown>): string {
-  return (input.prompt as string) || '';
+function extractTaskPrompt(input: Record<string, unknown> = {}): string {
+  const safeInput = input ?? {};
+  return (safeInput.prompt as string) || '';
 }
 
 function truncateDescription(description: string, maxLength = 40): string {
@@ -120,16 +122,20 @@ function setSubagentToolStatus(view: SubagentToolView, status: ToolCallInfo['sta
 }
 
 function updateSubagentToolView(view: SubagentToolView, toolCall: ToolCallInfo): void {
-  view.wrapperEl.className = `claudian-subagent-tool-item claudian-subagent-tool-${toolCall.status}`;
-  view.nameEl.setText(getToolName(toolCall.name, toolCall.input));
-  view.summaryEl.setText(getToolSummary(toolCall.name, toolCall.input));
-  setSubagentToolStatus(view, toolCall.status);
+  const status = toolCall.status || 'running';
+  const safeInput = toolCall.input ?? {};
+  view.wrapperEl.className = `claudian-subagent-tool-item claudian-subagent-tool-${status}`;
+  view.nameEl.setText(getToolName(toolCall.name, safeInput));
+  view.summaryEl.setText(getToolSummary(toolCall.name, safeInput));
+  setSubagentToolStatus(view, status);
   renderSubagentToolContent(view.contentEl, toolCall);
 }
 
 function createSubagentToolView(parentEl: HTMLElement, toolCall: ToolCallInfo): SubagentToolView {
+  const status = toolCall.status || 'running';
+  const safeInput = toolCall.input ?? {};
   const wrapperEl = parentEl.createDiv({
-    cls: `claudian-subagent-tool-item claudian-subagent-tool-${toolCall.status}`,
+    cls: `claudian-subagent-tool-item claudian-subagent-tool-${status}`,
   });
   wrapperEl.dataset.toolId = toolCall.id;
 
@@ -139,7 +145,7 @@ function createSubagentToolView(parentEl: HTMLElement, toolCall: ToolCallInfo): 
 
   const iconEl = headerEl.createDiv({ cls: 'claudian-subagent-tool-icon' });
   iconEl.setAttribute('aria-hidden', 'true');
-  setToolIcon(iconEl, toolCall.name);
+  setToolIcon(iconEl, toolCall.name, safeInput);
 
   const nameEl = headerEl.createDiv({ cls: 'claudian-subagent-tool-name' });
   const summaryEl = headerEl.createDiv({ cls: 'claudian-subagent-tool-summary' });
@@ -153,7 +159,7 @@ function createSubagentToolView(parentEl: HTMLElement, toolCall: ToolCallInfo): 
     onToggle: (expanded) => {
       toolCall.isExpanded = expanded;
     },
-    baseAriaLabel: getToolLabel(toolCall.name, toolCall.input),
+    baseAriaLabel: getToolLabel(toolCall.name, safeInput),
   });
 
   const view: SubagentToolView = {
@@ -197,10 +203,11 @@ function hydrateSyncSubagentStateFromStored(state: SubagentState, subagent: Suba
   state.labelEl.setText(truncateDescription(subagent.description));
   setPromptText(state.promptBodyEl, subagent.prompt || '');
 
-  for (const originalToolCall of subagent.toolCalls) {
+  const toolCalls = (Array.isArray(subagent.toolCalls) ? subagent.toolCalls : []).filter(Boolean);
+  for (const originalToolCall of toolCalls) {
     const toolCall: ToolCallInfo = {
       ...originalToolCall,
-      input: { ...originalToolCall.input },
+      input: originalToolCall.input ? { ...originalToolCall.input } : {},
     };
     addSubagentToolCall(state, toolCall);
     if (toolCall.status !== 'running' || toolCall.result) {
@@ -221,10 +228,11 @@ function hydrateSyncSubagentStateFromStored(state: SubagentState, subagent: Suba
 export function createSubagentBlock(
   parentEl: HTMLElement,
   taskToolId: string,
-  taskInput: Record<string, unknown>
+  taskInput: Record<string, unknown> = {}
 ): SubagentState {
-  const description = extractTaskDescription(taskInput);
-  const prompt = extractTaskPrompt(taskInput);
+  const safeInput = taskInput ?? {};
+  const description = extractTaskDescription(safeInput);
+  const prompt = extractTaskPrompt(safeInput);
 
   const info: SubagentInfo = {
     id: taskToolId,
@@ -293,8 +301,8 @@ export function addSubagentToolCall(
       ...existingToolCall,
       ...toolCall,
       input: {
-        ...existingToolCall.input,
-        ...toolCall.input,
+        ...(existingToolCall.input ?? {}),
+        ...(toolCall.input ?? {}),
       },
       result: toolCall.result ?? existingToolCall.result,
       isExpanded: toolCall.isExpanded ?? existingToolCall.isExpanded,
@@ -447,10 +455,11 @@ function renderAsyncContentLikeSync(
   setPromptText(promptSection.bodyEl, subagent.prompt || '');
 
   const toolsContainerEl = contentEl.createDiv({ cls: 'claudian-subagent-tools' });
-  for (const originalToolCall of subagent.toolCalls) {
+  const toolCalls = (Array.isArray(subagent.toolCalls) ? subagent.toolCalls : []).filter(Boolean);
+  for (const originalToolCall of toolCalls) {
     const toolCall: ToolCallInfo = {
       ...originalToolCall,
-      input: { ...originalToolCall.input },
+      input: originalToolCall.input ? { ...originalToolCall.input } : {},
     };
     createSubagentToolView(toolsContainerEl, toolCall);
   }
@@ -480,10 +489,11 @@ function renderAsyncContentLikeSync(
 export function createAsyncSubagentBlock(
   parentEl: HTMLElement,
   taskToolId: string,
-  taskInput: Record<string, unknown>
+  taskInput: Record<string, unknown> = {}
 ): AsyncSubagentState {
-  const description = (taskInput.description as string) || 'Background task';
-  const prompt = (taskInput.prompt as string) || '';
+  const safeInput = taskInput ?? {};
+  const description = (safeInput.description as string) || 'Background task';
+  const prompt = (safeInput.prompt as string) || '';
 
   const info: SubagentInfo = {
     id: taskToolId,

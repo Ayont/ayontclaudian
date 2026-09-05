@@ -127,120 +127,118 @@ body,
        3. an ink well (--cl-ink) for recessed content like code and shell output.
      --mono-rgb-0 / --mono-rgb-100 are Obsidian's theme-flipping black/white,
      so one declaration serves both themes; light only re-tunes intensities. */
-  --cl-glass-blur: 22px;
-  --cl-glass-sat: 1.55;
+  /* ── Obsidian-Luxe Material System ─────────────────────────────────────────
+     Crisp hairline borders, subtle elevation, and refined Obsidian theme tokens.
+     Translucency is calm (10px) and anchored to native vault surfaces rather
+     than loud liquid-glass artifacts. */
+  --cl-hairline: 1px solid var(--cl-border-subtle);
+  --cl-glass-blur: 10px;
+  --cl-glass-sat: 1.06;
   --cl-glass-filter: blur(var(--cl-glass-blur)) saturate(var(--cl-glass-sat));
-  --cl-glass-filter-soft: blur(14px) saturate(1.25);
-  --cl-glass-body: color-mix(in srgb, var(--cl-surface-raised) 66%, transparent);
-  --cl-glass-body-strong: color-mix(in srgb, var(--cl-surface-raised) 86%, transparent);
-  --cl-glass-body-overlay: color-mix(in srgb, var(--cl-surface-overlay) 80%, transparent);
-  --cl-glass-rim: rgba(var(--mono-rgb-100, 255, 255, 255), 0.10);
-  --cl-glass-rim-top: rgba(var(--mono-rgb-100, 255, 255, 255), 0.20);
-  --cl-glass-rim-strong: rgba(var(--mono-rgb-100, 255, 255, 255), 0.16);
+  --cl-glass-filter-soft: blur(6px) saturate(1.04);
+  --cl-glass-body: color-mix(in srgb, var(--cl-surface-raised) 92%, transparent);
+  --cl-glass-body-strong: color-mix(in srgb, var(--cl-surface-raised) 96%, transparent);
+  --cl-glass-body-overlay: color-mix(in srgb, var(--cl-surface-overlay) 94%, transparent);
+  --cl-glass-rim: var(--cl-border-subtle);
+  --cl-glass-rim-top: color-mix(in srgb, var(--mono-rgb-100, 255, 255, 255) 7%, var(--cl-border-subtle));
+  --cl-glass-rim-strong: var(--cl-border-strong);
   --cl-glass-sheen:
-    linear-gradient(165deg,
-      rgba(var(--mono-rgb-100, 255, 255, 255), 0.085) 0%,
-      rgba(var(--mono-rgb-100, 255, 255, 255), 0.025) 24%,
-      transparent 48%);
-  --cl-glass-shadow: 0 12px 36px rgba(0, 0, 0, 0.30);
-  --cl-glass-shadow-pop: 0 22px 60px rgba(0, 0, 0, 0.42);
-  /* Composite edge: contour + top light in one box-shadow stack. */
+    linear-gradient(180deg,
+      rgba(var(--mono-rgb-100, 255, 255, 255), 0.02) 0%,
+      transparent 100%);
+  --cl-glass-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.22), 0 1px 3px rgba(0, 0, 0, 0.12);
+  --cl-glass-shadow-pop: 0 8px 26px -4px rgba(0, 0, 0, 0.32), 0 2px 6px rgba(0, 0, 0, 0.16);
+  /* Composite edge: clean hairline contour with subtle ambient top light. */
   --cl-glass-edge:
-    inset 0 0 0 1px var(--cl-glass-rim),
-    inset 0 1px 0 var(--cl-glass-rim-top);
+    inset 0 0 0 1px var(--cl-border-subtle),
+    inset 0 1px 0 rgba(var(--mono-rgb-100, 255, 255, 255), 0.06);
   /* Ink well: recessed fill for code, shell output and logs. Flips with theme. */
-  --cl-ink: rgba(var(--mono-rgb-0, 0, 0, 0), 0.22);
-  --cl-ink-deep: rgba(var(--mono-rgb-0, 0, 0, 0), 0.30);
-  --cl-ink-soft: rgba(var(--mono-rgb-0, 0, 0, 0), 0.12);
-  /* Foreground-tinted wash (was hardcoded rgba(255,255,255,x) in dark-only CSS). */
-  --cl-wash: rgba(var(--mono-rgb-100, 255, 255, 255), 0.04);
-  --cl-wash-strong: rgba(var(--mono-rgb-100, 255, 255, 255), 0.07);
+  --cl-ink: rgba(var(--mono-rgb-0, 0, 0, 0), 0.18);
+  --cl-ink-deep: rgba(var(--mono-rgb-0, 0, 0, 0), 0.26);
+  --cl-ink-soft: rgba(var(--mono-rgb-0, 0, 0, 0), 0.10);
+  /* Foreground-tinted wash. */
+  --cl-wash: rgba(var(--mono-rgb-100, 255, 255, 255), 0.03);
+  --cl-wash-strong: rgba(var(--mono-rgb-100, 255, 255, 255), 0.06);
 
-  /* ── Liquid Glass Material & Accent Gradients (Settings-driven) ──────────── */
+  /* ── Refined Accent Gradients & Surfaces (Obsidian-Luxe) ─────────────────── */
   --cl-liquid-gradient-subtle: linear-gradient(
-    135deg,
-    rgba(var(--cl-accent-rgb), 0.16) 0%,
-    rgba(var(--cl-accent-rgb), 0.05) 50%,
-    rgba(255, 255, 255, 0.02) 100%
+    180deg,
+    rgba(var(--cl-accent-rgb), 0.06) 0%,
+    rgba(var(--cl-accent-rgb), 0.01) 100%
   );
   --cl-liquid-gradient-medium: linear-gradient(
-    135deg,
-    rgba(var(--cl-accent-rgb), 0.24) 0%,
-    rgba(var(--cl-accent-rgb), 0.08) 55%,
-    rgba(255, 255, 255, 0.03) 100%
+    180deg,
+    rgba(var(--cl-accent-rgb), 0.10) 0%,
+    rgba(var(--cl-accent-rgb), 0.02) 100%
   );
   --cl-liquid-gradient-hover: linear-gradient(
-    135deg,
-    rgba(var(--cl-accent-rgb), 0.38) 0%,
-    rgba(var(--cl-accent-rgb), 0.15) 55%,
-    rgba(255, 255, 255, 0.06) 100%
+    180deg,
+    rgba(var(--cl-accent-rgb), 0.16) 0%,
+    rgba(var(--cl-accent-rgb), 0.05) 100%
   );
   --cl-liquid-gradient-active: linear-gradient(
-    135deg,
-    rgba(var(--cl-accent-rgb), 0.50) 0%,
-    rgba(var(--cl-accent-rgb), 0.24) 70%,
-    rgba(var(--cl-accent-rgb), 0.12) 100%
+    180deg,
+    rgba(var(--cl-accent-rgb), 0.22) 0%,
+    rgba(var(--cl-accent-rgb), 0.08) 100%
   );
-  --cl-liquid-rim: rgba(var(--cl-accent-rgb), 0.30);
-  --cl-liquid-rim-hover: rgba(var(--cl-accent-rgb), 0.58);
-  --cl-liquid-rim-top: rgba(255, 255, 255, 0.38);
-  --cl-liquid-rim-top-hover: rgba(255, 255, 255, 0.60);
-  --cl-liquid-glow: 0 4px 18px rgba(var(--cl-accent-rgb), 0.18);
-  --cl-liquid-glow-hover: 0 8px 28px rgba(var(--cl-accent-rgb), 0.34);
+  --cl-liquid-rim: color-mix(in srgb, var(--cl-accent) 22%, var(--cl-border-subtle));
+  --cl-liquid-rim-hover: color-mix(in srgb, var(--cl-accent) 42%, var(--cl-border-subtle));
+  --cl-liquid-rim-top: color-mix(in srgb, rgba(255, 255, 255, 0.14) 40%, var(--cl-liquid-rim));
+  --cl-liquid-rim-top-hover: color-mix(in srgb, rgba(255, 255, 255, 0.24) 40%, var(--cl-liquid-rim-hover));
+  --cl-liquid-glow: 0 1px 3px rgba(0, 0, 0, 0.14), 0 0 8px rgba(var(--cl-accent-rgb), 0.07);
+  --cl-liquid-glow-hover: 0 2px 10px rgba(0, 0, 0, 0.20), 0 0 14px rgba(var(--cl-accent-rgb), 0.14);
 }
 
-/* Light theme: glass is brighter and less saturated; rims read as shade. */
+/* Light theme: crisp hairline borders with soft shade and calm surfaces. */
 body.theme-light,
 body.theme-light .claudian-container {
-  --cl-glass-sat: 1.25;
-  --cl-glass-body: color-mix(in srgb, var(--cl-surface-base) 74%, transparent);
-  --cl-glass-body-strong: color-mix(in srgb, var(--cl-surface-base) 90%, transparent);
-  --cl-glass-body-overlay: color-mix(in srgb, var(--cl-surface-base) 86%, transparent);
-  --cl-glass-rim: rgba(var(--mono-rgb-100, 0, 0, 0), 0.08);
-  --cl-glass-rim-top: rgba(255, 255, 255, 0.85);
-  --cl-glass-rim-strong: rgba(var(--mono-rgb-100, 0, 0, 0), 0.12);
+  --cl-glass-sat: 1.04;
+  --cl-glass-body: color-mix(in srgb, var(--cl-surface-base) 94%, transparent);
+  --cl-glass-body-strong: color-mix(in srgb, var(--cl-surface-base) 98%, transparent);
+  --cl-glass-body-overlay: color-mix(in srgb, var(--cl-surface-base) 96%, transparent);
+  --cl-glass-rim: var(--cl-border-subtle);
+  --cl-glass-rim-top: color-mix(in srgb, #000 4%, var(--cl-border-subtle));
+  --cl-glass-rim-strong: var(--cl-border-strong);
   --cl-glass-sheen:
-    linear-gradient(165deg,
-      rgba(255, 255, 255, 0.70) 0%,
-      rgba(255, 255, 255, 0.25) 26%,
-      transparent 50%);
-  --cl-glass-shadow: 0 10px 30px rgba(20, 20, 30, 0.10);
-  --cl-glass-shadow-pop: 0 20px 54px rgba(20, 20, 30, 0.16);
-  --cl-ink: rgba(var(--mono-rgb-100, 0, 0, 0), 0.045);
-  --cl-ink-deep: rgba(var(--mono-rgb-100, 0, 0, 0), 0.07);
-  --cl-ink-soft: rgba(var(--mono-rgb-100, 0, 0, 0), 0.03);
-  --cl-wash: rgba(var(--mono-rgb-100, 0, 0, 0), 0.025);
-  --cl-wash-strong: rgba(var(--mono-rgb-100, 0, 0, 0), 0.045);
+    linear-gradient(180deg,
+      rgba(255, 255, 255, 0.4) 0%,
+      transparent 100%);
+  --cl-glass-shadow: 0 3px 12px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --cl-glass-shadow-pop: 0 8px 22px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --cl-glass-edge:
+    inset 0 0 0 1px var(--cl-border-subtle);
+  --cl-ink: rgba(var(--mono-rgb-100, 0, 0, 0), 0.035);
+  --cl-ink-deep: rgba(var(--mono-rgb-100, 0, 0, 0), 0.055);
+  --cl-ink-soft: rgba(var(--mono-rgb-100, 0, 0, 0), 0.02);
+  --cl-wash: rgba(var(--mono-rgb-100, 0, 0, 0), 0.02);
+  --cl-wash-strong: rgba(var(--mono-rgb-100, 0, 0, 0), 0.035);
 
   --cl-liquid-gradient-subtle: linear-gradient(
-    135deg,
-    rgba(var(--cl-accent-rgb), 0.16) 0%,
-    rgba(var(--cl-accent-rgb), 0.06) 50%,
-    rgba(255, 255, 255, 0.75) 100%
+    180deg,
+    rgba(var(--cl-accent-rgb), 0.05) 0%,
+    rgba(var(--cl-accent-rgb), 0.01) 100%
   );
   --cl-liquid-gradient-medium: linear-gradient(
-    135deg,
-    rgba(var(--cl-accent-rgb), 0.24) 0%,
-    rgba(var(--cl-accent-rgb), 0.09) 55%,
-    rgba(255, 255, 255, 0.82) 100%
+    180deg,
+    rgba(var(--cl-accent-rgb), 0.09) 0%,
+    rgba(var(--cl-accent-rgb), 0.02) 100%
   );
   --cl-liquid-gradient-hover: linear-gradient(
-    135deg,
-    rgba(var(--cl-accent-rgb), 0.34) 0%,
-    rgba(var(--cl-accent-rgb), 0.14) 55%,
-    rgba(255, 255, 255, 0.90) 100%
+    180deg,
+    rgba(var(--cl-accent-rgb), 0.14) 0%,
+    rgba(var(--cl-accent-rgb), 0.04) 100%
   );
   --cl-liquid-gradient-active: linear-gradient(
-    135deg,
-    rgba(var(--cl-accent-rgb), 0.45) 0%,
-    rgba(var(--cl-accent-rgb), 0.22) 100%
+    180deg,
+    rgba(var(--cl-accent-rgb), 0.18) 0%,
+    rgba(var(--cl-accent-rgb), 0.06) 100%
   );
-  --cl-liquid-rim: rgba(var(--cl-accent-rgb), 0.32);
-  --cl-liquid-rim-hover: rgba(var(--cl-accent-rgb), 0.60);
-  --cl-liquid-rim-top: rgba(255, 255, 255, 0.95);
-  --cl-liquid-rim-top-hover: #ffffff;
-  --cl-liquid-glow: 0 4px 14px rgba(var(--cl-accent-rgb), 0.16);
-  --cl-liquid-glow-hover: 0 6px 22px rgba(var(--cl-accent-rgb), 0.28);
+  --cl-liquid-rim: color-mix(in srgb, var(--cl-accent) 24%, var(--cl-border-subtle));
+  --cl-liquid-rim-hover: color-mix(in srgb, var(--cl-accent) 46%, var(--cl-border-subtle));
+  --cl-liquid-rim-top: var(--cl-liquid-rim);
+  --cl-liquid-rim-top-hover: var(--cl-liquid-rim-hover);
+  --cl-liquid-glow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --cl-liquid-glow-hover: 0 2px 8px rgba(var(--cl-accent-rgb), 0.10);
 }
 
 /* Accessibility / capability fallbacks: collapse the material to solid,

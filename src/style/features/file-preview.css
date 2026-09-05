@@ -189,49 +189,44 @@
 }
 
 .claudian-preview-close {
-  width: 32px !important;
-  height: 32px !important;
-  min-width: 32px !important;
-  min-height: 32px !important;
+  width: 26px !important;
+  height: 26px !important;
+  min-width: 26px !important;
+  min-height: 26px !important;
   padding: 0 !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  border-radius: 9999px !important;
+  border-radius: 6px !important;
   border: 1px solid transparent !important;
   background: transparent !important;
   color: var(--text-muted) !important;
   cursor: pointer !important;
   transition:
-    transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1),
-    background 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease !important;
+    background var(--cl-dur-fast) var(--cl-ease),
+    border-color var(--cl-dur-fast) var(--cl-ease),
+    color var(--cl-dur-fast) var(--cl-ease),
+    transform 140ms var(--cl-ease-out) !important;
 }
 
 .claudian-preview-close svg {
-  width: 16px !important;
-  height: 16px !important;
-  min-width: 16px !important;
-  min-height: 16px !important;
-  stroke-width: 2.2 !important;
+  width: 14px !important;
+  height: 14px !important;
+  min-width: 14px !important;
+  min-height: 14px !important;
+  stroke-width: 2 !important;
   display: block !important;
 }
 
 .claudian-preview-close:hover {
   background: var(--background-modifier-hover) !important;
-  border-color: var(--cl-liquid-rim) !important;
+  border-color: var(--cl-border-subtle) !important;
   color: var(--text-normal) !important;
-  transform: rotate(90deg) scale(1.10) !important;
-}
-  transition:
-    background var(--cl-dur-fast) var(--cl-ease),
-    color var(--cl-dur-fast) var(--cl-ease),
-    transform 140ms var(--cl-ease-out);
+  transform: translateY(-0.5px) !important;
 }
 
 .claudian-preview-close:active {
-  transform: scale(0.97);
+  transform: scale(0.96) !important;
 }
 
 @media (hover: hover) and (pointer: fine) {

@@ -8,19 +8,11 @@
   display: inline-flex;
   align-items: stretch;
   flex: 0 0 auto;
-  padding: 3px !important;
-  border-radius: 9999px !important;
-  background:
-    var(--cl-liquid-gradient-subtle),
-    color-mix(in srgb, var(--cl-surface-sunken) 72%, transparent) !important;
-  border: 1px solid var(--cl-liquid-rim) !important;
-  border-top-color: var(--cl-liquid-rim-top) !important;
-  -webkit-backdrop-filter: var(--cl-glass-filter) !important;
-  backdrop-filter: var(--cl-glass-filter) !important;
-  box-shadow:
-    inset 0 1.5px 3px rgba(0, 0, 0, 0.35),
-    inset 0 1px 1px rgba(255, 255, 255, 0.10),
-    0 2px 8px rgba(0, 0, 0, 0.20) !important;
+  padding: 2px !important;
+  border-radius: var(--cl-radius-pill) !important;
+  background: var(--cl-surface-sunken) !important;
+  border: 1px solid var(--cl-border-subtle) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.16) !important;
   user-select: none;
 }
 
@@ -31,19 +23,19 @@
 
 .claudian-mode-toggle-thumb {
   position: absolute;
-  top: 3px;
-  left: 3px;
-  width: calc(50% - 3px);
-  height: calc(100% - 6px);
-  border-radius: 9999px !important;
+  top: 2px;
+  left: 2px;
+  width: calc(50% - 2px);
+  height: calc(100% - 4px);
+  border-radius: var(--cl-radius-pill) !important;
   pointer-events: none;
   z-index: 0;
   transform: translateX(0);
   transition:
-    transform 0.36s cubic-bezier(0.34, 1.42, 0.64, 1),
-    background 0.30s ease,
-    border-color 0.30s ease,
-    box-shadow 0.36s ease !important;
+    transform 0.32s cubic-bezier(0.34, 1.3, 0.64, 1),
+    background 0.24s ease,
+    border-color 0.24s ease,
+    box-shadow 0.32s ease !important;
 }
 
 .claudian-mode-toggle-segment {
@@ -53,21 +45,21 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 4px 14px !important;
-  min-height: 28px !important;
+  padding: 4px 12px !important;
+  min-height: 26px !important;
   height: auto !important;
   border: none !important;
   background: transparent !important;
   box-shadow: none !important;
-  border-radius: 9999px !important;
+  border-radius: var(--cl-radius-pill) !important;
   font-family: var(--cl-font-ui) !important;
   font-size: var(--cl-text-xs) !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.02em !important;
+  font-weight: 550 !important;
+  letter-spacing: 0.01em !important;
   color: var(--text-muted) !important;
   cursor: pointer !important;
   transition:
-    color 0.22s var(--cl-ease-out),
+    color 0.18s var(--cl-ease-out),
     transform 0.16s cubic-bezier(0.2, 0.9, 0.3, 1) !important;
 }
 
@@ -75,17 +67,15 @@
   color: var(--text-normal) !important;
   background: transparent !important;
   box-shadow: none !important;
-  transform: scale(1.02);
 }
 
 .claudian-mode-toggle-segment:active {
-  transform: scale(0.95) !important;
+  transform: scale(0.96) !important;
 }
 
 .claudian-mode-toggle-segment.is-active {
   color: var(--text-normal) !important;
-  font-weight: 650 !important;
-  text-shadow: 0 0 12px rgba(255, 255, 255, 0.20);
+  font-weight: 600 !important;
 }
 
 .claudian-mode-toggle-segment:focus-visible {
@@ -98,25 +88,24 @@
   align-items: center;
   justify-content: center;
   color: var(--cl-accent);
-  opacity: 0.65;
+  opacity: 0.75;
   transition:
-    opacity 0.22s var(--cl-ease-out),
-    transform 0.28s cubic-bezier(0.34, 1.4, 0.64, 1) !important;
+    opacity 0.20s var(--cl-ease-out),
+    transform 0.24s cubic-bezier(0.34, 1.4, 0.64, 1) !important;
 }
 
 .claudian-mode-toggle-segment.is-active .claudian-mode-toggle-icon {
   opacity: 1 !important;
-  transform: scale(1.15) !important;
-  filter: drop-shadow(0 0 6px currentColor);
+  transform: scale(1.08) !important;
 }
 
 .claudian-mode-toggle-icon svg {
-  width: 14px !important;
-  height: 14px !important;
+  width: 13px !important;
+  height: 13px !important;
   stroke-width: 2 !important;
 }
 
-/* ── Mode-switch crossfade ───────────────────────────────────────────────
+/* ── Mode-switch crossfade ───────────────────────────────────────────
    Switching Code↔Work re-accents the whole container instantly; a soft
    one-shot opacity dip on the transcript + input makes the change read as a
    deliberate scene change instead of a color glitch. Opacity-only. */
@@ -140,8 +129,8 @@
   animation: cl-mode-shift var(--cl-dur-slow) var(--cl-ease);
 }
 
-/* ── Mode quick actions ──────────────────────────────────────────────────
-   Chips above the composer, one set per mode; the container's mode class
+/* Mode-dependent quick prompt chips ─────────────────────────────────
+   Pinned right above the composer. Mode-switch swaps the active group; JS
    picks the visible set. Hidden while the composer holds text (JS class). */
 .claudian-mode-quick-row {
   display: flex;
@@ -178,18 +167,11 @@
   flex-shrink: 0 !important;
   gap: 6px !important;
   height: auto !important;
-  padding: 5px 12px !important;
-  border: 1px solid var(--cl-liquid-rim) !important;
-  border-top-color: var(--cl-liquid-rim-top) !important;
-  border-radius: 9999px !important;
-  background:
-    var(--cl-liquid-gradient-subtle),
-    color-mix(in srgb, var(--cl-surface-raised) 75%, transparent) !important;
-  backdrop-filter: var(--cl-glass-filter-soft) !important;
-  -webkit-backdrop-filter: var(--cl-glass-filter-soft) !important;
-  box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.22),
-    0 2px 6px rgba(0, 0, 0, 0.14) !important;
+  padding: 5px 11px !important;
+  border: 1px solid var(--cl-border-subtle) !important;
+  border-radius: 8px !important;
+  background: var(--cl-surface-raised) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08) !important;
   color: var(--text-muted) !important;
   font-size: var(--cl-text-xs) !important;
   font-weight: 500 !important;
@@ -200,7 +182,6 @@
     background var(--cl-dur-fast) var(--cl-ease),
     box-shadow var(--cl-dur-fast) var(--cl-ease),
     transform var(--cl-dur-fast) var(--cl-ease) !important;
-  /* Staggered rise-in: display none→flex on mode switch restarts these. */
   animation: cl-rise var(--cl-dur) var(--cl-ease) both;
 }
 
@@ -218,15 +199,10 @@
 
 .claudian-mode-quick-chip:hover,
 .claudian-container button.claudian-mode-quick-chip:hover {
-  color: var(--text-normal);
-  border-color: var(--cl-liquid-rim-hover);
-  border-top-color: var(--cl-liquid-rim-top-hover);
-  background:
-    var(--cl-liquid-gradient-hover),
-    color-mix(in srgb, var(--cl-surface-raised) 88%, transparent);
-  box-shadow:
-    inset 0 1px 1.5px rgba(255, 255, 255, 0.35),
-    var(--cl-liquid-glow);
+  color: var(--text-normal) !important;
+  border-color: var(--cl-border-strong) !important;
+  background: var(--background-modifier-hover) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12) !important;
   transform: translateY(-1px);
 }
 
@@ -238,7 +214,7 @@
 .claudian-mode-quick-icon {
   display: inline-flex;
   color: var(--cl-accent);
-  opacity: 0.7;
+  opacity: 0.8;
 }
 
 .claudian-mode-quick-icon svg {

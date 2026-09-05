@@ -187,6 +187,7 @@ export class StreamController {
   // Provider lifecycle agent tracking (spawn → wait/close lifecycle)
   private lifecycleSubagentStates = new Map<string, SubagentState>(); // spawn callId → SubagentState
   private lifecycleAgentIdToSpawnId = new Map<string, string>();      // agentId → spawn callId
+  private pendingTimeouts = new Set<number>();
 
   constructor(deps: StreamControllerDeps) {
     this.deps = deps;
@@ -1677,9 +1678,11 @@ export class StreamController {
     if (attempt >= StreamController.ASYNC_SUBAGENT_RESULT_RETRY_DELAYS_MS.length) return;
 
     const delay = StreamController.ASYNC_SUBAGENT_RESULT_RETRY_DELAYS_MS[attempt];
-    window.setTimeout(() => {
+    const timerId = window.setTimeout(() => {
+      this.pendingTimeouts.delete(timerId);
       void this.retryAsyncSubagentResult(subagent, runtime, attempt);
     }, delay);
+    this.pendingTimeouts.add(timerId);
   }
 
   private async retryAsyncSubagentResult(
@@ -1897,7 +1900,8 @@ export class StreamController {
     const relativePath = normalizePathForVault(rawPath, vaultPath);
     if (!relativePath || relativePath.startsWith('/')) return;
 
-    window.setTimeout(() => {
+    const timerId = window.setTimeout(() => {
+      this.pendingTimeouts.delete(timerId);
       const { vault } = this.deps.plugin.app;
       const file = vault.getAbstractFileByPath(relativePath);
       if (file instanceof TFile) {
@@ -1911,6 +1915,7 @@ export class StreamController {
         vault.adapter.list(parentDir).catch(() => { /* ignore */ });
       }
     }, 200);
+    this.pendingTimeouts.add(timerId);
   }
 
   /** Refreshes vault for each file path in an apply_patch changes array or patch text. */
@@ -2030,8 +2035,18 @@ export class StreamController {
     this.activeRichMessageId = null;
     state.currentThinkingState = null;
     this.deps.subagentManager.resetStreamingState();
+    this.lifecycleSubagentStates.clear();
+    this.lifecycleAgentIdToSpawnId.clear();
+    for (const timerId of this.pendingTimeouts) {
+      window.clearTimeout(timerId);
+    }
+    this.pendingTimeouts.clear();
     state.pendingTools.clear();
     // Reset response timer (duration already captured at this point)
     state.responseStartTime = null;
+  }
+
+  destroy(): void {
+    this.resetStreamingState();
   }
 }

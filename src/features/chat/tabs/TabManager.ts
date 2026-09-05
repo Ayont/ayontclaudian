@@ -282,6 +282,9 @@ export class TabManager implements TabManagerInterface {
       // Load conversation if not already loaded
       if (tab.conversationId && tab.state.messages.length === 0) {
         await tab.controllers.conversationController?.switchTo(tab.conversationId);
+        if (tab.lifecycleState === 'closing' || !this.tabs.has(tabId)) {
+          return;
+        }
       } else if (
         tab.conversationId
         && tab.state.messages.length > 0

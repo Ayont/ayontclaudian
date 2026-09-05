@@ -48,26 +48,45 @@
 }
 
 .claudian-subagent-status {
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--cl-font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
   flex-shrink: 0;
+  transition: all var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-subagent-status svg {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
 }
 
 .claudian-subagent-status.status-running {
   color: var(--cl-accent);
+  background: rgba(var(--cl-accent-rgb), 0.1);
+  border: 1px solid rgba(var(--cl-accent-rgb), 0.25);
+  box-shadow: 0 0 6px rgba(var(--cl-accent-rgb), 0.18);
+}
+
+.claudian-subagent-status.status-running svg {
+  animation: spin 1s linear infinite;
 }
 
 .claudian-subagent-status.status-completed {
   color: var(--color-green);
+  background: rgba(52, 211, 153, 0.08);
+  border: 1px solid rgba(52, 211, 153, 0.2);
 }
 
 .claudian-subagent-status.status-error {
   color: var(--color-red);
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.2);
 }
 
 .claudian-subagent-content {

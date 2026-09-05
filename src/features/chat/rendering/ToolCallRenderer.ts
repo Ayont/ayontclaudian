@@ -48,12 +48,13 @@ import {
 import { renderTodoItems } from './todoUtils';
 
 export function setToolIcon(el: HTMLElement, name: string, input: Record<string, unknown> = {}): void {
-  const browserActivity = resolveBrowserActivity(name, input);
+  const safeInput = input ?? {};
+  const browserActivity = resolveBrowserActivity(name, safeInput);
   if (browserActivity) {
     setIcon(el, getBrowserActionIcon(browserActivity));
     return;
   }
-  const mediaActivity = resolveMediaActivity(name, input);
+  const mediaActivity = resolveMediaActivity(name, safeInput);
   if (mediaActivity) {
     setIcon(el, describeMediaActivity(mediaActivity).icon);
     return;
@@ -78,19 +79,21 @@ function stringifyToolValue(value: unknown): string {
   }
 }
 
-function getInputText(input: Record<string, unknown>, key: string, fallback = ''): string {
+function getInputText(input: Record<string, unknown> | null | undefined, key: string, fallback = ''): string {
+  if (!input) return fallback;
   return stringifyToolValue(input[key]) || fallback;
 }
 
-export function getToolName(name: string, input: Record<string, unknown>): string {
-  const mediaActivity = resolveMediaActivity(name, input);
+export function getToolName(name: string, input: Record<string, unknown> = {}): string {
+  const safeInput = input ?? {};
+  const mediaActivity = resolveMediaActivity(name, safeInput);
   if (mediaActivity && (isMediaToolName(name) || (name === TOOL_READ && mediaActivity.kind !== 'pdf'))) {
     return describeMediaActivity(mediaActivity).title;
   }
 
   switch (name) {
     case TOOL_TODO_WRITE: {
-      const todos = input.todos as Array<{ status: string }> | undefined;
+      const todos = safeInput.todos as Array<{ status: string }> | undefined;
       if (todos && Array.isArray(todos) && todos.length > 0) {
         const completed = todos.filter(t => t.status === 'completed').length;
         return `Tasks ${completed}/${todos.length}`;
@@ -102,15 +105,16 @@ export function getToolName(name: string, input: Record<string, unknown>): strin
     case TOOL_EXIT_PLAN_MODE:
       return 'Plan fertig';
     default: {
-      const browserActivity = resolveBrowserActivity(name, input);
+      const browserActivity = resolveBrowserActivity(name, safeInput);
       if (browserActivity) return describeBrowserActivity(browserActivity).title;
       return name;
     }
   }
 }
 
-export function getToolSummary(name: string, input: Record<string, unknown>): string {
-  const mediaActivity = resolveMediaActivity(name, input);
+export function getToolSummary(name: string, input: Record<string, unknown> = {}): string {
+  const safeInput = input ?? {};
+  const mediaActivity = resolveMediaActivity(name, safeInput);
   if (mediaActivity && isMediaToolName(name)) {
     return describeMediaActivity(mediaActivity).detail;
   }
@@ -119,50 +123,50 @@ export function getToolSummary(name: string, input: Record<string, unknown>): st
     case TOOL_READ:
     case TOOL_WRITE:
     case TOOL_EDIT: {
-      const filePath = getInputText(input, 'file_path')
-        || getInputText(input, 'target_file')
-        || getInputText(input, 'targetFile')
-        || getInputText(input, 'path')
-        || getInputText(input, 'absolute_path')
-        || getInputText(input, 'FilePath')
-        || getInputText(input, 'AbsolutePath');
+      const filePath = getInputText(safeInput, 'file_path')
+        || getInputText(safeInput, 'target_file')
+        || getInputText(safeInput, 'targetFile')
+        || getInputText(safeInput, 'path')
+        || getInputText(safeInput, 'absolute_path')
+        || getInputText(safeInput, 'FilePath')
+        || getInputText(safeInput, 'AbsolutePath');
       return fileNameOnly(filePath);
     }
     case TOOL_BASH: {
-      const cmd = getInputText(input, 'command');
+      const cmd = getInputText(safeInput, 'command');
       return truncateText(cmd, 60);
     }
     case TOOL_GLOB:
     case TOOL_GREP:
-      return getInputText(input, 'pattern');
+      return getInputText(safeInput, 'pattern');
     case TOOL_WEB_SEARCH:
-      return getWebSearchSummary(input, 60);
+      return getWebSearchSummary(safeInput, 60);
     case TOOL_WEB_FETCH:
-      return truncateText(getInputText(input, 'url'), 60);
+      return truncateText(getInputText(safeInput, 'url'), 60);
     case TOOL_LS:
-      return fileNameOnly(getInputText(input, 'path', '.'));
+      return fileNameOnly(getInputText(safeInput, 'path', '.'));
     case TOOL_SKILL:
-      return getInputText(input, 'skill');
+      return getInputText(safeInput, 'skill');
     case TOOL_TOOL_SEARCH:
-      return truncateText(parseToolSearchQuery(getInputText(input, 'query')), 60);
+      return truncateText(parseToolSearchQuery(getInputText(safeInput, 'query')), 60);
     case TOOL_TODO_WRITE:
       return '';
     case 'Ergebnis':
-      return truncateText(getInputText(input, 'summary'), 60);
+      return truncateText(getInputText(safeInput, 'summary'), 60);
     case TOOL_APPLY_PATCH:
-      return getApplyPatchSummary(input);
+      return getApplyPatchSummary(safeInput);
     case TOOL_WRITE_STDIN:
-      return getWriteStdinSummary(input);
+      return getWriteStdinSummary(safeInput);
     default: {
       if (isAgentLifecycleTool(name)) {
-        return getAgentLifecycleSummary(name, input);
+        return getAgentLifecycleSummary(name, safeInput);
       }
-      const browserActivity = resolveBrowserActivity(name, input);
+      const browserActivity = resolveBrowserActivity(name, safeInput);
       if (browserActivity) return describeBrowserActivity(browserActivity).detail;
 
       // Smart extraction for CLI, MCP, and Antigravity tools
-      const pattern = getInputText(input, "Pattern") || getInputText(input, "pattern");
-      const searchDir = getInputText(input, "SearchDirectory") || getInputText(input, "directory") || getInputText(input, "SearchPath");
+      const pattern = getInputText(safeInput, "Pattern") || getInputText(safeInput, "pattern");
+      const searchDir = getInputText(safeInput, "SearchDirectory") || getInputText(safeInput, "directory") || getInputText(safeInput, "SearchPath");
       if (pattern && searchDir) {
         return truncateText(`${pattern} in ${shortenPath(searchDir)}`, 60);
       }
@@ -170,7 +174,7 @@ export function getToolSummary(name: string, input: Record<string, unknown>): st
         return truncateText(pattern, 60);
       }
 
-      const query = getInputText(input, "Query") || getInputText(input, "query");
+      const query = getInputText(safeInput, "Query") || getInputText(safeInput, "query");
       if (query && searchDir) {
         return truncateText(`"${query}" in ${shortenPath(searchDir)}`, 60);
       }
@@ -178,33 +182,33 @@ export function getToolSummary(name: string, input: Record<string, unknown>): st
         return truncateText(`"${query}"`, 60);
       }
 
-      const cmd = getInputText(input, "CommandLine") || (name !== TOOL_BASH ? getInputText(input, "command") : "");
+      const cmd = getInputText(safeInput, "CommandLine") || (name !== TOOL_BASH ? getInputText(safeInput, "command") : "");
       if (cmd) {
         return truncateText(cmd, 60);
       }
 
-      const dirPath = getInputText(input, "DirectoryPath");
+      const dirPath = getInputText(safeInput, "DirectoryPath");
       if (dirPath) {
         return truncateText(shortenPath(dirPath), 60);
       }
 
-      const filePath = getInputText(input, "absolute_path") || getInputText(input, "target_file");
+      const filePath = getInputText(safeInput, "absolute_path") || getInputText(safeInput, "target_file");
       if (filePath) {
         return fileNameOnly(filePath) || truncateText(shortenPath(filePath), 60);
       }
 
-      const toolAction = getInputText(input, "toolAction");
-      const toolSummary = getInputText(input, "toolSummary");
+      const toolAction = getInputText(safeInput, "toolAction");
+      const toolSummary = getInputText(safeInput, "toolSummary");
       if (toolAction && toolSummary && toolAction !== toolSummary) {
         return truncateText(`${toolAction} (${toolSummary})`, 60);
       }
       if (toolSummary) return truncateText(toolSummary, 60);
       if (toolAction) return truncateText(toolAction, 60);
 
-      const url = getInputText(input, "url") || getInputText(input, "Url");
+      const url = getInputText(safeInput, "url") || getInputText(safeInput, "Url");
       if (url) return truncateText(url, 60);
 
-      const prompt = getInputText(input, "Prompt") || getInputText(input, "prompt");
+      const prompt = getInputText(safeInput, "Prompt") || getInputText(safeInput, "prompt");
       if (prompt) return truncateText(prompt, 60);
 
       return "";
@@ -213,8 +217,9 @@ export function getToolSummary(name: string, input: Record<string, unknown>): st
 }
 
 /** Combined name+summary for ARIA labels (collapsible regions need a single descriptive phrase). */
-export function getToolLabel(name: string, input: Record<string, unknown>): string {
-  const mediaActivity = resolveMediaActivity(name, input);
+export function getToolLabel(name: string, input: Record<string, unknown> = {}): string {
+  const safeInput = input ?? {};
+  const mediaActivity = resolveMediaActivity(name, safeInput);
   if (mediaActivity && isMediaToolName(name)) {
     const { title, detail } = describeMediaActivity(mediaActivity);
     return `${title}: ${detail}`;
@@ -222,30 +227,30 @@ export function getToolLabel(name: string, input: Record<string, unknown>): stri
 
   switch (name) {
     case TOOL_READ:
-      return `Read: ${shortenPath(getInputText(input, 'file_path')) || 'file'}`;
+      return `Read: ${shortenPath(getInputText(safeInput, 'file_path')) || 'file'}`;
     case TOOL_WRITE:
-      return `Write: ${shortenPath(getInputText(input, 'file_path')) || 'file'}`;
+      return `Write: ${shortenPath(getInputText(safeInput, 'file_path')) || 'file'}`;
     case TOOL_EDIT:
-      return `Edit: ${shortenPath(getInputText(input, 'file_path')) || 'file'}`;
+      return `Edit: ${shortenPath(getInputText(safeInput, 'file_path')) || 'file'}`;
     case TOOL_BASH: {
-      const cmd = getInputText(input, 'command', 'command');
+      const cmd = getInputText(safeInput, 'command', 'command');
       return `Bash: ${cmd.length > 40 ? cmd.substring(0, 40) + '...' : cmd}`;
     }
     case TOOL_GLOB:
-      return `Glob: ${getInputText(input, 'pattern', 'files')}`;
+      return `Glob: ${getInputText(safeInput, 'pattern', 'files')}`;
     case TOOL_GREP:
-      return `Grep: ${getInputText(input, 'pattern', 'pattern')}`;
+      return `Grep: ${getInputText(safeInput, 'pattern', 'pattern')}`;
     case TOOL_WEB_SEARCH: {
-      return getWebSearchLabel(input, 40);
+      return getWebSearchLabel(safeInput, 40);
     }
     case TOOL_WEB_FETCH: {
-      const url = getInputText(input, 'url', 'url');
+      const url = getInputText(safeInput, 'url', 'url');
       return `WebFetch: ${url.length > 40 ? url.substring(0, 40) + '...' : url}`;
     }
     case TOOL_LS:
-      return `LS: ${shortenPath(getInputText(input, 'path')) || '.'}`;
+      return `LS: ${shortenPath(getInputText(safeInput, 'path')) || '.'}`;
     case TOOL_TODO_WRITE: {
-      const todos = input.todos as Array<{ status: string }> | undefined;
+      const todos = safeInput.todos as Array<{ status: string }> | undefined;
       if (todos && Array.isArray(todos)) {
         const completed = todos.filter(t => t.status === 'completed').length;
         return `Tasks (${completed}/${todos.length})`;
@@ -291,14 +296,15 @@ export function fileNameOnly(filePath: string): string {
   return normalized.split('/').pop() ?? normalized;
 }
 
-function getApplyPatchSummary(input: Record<string, unknown>): string {
+function getApplyPatchSummary(input: Record<string, unknown> = {}): string {
+  const safeInput = input ?? {};
   // Extract file paths from patch text markers
-  const patchText = typeof input.patch === 'string' ? input.patch : '';
+  const patchText = typeof safeInput.patch === 'string' ? safeInput.patch : '';
   const patchFiles = [...patchText.matchAll(/^\*\*\* (?:Add|Update|Delete) File: (.+)$/gm)]
     .map(m => m[1]?.trim() ?? '');
 
   // Also check changes array
-  const changes = input.changes;
+  const changes = safeInput.changes;
   const changeFiles = Array.isArray(changes)
     ? (changes as Array<{ path?: string }>)
         .map(c => c.path)
@@ -311,9 +317,10 @@ function getApplyPatchSummary(input: Record<string, unknown>): string {
   return `${files.length} files`;
 }
 
-function getWriteStdinSummary(input: Record<string, unknown>): string {
-  const sessionId = stringifyToolValue(input.session_id ?? input.sessionId);
-  const chars = typeof input.chars === 'string' ? input.chars.replace(/\n/g, '\\n') : '';
+function getWriteStdinSummary(input: Record<string, unknown> = {}): string {
+  const safeInput = input ?? {};
+  const sessionId = stringifyToolValue(safeInput.session_id ?? safeInput.sessionId);
+  const chars = typeof safeInput.chars === 'string' ? safeInput.chars.replace(/\n/g, '\\n') : '';
   if (chars) {
     const preview = chars.length > 24 ? `${chars.slice(0, 24)}...` : chars;
     return sessionId ? `#${sessionId} ${preview}` : preview;
@@ -321,19 +328,20 @@ function getWriteStdinSummary(input: Record<string, unknown>): string {
   return sessionId ? `#${sessionId}` : '';
 }
 
-function getAgentLifecycleSummary(name: string, input: Record<string, unknown>): string {
+function getAgentLifecycleSummary(name: string, input: Record<string, unknown> = {}): string {
+  const safeInput = input ?? {};
   switch (name) {
     case 'spawn_agent': {
-      const msg = typeof input.message === 'string' ? input.message : '';
+      const msg = typeof safeInput.message === 'string' ? safeInput.message : '';
       return msg.length > 50 ? `${msg.slice(0, 50)}...` : msg;
     }
     case 'send_input': {
-      const msg = typeof input.message === 'string' ? input.message : '';
+      const msg = typeof safeInput.message === 'string' ? safeInput.message : '';
       return msg.length > 40 ? `${msg.slice(0, 40)}...` : msg;
     }
     case 'wait': {
-      const ids = Array.isArray(input.ids) ? input.ids.length : 0;
-      const timeoutMs = typeof input.timeout_ms === 'number' ? input.timeout_ms : undefined;
+      const ids = Array.isArray(safeInput.ids) ? safeInput.ids.length : 0;
+      const timeoutMs = typeof safeInput.timeout_ms === 'number' ? safeInput.timeout_ms : undefined;
       const parts: string[] = [];
       if (ids > 0) parts.push(`${ids} agent${ids === 1 ? '' : 's'}`);
       if (timeoutMs !== undefined) parts.push(`${Math.round(timeoutMs / 1000)}s`);
@@ -380,21 +388,22 @@ interface WebSearchDisplayData {
   pattern: string;
 }
 
-function normalizeWebSearchDisplayData(input: Record<string, unknown>): WebSearchDisplayData {
-  const queries = Array.isArray(input.queries)
-    ? input.queries
+function normalizeWebSearchDisplayData(input: Record<string, unknown> = {}): WebSearchDisplayData {
+  const safeInput = input ?? {};
+  const queries = Array.isArray(safeInput.queries)
+    ? safeInput.queries
         .filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
         .map(entry => entry.trim())
     : [];
 
-  const query = typeof input.query === 'string' && input.query.trim()
-    ? input.query.trim()
+  const query = typeof safeInput.query === 'string' && safeInput.query.trim()
+    ? safeInput.query.trim()
     : queries[0] ?? '';
-  const url = typeof input.url === 'string' && input.url.trim() ? input.url.trim() : '';
-  const pattern = typeof input.pattern === 'string' && input.pattern.trim() ? input.pattern.trim() : '';
+  const url = typeof safeInput.url === 'string' && safeInput.url.trim() ? safeInput.url.trim() : '';
+  const pattern = typeof safeInput.pattern === 'string' && safeInput.pattern.trim() ? safeInput.pattern.trim() : '';
 
-  const explicitActionType = typeof input.actionType === 'string' && input.actionType.trim()
-    ? input.actionType.trim()
+  const explicitActionType = typeof safeInput.actionType === 'string' && safeInput.actionType.trim()
+    ? safeInput.actionType.trim()
     : '';
   const actionType = explicitActionType
     || (url && pattern ? 'find_in_page' : url ? 'open_page' : (query || queries.length > 0) ? 'search' : '');
@@ -402,7 +411,7 @@ function normalizeWebSearchDisplayData(input: Record<string, unknown>): WebSearc
   return { actionType, query, queries, url, pattern };
 }
 
-function getWebSearchSummary(input: Record<string, unknown>, maxLength: number): string {
+function getWebSearchSummary(input: Record<string, unknown> = {}, maxLength: number): string {
   const data = normalizeWebSearchDisplayData(input);
 
   switch (data.actionType) {
@@ -420,7 +429,7 @@ function getWebSearchSummary(input: Record<string, unknown>, maxLength: number):
   }
 }
 
-function getWebSearchLabel(input: Record<string, unknown>, maxLength: number): string {
+function getWebSearchLabel(input: Record<string, unknown> = {}, maxLength: number): string {
   const summary = getWebSearchSummary(input, maxLength);
   return `WebSearch: ${summary || 'search'}`;
 }
@@ -852,11 +861,12 @@ function renderWebFetchExpanded(container: HTMLElement, result: string): void {
 
 function renderApplyPatchExpanded(
   container: HTMLElement,
-  input: Record<string, unknown>,
+  input: Record<string, unknown> = {},
   result: string | undefined,
 ): void {
-  const patchText = typeof input.patch === 'string' ? input.patch : '';
-  const parsedDiffs = getApplyPatchFileDiffs(input);
+  const safeInput = input ?? {};
+  const patchText = typeof safeInput.patch === 'string' ? safeInput.patch : '';
+  const parsedDiffs = getApplyPatchFileDiffs(safeInput);
 
   if (result && /verification failed|^[Ee]rror:/.test(result.trim())) {
     renderLinesExpanded(container, result, 20);
@@ -867,7 +877,7 @@ function renderApplyPatchExpanded(
     return;
   }
 
-  const changes = Array.isArray(input.changes) ? input.changes : [];
+  const changes = Array.isArray(safeInput.changes) ? safeInput.changes : [];
   if (changes.length > 0) {
     const linesEl = container.createDiv({ cls: 'claudian-tool-lines' });
     for (const change of changes as unknown[]) {
@@ -888,7 +898,7 @@ function renderApplyPatchExpanded(
   }
 
   if (result) {
-    const fileMatches = [...result.matchAll(/(?:update|add|delete|create|modify|Applied:\s*)(?:\\w+:\s*)?([^\n,]+)/gi)];
+    const fileMatches = [...result.matchAll(/(?:update|add|delete|create|modify|Applied:\s*)(?:\w+:\s*)?([^\n,]+)/gi)];
     if (fileMatches.length > 0) {
       const linesEl = container.createDiv({ cls: 'claudian-tool-lines' });
       for (const match of fileMatches) {
@@ -938,14 +948,16 @@ function readMoveTarget(kind: unknown): string | undefined {
   return typeof record.move_path === 'string' ? record.move_path : undefined;
 }
 
-function getApplyPatchFileDiffs(input: Record<string, unknown>): ReturnType<typeof parseApplyPatchDiffs> {
-  const patchText = typeof input.patch === 'string' ? input.patch : '';
+function getApplyPatchFileDiffs(input: Record<string, unknown> = {}): ReturnType<typeof parseApplyPatchDiffs> {
+  const safeInput = input ?? {};
+  const patchText = typeof safeInput.patch === 'string' ? safeInput.patch : '';
   const parsedDiffs = patchText ? parseApplyPatchDiffs(patchText) : [];
-  return parsedDiffs.length > 0 ? parsedDiffs : parseFileUpdateChangeDiffs(input.changes);
+  return parsedDiffs.length > 0 ? parsedDiffs : parseFileUpdateChangeDiffs(safeInput.changes);
 }
 
-function getApplyPatchDiffStats(input: Record<string, unknown>): DiffStats | undefined {
-  const fileDiffs = getApplyPatchFileDiffs(input);
+function getApplyPatchDiffStats(input: Record<string, unknown> = {}): DiffStats | undefined {
+  const safeInput = input ?? {};
+  const fileDiffs = getApplyPatchFileDiffs(safeInput);
   if (fileDiffs.length === 0) return undefined;
 
   const stats = fileDiffs.reduce<DiffStats>(
@@ -1056,14 +1068,15 @@ export function renderExpandedContent(
 
 function renderGenericToolContent(
   container: HTMLElement,
-  input: Record<string, unknown>,
+  input: Record<string, unknown> = {},
   result: string,
 ): void {
-  const keys = Object.keys(input).filter(k => !k.startsWith("_") && k !== "toolSummary" && k !== "toolAction" && k !== "ctx");
+  const safeInput = input ?? {};
+  const keys = Object.keys(safeInput).filter(k => !k.startsWith("_") && k !== "toolSummary" && k !== "toolAction" && k !== "ctx");
   if (keys.length > 0) {
     const paramsEl = container.createDiv({ cls: "claudian-tool-params-panel" });
     for (const key of keys.slice(0, 6)) {
-      const val = stringifyToolValue(input[key]);
+      const val = stringifyToolValue(safeInput[key]);
       if (!val) continue;
       const paramRow = paramsEl.createDiv({ cls: "claudian-tool-param-row" });
       paramRow.createSpan({ cls: "claudian-tool-param-name", text: `${key}:` });
@@ -1084,19 +1097,20 @@ function renderGenericToolContent(
   }
 }
 
-function getTodos(input: Record<string, unknown>): TodoItem[] | undefined {
-  const todos = input.todos;
+function getTodos(input: Record<string, unknown> = {}): TodoItem[] | undefined {
+  const safeInput = input ?? {};
+  const todos = safeInput.todos;
   if (!todos || !Array.isArray(todos)) return undefined;
   return todos as TodoItem[];
 }
 
-function getCurrentTask(input: Record<string, unknown>): TodoItem | undefined {
+function getCurrentTask(input: Record<string, unknown> = {}): TodoItem | undefined {
   const todos = getTodos(input);
   if (!todos) return undefined;
   return todos.find(t => t.status === 'in_progress');
 }
 
-function areAllTodosCompleted(input: Record<string, unknown>): boolean {
+function areAllTodosCompleted(input: Record<string, unknown> = {}): boolean {
   const todos = getTodos(input);
   if (!todos || todos.length === 0) return false;
   return todos.every(t => t.status === 'completed');
@@ -1115,7 +1129,7 @@ const STATUS_ICONS: Record<string, string> = {
   blocked: 'shield-off',
 };
 
-function setTodoWriteStatus(statusEl: HTMLElement, input: Record<string, unknown>): void {
+function setTodoWriteStatus(statusEl: HTMLElement, input: Record<string, unknown> = {}): void {
   const isComplete = areAllTodosCompleted(input);
   const status = isComplete ? 'completed' : 'running';
   const ariaLabel = isComplete ? 'Status: completed' : 'Status: in progress';
@@ -1154,13 +1168,14 @@ function setGenericToolHeaderRight(statusEl: HTMLElement, toolCall: ToolCallInfo
 
 export function renderTodoWriteResult(
   container: HTMLElement,
-  input: Record<string, unknown>
+  input: Record<string, unknown> = {},
 ): void {
   container.empty();
   container.addClass('claudian-todo-panel-content');
   container.addClass('claudian-todo-list-container');
 
-  const todos = input.todos as TodoItem[] | undefined;
+  const safeInput = input ?? {};
+  const todos = safeInput.todos as TodoItem[] | undefined;
   if (!todos || !Array.isArray(todos)) {
     const item = container.createSpan({ cls: 'claudian-tool-result-item' });
     item.setText('Aufgaben aktualisiert');
@@ -1227,9 +1242,10 @@ function createToolElementStructure(
   summaryEl.setText(getToolSummary(toolCall.name, toolCall.input));
 
   function extractToolFilePath(input: Record<string, unknown> = {}): string | null {
+    const safeInput = input ?? {};
     const keys = ['file_path', 'filePath', 'path', 'target_file', 'targetFile', 'file', 'image_path', 'imagePath'];
     for (const k of keys) {
-      const val = input[k];
+      const val = safeInput[k];
       if (typeof val === 'string' && val.trim() && !val.includes('*') && !val.includes('?')) {
         return val.trim();
       }
@@ -1285,7 +1301,8 @@ function resolveAskUserAnswers(toolCall: ToolCallInfo): Record<string, unknown> 
 
 function renderAskUserQuestionResult(container: HTMLElement, toolCall: ToolCallInfo): boolean {
   container.empty();
-  const questions = toolCall.input.questions as AskUserQuestionItem[] | undefined;
+  const safeInput = toolCall.input ?? {};
+  const questions = safeInput.questions as AskUserQuestionItem[] | undefined;
   const answers = resolveAskUserAnswers(toolCall);
   if (!questions || !Array.isArray(questions) || !answers) return false;
 
@@ -1311,8 +1328,9 @@ function renderAskUserQuestionResult(container: HTMLElement, toolCall: ToolCallI
 function renderAskUserQuestionFallback(container: HTMLElement, toolCall: ToolCallInfo, initialText?: string): void {
   container.empty();
 
-  const questions = Array.isArray(toolCall.input.questions)
-    ? toolCall.input.questions as AskUserQuestionItem[]
+  const safeInput = toolCall.input ?? {};
+  const questions = Array.isArray(safeInput.questions)
+    ? safeInput.questions as AskUserQuestionItem[]
     : [];
 
   if (questions.length === 0) {
@@ -1378,12 +1396,13 @@ function contentFallback(container: HTMLElement, text: string): void {
 
 function renderBashContent(
   container: HTMLElement,
-  input: Record<string, unknown>,
+  input: Record<string, unknown> = {},
   result: string,
   initialText?: string,
 ): void {
   container.addClass("claudian-tool-bash-panel");
-  const command = (input.command as string) || (input.CommandLine as string) || "";
+  const safeInput = input ?? {};
+  const command = (safeInput.command as string) || (safeInput.CommandLine as string) || "";
   if (command) {
     const shellEl = container.createDiv({ cls: "claudian-tool-bash-shell" });
     const dotsEl = shellEl.createDiv({ cls: "claudian-tool-bash-dots" });
@@ -1447,17 +1466,18 @@ function renderBashContent(
 
 function renderFileReadExpanded(
   container: HTMLElement,
-  input: Record<string, unknown>,
+  input: Record<string, unknown> = {},
   rawResult: string,
 ): void {
   container.addClass("claudian-tool-read-panel");
+  const safeInput = input ?? {};
   const filePath =
-    (input.file_path as string) ||
-    (input.path as string) ||
-    (input.target_file as string) ||
-    (input.absolute_path as string) ||
-    (input.FilePath as string) ||
-    (input.AbsolutePath as string) ||
+    (safeInput.file_path as string) ||
+    (safeInput.path as string) ||
+    (safeInput.target_file as string) ||
+    (safeInput.absolute_path as string) ||
+    (safeInput.FilePath as string) ||
+    (safeInput.AbsolutePath as string) ||
     "";
 
   let rangeStart: number | undefined;

@@ -7,15 +7,12 @@
 
 /* Input wrapper (border container) - flex column so textarea expands when no chips */
 /* Height calculation: context row (36px) + textarea min (60px) + toolbar (38px) + border (2px) = 136px */
-/* Material: liquid glass. The transcript scrolls underneath (see
-   .claudian-messages overlap), so the blur has real content to refract. The
-   provider tint is mixed into the glass body, not painted on top. */
+/* Material: Obsidian-Luxe composer with clean elevation and hairline rim */
 .claudian-input-wrapper {
-  --claudian-input-wrapper-border-color: var(--cl-liquid-rim);
+  --claudian-input-wrapper-border-color: var(--cl-border-subtle);
   --claudian-input-wrapper-box-shadow:
-    inset 0 1px 1.5px var(--cl-liquid-rim-top),
-    0 12px 36px rgba(0, 0, 0, 0.30),
-    0 0 24px rgba(var(--cl-accent-rgb), 0.08);
+    0 4px 20px -2px rgba(0, 0, 0, 0.22),
+    0 1px 3px rgba(0, 0, 0, 0.12);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -25,12 +22,11 @@
   isolation: isolate;
   overflow: hidden;
   border: 1px solid var(--claudian-input-wrapper-border-color);
-  border-top-color: var(--cl-liquid-rim-top);
-  border-radius: 24px;
+  border-top-color: color-mix(in srgb, var(--cl-accent) 22%, var(--cl-border-subtle));
+  border-radius: 14px;
   background:
     var(--cl-glass-sheen),
-    var(--cl-liquid-gradient-subtle),
-    color-mix(in srgb, var(--cl-composer-tint, transparent) 30%, var(--cl-glass-body));
+    color-mix(in srgb, var(--cl-composer-tint, transparent) 18%, var(--cl-surface-raised));
   -webkit-backdrop-filter: var(--cl-glass-filter);
   backdrop-filter: var(--cl-glass-filter);
   box-shadow: var(--claudian-input-wrapper-box-shadow);
@@ -50,19 +46,14 @@
   z-index: 20;
 }
 
-/* Light theme: the glass tokens already re-tune; nothing composer-specific. */
-
-/* Focus elevation: the rim brightens toward the accent and the plate lifts.
-   Placed before the instruction/bash mode rules so an active mode color still
-   wins over the focus accent. */
+/* Focus elevation: crisp focus ring with provider accent */
 .claudian-input-wrapper:focus-within {
-  border-color: var(--cl-liquid-rim-hover);
-  border-top-color: var(--cl-liquid-rim-top-hover);
+  border-color: var(--cl-accent);
+  border-top-color: var(--cl-accent);
   --claudian-input-wrapper-box-shadow:
-    inset 0 0 0 1px var(--cl-accent-line),
-    inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    var(--cl-glass-shadow-pop),
-    0 0 28px rgba(var(--cl-accent-rgb), 0.20);
+    0 0 0 1.5px var(--cl-accent),
+    0 6px 24px -2px rgba(0, 0, 0, 0.32),
+    0 0 12px rgba(var(--cl-accent-rgb), 0.14);
 }
 
 /* Context row (file chip start, selection indicator end) - inside input wrapper at top */
@@ -214,27 +205,20 @@
 .claudian-container button.claudian-command-center-trigger {
   appearance: none !important;
   display: inline-flex !important;
-  width: 32px !important;
-  height: 32px !important;
-  min-width: 32px !important;
-  min-height: 32px !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
   align-items: center !important;
   justify-content: center !important;
   flex: 0 0 auto !important;
   margin: 0 !important;
   padding: 0 !important;
-  border: 1px solid var(--cl-liquid-rim) !important;
-  border-top-color: var(--cl-liquid-rim-top) !important;
-  border-radius: 9999px !important;
+  border: 1px solid var(--cl-border-subtle) !important;
+  border-radius: 7px !important;
   color: var(--text-muted) !important;
-  background:
-    var(--cl-liquid-gradient-subtle),
-    color-mix(in srgb, var(--cl-surface-raised) 75%, transparent) !important;
-  backdrop-filter: var(--cl-glass-filter-soft) !important;
-  -webkit-backdrop-filter: var(--cl-glass-filter-soft) !important;
-  box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.25),
-    0 2px 6px rgba(0, 0, 0, 0.16) !important;
+  background: var(--cl-surface-sunken) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08) !important;
   font: inherit !important;
   cursor: pointer !important;
   transition:
@@ -245,18 +229,13 @@
     transform var(--cl-dur-fast) var(--cl-ease) !important;
 }
 .claudian-command-center-trigger:hover {
-  color: var(--cl-accent);
-  background:
-    var(--cl-liquid-gradient-hover),
-    color-mix(in srgb, var(--cl-surface-raised) 88%, transparent);
-  border-color: var(--cl-liquid-rim-hover);
-  border-top-color: var(--cl-liquid-rim-top-hover);
-  box-shadow:
-    inset 0 1px 1.5px rgba(255, 255, 255, 0.40),
-    var(--cl-liquid-glow-hover);
-  transform: translateY(-1px) scale(1.06);
+  color: var(--text-normal) !important;
+  background: var(--background-modifier-hover) !important;
+  border-color: var(--cl-border-strong) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12) !important;
+  transform: translateY(-0.5px);
 }
-.claudian-command-center-trigger:active { transform: scale(.94); }
+.claudian-command-center-trigger:active { transform: scale(.96); }
 .claudian-command-center-trigger:focus-visible { outline: 2px solid var(--cl-accent); outline-offset: 2px; }
 .claudian-command-center-trigger svg { width: 14px; height: 14px; }
 
@@ -277,19 +256,14 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   margin: 0;
   padding: 0;
-  border: 1px solid var(--cl-liquid-rim);
-  border-top-color: var(--cl-liquid-rim-top);
-  border-radius: 9999px;
-  background:
-    var(--cl-liquid-gradient-subtle),
-    color-mix(in srgb, var(--cl-surface-sunken) 75%, transparent);
-  backdrop-filter: var(--cl-glass-filter-soft);
-  -webkit-backdrop-filter: var(--cl-glass-filter-soft);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.20);
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: 7px;
+  background: var(--cl-surface-sunken);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
   font: inherit;
   color: var(--text-faint);
   cursor: pointer;
@@ -419,37 +393,29 @@
 
 .claudian-send-btn.is-ready,
 .claudian-container button.claudian-send-btn.is-ready {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--cl-accent) 88%, #ffffff), var(--cl-accent));
-  border-color: rgba(255, 255, 255, 0.22);
-  color: #ffffff;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    0 4px 16px color-mix(in srgb, var(--cl-accent) 45%, transparent);
+  background: var(--cl-accent);
+  border-color: var(--cl-accent);
+  color: var(--text-on-accent, #ffffff);
+  box-shadow: 0 2px 8px rgba(var(--cl-accent-rgb), 0.35);
 }
 
 .claudian-send-btn.is-ready:hover {
-  transform: translateY(-1px) scale(1.06);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    0 6px 22px color-mix(in srgb, var(--cl-accent) 60%, transparent);
+  transform: translateY(-0.5px);
+  box-shadow: 0 4px 14px rgba(var(--cl-accent-rgb), 0.5);
 }
 
 .claudian-send-btn.is-streaming,
 .claudian-container button.claudian-send-btn.is-streaming {
-  background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: #ef4444;
+  border-color: #ef4444;
   color: #fff;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    0 4px 16px rgba(239, 68, 68, 0.45);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
   animation: cl-tab-pulse 1.8s var(--cl-ease) infinite;
 }
 
 .claudian-send-btn.is-streaming:hover {
-  transform: translateY(-1px) scale(1.06);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    0 6px 20px rgba(239, 68, 68, 0.6);
+  transform: translateY(-0.5px);
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.55);
 }
 
 .claudian-send-btn.is-idle {
@@ -462,7 +428,7 @@
 }
 
 .claudian-send-btn:active:not(.is-idle) {
-  transform: scale(0.94);
+  transform: scale(0.95);
 }
 
 .claudian-tab-content:has(.claudian-welcome:not(.claudian-hidden)) .claudian-mode-quick-row {
@@ -481,23 +447,21 @@
   display: inline-flex !important;
   align-items: center !important;
   gap: 6px !important;
-  padding: 4px 12px !important;
-  background:
-    var(--cl-liquid-gradient-medium),
-    color-mix(in srgb, var(--cl-surface-raised) 80%, transparent) !important;
-  border: 1px solid var(--cl-liquid-rim) !important;
-  border-top-color: var(--cl-liquid-rim-top) !important;
-  border-radius: 9999px !important;
-  backdrop-filter: var(--cl-glass-filter) !important;
-  -webkit-backdrop-filter: var(--cl-glass-filter) !important;
-  box-shadow:
-    inset 0 1px 1.5px rgba(255, 255, 255, 0.35),
-    var(--cl-liquid-glow),
-    0 2px 8px rgba(0, 0, 0, 0.20) !important;
+  padding: 3px 8px !important;
+  background: var(--cl-surface-raised) !important;
+  border: 1px solid var(--cl-border-subtle) !important;
+  border-radius: 6px !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08) !important;
   font-size: 12px !important;
   line-height: 1 !important;
   max-width: 260px !important;
   transition: all var(--cl-dur-fast) var(--cl-ease) !important;
+}
+
+.claudian-file-chip:hover,
+.claudian-container .claudian-file-chip:hover {
+  border-color: var(--cl-border-strong) !important;
+  background: var(--background-modifier-hover) !important;
 }
 
 .claudian-file-chip-open,
@@ -510,7 +474,7 @@
   padding: 0 !important;
   gap: 5px !important;
   border: none !important;
-  border-radius: 9999px !important;
+  border-radius: 4px !important;
   background: transparent !important;
   background-color: transparent !important;
   color: inherit !important;
@@ -550,30 +514,28 @@
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  width: 18px !important;
-  height: 18px !important;
-  min-width: 18px !important;
-  min-height: 18px !important;
-  border-radius: 9999px !important;
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
+  border-radius: 4px !important;
   cursor: pointer !important;
   color: var(--text-muted) !important;
-  font-size: 13px !important;
+  font-size: 11px !important;
   line-height: 1 !important;
   transition: all var(--cl-dur-fast) var(--cl-ease) !important;
   margin: 0 0 0 4px !important;
   padding: 0 !important;
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
-  background: rgba(255, 255, 255, 0.08) !important;
-  background-color: rgba(255, 255, 255, 0.08) !important;
+  border: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
   box-shadow: none !important;
 }
 
 .claudian-file-chip-remove:hover,
 .claudian-container button.claudian-file-chip-remove:hover {
-  background: rgba(var(--cl-accent-rgb), 0.35) !important;
-  background-color: rgba(var(--cl-accent-rgb), 0.35) !important;
-  border-color: var(--cl-liquid-rim-hover) !important;
-  color: #ffffff !important;
+  background: var(--background-modifier-hover) !important;
+  color: var(--text-normal) !important;
 }
 
 @media (pointer: coarse) {
@@ -751,18 +713,15 @@
   margin-bottom: var(--cl-space-2);
   font-size: var(--cl-text-sm);
   color: var(--text-muted);
-  border: 1px solid var(--cl-liquid-rim);
-  border-top-color: var(--cl-liquid-rim-top);
-  border-radius: 9999px;
-  background:
-    var(--cl-liquid-gradient-medium),
-    color-mix(in srgb, var(--cl-surface-raised) 80%, transparent);
+  border: 1px solid var(--cl-border-subtle);
+  border-top-color: color-mix(in srgb, var(--cl-accent) 22%, var(--cl-border-subtle));
+  border-radius: 10px;
+  background: var(--cl-surface-raised);
   -webkit-backdrop-filter: var(--cl-glass-filter);
   backdrop-filter: var(--cl-glass-filter);
   box-shadow:
-    inset 0 1px 1.5px rgba(255, 255, 255, 0.30),
-    var(--cl-liquid-glow),
-    0 8px 30px -4px rgba(0, 0, 0, 0.45);
+    0 4px 16px -2px rgba(0, 0, 0, 0.22),
+    0 1px 3px rgba(0, 0, 0, 0.10);
   animation: cl-spring-up 0.28s var(--cl-spring-smooth) both;
   transition: border-radius var(--cl-dur-fast) var(--cl-ease), border-color var(--cl-dur-fast) var(--cl-ease);
 }
@@ -774,7 +733,7 @@
 
 .claudian-stream-status.is-open,
 .claudian-container .claudian-stream-status.is-open {
-  border-radius: 20px !important;
+  border-radius: 12px !important;
 }
 
 .claudian-stream-status::before {
@@ -785,11 +744,11 @@
   background: linear-gradient(
     110deg,
     transparent 0%,
-    rgba(var(--claudian-brand-rgb), 0.18) 38%,
+    rgba(var(--claudian-brand-rgb), 0.08) 38%,
     transparent 72%
   );
   transform: translateX(-100%);
-  animation: claudian-stream-scan 2.8s var(--cl-ease) infinite;
+  animation: claudian-stream-scan 3.2s var(--cl-ease) infinite;
 }
 
 /* Header row: expandable toggle (flex-fill) + always-clickable Stop button. */
@@ -920,41 +879,28 @@
   justify-content: center !important;
   gap: 6px !important;
   flex-shrink: 0 !important;
-  height: 28px !important;
-  min-height: 28px !important;
-  padding: 0 14px !important;
-  margin: 5px 8px 5px 0 !important;
-  border-radius: 9999px !important;
-  border: 1px solid rgba(239, 68, 68, 0.45) !important;
-  border-top-color: rgba(255, 130, 130, 0.6) !important;
-  background:
-    linear-gradient(180deg, rgba(239, 68, 68, 0.22) 0%, rgba(239, 68, 68, 0.08) 100%),
-    color-mix(in srgb, var(--cl-surface-raised) 75%, transparent) !important;
-  background-color: transparent !important;
-  backdrop-filter: var(--cl-glass-filter-soft) !important;
-  -webkit-backdrop-filter: var(--cl-glass-filter-soft) !important;
-  box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.25),
-    0 2px 8px rgba(239, 68, 68, 0.25) !important;
-  color: #ff8888 !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  padding: 0 10px !important;
+  margin: 4px 6px 4px 0 !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+  background: rgba(239, 68, 68, 0.12) !important;
+  color: #ef4444 !important;
   font-size: var(--cl-text-xs) !important;
-  font-weight: 650 !important;
+  font-weight: 600 !important;
   cursor: pointer !important;
   transition: all var(--cl-dur-fast) var(--cl-ease) !important;
+  box-shadow: none !important;
 }
 
 .claudian-stream-status-cancel:hover,
 .claudian-container button.claudian-stream-status-cancel:hover {
   color: #ffffff !important;
-  background:
-    linear-gradient(180deg, rgba(239, 68, 68, 0.45) 0%, rgba(239, 68, 68, 0.22) 100%),
-    color-mix(in srgb, var(--cl-surface-raised) 85%, transparent) !important;
-  border-color: rgba(239, 68, 68, 0.75) !important;
-  border-top-color: rgba(255, 170, 170, 0.85) !important;
-  box-shadow:
-    inset 0 1px 1.5px rgba(255, 255, 255, 0.4),
-    0 0 14px rgba(239, 68, 68, 0.5) !important;
-  transform: translateY(-1px) scale(1.04) !important;
+  background: rgba(239, 68, 68, 0.85) !important;
+  border-color: rgba(239, 68, 68, 0.95) !important;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.35) !important;
+  transform: translateY(-0.5px) !important;
 }
 
 .claudian-stream-status-cancel-icon {
@@ -963,18 +909,12 @@
 }
 
 .claudian-stream-status-cancel-icon svg {
-  width: 12px;
-  height: 12px;
-}
-
-.claudian-stream-status-cancel:hover {
-  color: var(--text-on-accent, #fff);
-  background: var(--background-modifier-error, #c0392b);
-  border-color: transparent;
+  width: 11px;
+  height: 11px;
 }
 
 .claudian-stream-status-cancel:active {
-  transform: scale(0.95);
+  transform: scale(0.96);
 }
 
 .claudian-stream-status-cancel:focus-visible {
@@ -1023,16 +963,11 @@
 .claudian-stream-status-event-count {
   display: inline-flex !important;
   align-items: center !important;
-  padding: 2px 9px !important;
-  border: 1px solid var(--cl-liquid-rim) !important;
-  border-top-color: var(--cl-liquid-rim-top) !important;
-  border-radius: 9999px !important;
-  background:
-    var(--cl-liquid-gradient-subtle),
-    rgba(255, 255, 255, 0.06) !important;
-  backdrop-filter: var(--cl-glass-filter-soft) !important;
-  -webkit-backdrop-filter: var(--cl-glass-filter-soft) !important;
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.2) !important;
+  padding: 2px 7px !important;
+  border: 1px solid var(--cl-border-subtle) !important;
+  border-radius: 4px !important;
+  background: var(--cl-surface-sunken) !important;
+  box-shadow: none !important;
   color: var(--text-muted) !important;
   font-family: var(--cl-font-mono) !important;
   font-size: 10px !important;

@@ -131,6 +131,7 @@ export interface AppTabManagerState {
 /** Provider-neutral session metadata storage. */
 export interface AppSessionStorage {
   listMetadata(): Promise<SessionMetadata[]>;
+  loadMetadata(id: string): Promise<SessionMetadata | null>;
   saveMetadata(meta: SessionMetadata): Promise<void>;
   deleteMetadata(id: string): Promise<void>;
   toSessionMetadata(conv: Conversation): SessionMetadata;

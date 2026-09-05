@@ -324,6 +324,18 @@ export class MessageRenderer {
     registerFileLinkHandler(this.app, this.messagesEl, this.component);
   }
 
+  public destroy(): void {
+    this.liveMessageEls.clear();
+    this.discoveredLiveDocumentSignatures.clear();
+    this.rewindCallback = undefined;
+    this.forkCallback = undefined;
+    this.switchModelCallback = undefined;
+    this.regenerateCallback = undefined;
+    this.dockHandler = null;
+    this.liveDocumentDockHandler = null;
+    this.liveDocumentDiscoveryHandler = null;
+  }
+
   /** Sets the messages container element. */
   setMessagesEl(el: HTMLElement): void {
     this.messagesEl = el;
@@ -1510,7 +1522,7 @@ export class MessageRenderer {
   }
 
   private isSilentWriteStdinTool(toolCall: ToolCallInfo): boolean {
-    return typeof toolCall.input.chars !== 'string' || toolCall.input.chars.length === 0;
+    return typeof toolCall.input?.chars !== 'string' || toolCall.input.chars.length === 0;
   }
 
   private renderTaskSubagent(

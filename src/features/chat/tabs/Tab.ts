@@ -2570,6 +2570,8 @@ export function activateTab(tab: TabData): void {
  */
 export function deactivateTab(tab: TabData): void {
   tab.dom.contentEl.addClass('claudian-hidden');
+  tab.ui.slashCommandDropdown?.hide();
+  tab.controllers.inputController?.destroyResumeDropdown();
   tab.ui.mcpServerSelector?.closeMenu?.();
   tab.controllers.selectionController?.stop();
   tab.controllers.browserSelectionController?.stop();
@@ -2583,6 +2585,13 @@ export function deactivateTab(tab: TabData): void {
 export async function destroyTab(tab: TabData): Promise<void> {
   tab.lifecycleState = 'closing';
 
+  if (tab.state.isStreaming) {
+    tab.state.cancelRequested = true;
+    tab.state.isStreaming = false;
+    tab.state.streamingGeneration++;
+    tab.service?.cancel();
+  }
+
   tab.controllers.selectionController?.stop();
   tab.controllers.selectionController?.clear();
   tab.controllers.browserSelectionController?.stop();
@@ -2594,12 +2603,15 @@ export async function destroyTab(tab: TabData): Promise<void> {
   cleanupThinkingBlock(tab.state.currentThinkingState);
   tab.state.currentThinkingState = null;
 
-  // Dismiss pending inline prompts before DOM teardown
-  tab.controllers.inputController?.dismissPendingApproval();
+  // Dismiss pending inline prompts, timers, and controllers before DOM teardown
+  tab.controllers.inputController?.destroy?.();
+  tab.controllers.inputController?.dismissPendingApproval?.();
+  tab.controllers.inputController?.destroyResumeDropdown?.();
+  tab.controllers.streamController?.destroy?.();
+  tab.renderer?.destroy?.();
 
-  tab.controllers.inputController?.destroyResumeDropdown();
-  tab.ui.fileContextManager?.destroy();
-  tab.ui.slashCommandDropdown?.destroy();
+  tab.ui.fileContextManager?.destroy?.();
+  tab.ui.slashCommandDropdown?.destroy?.();
   tab.ui.slashCommandDropdown = null;
   tab.ui.instructionModeManager?.destroy();
   tab.ui.instructionModeManager = null;
@@ -2640,6 +2652,14 @@ export async function destroyTab(tab: TabData): Promise<void> {
   tab.service?.cleanup();
   tab.service = null;
   tab.dom.contentEl.remove();
+
+  tab.controllers.selectionController = null;
+  tab.controllers.browserSelectionController = null;
+  tab.controllers.canvasSelectionController = null;
+  tab.controllers.conversationController = null;
+  tab.controllers.streamController = null;
+  tab.controllers.inputController = null;
+  tab.controllers.navigationController = null;
 }
 
 /**

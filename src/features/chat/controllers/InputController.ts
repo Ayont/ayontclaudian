@@ -3239,4 +3239,14 @@ export class InputController {
       }
     );
   }
+
+  destroy(): void {
+    this.stopStreamWatchdog();
+    this.clearPendingSteerState();
+    this.dismissPendingApproval();
+    this.destroyResumeDropdown();
+    if (this.deps.state.isStreaming) {
+      this.cancelStreaming();
+    }
+  }
 }

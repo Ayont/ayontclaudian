@@ -315,27 +315,25 @@ body.theme-light .claudian-welcome-starter:hover {
    beats the paint savings — do not reintroduce without a per-message measured
    contain-intrinsic-size. */
 
-/* User bubble — a raised, accent-tinted card with a full hairline border.
-   Containment comes from the border + tint, not from stripes or blur; the
-   asymmetric trailing radius anchors it to the user's side. */
+/* User bubble — a raised, subtly accent-tinted card with a crisp hairline border.
+   Containment comes from the border + tint; the asymmetric trailing radius
+   anchors it to the user's side with Obsidian-native elevation. */
 .claudian-message-user {
   position: relative;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%),
-    color-mix(in srgb, var(--cl-user-bubble, var(--cl-accent)) 22%, rgba(24, 26, 34, 0.85));
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid color-mix(in srgb, var(--cl-user-bubble, var(--cl-accent)) 35%, rgba(255, 255, 255, 0.12));
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%),
+    color-mix(in srgb, var(--cl-user-bubble, var(--cl-accent)) 10%, var(--cl-surface-raised));
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid color-mix(in srgb, var(--cl-user-bubble, var(--cl-accent)) 22%, var(--cl-border-subtle));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.15),
-    0 8px 24px -4px rgba(0, 0, 0, 0.35),
-    0 0 16px -3px color-mix(in srgb, var(--cl-user-bubble, var(--cl-accent)) 25%, transparent);
+    0 2px 8px -1px rgba(0, 0, 0, 0.16),
+    0 1px 2px rgba(0, 0, 0, 0.08);
   align-self: flex-end;
   width: fit-content;
   max-width: min(78%, var(--cl-chat-max));
-  border-radius: 20px 20px 6px 20px;
-  padding: 11px 18px;
+  border-radius: 12px 12px 3px 12px;
+  padding: 10px 16px;
   font-size: 14px;
   line-height: 1.5;
   animation: cl-spring-up 0.28s var(--cl-spring-smooth) both;
@@ -343,12 +341,11 @@ body.theme-light .claudian-welcome-starter:hover {
 }
 
 .claudian-message-user:hover {
-  border-color: color-mix(in srgb, var(--cl-user-bubble, var(--cl-accent)) 50%, rgba(255, 255, 255, 0.22));
+  border-color: color-mix(in srgb, var(--cl-user-bubble, var(--cl-accent)) 38%, var(--cl-border-strong));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.25),
-    0 10px 28px -4px rgba(0, 0, 0, 0.45),
-    0 0 22px -2px color-mix(in srgb, var(--cl-user-bubble, var(--cl-accent)) 35%, transparent);
-  transform: translateY(-1px);
+    0 4px 14px -2px rgba(0, 0, 0, 0.24),
+    0 1px 3px rgba(0, 0, 0, 0.12);
+  transform: translateY(-0.5px);
 }
 
 /* Text selection in user messages - visible highlight */
@@ -399,31 +396,29 @@ body.theme-light .claudian-welcome-starter:hover {
   display: inline-flex;
   align-items: center;
   min-width: 0;
-  gap: 8px;
-  padding: 4px 12px 4px 10px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--cl-surface-raised) 70%, transparent);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
-  backdrop-filter: blur(16px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 8px rgba(0, 0, 0, 0.15);
+  gap: 7px;
+  padding: 3px 9px 3px 7px;
+  border-radius: 6px;
+  background: var(--cl-surface-sunken);
+  border: 1px solid var(--cl-border-subtle);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
   transition: all 0.2s var(--cl-ease);
 }
 
 .claudian-assistant-turn-identity:hover {
-  border-color: rgba(255, 255, 255, 0.16);
-  background: color-mix(in srgb, var(--cl-surface-raised) 88%, transparent);
-  transform: translateY(-1px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 4px 12px rgba(0, 0, 0, 0.25);
+  border-color: var(--cl-border-strong);
+  background: var(--background-modifier-hover);
+  transform: translateY(-0.5px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
 .claudian-assistant-turn-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   flex: 0 0 auto;
   border-radius: 50%;
   background: var(--cl-accent);
-  box-shadow: 0 0 8px rgba(var(--claudian-brand-rgb), 0.6);
+  box-shadow: 0 0 6px rgba(var(--claudian-brand-rgb), 0.4);
   animation: cl-apple-radar 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   transition: transform 180ms var(--cl-ease), box-shadow 180ms var(--cl-ease);
 }
@@ -456,10 +451,10 @@ body.theme-light .claudian-welcome-starter:hover {
   align-items: center;
   gap: 5px;
   margin-inline-start: auto;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--cl-surface-sunken);
+  border: 1px solid var(--cl-border-subtle);
   color: var(--text-faint);
   font-family: var(--cl-font-mono);
   font-size: 10px;
@@ -995,13 +990,13 @@ body.theme-light .claudian-response-provider-pill {
 
 .claudian-response-action:hover,
 .claudian-response-action:focus-visible {
-  border-color: rgba(var(--claudian-brand-rgb), 0.22);
-  color: var(--cl-accent);
-  background: rgba(var(--claudian-brand-rgb), 0.08);
+  border-color: var(--cl-border-strong);
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
   opacity: 1;
 }
 
-.claudian-response-action:active { transform: translateY(1px) scale(0.98); }
+.claudian-response-action:active { transform: translateY(0.5px) scale(0.96); }
 
 .claudian-response-action:focus-visible {
   outline: none;
@@ -1019,8 +1014,9 @@ body.theme-light .claudian-response-provider-pill {
 }
 
 .claudian-switch-model-btn:hover {
-  background: rgba(var(--cl-accent-rgb), 0.12);
-  color: var(--cl-accent);
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+  border-color: var(--cl-border-subtle);
 }
 
 .claudian-switch-model-btn svg {
@@ -1033,20 +1029,33 @@ body.theme-light .claudian-response-provider-pill {
   box-shadow: 0 0 0 2px var(--cl-accent-line);
 }
 
-/* Action buttons toolbar below user messages */
+/* Action buttons toolbar below user messages — floating Obsidian-Luxe action pill */
 .claudian-user-msg-actions {
   position: absolute;
-  bottom: -20px;
-  right: 0;
-  display: flex;
-  gap: var(--cl-space-3);
+  bottom: -13px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--cl-surface-overlay);
+  border: 1px solid var(--cl-border-subtle);
+  box-shadow: 0 3px 10px -1px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.12);
   opacity: 0;
-  transition: opacity var(--cl-dur-fast) var(--cl-ease);
-  z-index: 1;
+  transform: translateY(3px);
+  pointer-events: none;
+  transition:
+    opacity var(--cl-dur-fast) var(--cl-ease),
+    transform var(--cl-dur-fast) var(--cl-ease);
+  z-index: 5;
 }
 
-.claudian-message-user:hover .claudian-user-msg-actions {
+.claudian-message-user:hover .claudian-user-msg-actions,
+.claudian-message-user:focus-within .claudian-user-msg-actions {
   opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 .claudian-user-msg-actions span {
@@ -1054,17 +1063,23 @@ body.theme-light .claudian-response-provider-pill {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-faint);
-  transition: color var(--cl-dur-fast) var(--cl-ease);
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  transition:
+    color var(--cl-dur-fast) var(--cl-ease),
+    background var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-user-msg-actions span svg {
-  width: 16px;
-  height: 16px;
+  width: 13px;
+  height: 13px;
 }
 
 .claudian-user-msg-actions span:hover {
-  color: var(--cl-accent);
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
 }
 
 .claudian-user-msg-actions span.copied {

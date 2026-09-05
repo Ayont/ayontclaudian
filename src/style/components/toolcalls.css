@@ -1,15 +1,12 @@
 .claudian-tool-call {
   position: relative;
   margin-block: var(--cl-space-2);
-  border: 1px solid rgba(var(--claudian-brand-rgb), 0.22);
-  border-radius: var(--cl-radius-lg);
-  background:
-    radial-gradient(circle at 0% 0%, rgba(var(--claudian-brand-rgb), 0.14), transparent 45%),
-    var(--cl-glass-sheen),
-    var(--cl-glass-body-strong);
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: 8px;
+  background: var(--cl-surface-raised);
   -webkit-backdrop-filter: var(--cl-glass-filter-soft);
   backdrop-filter: var(--cl-glass-filter-soft);
-  box-shadow: var(--cl-glass-edge), var(--cl-shadow-sm);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   overflow: hidden;
   transition: 
     border-color var(--cl-dur) var(--cl-ease),
@@ -19,47 +16,33 @@
 }
 
 .claudian-tool-call:hover {
-  border-color: rgba(var(--claudian-brand-rgb), 0.48);
-  box-shadow:
-    0 6px 24px rgba(var(--claudian-brand-rgb), 0.16),
-    0 0 18px -2px rgba(var(--claudian-brand-rgb), 0.35),
-    var(--cl-shadow-md);
-  transform: translateY(-1px);
+  border-color: var(--cl-border-strong);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.14);
+  transform: translateY(-0.5px);
 }
 
 .claudian-tool-call.expanded {
-  border-color: rgba(var(--claudian-brand-rgb), 0.4);
-  box-shadow:
-    0 6px 26px rgba(var(--claudian-brand-rgb), 0.18),
-    0 0 20px -2px rgba(var(--claudian-brand-rgb), 0.35),
-    var(--cl-shadow-md);
+  border-color: color-mix(in srgb, var(--cl-accent) 35%, var(--cl-border-subtle));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
 .claudian-tool-call.is-running {
-  border-color: rgba(var(--claudian-brand-rgb), 0.7);
-  box-shadow:
-    0 0 24px 2px rgba(var(--claudian-brand-rgb), 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  border-color: var(--cl-accent);
+  box-shadow: 0 0 0 1px var(--cl-accent), 0 2px 8px rgba(var(--cl-accent-rgb), 0.2);
 }
 
-/* Persisted providers and live turns collapse troubleshooting / analysis activity into one sleek Liquid Glass drawer. */
+/* Collapsible tool activity drawer with sleek hairline container */
 .claudian-tool-run-group,
 .claudian-activity-fold {
   position: relative;
   margin: var(--cl-space-2) 0 var(--cl-space-3) 0;
   overflow: hidden;
-  border: 1px solid rgba(var(--claudian-brand-rgb), 0.24);
-  border-radius: var(--cl-radius-lg);
-  background:
-    radial-gradient(circle at 0% 0%, rgba(var(--claudian-brand-rgb), 0.16), transparent 48%),
-    var(--cl-glass-sheen),
-    var(--cl-glass-body-strong);
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: 8px;
+  background: var(--cl-surface-raised);
   -webkit-backdrop-filter: var(--cl-glass-filter-soft);
   backdrop-filter: var(--cl-glass-filter-soft);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 4px 16px -2px rgba(0, 0, 0, 0.3),
-    0 0 14px -3px rgba(var(--claudian-brand-rgb), 0.22);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   transition:
     border-color var(--cl-dur) var(--cl-ease),
     box-shadow var(--cl-dur) var(--cl-ease),
@@ -68,11 +51,8 @@
 
 .claudian-tool-run-group:hover,
 .claudian-activity-fold:hover {
-  border-color: rgba(var(--claudian-brand-rgb), 0.45);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 6px 22px -2px rgba(0, 0, 0, 0.38),
-    0 0 20px -2px rgba(var(--claudian-brand-rgb), 0.38);
+  border-color: var(--cl-border-strong);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.14);
 }
 
 .claudian-tool-run-group.is-folding,
@@ -137,18 +117,18 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 7px;
-  background: rgba(var(--claudian-brand-rgb), 0.16);
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background: var(--cl-surface-sunken);
   color: var(--cl-accent);
-  border: 1px solid rgba(var(--claudian-brand-rgb), 0.28);
-  box-shadow: 0 0 10px rgba(var(--claudian-brand-rgb), 0.25);
+  border: 1px solid var(--cl-border-subtle);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
   flex-shrink: 0;
 }
 
 .claudian-tool-run-icon svg,
-.claudian-activity-icon svg { width: 14px; height: 14px; }
+.claudian-activity-icon svg { width: 13px; height: 13px; }
 
 .claudian-tool-run-title,
 .claudian-activity-title {
@@ -177,27 +157,27 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
   color: var(--color-green);
-  background: rgba(52, 211, 153, 0.12);
-  border: 1px solid rgba(52, 211, 153, 0.25);
+  background: rgba(52, 211, 153, 0.1);
+  border: 1px solid rgba(52, 211, 153, 0.22);
   flex-shrink: 0;
 }
 
 .claudian-tool-run-group.has-error .claudian-tool-run-status,
 .claudian-activity-fold.has-error .claudian-activity-status {
   color: var(--color-red);
-  background: rgba(248, 113, 113, 0.12);
-  border-color: rgba(248, 113, 113, 0.25);
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.22);
 }
 
 .claudian-tool-run-group.is-running .claudian-tool-run-status,
 .claudian-activity-fold.is-running .claudian-activity-status {
   color: var(--cl-accent);
-  background: rgba(var(--claudian-brand-rgb), 0.12);
-  border-color: rgba(var(--claudian-brand-rgb), 0.3);
+  background: rgba(var(--cl-accent-rgb), 0.1);
+  border-color: rgba(var(--cl-accent-rgb), 0.25);
 }
 
 .claudian-tool-run-group.is-running .claudian-tool-run-status svg,
@@ -378,18 +358,13 @@
 
 .claudian-tool-call-bash {
   position: relative;
-  margin-block: var(--cl-space-3);
-  border: 1px solid rgba(var(--claudian-brand-rgb), 0.2);
-  border-radius: var(--cl-radius-lg);
-  /* Glass plate with a provider-tinted corner light; the shell itself is an
-     ink well below. Both flip with the theme via the material tokens. */
-  background:
-    radial-gradient(circle at 0% 0%, rgba(var(--claudian-brand-rgb), 0.16), transparent 45%),
-    var(--cl-glass-sheen),
-    var(--cl-glass-body-strong);
+  margin-block: var(--cl-space-2);
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: 8px;
+  background: var(--cl-surface-sunken);
   -webkit-backdrop-filter: var(--cl-glass-filter-soft);
   backdrop-filter: var(--cl-glass-filter-soft);
-  box-shadow: var(--cl-glass-edge), var(--cl-shadow-sm);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   overflow: hidden;
   transition: 
     border-color var(--cl-dur) var(--cl-ease),
@@ -397,8 +372,8 @@
 }
 
 .claudian-tool-call-bash:hover {
-  border-color: rgba(var(--claudian-brand-rgb), 0.45);
-  box-shadow: 0 6px 24px rgba(var(--claudian-brand-rgb), 0.08), var(--cl-shadow-md);
+  border-color: var(--cl-border-strong);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.14);
 }
 
 .claudian-tool-call-bash .claudian-tool-header {
@@ -511,21 +486,28 @@
 }
 
 .claudian-tool-status {
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  gap: 4px;
   flex-shrink: 0;
   margin-left: auto;
-  transition: color var(--cl-dur-fast) var(--cl-ease);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--cl-font-mono);
+  font-size: 11px;
+  transition: all var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-tool-status svg {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
 }
 
 /* Status semantics — running uses accent, others keep green/red/orange. */
 .claudian-tool-status.status-running {
   color: var(--cl-accent);
+  background: rgba(var(--cl-accent-rgb), 0.1);
+  border: 1px solid rgba(var(--cl-accent-rgb), 0.25);
 }
 
 .claudian-tool-status.status-running svg {
@@ -534,14 +516,20 @@
 
 .claudian-tool-status.status-completed {
   color: var(--color-green);
+  background: rgba(52, 211, 153, 0.08);
+  border: 1px solid rgba(52, 211, 153, 0.2);
 }
 
 .claudian-tool-status.status-error {
   color: var(--color-red);
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.2);
 }
 
 .claudian-tool-status.status-blocked {
   color: var(--color-orange);
+  background: rgba(251, 146, 60, 0.08);
+  border: 1px solid rgba(251, 146, 60, 0.2);
 }
 
 /* Contained tool call content panel */
