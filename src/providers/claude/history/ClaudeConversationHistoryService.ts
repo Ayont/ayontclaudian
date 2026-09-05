@@ -1,3 +1,4 @@
+import { toPersistedSubagent } from '../../../core/bootstrap/persistedMessages';
 import type { ProviderConversationHistoryService } from '../../../core/providers/types';
 import { isSubagentToolName, TOOL_TASK } from '../../../core/tools/toolNames';
 import type {
@@ -292,7 +293,7 @@ function buildPersistedSubagentData(messages: ChatMessage[]): Record<string, Sub
 
     for (const toolCall of msg.toolCalls) {
       if (!isSubagentToolName(toolCall.name) || !toolCall.subagent) continue;
-      result[toolCall.subagent.id] = toolCall.subagent;
+      result[toolCall.subagent.id] = toPersistedSubagent(toolCall.subagent);
     }
   }
 

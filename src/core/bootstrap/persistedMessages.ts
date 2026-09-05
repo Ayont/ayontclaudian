@@ -1,4 +1,4 @@
-import type { ChatMessage } from '../types';
+import type { ChatMessage, SubagentInfo, ToolCallInfo } from '../types';
 
 /**
  * Cap for a single persisted tool result.
@@ -25,11 +25,38 @@ export const MAX_PERSISTED_TOOL_RESULT_CHARS = 8_000;
 /** Appended so a truncated result never reads as a complete one. */
 export const TRUNCATION_NOTICE = '\n\n[… gekürzt — vollständige Ausgabe nur in der laufenden Sitzung verfügbar]';
 
-function truncateResult(result: string): string {
-  if (result.length <= MAX_PERSISTED_TOOL_RESULT_CHARS) {
+export function truncateResult(result: string, maxChars: number = MAX_PERSISTED_TOOL_RESULT_CHARS): string {
+  if (result.length <= maxChars) {
     return result;
   }
-  return result.slice(0, MAX_PERSISTED_TOOL_RESULT_CHARS) + TRUNCATION_NOTICE;
+  return result.slice(0, maxChars) + TRUNCATION_NOTICE;
+}
+
+/**
+ * Compacts a subagent's result and nested tool calls down to what is worth persisting.
+ */
+export function toPersistedSubagent(subagent: SubagentInfo): SubagentInfo {
+  const result = typeof subagent.result === 'string' && subagent.result.length > MAX_PERSISTED_TOOL_RESULT_CHARS
+    ? truncateResult(subagent.result)
+    : subagent.result;
+
+  const prompt = typeof subagent.prompt === 'string' && subagent.prompt.length > MAX_PERSISTED_TOOL_RESULT_CHARS
+    ? truncateResult(subagent.prompt)
+    : subagent.prompt;
+
+  const toolCalls = subagent.toolCalls?.map((tc: ToolCallInfo) => ({
+    ...tc,
+    result: typeof tc.result === 'string' && tc.result.length > MAX_PERSISTED_TOOL_RESULT_CHARS
+      ? truncateResult(tc.result)
+      : tc.result,
+  }));
+
+  return {
+    ...subagent,
+    result,
+    prompt,
+    ...(toolCalls ? { toolCalls } : {}),
+  };
 }
 
 /**
@@ -41,11 +68,21 @@ function truncateResult(result: string): string {
 export function toPersistedMessage(message: ChatMessage): ChatMessage {
   const images = message.images?.map((image) => ({ ...image, data: '' }));
 
-  const toolCalls = message.toolCalls?.map((toolCall) => (
-    typeof toolCall.result === 'string' && toolCall.result.length > MAX_PERSISTED_TOOL_RESULT_CHARS
-      ? { ...toolCall, result: truncateResult(toolCall.result) }
-      : toolCall
-  ));
+  const toolCalls = message.toolCalls?.map((toolCall) => {
+    let result = toolCall.result;
+    if (typeof result === 'string' && result.length > MAX_PERSISTED_TOOL_RESULT_CHARS) {
+      result = truncateResult(result);
+    }
+    let subagent = toolCall.subagent;
+    if (subagent) {
+      subagent = toPersistedSubagent(subagent);
+    }
+    return {
+      ...toolCall,
+      ...(result !== undefined ? { result } : {}),
+      ...(subagent !== undefined ? { subagent } : {}),
+    };
+  });
 
   return {
     ...message,

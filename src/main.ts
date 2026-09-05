@@ -2508,8 +2508,9 @@ export default class ClaudianPlugin extends Plugin {
     const allMetadata = await this.storage.sessions.listMetadata();
     this.conversations = allMetadata.map(meta => {
       const resumeSessionId = meta.sessionId !== undefined ? meta.sessionId : meta.id;
+      const extra = meta as typeof meta & { _messageCount?: number; _preview?: string; _lazyMessages?: boolean };
 
-      return {
+      const conv: Conversation = {
         id: meta.id,
         providerId: meta.providerId ?? DEFAULT_CHAT_PROVIDER_ID,
         title: meta.title,
@@ -2531,6 +2532,18 @@ export default class ClaudianPlugin extends Plugin {
         titleGenerationStatus: meta.titleGenerationStatus,
         resumeAtMessageId: meta.resumeAtMessageId,
       };
+
+      if (extra._lazyMessages) {
+        (conv as any)._lazyMessages = true;
+      }
+      if (extra._messageCount !== undefined) {
+        (conv as any)._messageCount = extra._messageCount;
+      }
+      if (extra._preview) {
+        (conv as any)._preview = extra._preview;
+      }
+
+      return conv;
     }).sort(
       (a, b) => (b.lastResponseAt ?? b.updatedAt) - (a.lastResponseAt ?? a.updatedAt)
     );
@@ -2893,10 +2906,34 @@ export default class ClaudianPlugin extends Plugin {
     return conversation;
   }
 
+  async ensureConversationLoaded(conversation: Conversation): Promise<void> {
+    if (!(conversation as any)._lazyMessages) return;
+    try {
+      const full = await this.storage.sessions.loadMetadata(conversation.id);
+      if (full) {
+        if (full.messages && full.messages.length > 0) {
+          conversation.messages = full.messages;
+        }
+        if (full.providerState) {
+          conversation.providerState = {
+            ...conversation.providerState,
+            ...full.providerState,
+          };
+        }
+        if (full.providerSessions) {
+          conversation.providerSessions = full.providerSessions;
+        }
+      }
+    } finally {
+      delete (conversation as any)._lazyMessages;
+    }
+  }
+
   async switchConversation(id: string): Promise<Conversation | null> {
     const conversation = this.conversations.find(c => c.id === id);
     if (!conversation) return null;
 
+    await this.ensureConversationLoaded(conversation);
     await this.loadSdkMessagesForConversation(conversation);
 
     return conversation;
@@ -2932,6 +2969,8 @@ export default class ClaudianPlugin extends Plugin {
     const conversation = this.conversations.find(c => c.id === id);
     if (!conversation) return;
 
+    await this.ensureConversationLoaded(conversation);
+
     conversation.title = title.trim() || this.generateDefaultTitle();
     conversation.updatedAt = Date.now();
 
@@ -2943,6 +2982,8 @@ export default class ClaudianPlugin extends Plugin {
   async updateConversation(id: string, updates: Partial<Conversation>): Promise<void> {
     const conversation = this.conversations.find(c => c.id === id);
     if (!conversation) return;
+
+    await this.ensureConversationLoaded(conversation);
 
     // `providerId` is intentionally mutable: switching a bound conversation to
     // another provider's model mid-chat (switchBoundTabProvider) rebinds it, and
@@ -2978,6 +3019,7 @@ export default class ClaudianPlugin extends Plugin {
     const conversation = this.conversations.find(c => c.id === id) || null;
 
     if (conversation) {
+      await this.ensureConversationLoaded(conversation);
       await this.loadSdkMessagesForConversation(conversation);
     }
 
@@ -3008,8 +3050,8 @@ export default class ClaudianPlugin extends Plugin {
       createdAt: c.createdAt,
       updatedAt: c.updatedAt,
       lastResponseAt: c.lastResponseAt,
-      messageCount: c.messages.length,
-      preview: this.getConversationPreview(c),
+      messageCount: c.messages.length > 0 ? c.messages.length : ((c as any)._messageCount || 0),
+      preview: this.getConversationPreview(c) || (c as any)._preview || "",
       pinned: c.pinned,
       titleGenerationStatus: c.titleGenerationStatus,
     }));

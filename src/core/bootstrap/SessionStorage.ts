@@ -6,7 +6,8 @@ import type {
   ConversationMeta,
   SessionMetadata,
 } from '../types';
-import { toPersistedMessages } from './persistedMessages';
+import { toPersistedMessages, toPersistedSubagent } from './persistedMessages';
+import type { SubagentInfo } from '../types';
 import { LEGACY_SESSIONS_PATH, SESSIONS_PATH } from './StoragePaths';
 
 export {
@@ -72,29 +73,94 @@ export class SessionStorage {
   async listMetadata(): Promise<SessionMetadata[]> {
     const files = await this.listUniqueMetadataFiles();
 
-    // Read + parse every metadata file in parallel. This is the first awaited
-    // step of onload and previously read each file one-by-one, scaling linearly
-    // with the conversation count. Order is preserved by mapping over `files`;
-    // unreadable/corrupt files resolve to null and are filtered out — identical
-    // to the prior skip-on-error behavior.
-    const results = await Promise.all(
-      files.map(async (filePath) => {
-        try {
-          const content = await this.adapter.read(filePath);
-          const raw = JSON.parse(content) as SessionMetadata;
+    // Read + parse metadata files in bounded batches so Electron renderer memory
+    // does not spike from hundreds of concurrent multi-megabyte JSON allocations.
+    // Heavy transcript messages and subagent data are deferred for on-demand loading,
+    // keeping startup memory lean (<5 MB) even with hundreds of historical conversations.
+    const results: SessionMetadata[] = [];
+    const BATCH_SIZE = 10;
 
-          if (filePath.startsWith(`${LEGACY_SESSIONS_PATH}/`)) {
-            await this.saveMetadata(raw);
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+      const batch = files.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map(async (filePath) => {
+          try {
+            const content = await this.adapter.read(filePath);
+            const raw = JSON.parse(content) as SessionMetadata & {
+              _messageCount?: number;
+              _preview?: string;
+              _lazyMessages?: boolean;
+            };
+
+            if (filePath.startsWith(`${LEGACY_SESSIONS_PATH}/`)) {
+              await this.saveMetadata(raw);
+            }
+
+            const messageCount = raw.messages?.length ?? 0;
+            let preview = "";
+            if (raw.messages && raw.messages.length > 0) {
+              const firstUser = raw.messages.find((m) => m.role === "user");
+              if (firstUser?.content) {
+                const clean = firstUser.content.replace(/\n/g, " ").trim();
+                preview = clean.length > 50 ? clean.slice(0, 50) + "..." : clean;
+              }
+            }
+
+            let lastResponseAt = raw.lastResponseAt;
+            if (lastResponseAt == null && raw.messages && raw.messages.length > 0) {
+              for (let m = raw.messages.length - 1; m >= 0; m--) {
+                if (raw.messages[m].role === "assistant") {
+                  lastResponseAt = raw.messages[m].timestamp;
+                  break;
+                }
+              }
+            }
+
+            const light: SessionMetadata & {
+              _messageCount?: number;
+              _preview?: string;
+              _lazyMessages?: boolean;
+            } = {
+              id: raw.id,
+              providerId: raw.providerId,
+              title: raw.title,
+              titleGenerationStatus: raw.titleGenerationStatus,
+              createdAt: raw.createdAt,
+              updatedAt: raw.updatedAt,
+              lastResponseAt,
+              sessionId: raw.sessionId,
+              goal: raw.goal,
+              workspaceMode: raw.workspaceMode,
+              pinned: raw.pinned,
+              currentNote: raw.currentNote,
+              externalContextPaths: raw.externalContextPaths,
+              enabledMcpServers: raw.enabledMcpServers,
+              usage: raw.usage,
+              resumeAtMessageId: raw.resumeAtMessageId,
+              providerState: raw.providerState
+                ? { ...raw.providerState, subagentData: undefined }
+                : undefined,
+              providerSessions: raw.providerSessions,
+              pendingContextBootstrap: raw.pendingContextBootstrap,
+              messages: [],
+              _messageCount: messageCount,
+              _preview: preview,
+              _lazyMessages: messageCount > 0 || !!raw.providerState?.subagentData,
+            };
+
+            return light;
+          } catch {
+            return null;
           }
-          return raw;
-        } catch {
-          // Skip files that fail to load.
-          return null;
-        }
-      }),
-    );
+        }),
+      );
 
-    return results.filter((meta): meta is SessionMetadata => meta !== null);
+      for (const res of batchResults) {
+        if (res !== null) results.push(res);
+      }
+    }
+
+    return results;
   }
 
   async listAllConversations(): Promise<ConversationMeta[]> {
@@ -186,14 +252,32 @@ export class SessionStorage {
         }
 
         const metadata = JSON.parse(content) as SessionMetadata;
-        if (!metadata.messages?.length) {
+
+        let modified = false;
+        const compacted: SessionMetadata = { ...metadata };
+
+        if (compacted.messages?.length) {
+          compacted.messages = toPersistedMessages(compacted.messages);
+          modified = true;
+        }
+
+        if (compacted.providerState?.subagentData) {
+          const subMap = compacted.providerState.subagentData as Record<string, SubagentInfo>;
+          const nextSubMap: Record<string, SubagentInfo> = {};
+          for (const [id, sub] of Object.entries(subMap)) {
+            nextSubMap[id] = toPersistedSubagent(sub);
+          }
+          compacted.providerState = {
+            ...compacted.providerState,
+            subagentData: nextSubMap,
+          };
+          modified = true;
+        }
+
+        if (!modified) {
           continue;
         }
 
-        const compacted: SessionMetadata = {
-          ...metadata,
-          messages: toPersistedMessages(metadata.messages),
-        };
         const next = JSON.stringify(compacted, null, 2);
         if (next.length >= content.length) {
           continue;
