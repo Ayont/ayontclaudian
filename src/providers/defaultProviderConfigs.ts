@@ -11,6 +11,7 @@ import { DEFAULT_KIMI_PROVIDER_SETTINGS } from './kimi/settings';
 import { DEFAULT_OPENCODE_PROVIDER_SETTINGS } from './opencode/settings';
 import { DEFAULT_PI_PROVIDER_SETTINGS } from './pi/settings';
 import { DEFAULT_VIBE_PROVIDER_SETTINGS } from './vibe/settings';
+import { DEFAULT_ZCODE_PROVIDER_SETTINGS } from './zcode/settings';
 
 export function getBuiltInProviderDefaultConfigs(): ProviderConfigMap {
   return {
@@ -26,5 +27,6 @@ export function getBuiltInProviderDefaultConfigs(): ProviderConfigMap {
     dsh: { ...DEFAULT_DSH_PROVIDER_SETTINGS },
     freebuff: { ...DEFAULT_FREEBUFF_PROVIDER_SETTINGS },
     hermes: { ...DEFAULT_HERMES_PROVIDER_SETTINGS },
+    zcode: { ...DEFAULT_ZCODE_PROVIDER_SETTINGS },
   };
 }

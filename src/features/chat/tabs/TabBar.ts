@@ -62,7 +62,7 @@ export class TabBar {
     }
 
     const badgeEl = this.containerEl.createEl('button', {
-      cls: `claudian-tab-badge clickable-icon ${stateClass}`,
+      cls: `claudian-tab-badge clickable-icon ${stateClass}${item.isActive ? " claudian-tab-badge--active" : ""}`,
       text: String(item.index),
       attr: { type: 'button' },
     });
@@ -113,8 +113,15 @@ export class TabBar {
       this.callbacks.onTabClick(item.id);
     });
 
-    // Close button (if allowed)
+    // Close button & middle-click close (if allowed)
     if (item.canClose) {
+      badgeEl.addEventListener('auxclick', (e) => {
+        if (e.button === 1) {
+          e.preventDefault();
+          e.stopPropagation();
+          this.callbacks.onTabClose(item.id);
+        }
+      });
       badgeEl.setAttribute('aria-keyshortcuts', 'Delete');
       badgeEl.addEventListener('contextmenu', (e) => {
         e.preventDefault();
@@ -128,10 +135,15 @@ export class TabBar {
 
       const closeBtn = badgeEl.createSpan({
         cls: 'claudian-tab-badge-close',
-        attr: { 'aria-label': `${item.title} schließen` },
+        attr: {
+          'aria-label': `${item.title} schließen`,
+          role: 'button',
+          tabindex: '0',
+        },
       });
       setIcon(closeBtn, 'x');
       closeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
         e.stopPropagation();
         this.callbacks.onTabClose(item.id);
       });

@@ -1,5 +1,5 @@
 import type { App } from 'obsidian';
-import { Notice, Platform, PluginSettingTab, Setting } from 'obsidian';
+import { Notice, Platform, PluginSettingTab, setIcon,Setting } from 'obsidian';
 
 import {
   getHiddenProviderCommands,
@@ -13,6 +13,7 @@ import type { ChatViewPlacement } from '../../core/types/settings';
 import { getAvailableLocales, getLocaleDisplayName, setLocale, t } from '../../i18n/i18n';
 import type { Locale, TranslationKey } from '../../i18n/types';
 import type ClaudianPlugin from '../../main';
+import { createProviderIconSvg } from '../../shared/icons';
 import { formatContextLimit, parseContextLimit, parseEnvironmentVariables } from '../../utils/env';
 import { buildNavMappingText, parseNavMappings } from './keyboardNavigation';
 import { renderAppShotSettingsSection } from './ui/AppShotSettingsSection';
@@ -22,7 +23,16 @@ import { renderEnvironmentSettingsSection } from './ui/EnvironmentSettingsSectio
 import { renderUsageCostSection } from './ui/UsageCostSection';
 import { renderVoiceSettingsSection } from './ui/VoiceSettingsSection';
 
-type SettingsTabId = string;
+export type SettingsCategoryId =
+  | 'general'
+  | 'providers'
+  | 'intelligence'
+  | 'tools'
+  | 'input'
+  | 'budget';
+
+type SettingsTabId = SettingsCategoryId | ProviderId;
+
 type ObsidianHotkey = { modifiers: string[]; key: string };
 type ObsidianHotkeyManager = {
   customKeys?: Record<string, ObsidianHotkey[] | undefined>;
@@ -110,13 +120,84 @@ function addHotkeySettingRow(
   item.addEventListener('click', () => openHotkeySettings(app));
 }
 
+function getCategoryMeta(catId: SettingsCategoryId, locale: string): { label: string; icon: string; desc: string } {
+  const isDe = locale === 'de';
+  switch (catId) {
+    case 'general':
+      return {
+        label: isDe ? 'Allgemein' : 'General',
+        icon: 'sliders',
+        desc: isDe
+          ? 'Chat-Erscheinungsbild, Layout, Fensterplatzierung und Streaming-Verhalten.'
+          : 'Chat appearance, layout, window placement, and streaming behavior.',
+      };
+    case 'providers':
+      return {
+        label: isDe ? 'KI-Provider' : 'AI Providers',
+        icon: 'cpu',
+        desc: isDe
+          ? 'Verbindung, API-Keys, Modelle und Optionen aller 13 KI-Provider.'
+          : 'Connection, API keys, models, and options for all 13 AI providers.',
+      };
+    case 'intelligence':
+      return {
+        label: isDe ? 'Intelligenz & Wissen' : 'Intelligence & Memory',
+        icon: 'brain',
+        desc: isDe
+          ? 'System-Prompts, Agentic Memory, Vault-RAG mit Ollama und Auto-Modell-Router.'
+          : 'System prompts, agentic memory, vault RAG with Ollama, and auto model router.',
+      };
+    case 'tools':
+      return {
+        label: isDe ? 'Tools & Audio' : 'Tools & Audio',
+        icon: 'wrench',
+        desc: isDe
+          ? 'AppShot Screenshots, Whisper-Spracheingabe, CLI-Center und Shared Environment.'
+          : 'AppShot screenshots, Whisper voice input, CLI center, and shared environment.',
+      };
+    case 'input':
+      return {
+        label: isDe ? 'Eingabe & Hotkeys' : 'Input & Hotkeys',
+        icon: 'keyboard',
+        desc: isDe
+          ? 'Senden-Tastenkombination, Vim-Navigation und Tastatur-Kurzbefehle.'
+          : 'Send keyboard shortcuts, Vim navigation, and global hotkeys.',
+      };
+    case 'budget':
+      return {
+        label: isDe ? 'Verbrauch & Limits' : 'Usage & Budgets',
+        icon: 'coins',
+        desc: isDe
+          ? 'Live-Kostentracker, Token-Statistiken und Sicherheitsbudgets.'
+          : 'Live cost tracker, token statistics, and safety budgets.',
+      };
+  }
+}
+
 export class ClaudianSettingTab extends PluginSettingTab {
   plugin: ClaudianPlugin;
-  private activeTab: SettingsTabId = 'general';
+  private activeCategory: SettingsCategoryId = 'general';
+  private activeProviderId: ProviderId = 'claude';
 
   constructor(app: App, plugin: ClaudianPlugin) {
     super(app, plugin);
     this.plugin = plugin;
+  }
+
+  get activeTab(): SettingsTabId {
+    return this.activeCategory === 'providers' ? this.activeProviderId : this.activeCategory;
+  }
+
+  set activeTab(tabId: SettingsTabId) {
+    const providerIds = ProviderRegistry.getRegisteredProviderIds();
+    if (providerIds.includes(tabId as ProviderId)) {
+      this.activeCategory = 'providers';
+      this.activeProviderId = tabId as ProviderId;
+    } else if (['general', 'providers', 'intelligence', 'tools', 'input', 'budget'].includes(tabId)) {
+      this.activeCategory = tabId as SettingsCategoryId;
+    } else {
+      this.activeCategory = 'general';
+    }
   }
 
   display(): void {
@@ -126,88 +207,129 @@ export class ClaudianSettingTab extends PluginSettingTab {
 
     setLocale(this.plugin.settings.locale as Locale);
 
-    const providerTabs = ProviderRegistry.getRegisteredProviderIds();
-    const tabIds: SettingsTabId[] = ['general', ...providerTabs];
-    if (!tabIds.includes(this.activeTab)) {
-      this.activeTab = 'general';
+    const categories: SettingsCategoryId[] = [
+      'general',
+      'providers',
+      'intelligence',
+      'tools',
+      'input',
+      'budget',
+    ];
+
+    const providerIds = ProviderRegistry.getRegisteredProviderIds();
+    const settingsBag = this.plugin.settings as unknown as Record<string, unknown>;
+
+    let activeProvidersCount = 0;
+    for (const pid of providerIds) {
+      if (ProviderRegistry.isEnabled(pid, settingsBag)) {
+        activeProvidersCount += 1;
+      }
     }
 
-    const tabBar = containerEl.createDiv({ cls: 'claudian-settings-tabs' });
-    const tabButtons = new Map<SettingsTabId, HTMLButtonElement>();
-    const tabContents = new Map<SettingsTabId, HTMLDivElement>();
+    // ── Primary Category Navigation ──
+    const navBar = containerEl.createDiv({ cls: 'claudian-settings-nav' });
+    const navButtons = new Map<SettingsCategoryId, HTMLButtonElement>();
+    const categoryContainers = new Map<SettingsCategoryId, HTMLDivElement>();
 
-    for (const id of tabIds) {
-      const label = id === 'general'
-        ? t('settings.tabs.general' as TranslationKey)
-        : ProviderRegistry.getProviderDisplayName(id);
-      const isEnabled = id === 'general' ? true : ProviderRegistry.isEnabled(id, this.plugin.settings as unknown as Record<string, unknown>);
-      const button = tabBar.createEl('button', {
-        cls: `claudian-settings-tab${id === this.activeTab ? ' claudian-settings-tab--active' : ''}${isEnabled && id !== 'general' ? ' claudian-settings-tab--enabled' : ''}`,
+    for (const catId of categories) {
+      const meta = getCategoryMeta(catId, this.plugin.settings.locale);
+      const btn = navBar.createEl('button', {
+        cls: `claudian-settings-nav-btn${catId === this.activeCategory ? ' claudian-settings-nav-btn--active' : ''}`,
       });
-      if (id !== 'general') {
-        button.createSpan({
-          cls: `claudian-settings-tab-dot${isEnabled ? ' is-enabled' : ''}`,
-          attr: { title: isEnabled ? 'Aktiv / Enabled' : 'Inaktiv / Disabled' },
+
+      const iconEl = btn.createSpan({ cls: 'claudian-settings-nav-icon' });
+      setIcon(iconEl, meta.icon);
+
+      btn.createSpan({ text: meta.label });
+
+      if (catId === 'providers') {
+        btn.createSpan({
+          cls: 'claudian-settings-nav-badge',
+          text: `${activeProvidersCount}/${providerIds.length}`,
         });
       }
-      button.createSpan({ text: label });
-      button.addEventListener('click', () => {
-        this.activeTab = id;
-        for (const tabId of tabIds) {
-          tabButtons.get(tabId)?.toggleClass('claudian-settings-tab--active', tabId === id);
-          tabContents.get(tabId)?.toggleClass('claudian-settings-tab-content--active', tabId === id);
+
+      btn.addEventListener('click', () => {
+        this.activeCategory = catId;
+        for (const [id, b] of navButtons.entries()) {
+          b.toggleClass('claudian-settings-nav-btn--active', id === catId);
         }
-        // Start every tab at the top. The tab content has no scroll of its own
-        // (display:none/block), so the scroll lives on an ancestor (Obsidian's
-        // modal). Walk up and reset every ancestor — otherwise the retained
-        // scroll position hides the first section (the provider "Enable" toggle).
-        let node: HTMLElement | null = containerEl;
-        for (let depth = 0; node && depth < 8; depth += 1) {
-          node.scrollTop = 0;
-          node = node.parentElement;
+        for (const [id, c] of categoryContainers.entries()) {
+          c.toggleClass('claudian-hidden', id !== catId);
         }
+        this.resetModalScroll();
       });
-      tabButtons.set(id, button);
+
+      navButtons.set(catId, btn);
     }
 
-    for (const id of tabIds) {
-      const content = containerEl.createDiv({
-        cls: `claudian-settings-tab-content${id === this.activeTab ? ' claudian-settings-tab-content--active' : ''}`,
+    // ── Category Panes ──
+    for (const catId of categories) {
+      const pane = containerEl.createDiv({
+        cls: `claudian-settings-category-pane${catId === this.activeCategory ? '' : ' claudian-hidden'}`,
       });
-      tabContents.set(id, content);
-    }
+      categoryContainers.set(catId, pane);
 
-    this.renderGeneralTab(tabContents.get('general')!);
-    renderCliInstallSection(tabContents.get('general')!, this.plugin);
+      const meta = getCategoryMeta(catId, this.plugin.settings.locale);
+      const banner = pane.createDiv({ cls: 'claudian-settings-banner' });
+      const info = banner.createDiv({ cls: 'claudian-settings-banner-info' });
+      info.createDiv({ cls: 'claudian-settings-banner-title', text: meta.label });
+      info.createDiv({ cls: 'claudian-settings-banner-desc', text: meta.desc });
 
-    for (const providerId of providerTabs) {
-      const content = tabContents.get(providerId);
-      if (!content) {
-        continue;
+      try {
+        switch (catId) {
+          case 'general':
+            this.renderGeneralCategory(pane);
+            break;
+          case 'providers':
+            this.renderProvidersCategory(pane, () => {
+              // Update provider count badge
+              let activeCount = 0;
+              for (const pid of providerIds) {
+                if (ProviderRegistry.isEnabled(pid, settingsBag)) {
+                  activeCount += 1;
+                }
+              }
+              const providersNavBtn = navButtons.get('providers');
+              const badge = providersNavBtn?.querySelector('.claudian-settings-nav-badge');
+              if (badge) {
+                badge.textContent = `${activeCount}/${providerIds.length}`;
+              }
+            });
+            break;
+          case 'intelligence':
+            this.renderIntelligenceCategory(pane);
+            break;
+          case 'tools':
+            this.renderToolsCategory(pane);
+            break;
+          case 'input':
+            this.renderInputCategory(pane);
+            break;
+          case 'budget':
+            this.renderBudgetCategory(pane);
+            break;
+        }
+      } catch (catErr) {
+        console.error(`[ClaudianSettings] Failed to render category "${catId}":`, catErr);
+        const errCard = pane.createDiv({ cls: 'claudian-settings-card' });
+        errCard.createDiv({
+          cls: 'claudian-settings-card-title',
+          text: `Fehler beim Laden von "${meta.label}"`,
+        });
+        errCard.createDiv({
+          cls: 'claudian-settings-banner-desc',
+          text: catErr instanceof Error ? catErr.message : String(catErr),
+        });
       }
-
-      ProviderWorkspaceRegistry.getSettingsTabRenderer(providerId)?.render(content, {
-        plugin: this.plugin,
-        renderHiddenProviderCommandSetting: (
-          target,
-          targetProviderId,
-          copy,
-        ) => this.renderHiddenProviderCommandSetting(target, targetProviderId, copy),
-        refreshModelSelectors: () => {
-          for (const view of this.plugin.getAllViews()) {
-            view.refreshModelSelector();
-          }
-        },
-        renderCustomContextLimits: (target, providerId) => this.renderCustomContextLimits(target, providerId),
-      });
     }
 
-    // Obsidian's settings window can retain the previous plugin's scroll
-    // position, so this panel may open already scrolled — hiding the first
-    // section (e.g. a provider's "Enable" toggle). Reset the scrolling ancestor
-    // to the top once layout has settled.
+    this.resetModalScroll();
+  }
+
+  private resetModalScroll(): void {
     window.requestAnimationFrame(() => {
-      let node: HTMLElement | null = containerEl;
+      let node: HTMLElement | null = this.containerEl;
       for (let depth = 0; node && depth < 8; depth += 1) {
         node.scrollTop = 0;
         node = node.parentElement;
@@ -215,38 +337,14 @@ export class ClaudianSettingTab extends PluginSettingTab {
     });
   }
 
-  private renderPluginUpdateSetting(container: HTMLElement): void {
-    const current = this.plugin.manifest.version;
-    const pending = this.plugin.getPendingPluginUpdate();
-    const row = new Setting(container)
-      .setName('Plugin-Update')
-      .setDesc(pending
-        ? `${pending.latestVersion} ist verfügbar (aktuell ${current}).`
-        : `Installierte Version: ${current}`);
+  // ─────────────────────────────────────────────────────────────
+  // 1. GENERAL CATEGORY
+  // ─────────────────────────────────────────────────────────────
 
-    row.addButton((button) => {
-      button.setButtonText(pending ? 'Installieren' : 'Prüfen').onClick(async () => {
-        button.setDisabled(true);
-        if (pending) {
-          this.plugin.installPendingPluginUpdate();
-          button.setDisabled(false);
-          this.display();
-          return;
-        }
-        const update = await this.plugin.checkAndOfferPluginUpdate({ notifyIfCurrent: true });
-        button.setDisabled(false);
-        if (update) {
-          this.display();
-        }
-      });
-      if (pending) {
-        button.setCta();
-      }
-    });
-  }
-
-  private renderGeneralTab(container: HTMLElement): void {
-    new Setting(container)
+  private renderGeneralCategory(container: HTMLElement): void {
+    // Card: Plugin & Sprache
+    const pluginCard = this.createSettingsCard(container, 'sliders', 'Plugin & Sprache');
+    new Setting(pluginCard)
       .setName(t('settings.language.name'))
       .setDesc(t('settings.language.desc'))
       .addDropdown((dropdown) => {
@@ -267,67 +365,15 @@ export class ClaudianSettingTab extends PluginSettingTab {
             this.display();
           });
       });
+    this.renderPluginUpdateSetting(pluginCard);
 
-    this.renderPluginUpdateSetting(container);
+    // Card: Chat-Erscheinungsbild
+    const appearanceCard = this.createSettingsCard(container, 'palette', t('settings.chatAppearance.heading'));
+    renderChatAppearanceSection(appearanceCard, this.plugin, () => this.display());
 
-    // --- Providers ---
-
-    this.renderProvidersSection(container);
-
-    // --- Display ---
-
-    new Setting(container).setName(t('settings.display')).setHeading();
-
-    renderChatAppearanceSection(container, this.plugin, () => this.display());
-
-    new Setting(container)
-      .setName(t('settings.tabBarPosition.name'))
-      .setDesc(t('settings.tabBarPosition.desc'))
-      .addDropdown((dropdown) => {
-        dropdown
-          .addOption('input', t('settings.tabBarPosition.input'))
-          .addOption('header', t('settings.tabBarPosition.header'))
-          .setValue(this.plugin.settings.tabBarPosition ?? 'input')
-          .onChange(async (value) => {
-            this.plugin.settings.tabBarPosition = value as 'input' | 'header';
-            await this.plugin.saveSettings();
-
-            for (const view of this.plugin.getAllViews()) {
-              view.updateLayoutForPosition();
-            }
-          });
-      });
-
-    const maxTabsSetting = new Setting(container)
-      .setName(t('settings.maxTabs.name'))
-      .setDesc(t('settings.maxTabs.desc'));
-
-    const maxTabsWarningEl = container.createDiv({
-      cls: 'claudian-max-tabs-warning claudian-setting-validation claudian-setting-validation-warning claudian-hidden',
-    });
-    maxTabsWarningEl.setText(t('settings.maxTabs.warning'));
-
-    const updateMaxTabsWarning = (value: number): void => {
-      maxTabsWarningEl.toggleClass('claudian-hidden', value <= 5);
-    };
-
-    maxTabsSetting.addSlider((slider) => {
-      slider
-        .setLimits(3, 10, 1)
-        .setValue(this.plugin.settings.maxTabs ?? 3)
-        .setDynamicTooltip()
-        .onChange(async (value) => {
-          this.plugin.settings.maxTabs = value;
-          await this.plugin.saveSettings();
-          updateMaxTabsWarning(value);
-          for (const view of this.plugin.getAllViews()) {
-            view.refreshTabControls();
-          }
-        });
-      updateMaxTabsWarning(this.plugin.settings.maxTabs ?? 3);
-    });
-
-    new Setting(container)
+    // Card: Fenster- & Tab-Layout
+    const layoutCard = this.createSettingsCard(container, 'layout', 'Fenster- & Tab-Layout');
+    new Setting(layoutCard)
       .setName(t('settings.chatViewPlacement.name'))
       .setDesc(t('settings.chatViewPlacement.desc'))
       .addDropdown((dropdown) => {
@@ -342,7 +388,55 @@ export class ClaudianSettingTab extends PluginSettingTab {
           });
       });
 
-    new Setting(container)
+    new Setting(layoutCard)
+      .setName(t('settings.tabBarPosition.name'))
+      .setDesc(t('settings.tabBarPosition.desc'))
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption('input', t('settings.tabBarPosition.input'))
+          .addOption('header', t('settings.tabBarPosition.header'))
+          .setValue(this.plugin.settings.tabBarPosition ?? 'input')
+          .onChange(async (value) => {
+            this.plugin.settings.tabBarPosition = value as 'input' | 'header';
+            await this.plugin.saveSettings();
+            for (const view of this.plugin.getAllViews()) {
+              view.updateLayoutForPosition();
+            }
+          });
+      });
+
+    const maxTabsSetting = new Setting(layoutCard)
+      .setName(t('settings.maxTabs.name'))
+      .setDesc(t('settings.maxTabs.desc'));
+
+    const maxTabsWarningEl = layoutCard.createDiv({
+      cls: 'claudian-max-tabs-warning claudian-setting-validation claudian-setting-validation-warning claudian-hidden',
+    });
+    maxTabsWarningEl.setText(t('settings.maxTabs.warning'));
+
+    const updateMaxTabsWarning = (value: number): void => {
+      maxTabsWarningEl.toggleClass('claudian-hidden', value <= 5);
+    };
+
+    maxTabsSetting.addSlider((slider) => {
+      slider
+        .setLimits(3, 10, 1)
+        .setValue(Math.min(10, Math.max(3, this.plugin.settings.maxTabs ?? 3)))
+        .setDynamicTooltip()
+        .onChange(async (value) => {
+          this.plugin.settings.maxTabs = value;
+          await this.plugin.saveSettings();
+          updateMaxTabsWarning(value);
+          for (const view of this.plugin.getAllViews()) {
+            view.refreshTabControls();
+          }
+        });
+      updateMaxTabsWarning(this.plugin.settings.maxTabs ?? 3);
+    });
+
+    // Card: Streaming & Verhalten
+    const streamingCard = this.createSettingsCard(container, 'zap', 'Streaming & Verhalten');
+    new Setting(streamingCard)
       .setName(t('settings.enableAutoScroll.name'))
       .setDesc(t('settings.enableAutoScroll.desc'))
       .addToggle((toggle) =>
@@ -354,7 +448,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
           })
       );
 
-    new Setting(container)
+    new Setting(streamingCard)
       .setName(t('settings.deferMathRenderingDuringStreaming.name'))
       .setDesc(t('settings.deferMathRenderingDuringStreaming.desc'))
       .addToggle((toggle) =>
@@ -366,7 +460,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
           })
       );
 
-    new Setting(container)
+    new Setting(streamingCard)
       .setName(t('settings.expandFileEditsByDefault.name'))
       .setDesc(t('settings.expandFileEditsByDefault.desc'))
       .addToggle((toggle) =>
@@ -377,12 +471,267 @@ export class ClaudianSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+  }
 
-    // --- Conversations ---
+  // ─────────────────────────────────────────────────────────────
+  // 2. PROVIDERS CATEGORY (Provider Hub)
+  // ─────────────────────────────────────────────────────────────
 
-    new Setting(container).setName(t('settings.conversations')).setHeading();
+  private renderProvidersCategory(container: HTMLElement, onProviderStateChange: () => void): void {
+    const hub = container.createDiv({ cls: 'claudian-provider-hub' });
+    const providerIds = ProviderRegistry.getRegisteredProviderIds();
+    const settingsBag = this.plugin.settings as unknown as Record<string, unknown>;
 
-    new Setting(container)
+    // ── Quick-Toggles Status Bar ──
+    const hubBar = hub.createDiv({ cls: 'claudian-provider-hub-bar' });
+    const counterEl = hubBar.createDiv({ cls: 'claudian-provider-hub-counter' });
+    const dotEl = counterEl.createSpan({ cls: 'claudian-provider-hub-dot' });
+    const counterTextEl = counterEl.createSpan();
+
+    const updateCounterText = (): void => {
+      let active = 0;
+      for (const pid of providerIds) {
+        if (ProviderRegistry.isEnabled(pid, settingsBag)) {
+          active += 1;
+        }
+      }
+      counterTextEl.textContent = `${active} von ${providerIds.length} Providern aktiv`;
+      dotEl.style.display = active > 0 ? 'inline-block' : 'none';
+    };
+    updateCounterText();
+
+    const quickList = hubBar.createDiv({ cls: 'claudian-provider-quick-list' });
+    const quickChips = new Map<ProviderId, HTMLElement>();
+
+    // ── Provider Navigation Pills ──
+    const pillsBar = hub.createDiv({ cls: 'claudian-provider-pills' });
+    const pillButtons = new Map<ProviderId, HTMLButtonElement>();
+    const providerPanes = new Map<ProviderId, HTMLElement>();
+
+    const selectProvider = (targetId: ProviderId): void => {
+      this.activeProviderId = targetId;
+      for (const [id, btn] of pillButtons.entries()) {
+        btn.toggleClass('claudian-provider-pill--active', id === targetId);
+      }
+      for (const [id, pane] of providerPanes.entries()) {
+        pane.toggleClass('is-active', id === targetId);
+      }
+    };
+
+    // Card Container for active Provider
+    const paneCard = hub.createDiv({ cls: 'claudian-provider-pane-card' });
+
+    for (const providerId of providerIds) {
+      const displayName = ProviderRegistry.getProviderDisplayName(providerId);
+      const isAlwaysOn = ProviderRegistry.isEnabled(providerId, {
+        providerConfigs: { [providerId]: { enabled: false } },
+      });
+      const isEnabled = ProviderRegistry.isEnabled(providerId, settingsBag);
+
+      // Quick chip
+      const chip = quickList.createDiv({
+        cls: `claudian-provider-quick-chip${isEnabled ? ' is-active' : ''}`,
+      });
+      const chipDot = chip.createSpan({
+        cls: `claudian-provider-quick-dot${isEnabled ? ' is-enabled' : ''}`,
+      });
+      chip.createSpan({ text: displayName });
+
+      chip.addEventListener('click', () => {
+        selectProvider(providerId);
+      });
+      quickChips.set(providerId, chip);
+
+      // Pill button
+      const pill = pillsBar.createEl('button', {
+        cls: `claudian-provider-pill${providerId === this.activeProviderId ? ' claudian-provider-pill--active' : ''}`,
+      });
+
+      const pillIcon = pill.createSpan({ cls: 'claudian-provider-pill-icon' });
+      const rawIcon = ProviderRegistry.getProviderIcon(providerId);
+      pillIcon.appendChild(
+        createProviderIconSvg(rawIcon, {
+          width: 16,
+          height: 16,
+        })
+      );
+
+      pill.createSpan({ text: displayName });
+
+      const pillDot = pill.createSpan({
+        cls: `claudian-provider-pill-dot${isEnabled ? ' is-enabled' : ''}`,
+      });
+
+      pill.addEventListener('click', () => {
+        selectProvider(providerId);
+      });
+      pillButtons.set(providerId, pill);
+
+      // Provider Pane inside the card
+      const pane = paneCard.createDiv({
+        cls: `claudian-provider-pane${providerId === this.activeProviderId ? ' is-active' : ''}`,
+      });
+      providerPanes.set(providerId, pane);
+
+      // Provider Header Banner with Master Toggle
+      const banner = pane.createDiv({ cls: 'claudian-provider-banner-header' });
+      const left = banner.createDiv({ cls: 'claudian-provider-banner-left' });
+      const bannerIcon = left.createDiv({ cls: 'claudian-provider-banner-icon' });
+      bannerIcon.appendChild(
+        createProviderIconSvg(rawIcon, {
+          width: 20,
+          height: 20,
+        })
+      );
+
+      const titleWrap = left.createDiv();
+      titleWrap.createDiv({ cls: 'claudian-provider-banner-title', text: displayName });
+      titleWrap.createDiv({
+        cls: 'claudian-provider-banner-tag',
+        text: isAlwaysOn ? 'Standard Provider (Immer aktiv)' : isEnabled ? 'Aktiv' : 'Deaktiviert',
+      });
+
+      new Setting(banner).addToggle((toggle) => {
+        toggle
+          .setValue(isEnabled)
+          .setDisabled(isAlwaysOn)
+          .onChange(async (val) => {
+            setProviderEnabled(settingsBag, providerId, val);
+            await this.plugin.saveSettings();
+
+            // Dynamic updates
+            pillDot.toggleClass('is-enabled', val);
+            chipDot.toggleClass('is-enabled', val);
+            chip.toggleClass('is-active', val);
+
+            const tagEl = titleWrap.querySelector('.claudian-provider-banner-tag');
+            if (tagEl) {
+              tagEl.textContent = isAlwaysOn ? 'Standard Provider (Immer aktiv)' : val ? 'Aktiv' : 'Deaktiviert';
+            }
+
+            updateCounterText();
+            onProviderStateChange();
+
+            for (const view of this.plugin.getAllViews()) {
+              view.refreshModelSelector();
+            }
+          });
+      });
+
+      // Provider-specific settings body
+      const content = pane.createDiv({ cls: 'claudian-provider-content' });
+      try {
+        ProviderWorkspaceRegistry.getSettingsTabRenderer(providerId)?.render(content, {
+          plugin: this.plugin,
+          renderHiddenProviderCommandSetting: (target, targetProviderId, copy) =>
+            this.renderHiddenProviderCommandSetting(target, targetProviderId, copy),
+          refreshModelSelectors: () => {
+            for (const view of this.plugin.getAllViews()) {
+              view.refreshModelSelector();
+            }
+            const curr = ProviderRegistry.isEnabled(providerId, settingsBag);
+            pillDot.toggleClass('is-enabled', curr);
+            chipDot.toggleClass('is-enabled', curr);
+            chip.toggleClass('is-active', curr);
+            updateCounterText();
+            onProviderStateChange();
+          },
+          renderCustomContextLimits: (target, pId) => this.renderCustomContextLimits(target, pId),
+        });
+      } catch (renderErr) {
+        console.error(`[ClaudianSettings] Failed to render settings for provider "${providerId}":`, renderErr);
+        const errorCard = content.createDiv({ cls: 'claudian-settings-card' });
+        errorCard.createDiv({
+          cls: 'claudian-settings-card-title',
+          text: `Fehler beim Laden der Einstellungen für ${displayName}`,
+        });
+        errorCard.createDiv({
+          cls: 'claudian-settings-banner-desc',
+          text: renderErr instanceof Error ? renderErr.message : String(renderErr),
+        });
+      }
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 3. INTELLIGENCE CATEGORY
+  // ─────────────────────────────────────────────────────────────
+
+  private renderIntelligenceCategory(container: HTMLElement): void {
+    // Card: Identität & System-Prompt
+    const identityCard = this.createSettingsCard(container, 'brain', t('settings.content'));
+    new Setting(identityCard)
+      .setName(t('settings.userName.name'))
+      .setDesc(t('settings.userName.desc'))
+      .addText((text) => {
+        text
+          .setPlaceholder(t('settings.userName.name'))
+          .setValue(this.plugin.settings.userName)
+          .onChange(async (value) => {
+            this.plugin.settings.userName = value;
+            await this.plugin.saveSettings();
+          });
+        text.inputEl.addEventListener('blur', () => {
+          void this.restartServiceForPromptChange();
+        });
+      });
+
+    new Setting(identityCard)
+      .setName(t('settings.systemPrompt.name'))
+      .setDesc(t('settings.systemPrompt.desc'))
+      .addTextArea((text) => {
+        text
+          .setPlaceholder(t('settings.systemPrompt.name'))
+          .setValue(this.plugin.settings.systemPrompt)
+          .onChange(async (value) => {
+            this.plugin.settings.systemPrompt = value;
+            await this.plugin.saveSettings();
+          });
+        text.inputEl.rows = 6;
+        text.inputEl.cols = 50;
+        text.inputEl.addEventListener('blur', () => {
+          void this.restartServiceForPromptChange();
+        });
+      });
+
+    new Setting(identityCard)
+      .setName(t('settings.excludedTags.name'))
+      .setDesc(t('settings.excludedTags.desc'))
+      .addTextArea((text) => {
+        text
+          .setPlaceholder('System\nprivate\ndraft')
+          .setValue(this.plugin.settings.excludedTags.join('\n'))
+          .onChange(async (value) => {
+            this.plugin.settings.excludedTags = value
+              .split(/\r?\n/)
+              .map((entry) => entry.trim().replace(/^#/, ''))
+              .filter((entry) => entry.length > 0);
+            await this.plugin.saveSettings();
+          });
+        text.inputEl.rows = 4;
+        text.inputEl.cols = 30;
+      });
+
+    new Setting(identityCard)
+      .setName(t('settings.mediaFolder.name'))
+      .setDesc(t('settings.mediaFolder.desc'))
+      .addText((text) => {
+        text
+          .setPlaceholder('Anhänge')
+          .setValue(this.plugin.settings.mediaFolder)
+          .onChange(async (value) => {
+            this.plugin.settings.mediaFolder = value.trim();
+            await this.plugin.saveSettings();
+          });
+        text.inputEl.addClass('claudian-settings-media-input');
+        text.inputEl.addEventListener('blur', () => {
+          void this.restartServiceForPromptChange();
+        });
+      });
+
+    // Card: Automatische Titelgenerierung
+    const autoTitleCard = this.createSettingsCard(container, 'sparkles', t('settings.conversations'));
+    new Setting(autoTitleCard)
       .setName(t('settings.autoTitle.name'))
       .setDesc(t('settings.autoTitle.desc'))
       .addToggle((toggle) =>
@@ -396,7 +745,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
       );
 
     if (this.plugin.settings.enableAutoTitleGeneration) {
-      new Setting(container)
+      new Setting(autoTitleCard)
         .setName(t('settings.titleModel.name'))
         .setDesc(t('settings.titleModel.desc'))
         .addDropdown((dropdown) => {
@@ -423,128 +772,9 @@ export class ClaudianSettingTab extends PluginSettingTab {
         });
     }
 
-    // --- Content ---
-
-    new Setting(container).setName(t('settings.content')).setHeading();
-
-    new Setting(container)
-      .setName(t('settings.userName.name'))
-      .setDesc(t('settings.userName.desc'))
-      .addText((text) => {
-        text
-          .setPlaceholder(t('settings.userName.name'))
-          .setValue(this.plugin.settings.userName)
-          .onChange(async (value) => {
-            this.plugin.settings.userName = value;
-            await this.plugin.saveSettings();
-          });
-        text.inputEl.addEventListener('blur', () => {
-          void this.restartServiceForPromptChange();
-        });
-      });
-
-    new Setting(container)
-      .setName(t('settings.systemPrompt.name'))
-      .setDesc(t('settings.systemPrompt.desc'))
-      .addTextArea((text) => {
-        text
-          .setPlaceholder(t('settings.systemPrompt.name'))
-          .setValue(this.plugin.settings.systemPrompt)
-          .onChange(async (value) => {
-            this.plugin.settings.systemPrompt = value;
-            await this.plugin.saveSettings();
-          });
-        text.inputEl.rows = 6;
-        text.inputEl.cols = 50;
-        text.inputEl.addEventListener('blur', () => {
-          void this.restartServiceForPromptChange();
-        });
-      });
-
-    new Setting(container)
-      .setName(t('settings.excludedTags.name'))
-      .setDesc(t('settings.excludedTags.desc'))
-      .addTextArea((text) => {
-        text
-          .setPlaceholder('System\nprivate\ndraft')
-          .setValue(this.plugin.settings.excludedTags.join('\n'))
-          .onChange(async (value) => {
-            this.plugin.settings.excludedTags = value
-              .split(/\r?\n/)
-              .map((entry) => entry.trim().replace(/^#/, ''))
-              .filter((entry) => entry.length > 0);
-            await this.plugin.saveSettings();
-          });
-        text.inputEl.rows = 4;
-        text.inputEl.cols = 30;
-      });
-
-    new Setting(container)
-      .setName(t('settings.mediaFolder.name'))
-      .setDesc(t('settings.mediaFolder.desc'))
-      .addText((text) => {
-        text
-          .setPlaceholder('Anhänge')
-          .setValue(this.plugin.settings.mediaFolder)
-          .onChange(async (value) => {
-            this.plugin.settings.mediaFolder = value.trim();
-            await this.plugin.saveSettings();
-          });
-        text.inputEl.addClass('claudian-settings-media-input');
-        text.inputEl.addEventListener('blur', () => {
-          void this.restartServiceForPromptChange();
-        });
-      });
-
-    // --- Model Router ---
-
-    new Setting(container).setName('Automatische Modellwahl').setHeading();
-
-    new Setting(container)
-      .setName('Modell-Router aktivieren')
-      .setDesc('Die Option „Auto“ in der Modellauswahl sucht dann selbst das passende Modell zum Prompt. Schlüsselwortbasiert: Code, Schreiben, Vision, Planung, Schnell.')
-      .addToggle((toggle) => {
-        toggle
-          .setValue(this.plugin.settings.modelRouterEnabled ?? true)
-          .onChange(async (value) => {
-            this.plugin.settings.modelRouterEnabled = value;
-            await this.plugin.saveSettings();
-          });
-      });
-
-    new Setting(container)
-      .setName('Ordner für Prompt-Vorlagen')
-      .setDesc('Ordner mit wiederverwendbaren Markdown-Prompt-Vorlagen. Die eingebauten Vorlagen stehen immer zur Verfügung.')
-      .addText((text) => {
-        text
-          .setPlaceholder('Templates/Prompt Templates')
-          .setValue(this.plugin.settings.promptTemplateFolder ?? 'Templates/Prompt Templates')
-          .onChange(async (value) => {
-            this.plugin.settings.promptTemplateFolder = value.trim();
-            await this.plugin.saveSettings();
-          });
-      });
-
-    new Setting(container)
-      .setName('Ordner für exportierte Unterhaltungen')
-      .setDesc('Vault-Ordner, in den „Unterhaltung als Notiz exportieren“ schreibt. Exportierte Notizen werden automatisch für RAG indexiert.')
-      .addText((text) => {
-        text
-          .setPlaceholder('Claudian/Conversations')
-          .setValue(this.plugin.settings.conversationExportFolder ?? 'Claudian/Conversations')
-          .onChange(async (value) => {
-            this.plugin.settings.conversationExportFolder = value.trim();
-            await this.plugin.saveSettings();
-          });
-      });
-
-    // --- Memory & Budget ---
-
-    new Setting(container).setName(t('settings.memoryAndBudget')).setHeading();
-
-    renderUsageCostSection(container, this.plugin);
-
-    new Setting(container)
+    // Card: Agentic Memory
+    const memoryCard = this.createSettingsCard(container, 'database', t('settings.memoryAndBudget'));
+    new Setting(memoryCard)
       .setName(t('settings.memoryEnabled.name'))
       .setDesc(t('settings.memoryEnabled.desc'))
       .addToggle((toggle) => {
@@ -556,7 +786,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
           });
       });
 
-    new Setting(container)
+    new Setting(memoryCard)
       .setName(t('settings.memoryFolder.name'))
       .setDesc(t('settings.memoryFolder.desc'))
       .addText((text) => {
@@ -569,7 +799,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
           });
       });
 
-    new Setting(container)
+    new Setting(memoryCard)
       .setName(t('settings.memoryMaxNotes.name'))
       .setDesc(t('settings.memoryMaxNotes.desc'))
       .addText((text) => {
@@ -583,19 +813,17 @@ export class ClaudianSettingTab extends PluginSettingTab {
           });
       });
 
-    // --- Ollama local embeddings ---
-
-    new Setting(container).setName('Ollama-Embeddings').setHeading();
-
+    // Card: Vault-RAG & Ollama-Embeddings
+    const ollamaCard = this.createSettingsCard(container, 'search', 'Ollama-Embeddings & RAG');
     const ollamaEmbedding = this.plugin.settings.ollamaEmbedding ?? {
       enabled: true,
       baseUrl: 'http://localhost:11434',
       model: 'nomic-embed-text',
     };
 
-    new Setting(container)
+    new Setting(ollamaCard)
       .setName('Ollama-Embeddings aktivieren')
-      .setDesc('Einen lokalen Ollama-Server für die RAG-Embeddings des Vaults nutzen. Ausgeschaltet greift die Stichwortsuche.')
+      .setDesc('Einen lokalen Ollama-Server für die RAG-Embeddings des Vaults nutzen. Bei Deaktivierung greift die integrierte Keyword-Suche.')
       .addToggle((toggle) => {
         toggle
           .setValue(ollamaEmbedding.enabled)
@@ -607,7 +835,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
       });
 
     if (ollamaEmbedding.enabled) {
-      new Setting(container)
+      new Setting(ollamaCard)
         .setName('Ollama-Basis-URL')
         .setDesc('Basis-URL des Ollama-Servers (z. B. http://localhost:11434).')
         .addText((text) => {
@@ -620,7 +848,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
             });
         });
 
-      new Setting(container)
+      new Setting(ollamaCard)
         .setName('Ollama-Embedding-Modell')
         .setDesc('Name des Embedding-Modells, das über Ollama verfügbar sein muss (z. B. nomic-embed-text).')
         .addText((text) => {
@@ -634,54 +862,86 @@ export class ClaudianSettingTab extends PluginSettingTab {
         });
     }
 
-    new Setting(container)
-      .setName(t('settings.tokenBudgetEnabled.name'))
-      .setDesc(t('settings.tokenBudgetEnabled.desc'))
+    // Card: Automatischer Modell-Router & Vorlagen
+    const routerCard = this.createSettingsCard(container, 'shuffle', 'Automatischer Modell-Router & Vorlagen');
+    new Setting(routerCard)
+      .setName('Modell-Router aktivieren')
+      .setDesc('Die Option „Auto“ in der Modellauswahl sucht selbst das passende Modell zum Prompt (Code, Schreiben, Vision, Planung, Schnell).')
       .addToggle((toggle) => {
         toggle
-          .setValue(this.plugin.settings.tokenBudgetEnabled ?? false)
+          .setValue(this.plugin.settings.modelRouterEnabled ?? true)
           .onChange(async (value) => {
-            this.plugin.settings.tokenBudgetEnabled = value;
+            this.plugin.settings.modelRouterEnabled = value;
             await this.plugin.saveSettings();
-            this.display();
           });
       });
 
-    if (this.plugin.settings.tokenBudgetEnabled) {
-      new Setting(container)
-        .setName(t('settings.dailyTokenBudget.name'))
-        .setDesc(t('settings.dailyTokenBudget.desc'))
-        .addText((text) => {
-          text
-            .setPlaceholder('0')
-            .setValue(String(this.plugin.settings.dailyTokenBudget ?? 0))
-            .onChange(async (value) => {
-              const parsed = parseInt(value, 10);
-              this.plugin.settings.dailyTokenBudget = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-              await this.plugin.saveSettings();
-            });
-        });
+    new Setting(routerCard)
+      .setName('Ordner für Prompt-Vorlagen')
+      .setDesc('Ordner mit wiederverwendbaren Markdown-Prompt-Vorlagen. Eingebaute Vorlagen stehen immer zur Verfügung.')
+      .addText((text) => {
+        text
+          .setPlaceholder('Templates/Prompt Templates')
+          .setValue(this.plugin.settings.promptTemplateFolder ?? 'Templates/Prompt Templates')
+          .onChange(async (value) => {
+            this.plugin.settings.promptTemplateFolder = value.trim();
+            await this.plugin.saveSettings();
+          });
+      });
 
-      new Setting(container)
-        .setName(t('settings.sessionTokenBudget.name'))
-        .setDesc(t('settings.sessionTokenBudget.desc'))
-        .addText((text) => {
-          text
-            .setPlaceholder('0')
-            .setValue(String(this.plugin.settings.sessionTokenBudget ?? 0))
-            .onChange(async (value) => {
-              const parsed = parseInt(value, 10);
-              this.plugin.settings.sessionTokenBudget = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-              await this.plugin.saveSettings();
-            });
-        });
-    }
+    new Setting(routerCard)
+      .setName('Ordner für exportierte Unterhaltungen')
+      .setDesc('Vault-Ordner, in den „Unterhaltung als Notiz exportieren“ schreibt. Exportierte Notizen werden automatisch für RAG indexiert.')
+      .addText((text) => {
+        text
+          .setPlaceholder('Claudian/Conversations')
+          .setValue(this.plugin.settings.conversationExportFolder ?? 'Claudian/Conversations')
+          .onChange(async (value) => {
+            this.plugin.settings.conversationExportFolder = value.trim();
+            await this.plugin.saveSettings();
+          });
+      });
+  }
 
-    // --- Input ---
+  // ─────────────────────────────────────────────────────────────
+  // 4. TOOLS CATEGORY
+  // ─────────────────────────────────────────────────────────────
 
-    new Setting(container).setName(t('settings.input')).setHeading();
+  private renderToolsCategory(container: HTMLElement): void {
+    // Card: AppShot Screenshots & OCR
+    const appShotCard = this.createSettingsCard(container, 'camera', 'AppShot (Screenshots & OCR)');
+    renderAppShotSettingsSection(appShotCard, this.plugin);
 
-    new Setting(container)
+    // Card: Audio & Spracheingabe
+    const voiceCard = this.createSettingsCard(container, 'mic', 'Audio & Spracheingabe (Whisper)');
+    renderVoiceSettingsSection(voiceCard, this.plugin);
+
+    // Card: CLI-Installations-Center
+    const cliCard = this.createSettingsCard(container, 'terminal', 'CLI-Installations-Center');
+    renderCliInstallSection(cliCard, this.plugin);
+
+    // Card: Shared Environment & Proxies
+    const envCard = this.createSettingsCard(container, 'globe', 'Shared Environment & Runtime');
+    renderEnvironmentSettingsSection({
+      container: envCard,
+      plugin: this.plugin,
+      scope: 'shared',
+      heading: t('settings.environment'),
+      name: 'Shared environment',
+      desc: 'Provider-neutrale Laufzeitvariablen für alle Provider (z. B. PATH, Proxies, Zertifikate).',
+      placeholder: 'PATH=/opt/homebrew/bin:/usr/local/bin\nHTTPS_PROXY=http://proxy.example.com:8080\nSSL_CERT_FILE=/path/to/cert.pem',
+      renderCustomContextLimits: (target) => this.renderCustomContextLimits(target),
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 5. INPUT CATEGORY
+  // ─────────────────────────────────────────────────────────────
+
+  private renderInputCategory(container: HTMLElement): void {
+    // Card: Chat-Eingabe
+    const inputCard = this.createSettingsCard(container, 'message-square', t('settings.input'));
+    new Setting(inputCard)
       .setName(t('settings.requireCommandOrControlEnterToSend.name'))
       .setDesc(t('settings.requireCommandOrControlEnterToSend.desc'))
       .addToggle((toggle) => {
@@ -693,7 +953,9 @@ export class ClaudianSettingTab extends PluginSettingTab {
           });
       });
 
-    new Setting(container)
+    // Card: Vim-Tastaturnavigation
+    const vimCard = this.createSettingsCard(container, 'navigation', 'Vim-Tastaturnavigation');
+    new Setting(vimCard)
       .setName(t('settings.navMappings.name'))
       .setDesc(t('settings.navMappings.desc'))
       .addTextArea((text) => {
@@ -747,91 +1009,124 @@ export class ClaudianSettingTab extends PluginSettingTab {
         });
       });
 
-    // --- Hotkeys ---
-
-    new Setting(container).setName(t('settings.hotkeys')).setHeading();
-
-    const hotkeyGrid = container.createDiv({ cls: 'claudian-hotkey-grid' });
+    // Card: Globale Tastatur-Kurzbefehle
+    const hotkeysCard = this.createSettingsCard(container, 'keyboard', t('settings.hotkeys'));
+    const hotkeyGrid = hotkeysCard.createDiv({ cls: 'claudian-hotkey-grid' });
     addHotkeySettingRow(hotkeyGrid, this.app, 'claudian:inline-edit', 'settings.inlineEditHotkey');
     addHotkeySettingRow(hotkeyGrid, this.app, 'claudian:open-view', 'settings.openChatHotkey');
     addHotkeySettingRow(hotkeyGrid, this.app, 'claudian:new-session', 'settings.newSessionHotkey');
     addHotkeySettingRow(hotkeyGrid, this.app, 'claudian:new-tab', 'settings.newTabHotkey');
     addHotkeySettingRow(hotkeyGrid, this.app, 'claudian:close-current-tab', 'settings.closeTabHotkey');
-
-    renderAppShotSettingsSection(container, this.plugin);
-
-    // --- Voice Input ---
-
-    renderVoiceSettingsSection(container, this.plugin);
-
-    // --- Environment ---
-
-    renderEnvironmentSettingsSection({
-      container,
-      plugin: this.plugin,
-      scope: 'shared',
-      heading: t('settings.environment'),
-      name: 'Shared environment',
-      desc: 'Provider-neutral runtime variables shared across all providers. Use this for PATH, proxy, cert, and temp variables.',
-      placeholder: 'PATH=/opt/homebrew/bin:/usr/local/bin\nHTTPS_PROXY=http://proxy.example.com:8080\nSSL_CERT_FILE=/path/to/cert.pem',
-      renderCustomContextLimits: (target) => this.renderCustomContextLimits(target),
-    });
   }
 
-  /**
-   * Central on/off switches for every registered provider. Providers whose
-   * tab sits far to the right (Kimi, Vibe, Grok, …) previously required
-   * reaching their own tab just to flip "Enable" — this section guarantees
-   * every provider can be activated straight from General.
-   */
-  private renderProvidersSection(container: HTMLElement): void {
-    new Setting(container)
-      .setName(t('settings.providers.heading'))
-      .setDesc(t('settings.providers.desc'))
-      .setHeading();
+  // ─────────────────────────────────────────────────────────────
+  // 6. BUDGET CATEGORY
+  // ─────────────────────────────────────────────────────────────
 
-    const settingsBag = this.plugin.settings as unknown as Record<string, unknown>;
+  private renderBudgetCategory(container: HTMLElement): void {
+    // Card: Live Kosten-Tracker
+    const costCard = this.createSettingsCard(container, 'bar-chart-2', 'Live Kosten-Tracker & Verbrauch');
+    renderUsageCostSection(costCard, this.plugin);
 
-    for (const providerId of ProviderRegistry.getRegisteredProviderIds()) {
-      // Probe with an explicit `enabled: false` config: providers that still
-      // report enabled (Claude) are always-on and get a locked toggle.
-      const isAlwaysOn = ProviderRegistry.isEnabled(providerId, {
-        providerConfigs: { [providerId]: { enabled: false } },
-      });
-
-      const setting = new Setting(container)
-        .setName(ProviderRegistry.getProviderDisplayName(providerId));
-
-      if (isAlwaysOn) {
-        setting.setDesc(t('settings.providers.alwaysOn'));
-      }
-
-      setting.addExtraButton((button) =>
-        button
-          .setIcon('settings')
-          .setTooltip(t('settings.providers.openTab'))
-          .onClick(() => {
-            this.activeTab = providerId;
-            this.display();
-          }),
-      );
-
-      setting.addToggle((toggle) => {
+    // Card: Token-Budget & Sicherheitsgrenzen
+    const budgetCard = this.createSettingsCard(container, 'shield', 'Token-Budget & Sicherheitsgrenzen');
+    new Setting(budgetCard)
+      .setName(t('settings.tokenBudgetEnabled.name'))
+      .setDesc(t('settings.tokenBudgetEnabled.desc'))
+      .addToggle((toggle) => {
         toggle
-          .setValue(ProviderRegistry.isEnabled(providerId, settingsBag))
-          .setDisabled(isAlwaysOn)
+          .setValue(this.plugin.settings.tokenBudgetEnabled ?? false)
           .onChange(async (value) => {
-            setProviderEnabled(settingsBag, providerId, value);
+            this.plugin.settings.tokenBudgetEnabled = value;
             await this.plugin.saveSettings();
-            for (const view of this.plugin.getAllViews()) {
-              view.refreshModelSelector();
-            }
-            // Re-render so the provider's own tab (with its duplicate
-            // "Enable" toggle) reflects the new state immediately.
             this.display();
           });
       });
+
+    if (this.plugin.settings.tokenBudgetEnabled) {
+      new Setting(budgetCard)
+        .setName(t('settings.dailyTokenBudget.name'))
+        .setDesc(t('settings.dailyTokenBudget.desc'))
+        .addText((text) => {
+          text
+            .setPlaceholder('0')
+            .setValue(String(this.plugin.settings.dailyTokenBudget ?? 0))
+            .onChange(async (value) => {
+              const parsed = parseInt(value, 10);
+              this.plugin.settings.dailyTokenBudget = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+              await this.plugin.saveSettings();
+            });
+        });
+
+      new Setting(budgetCard)
+        .setName(t('settings.sessionTokenBudget.name'))
+        .setDesc(t('settings.sessionTokenBudget.desc'))
+        .addText((text) => {
+          text
+            .setPlaceholder('0')
+            .setValue(String(this.plugin.settings.sessionTokenBudget ?? 0))
+            .onChange(async (value) => {
+              const parsed = parseInt(value, 10);
+              this.plugin.settings.sessionTokenBudget = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+              await this.plugin.saveSettings();
+            });
+        });
     }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // SHARED HELPERS
+  // ─────────────────────────────────────────────────────────────
+
+  private createSettingsCard(
+    container: HTMLElement,
+    iconName: string,
+    title: string,
+    badge?: string,
+  ): HTMLElement {
+    const card = container.createDiv({ cls: 'claudian-settings-card' });
+    const header = card.createDiv({ cls: 'claudian-settings-card-header' });
+
+    const iconEl = header.createSpan({ cls: 'claudian-settings-card-icon' });
+    setIcon(iconEl, iconName);
+
+    header.createSpan({ cls: 'claudian-settings-card-title', text: title });
+
+    if (badge) {
+      header.createSpan({ cls: 'claudian-settings-card-badge', text: badge });
+    }
+
+    return card;
+  }
+
+  private renderPluginUpdateSetting(container: HTMLElement): void {
+    const current = this.plugin.manifest.version;
+    const pending = this.plugin.getPendingPluginUpdate();
+    const row = new Setting(container)
+      .setName('Plugin-Update')
+      .setDesc(pending
+        ? `${pending.latestVersion} ist verfügbar (aktuell ${current}).`
+        : `Installierte Version: ${current}`);
+
+    row.addButton((button) => {
+      button.setButtonText(pending ? 'Installieren' : 'Prüfen').onClick(async () => {
+        button.setDisabled(true);
+        if (pending) {
+          this.plugin.installPendingPluginUpdate();
+          button.setDisabled(false);
+          this.display();
+          return;
+        }
+        const update = await this.plugin.checkAndOfferPluginUpdate({ notifyIfCurrent: true });
+        button.setDisabled(false);
+        if (update) {
+          this.display();
+        }
+      });
+      if (pending) {
+        button.setCta();
+      }
+    });
   }
 
   private renderHiddenProviderCommandSetting(
@@ -871,7 +1166,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
       const envVars = parseEnvironmentVariables(
         this.plugin.getActiveEnvironmentVariables(targetProviderId),
       );
-      for (const modelId of ProviderRegistry.getChatUIConfig(targetProviderId).getCustomModelIds(envVars)) {
+      const customModelIds = ProviderRegistry.getChatUIConfig(targetProviderId)?.getCustomModelIds?.(envVars) ?? [];
+      for (const modelId of customModelIds) {
         uniqueModelIds.add(modelId);
       }
     }
@@ -899,23 +1195,21 @@ export class ClaudianSettingTab extends PluginSettingTab {
       const nameEl = itemEl.createDiv({ cls: 'claudian-context-limits-model' });
       nameEl.setText(modelId);
 
-      const inputWrapper = itemEl.createDiv({ cls: 'claudian-context-limits-input-wrapper' });
+      const inputWrapper = itemEl.createDiv({ cls: 'claudian-context-limits-inputs' });
+
       const aliasInputEl = inputWrapper.createEl('input', {
         type: 'text',
-        placeholder: t('settings.customModelAliases.placeholder'),
-        cls: 'claudian-context-alias-input',
+        cls: 'claudian-context-limit-alias-input',
         value: currentAlias,
+        placeholder: 'Alias (optional)',
       });
-      aliasInputEl.setAttribute('aria-label', `Alias for ${modelId}`);
-      aliasInputEl.title = 'Custom label shown in the model selector. Leave empty to use the default.';
 
       const inputEl = inputWrapper.createEl('input', {
         type: 'text',
-        placeholder: '200k',
-        cls: 'claudian-context-limits-input',
+        cls: 'claudian-context-limit-input',
         value: currentValue ? formatContextLimit(currentValue) : '',
+        placeholder: 'e.g. 200k, 1m',
       });
-      inputEl.setAttribute('aria-label', `Context window for ${modelId}`);
 
       const validationEl = inputWrapper.createDiv({ cls: 'claudian-context-limit-validation claudian-hidden' });
 
@@ -997,7 +1291,9 @@ export class ClaudianSettingTab extends PluginSettingTab {
 
     try {
       await tabManager.broadcastToAllTabs(
-        async (service) => { await service.ensureReady({ force: true }); }
+        async (service) => {
+          await service.ensureReady({ force: true });
+        }
       );
     } catch {
       // Changes will apply on the next conversation if the restart fails.

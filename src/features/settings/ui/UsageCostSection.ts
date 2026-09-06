@@ -50,6 +50,11 @@ export function renderUsageCostSection(
   container: HTMLElement,
   plugin: ClaudianPlugin,
 ): void {
+  if (!plugin.tokenBudgetTracker) {
+    const empty = container.createDiv({ cls: 'claudian-settings-desc' });
+    empty.setText('Kostentracker wird initialisiert...');
+    return;
+  }
   const root = container.createDiv({ cls: 'claudian-usage-center' });
   let period: PeriodId = 'month';
   const expanded = new Set<string>();
@@ -398,6 +403,7 @@ function renderWindow(
   const windowHours = settings.usageWindowHours?.[providerId] ?? DEFAULT_USAGE_WINDOW_HOURS;
   const cap = settings.usageTokenCaps?.[providerId] ?? 0;
   const window = plugin.tokenBudgetTracker.getProviderWindow(providerId, windowHours, now);
+  const tokens = window?.tokens ?? 0;
 
   const wrap = card.createDiv({ cls: 'claudian-usage-window' });
   const label = wrap.createDiv({ cls: 'claudian-usage-window-label' });
@@ -405,18 +411,18 @@ function renderWindow(
   label.createSpan({
     cls: 'claudian-usage-window-value',
     text: cap > 0
-      ? `${formatTokens(window.tokens)} / ${formatTokens(cap)}`
-      : formatTokens(window.tokens),
+      ? `${formatTokens(tokens)} / ${formatTokens(cap)}`
+      : formatTokens(tokens),
   });
 
   const track = wrap.createDiv({ cls: 'claudian-usage-window-track' });
-  const ratio = cap > 0 ? Math.min(1, window.tokens / cap) : 0;
+  const ratio = cap > 0 ? Math.min(1, tokens / cap) : 0;
   const fill = track.createDiv({
     cls: `claudian-usage-window-fill${ratio >= 0.85 ? ' is-hot' : ''}`,
   });
   fill.style.width = cap > 0 ? `${Math.round(ratio * 100)}%` : '0%';
 
-  if (window.resetAt && window.resetAt > now) {
+  if (window?.resetAt && window.resetAt > now) {
     wrap.createSpan({
       cls: 'claudian-usage-window-reset',
       text: `frei in ${formatCapacityReset(window.resetAt, now)}`,

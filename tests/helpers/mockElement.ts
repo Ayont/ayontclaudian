@@ -102,7 +102,11 @@ export function createMockEl(tag = 'div'): any {
   const attributes = new Map<string, string>();
   const eventListeners = new Map<string, Array<(...args: any[]) => void>>();
   const dataset: Record<string, string> = {};
-  const style: Record<string, string> = {};
+  const style: any = {
+    setProperty: (name: string, val: string) => { style[name] = val; },
+    getPropertyValue: (name: string) => style[name] ?? "",
+    removeProperty: (name: string) => { delete style[name]; },
+  };
   let textContent = '';
 
   const resolveDisplay = (): string | null => {

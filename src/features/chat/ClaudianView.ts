@@ -665,12 +665,11 @@ export class ClaudianView extends ItemView {
 
   private async handleTabClose(tabId: TabId): Promise<void> {
     try {
-      const tab = this.tabManager?.getTab(tabId);
-      // If streaming, treat close like user interrupt (force close cancels the stream)
-      const force = tab?.state.isStreaming ?? false;
-      await this.tabManager?.closeTab(tabId, force);
+      // User explicitly clicked close -> always force close (aborts stream if active)
+      await this.tabManager?.closeTab(tabId, true);
       this.updateTabBarVisibility();
-    } catch {
+    } catch (err) {
+      console.error('[Claudian] Failed to close tab:', err);
       new Notice('Tab konnte nicht geschlossen werden.');
     }
   }

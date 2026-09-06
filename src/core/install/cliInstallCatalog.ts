@@ -107,6 +107,20 @@ export const CLI_INSTALL_CATALOG: Record<string, CliInstallSpec> = {
     },
   },
 
+  // ZCode (Z.ai Coding Plan)
+  zcode: {
+    id: "zcode",
+    displayName: "ZCode (Z.ai Coding Plan)",
+    binary: "zcode",
+    docsUrl: "https://z.ai",
+    methods: {
+      darwin: [{ label: "App / CLI", command: "brew install zcode || npm install -g zcode" }],
+      linux: [{ label: "npm", command: "npm install -g zcode" }],
+      win32: [{ label: "npm", command: "npm install -g zcode" }],
+      default: [{ label: "npm", command: "npm install -g zcode" }],
+    },
+  },
+
   claude: {
     id: 'claude',
     displayName: 'Claude Code',

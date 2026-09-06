@@ -203,6 +203,9 @@ export const CLINE_PROVIDER_ICON: ProviderIconSvg = {
   ],
 };
 
+// Codex / OpenAI mark: the official OpenAI swirl (re-exported for Codex).
+export const CODEX_PROVIDER_ICON = OPENAI_PROVIDER_ICON;
+
 // Grok / xAI mark: official 2025 swirl-G (accretion-disk / singularity glyph).
 export const GROK_PROVIDER_ICON: ProviderIconSvg = {
   kind: 'composite',
@@ -275,6 +278,24 @@ export const DSH_PROVIDER_ICON: ProviderIconSvg = {
 };
 
 /**
+ * ZCode / Z.ai: geometric Z symbol with dynamic diagonal angle.
+ */
+export const ZCODE_PROVIDER_ICON: ProviderIconSvg = {
+  kind: 'composite',
+  viewBox: '0 0 24 24',
+  children: [
+    {
+      tag: 'path',
+      attributes: {
+        d: 'M4 4.5h16a1 1 0 0 1 .8 1.6L7.8 18H20a1 1 0 1 1 0 2H4a1 1 0 0 1-.8-1.6L16.2 6.5H4a1 1 0 1 1 0-2Z',
+        fill: 'currentColor',
+        'fill-rule': 'evenodd',
+      },
+    },
+  ],
+};
+
+/**
  * Hermes (Nous Research): the winged messenger's helm — a rounded cap with two
  * swept wings. No official vector ships with the CLI, so this is a hand-drawn
  * monochrome mark that tints to `currentColor` like the other provider glyphs.
@@ -317,15 +338,26 @@ export interface CreateProviderIconSvgOptions {
 }
 
 export function createProviderIconSvg(
-  icon: ProviderIconSvg,
+  icon?: ProviderIconSvg | null,
   options: CreateProviderIconSvgOptions = {},
 ): SVGElement {
-  const ownerDocument = options.ownerDocument ?? window.document;
+  const ownerDocument =
+    options.ownerDocument ??
+    (typeof document !== 'undefined' ? document : undefined) ??
+    (typeof window !== 'undefined' ? window.document : undefined);
+
+  if (!ownerDocument || typeof ownerDocument.createElementNS !== 'function') {
+    return {
+      classList: { add: () => {} },
+      setAttribute: () => {},
+      appendChild: () => {},
+    } as unknown as SVGElement;
+  }
+
   const svg = ownerDocument.createElementNS(SVG_NS, 'svg');
-  svg.setAttribute('viewBox', icon.viewBox);
+  svg.classList.add('claudian-provider-icon');
   svg.setAttribute('fill', 'none');
   svg.setAttribute('aria-hidden', 'true');
-  svg.classList.add('claudian-provider-icon');
 
   if (options.width !== undefined) {
     svg.setAttribute('width', String(options.width));
@@ -339,6 +371,13 @@ export function createProviderIconSvg(
   if (options.dataProvider) {
     svg.setAttribute('data-provider', options.dataProvider);
   }
+
+  if (!icon || !icon.viewBox) {
+    svg.setAttribute('viewBox', '0 0 24 24');
+    return svg;
+  }
+
+  svg.setAttribute('viewBox', icon.viewBox);
 
   if (icon.kind === 'composite') {
     for (const child of icon.children) {

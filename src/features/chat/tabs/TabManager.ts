@@ -337,8 +337,12 @@ export class TabManager implements TabManagerInterface {
       return false;
     }
 
-    // Save conversation before closing
-    await tab.controllers.conversationController?.save();
+    // Save conversation before closing (non-blocking for tab destruction)
+    try {
+      await tab.controllers.conversationController?.save();
+    } catch (saveError) {
+      console.warn("[Claudian] Failed to save conversation before closing tab:", saveError);
+    }
 
     // Capture tab order BEFORE deletion for fallback calculation
     const tabIdsBefore = Array.from(this.tabs.keys());
@@ -361,8 +365,16 @@ export class TabManager implements TabManagerInterface {
           ? tabIdsBefore[1]  // First tab: go to next
           : tabIdsBefore[closingIndex - 1];  // Others: go to previous
 
-        if (fallbackTabId && this.tabs.has(fallbackTabId)) {
-          await this.switchToTab(fallbackTabId);
+        const targetTabId = (fallbackTabId && this.tabs.has(fallbackTabId))
+          ? fallbackTabId
+          : this.tabs.keys().next().value;
+
+        if (targetTabId) {
+          try {
+            await this.switchToTab(targetTabId);
+          } catch (switchError) {
+            console.warn("[Claudian] Failed to switch tab after closing:", switchError);
+          }
         }
       } else {
         // Create a replacement blank tab.

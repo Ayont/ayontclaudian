@@ -1,6 +1,14 @@
-/* ── Settings tab navigation ── */
+/* ── Unified Claudian Settings Design System ── */
 
-.claudian-settings-tabs {
+.claudian-settings {
+  max-width: 960px;
+  margin: 0 auto;
+  padding-bottom: 40px;
+}
+
+/* ── Primary Category Navigation (Segmented Bar) ── */
+
+.claudian-settings-nav {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -9,13 +17,18 @@
   border-radius: 12px;
   border: 1px solid var(--background-modifier-border);
   margin-bottom: 20px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
-.claudian-settings-tab {
+.claudian-settings-nav-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
+  gap: 8px;
+  padding: 8px 14px;
   border: none;
   background: transparent;
   color: var(--text-muted);
@@ -23,29 +36,298 @@
   font-weight: var(--font-medium);
   cursor: pointer;
   border-radius: 8px;
-  transition: all 0.15s ease;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
 }
 
-.claudian-settings-tab:hover {
+.claudian-settings-nav-btn:hover {
   color: var(--text-normal);
   background: var(--background-modifier-hover);
 }
 
-.claudian-settings-tab:focus-visible {
+.claudian-settings-nav-btn:focus-visible {
   outline: 2px solid var(--interactive-accent);
   outline-offset: -2px;
   border-radius: 8px;
   color: var(--text-normal);
 }
 
-.claudian-settings-tab--active {
+.claudian-settings-nav-btn--active {
   color: var(--text-normal);
   background: var(--background-primary);
   font-weight: 600;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-.claudian-settings-tab-dot {
+.claudian-settings-nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: inherit;
+  flex-shrink: 0;
+}
+
+.claudian-settings-nav-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+}
+
+.claudian-settings-nav-btn--active .claudian-settings-nav-badge {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+/* ── Category Banner ── */
+
+.claudian-settings-banner {
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(var(--interactive-accent-rgb, 120, 120, 255), 0.06), transparent 70%);
+  border: 1px solid var(--background-modifier-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.claudian-settings-banner-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.claudian-settings-banner-title {
+  font-size: var(--font-ui-large);
+  font-weight: 700;
+  color: var(--text-normal);
+  letter-spacing: -0.01em;
+  margin-bottom: 4px;
+}
+
+.claudian-settings-banner-desc {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+/* ── Setting Group Cards ── */
+
+.claudian-settings-card {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.claudian-settings-card:hover {
+  border-color: var(--background-modifier-border-hover);
+}
+
+.claudian-settings-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.claudian-settings-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: var(--interactive-accent);
+  flex-shrink: 0;
+}
+
+.claudian-settings-card-title {
+  font-size: var(--font-ui-medium);
+  font-weight: 600;
+  color: var(--text-normal);
+  flex: 1;
+}
+
+.claudian-settings-card-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+}
+
+/* Setting items inside cards */
+.claudian-settings-card .setting-item {
+  border-top: none;
+  padding: 12px 0;
+}
+
+.claudian-settings-card .setting-item:first-child {
+  padding-top: 4px;
+}
+
+.claudian-settings-card .setting-item:last-child {
+  padding-bottom: 4px;
+}
+
+.claudian-settings-card .setting-item-heading {
+  padding-top: 14px;
+  margin-top: 8px;
+  border-top: 1px dashed var(--background-modifier-border);
+}
+
+.claudian-settings-card .setting-item-heading:first-child {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+/* ── Provider Hub ── */
+
+.claudian-provider-hub {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.claudian-provider-hub-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+}
+
+.claudian-provider-hub-counter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-ui-small);
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.claudian-provider-hub-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-green, #10b981);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+}
+
+.claudian-provider-quick-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.claudian-provider-quick-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.claudian-provider-quick-chip:hover {
+  background: var(--background-modifier-hover);
+  border-color: var(--background-modifier-border-hover);
+}
+
+.claudian-provider-quick-chip.is-active {
+  border-color: rgba(var(--interactive-accent-rgb, 120, 120, 255), 0.4);
+  background: rgba(var(--interactive-accent-rgb, 120, 120, 255), 0.08);
+}
+
+.claudian-provider-quick-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.claudian-provider-quick-dot.is-enabled {
+  background: var(--color-green, #10b981);
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
+}
+
+/* ── Provider Pills Selector ── */
+
+.claudian-provider-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+}
+
+.claudian-provider-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.claudian-provider-pill:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.claudian-provider-pill--active {
+  color: var(--text-normal);
+  background: var(--background-primary);
+  border-color: var(--background-modifier-border);
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.claudian-provider-pill-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.claudian-provider-pill-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.claudian-provider-pill-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -54,99 +336,87 @@
   flex-shrink: 0;
 }
 
-.claudian-settings-tab-dot.is-enabled {
+.claudian-provider-pill-dot.is-enabled {
   background: var(--color-green, #10b981);
   box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
 }
 
-.claudian-settings-tab-content {
-  display: none;
+/* ── Active Provider Pane Card ── */
+
+.claudian-provider-pane-card {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-top: 4px;
 }
 
-.claudian-settings-tab-content--active {
-  display: block;
+.claudian-provider-banner-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  gap: 16px;
 }
 
-/* Codex placeholder */
-.claudian-settings-codex-placeholder {
-  padding: 40px 20px;
-  text-align: center;
-  color: var(--text-muted);
-  font-size: var(--font-ui-small);
+.claudian-provider-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-/* Settings page - remove separator lines from setting items */
-.claudian-settings .setting-item {
-  border-top: none;
-}
-
-/* Settings section headings (via setHeading()) */
-.claudian-settings .setting-item-heading {
-  padding-top: 18px;
-  margin-top: 12px;
-  border-top: 1px solid var(--background-modifier-border);
-}
-
-.claudian-settings .setting-item-heading:first-child {
-  padding-top: 0;
-  margin-top: 0;
-  border-top: none;
-}
-
-.claudian-settings .setting-item-heading .setting-item-name {
-  font-size: var(--font-ui-medium);
-  font-weight: var(--font-semibold);
-  color: var(--text-normal);
-}
-
-/* Custom section descriptions - align with items */
-.claudian-sp-settings-desc,
-.claudian-mcp-settings-desc,
-.claudian-plugin-settings-desc,
-.claudian-approved-desc {
-  padding: 0 12px;
-}
-
-/* Unified icon action buttons for settings */
-.claudian-settings-action-btn {
+.claudian-provider-banner-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  border-radius: 4px;
-  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  padding: 6px;
+}
+
+.claudian-provider-banner-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.claudian-provider-banner-title {
+  font-size: var(--font-ui-medium);
+  font-weight: 700;
+  color: var(--text-normal);
+  line-height: 1.2;
+}
+
+.claudian-provider-banner-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
   color: var(--text-muted);
-  transition: background 0.15s ease, color 0.15s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
 }
 
-.claudian-settings-action-btn:hover {
-  background: var(--background-modifier-hover);
-  color: var(--text-normal);
+/* Provider sub-panes */
+.claudian-provider-pane {
+  display: none;
 }
 
-.claudian-settings-action-btn:focus-visible {
-  outline: 2px solid var(--interactive-accent);
-  outline-offset: 1px;
-  color: var(--text-normal);
+.claudian-provider-pane.is-active {
+  display: block;
 }
 
-.claudian-settings-action-btn svg {
-  width: 14px;
-  height: 14px;
-}
-
-.claudian-settings-delete-btn:hover {
-  color: var(--text-error);
-}
+/* ── Validation & Messages ── */
 
 .claudian-setting-validation {
   font-size: var(--font-ui-smaller);
-  margin-top: -0.5em;
-  margin-bottom: 0.5em;
+  margin-top: -0.25em;
+  margin-bottom: 0.75em;
+  padding-left: 2px;
 }
 
 .claudian-setting-validation-error {
@@ -157,63 +427,61 @@
   color: var(--text-warning);
 }
 
-.claudian-settings-cli-path-input {
-  width: 100%;
+.claudian-input-error {
+  border-color: var(--text-error) !important;
 }
 
-.claudian-settings-cli-path-input.claudian-input-error {
-  border-color: var(--text-error);
-}
+/* ── Hotkey Grid ── */
 
-/* Hotkey grid - 3 columns */
 .claudian-hotkey-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4px 12px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
   padding: 4px 0;
 }
 
 .claudian-hotkey-item {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  padding: 6px 12px;
+  padding: 10px 14px;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 8px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  transition: all 0.15s ease;
 }
 
 .claudian-hotkey-item:hover {
   background: var(--background-modifier-hover);
+  border-color: var(--background-modifier-border-hover);
 }
 
 .claudian-hotkey-name {
-  flex: 1;
   color: var(--text-normal);
   font-size: var(--font-ui-small);
+  font-weight: 500;
 }
 
 .claudian-hotkey-badge {
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
   background: var(--background-modifier-hover);
-  padding: 2px 6px;
+  padding: 2px 8px;
   border-radius: 4px;
   font-family: var(--font-monospace);
+  border: 1px solid var(--background-modifier-border);
 }
 
-/* Media folder input width */
-.claudian-settings-media-input {
-  width: 200px;
-}
-
-/* ── Shared settings panel layout (used by slash-settings + agent-settings) ── */
+/* ── Shared Settings Panel Layout (used by slash-settings, agent-settings, context-limits) ── */
 
 .claudian-sp-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
-  padding: 0 12px;
+  padding: 0 4px;
 }
 
 .claudian-sp-label {
@@ -231,8 +499,9 @@
   padding: 20px;
   text-align: center;
   color: var(--text-muted);
-  background: var(--background-secondary);
-  border-radius: 6px;
+  background: var(--background-primary);
+  border: 1px dashed var(--background-modifier-border);
+  border-radius: 8px;
   margin-top: 8px;
 }
 
@@ -247,9 +516,11 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 12px;
-  background: var(--background-secondary);
-  border-radius: 6px;
+  padding: 12px 14px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  transition: background 0.15s ease;
 }
 
 .claudian-sp-item:hover {
@@ -286,6 +557,30 @@
   flex-shrink: 0;
 }
 
+.claudian-settings-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.claudian-settings-action-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.claudian-settings-delete-btn:hover {
+  color: var(--text-error);
+}
+
 .claudian-sp-advanced-section {
   border: 1px solid var(--background-modifier-border);
   border-radius: 6px;
@@ -316,7 +611,7 @@
   font-size: 13px;
   padding: 8px;
   border: 1px solid var(--background-modifier-border);
-  border-radius: 4px;
+  border-radius: 6px;
   background: var(--background-primary);
   color: var(--text-normal);
   resize: vertical;
@@ -333,4 +628,69 @@
   gap: 8px;
   margin-top: 16px;
   justify-content: flex-end;
+}
+
+/* Custom context limits table */
+.claudian-context-limits-header {
+  margin-top: 16px;
+  margin-bottom: 4px;
+}
+
+.claudian-context-limits-label {
+  font-size: var(--font-ui-small);
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.claudian-context-limits-desc {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.claudian-context-limits-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.claudian-context-limits-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+}
+
+.claudian-context-limits-model {
+  flex: 1;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claudian-context-limits-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.claudian-context-limit-validation {
+  font-size: 11px;
+  color: var(--text-error);
+  margin-top: 2px;
+}
+
+/* Media input & utility */
+.claudian-settings-media-input {
+  width: 220px;
+}
+
+.claudian-hidden {
+  display: none !important;
 }

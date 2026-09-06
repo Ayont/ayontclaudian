@@ -176,11 +176,101 @@ export class Component {
 }
 
 export class Setting {
+  settingEl: any = { addClass: jest.fn(), removeClass: jest.fn(), toggleClass: jest.fn(), insertAdjacentElement: jest.fn(), style: {} };
+  infoEl: any = { addClass: jest.fn(), removeClass: jest.fn(), style: {} };
+  nameEl: any = { addClass: jest.fn(), removeClass: jest.fn(), setText: jest.fn() };
+  descEl: any = { addClass: jest.fn(), removeClass: jest.fn(), setText: jest.fn() };
+  controlEl: any = { addClass: jest.fn(), removeClass: jest.fn() };
   constructor(containerEl: any) {}
   setName = jest.fn().mockReturnThis();
   setDesc = jest.fn().mockReturnThis();
-  addToggle = jest.fn().mockReturnThis();
-  addTextArea = jest.fn().mockReturnThis();
+  setHeading = jest.fn().mockReturnThis();
+  addToggle = jest.fn((cb?: (t: any) => void) => {
+    if (cb) {
+      cb({
+        setValue: jest.fn().mockReturnThis(),
+        setDisabled: jest.fn().mockReturnThis(),
+        onChange: jest.fn().mockReturnThis(),
+      });
+    }
+    return this;
+  });
+  addTextArea = jest.fn((cb?: (t: any) => void) => {
+    if (cb) {
+      cb({
+        setValue: jest.fn().mockReturnThis(),
+        setPlaceholder: jest.fn().mockReturnThis(),
+        onChange: jest.fn().mockReturnThis(),
+        inputEl: { rows: 0, cols: 0, addClass: jest.fn(), removeClass: jest.fn(), dataset: {}, addEventListener: jest.fn() },
+      });
+    }
+    return this;
+  });
+  addText = jest.fn((cb?: (t: any) => void) => {
+    if (cb) {
+      cb({
+        setValue: jest.fn().mockReturnThis(),
+        setPlaceholder: jest.fn().mockReturnThis(),
+        onChange: jest.fn().mockReturnThis(),
+        inputEl: { addClass: jest.fn(), addEventListener: jest.fn() },
+      });
+    }
+    return this;
+  });
+  addDropdown = jest.fn((cb?: (t: any) => void) => {
+    if (cb) {
+      cb({
+        selectEl: {
+          addClass: jest.fn(),
+          removeClass: jest.fn(),
+          empty: jest.fn(),
+          createEl: jest.fn().mockReturnValue({}),
+          textContent: "",
+          value: "",
+          addEventListener: jest.fn(),
+        },
+        addOption: jest.fn().mockReturnThis(),
+        setValue: jest.fn().mockReturnThis(),
+        onChange: jest.fn().mockReturnThis(),
+      });
+    }
+    return this;
+  });
+  addSlider = jest.fn((cb?: (t: any) => void) => {
+    if (cb) {
+      cb({
+        setLimits: jest.fn().mockReturnThis(),
+        setValue: jest.fn().mockReturnThis(),
+        setDynamicTooltip: jest.fn().mockReturnThis(),
+        onChange: jest.fn().mockReturnThis(),
+      });
+    }
+    return this;
+  });
+  addExtraButton = jest.fn((cb?: (t: any) => void) => {
+    if (cb) {
+      cb({
+        setIcon: jest.fn().mockReturnThis(),
+        setTooltip: jest.fn().mockReturnThis(),
+        setDisabled: jest.fn().mockReturnThis(),
+        onClick: jest.fn().mockReturnThis(),
+        extraSettingsEl: { addClass: jest.fn(), removeClass: jest.fn() },
+      });
+    }
+    return this;
+  });
+  addButton = jest.fn((cb?: (t: any) => void) => {
+    if (cb) {
+      cb({
+        buttonEl: { addClass: jest.fn(), removeClass: jest.fn(), addEventListener: jest.fn() },
+        setButtonText: jest.fn().mockReturnThis(),
+        setDisabled: jest.fn().mockReturnThis(),
+        setCta: jest.fn().mockReturnThis(),
+        onClick: jest.fn().mockReturnThis(),
+      });
+    }
+    return this;
+  });
 }
 
 export class TextAreaComponent {

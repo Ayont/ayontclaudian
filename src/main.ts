@@ -534,7 +534,7 @@ export default class ClaudianPlugin extends Plugin {
         if (!checking) {
           const activeTabId = tabManager.getActiveTabId();
           if (activeTabId) {
-            void tabManager.closeTab(activeTabId);
+            void tabManager.closeTab(activeTabId, true);
           }
         }
         return true;

@@ -2588,70 +2588,84 @@ export async function destroyTab(tab: TabData): Promise<void> {
   if (tab.state.isStreaming) {
     tab.state.cancelRequested = true;
     tab.state.isStreaming = false;
-    tab.state.streamingGeneration++;
-    tab.service?.cancel();
+    tab.state.bumpStreamGeneration();
+    try {
+      tab.service?.cancel();
+    } catch {
+      // Ignore cancellation failure during teardown
+    }
   }
 
-  tab.controllers.selectionController?.stop();
-  tab.controllers.selectionController?.clear();
-  tab.controllers.browserSelectionController?.stop();
-  tab.controllers.browserSelectionController?.clear();
-  tab.controllers.canvasSelectionController?.stop();
-  tab.controllers.canvasSelectionController?.clear();
-  tab.controllers.navigationController?.dispose();
+  try { tab.controllers.selectionController?.stop(); } catch { /* ignore */ }
+  try { tab.controllers.selectionController?.clear(); } catch { /* ignore */ }
+  try { tab.controllers.browserSelectionController?.stop(); } catch { /* ignore */ }
+  try { tab.controllers.browserSelectionController?.clear(); } catch { /* ignore */ }
+  try { tab.controllers.canvasSelectionController?.stop(); } catch { /* ignore */ }
+  try { tab.controllers.canvasSelectionController?.clear(); } catch { /* ignore */ }
+  try { tab.controllers.navigationController?.dispose(); } catch { /* ignore */ }
 
-  cleanupThinkingBlock(tab.state.currentThinkingState);
+  try {
+    cleanupThinkingBlock(tab.state.currentThinkingState);
+  } catch { /* ignore */ }
   tab.state.currentThinkingState = null;
 
   // Dismiss pending inline prompts, timers, and controllers before DOM teardown
-  tab.controllers.inputController?.destroy?.();
-  tab.controllers.inputController?.dismissPendingApproval?.();
-  tab.controllers.inputController?.destroyResumeDropdown?.();
-  tab.controllers.streamController?.destroy?.();
-  tab.renderer?.destroy?.();
+  try { tab.controllers.inputController?.destroy?.(); } catch { /* ignore */ }
+  try { tab.controllers.inputController?.dismissPendingApproval?.(); } catch { /* ignore */ }
+  try { tab.controllers.inputController?.destroyResumeDropdown?.(); } catch { /* ignore */ }
+  try { tab.controllers.streamController?.destroy?.(); } catch { /* ignore */ }
+  try { tab.renderer?.destroy?.(); } catch { /* ignore */ }
 
-  tab.ui.fileContextManager?.destroy?.();
-  tab.ui.slashCommandDropdown?.destroy?.();
+  try { tab.ui.fileContextManager?.destroy?.(); } catch { /* ignore */ }
+  try { tab.ui.slashCommandDropdown?.destroy?.(); } catch { /* ignore */ }
   tab.ui.slashCommandDropdown = null;
-  tab.ui.instructionModeManager?.destroy();
+  try { tab.ui.instructionModeManager?.destroy?.(); } catch { /* ignore */ }
   tab.ui.instructionModeManager = null;
-  tab.ui.bangBashModeManager?.destroy();
+  try { tab.ui.bangBashModeManager?.destroy?.(); } catch { /* ignore */ }
   tab.ui.bangBashModeManager = null;
-  tab.services.instructionRefineService?.cancel();
-  tab.services.instructionRefineService?.resetConversation();
+  try { tab.services.instructionRefineService?.cancel?.(); } catch { /* ignore */ }
+  try { tab.services.instructionRefineService?.resetConversation?.(); } catch { /* ignore */ }
   tab.services.instructionRefineService = null;
-  tab.services.titleGenerationService?.cancel();
+  try { tab.services.titleGenerationService?.cancel?.(); } catch { /* ignore */ }
   tab.services.titleGenerationService = null;
-  tab.ui.statusPanel?.destroy();
+  try { tab.ui.statusPanel?.destroy?.(); } catch { /* ignore */ }
   tab.ui.statusPanel = null;
-  tab.ui.navigationSidebar?.destroy();
+  try { tab.ui.navigationSidebar?.destroy?.(); } catch { /* ignore */ }
   tab.ui.navigationSidebar = null;
-  tab.ui.chatSearch?.destroy();
+  try { tab.ui.chatSearch?.destroy?.(); } catch { /* ignore */ }
   tab.ui.chatSearch = null;
-  tab.ui.filePreviewPanel?.destroy();
+  try { tab.ui.filePreviewPanel?.destroy?.(); } catch { /* ignore */ }
   tab.ui.filePreviewPanel = null;
-  tab.ui.swarmPanel?.destroy();
+  try { tab.ui.swarmPanel?.destroy?.(); } catch { /* ignore */ }
   tab.ui.swarmPanel = null;
   // Closes the model dropdown and removes its document-level dismiss listeners
   // (pointerdown/keydown), preventing a leak if a tab is closed while open.
-  tab.ui.modelSelector?.destroy();
-  tab.ui.mcpServerSelector?.destroy?.();
+  try { tab.ui.modelSelector?.destroy?.(); } catch { /* ignore */ }
+  try { tab.ui.mcpServerSelector?.destroy?.(); } catch { /* ignore */ }
   tab.ui.mcpServerSelector = null;
-  tab.ui.streamStatusBar?.destroy();
+  try { tab.ui.streamStatusBar?.destroy?.(); } catch { /* ignore */ }
   tab.ui.modelSelector = null;
 
-  tab.services.subagentManager.orphanAllActive();
-  tab.services.subagentManager.clear();
+  try { tab.services.subagentManager?.orphanAllActive?.(); } catch { /* ignore */ }
+  try { tab.services.subagentManager?.clear?.(); } catch { /* ignore */ }
 
   for (const cleanup of tab.dom.eventCleanups) {
-    cleanup();
+    try {
+      cleanup();
+    } catch { /* ignore */ }
   }
   tab.dom.eventCleanups.length = 0;
 
   // Clean up runtime before removing DOM
-  tab.service?.cleanup();
+  try {
+    tab.service?.cleanup();
+  } catch (err) {
+    console.warn("[Claudian] Error cleaning up tab service:", err);
+  }
   tab.service = null;
-  tab.dom.contentEl.remove();
+  try {
+    tab.dom.contentEl.remove();
+  } catch { /* ignore */ }
 
   tab.controllers.selectionController = null;
   tab.controllers.browserSelectionController = null;

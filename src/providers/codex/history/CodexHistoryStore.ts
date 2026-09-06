@@ -392,11 +392,19 @@ const CODEX_SYSTEM_MESSAGE_PREFIXES = [
   '<environment_context>',
   '<subagent_notification>',
   '<skill>',
+  '<recommended_plugins>',
 ];
 
 function isCodexSystemMessage(text: string): boolean {
   const trimmed = text.trimStart();
-  return CODEX_SYSTEM_MESSAGE_PREFIXES.some(prefix => trimmed.startsWith(prefix));
+  if (CODEX_SYSTEM_MESSAGE_PREFIXES.some(prefix => trimmed.startsWith(prefix))) {
+    return true;
+  }
+  if (trimmed.startsWith('<vault_context>')) {
+    const display = extractUserDisplayContent(text);
+    return !display || display.trim().length === 0;
+  }
+  return false;
 }
 
 function extractMessageText(content: PersistedMessagePart[] | undefined): string {
@@ -856,16 +864,24 @@ function processPersistedPayload(
       if (messagePayload.role === 'user') {
         if (isCodexSystemMessage(text)) break;
 
-        // Close any active bubble in the current turn before starting user content
+        // If an active turn already exists (e.g. created by task_started) and has no user content yet,
+        // attach the user message directly to it so tool calls and serverTurnId stay unified.
+        let turn: CodexTurnState | undefined;
         if (ctx.currentTurnId) {
-          const prevTurn = ctx.turns.get(ctx.currentTurnId);
-          if (prevTurn) closeAssistantBubble(prevTurn);
+          const currentTurn = ctx.turns.get(ctx.currentTurnId);
+          if (currentTurn && currentTurn.userChunks.length === 0 && currentTurn.assistantBubbles.length === 0) {
+            turn = currentTurn;
+          } else if (currentTurn) {
+            closeAssistantBubble(currentTurn);
+          }
         }
 
-        // User message opens a new turn
-        ctx.currentTurnId = null;
-        const turn = ensureTurn(ctx.turns, ctx.turnOrder, nextTurnId(ctx), null, timestamp);
-        ctx.currentTurnId = turn.id;
+        if (!turn) {
+          ctx.currentTurnId = null;
+          turn = ensureTurn(ctx.turns, ctx.turnOrder, nextTurnId(ctx), null, timestamp);
+          ctx.currentTurnId = turn.id;
+        }
+
         if (text) {
           appendUserChunk(turn, text, timestamp);
         }
@@ -1341,6 +1357,7 @@ function parseLegacySession(records: ParsedSessionRecord[]): ChatMessage[] {
 
 function parseModernSessionTurns(records: ParsedSessionRecord[]): CodexParsedTurn[] {
   const ctx = createPersistedParseContext();
+  let activeServerTurnId: string | null = null;
 
   for (const [lineIndex, parsed] of records.entries()) {
     const timestamp = parsed.timestamp;
@@ -1352,12 +1369,44 @@ function parseModernSessionTurns(records: ParsedSessionRecord[]): CodexParsedTur
     }
 
     if (parsed.type === 'event_msg') {
-      processEventMsg(parsed.payload as PersistedEventPayload, timestamp, ctx);
+      const eventPayload = parsed.payload as PersistedEventPayload;
+      if (eventPayload?.type === 'task_started') {
+        activeServerTurnId = extractServerTurnId(eventPayload) ?? null;
+      } else if (eventPayload?.type === 'task_complete' || eventPayload?.type === 'turn_aborted') {
+        activeServerTurnId = null;
+      }
+      processEventMsg(eventPayload, timestamp, ctx);
+      continue;
+    }
+
+    // turn_context records in modern sessions specify the active turn_id
+    if (parsed.type === 'turn_context' && parsed.payload) {
+      const turnContextId = (parsed.payload as Record<string, unknown>).turn_id;
+      if (typeof turnContextId === 'string' && turnContextId) {
+        activeServerTurnId = turnContextId;
+        const matchingTurn = Array.from(ctx.turns.values()).find(
+          t => t.serverTurnId === turnContextId || t.id === turnContextId,
+        );
+        if (matchingTurn) {
+          ctx.currentTurnId = matchingTurn.id;
+        }
+      }
       continue;
     }
 
     if (parsed.type === 'compacted') {
-      applyCompactedReplacementHistory(parsed.payload as PersistedCompactedPayload | undefined, timestamp, ctx);
+      if (activeServerTurnId) {
+        // Mid-turn compaction during an active task: do not wipe already-executed session history
+        if (ctx.currentTurnId) {
+          const turn = ctx.turns.get(ctx.currentTurnId);
+          if (turn) {
+            const bubble = ensureAssistantBubble(turn, timestamp);
+            bubble.contentBlocks.push({ type: 'context_compacted' });
+          }
+        }
+      } else {
+        applyCompactedReplacementHistory(parsed.payload as PersistedCompactedPayload | undefined, timestamp, ctx);
+      }
       continue;
     }
 

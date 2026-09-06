@@ -6,8 +6,8 @@ import type {
   ConversationMeta,
   SessionMetadata,
 } from '../types';
-import { toPersistedMessages, toPersistedSubagent } from './persistedMessages';
 import type { SubagentInfo } from '../types';
+import { toPersistedMessages, toPersistedSubagent } from './persistedMessages';
 import { LEGACY_SESSIONS_PATH, SESSIONS_PATH } from './StoragePaths';
 
 export {

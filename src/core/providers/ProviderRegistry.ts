@@ -17,6 +17,7 @@ import {
   type ProviderCapabilities,
   type ProviderChatUIConfig,
   type ProviderConversationHistoryService,
+  type ProviderIconSvg,
   type ProviderId,
   type ProviderRegistration,
   type ProviderSettingsReconciler,
@@ -174,6 +175,10 @@ export class ProviderRegistry {
 
   static getProviderDisplayName(providerId: ProviderId): string {
     return this.getProviderRegistration(providerId).displayName;
+  }
+
+  static getProviderIcon(providerId: ProviderId): ProviderIconSvg | undefined {
+    return this.getChatUIConfig(providerId)?.getProviderIcon?.() ?? undefined;
   }
 
   static isEnabled(providerId: ProviderId, settings: Record<string, unknown>): boolean {

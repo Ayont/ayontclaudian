@@ -57,7 +57,7 @@ export function renderEnvironmentSettingsSection(
     .addTextArea((text) => {
       text
         .setPlaceholder(placeholder)
-        .setValue(plugin.getEnvironmentVariablesForScope(scope));
+        .setValue(plugin.getEnvironmentVariablesForScope?.(scope) ?? '');
       text.inputEl.rows = 6;
       text.inputEl.cols = 50;
       text.inputEl.addClass('claudian-settings-env-textarea');

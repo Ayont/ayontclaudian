@@ -582,6 +582,14 @@
   padding-inline-start: 0;
 }
 
+.claudian-tool-content-ask {
+  padding: 8px 12px 10px;
+}
+
+.claudian-tool-content-ask .claudian-ask-review {
+  margin-bottom: 0;
+}
+
 /* Expanded content: per-line rendering */
 .claudian-tool-lines {
   font-family: var(--cl-font-mono);

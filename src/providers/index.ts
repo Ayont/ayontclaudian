@@ -25,6 +25,8 @@ import { piWorkspaceRegistration } from './pi/app/PiWorkspaceServices';
 import { piProviderRegistration } from './pi/registration';
 import { vibeWorkspaceRegistration } from './vibe/app/VibeWorkspaceServices';
 import { vibeProviderRegistration } from './vibe/registration';
+import { zcodeWorkspaceRegistration } from './zcode/app/ZcodeWorkspaceServices';
+import { zcodeProviderRegistration } from './zcode/registration';
 
 let builtInProvidersRegistered = false;
 
@@ -45,6 +47,8 @@ export function registerBuiltInProviders(): void {
   ProviderRegistry.register('dsh', dshProviderRegistration);
   ProviderRegistry.register('freebuff', freebuffProviderRegistration);
   ProviderRegistry.register('hermes', hermesProviderRegistration);
+  ProviderRegistry.register('zcode', zcodeProviderRegistration);
+
   ProviderWorkspaceRegistry.register('claude', claudeWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('cline', clineWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('codex', codexWorkspaceRegistration);
@@ -57,6 +61,7 @@ export function registerBuiltInProviders(): void {
   ProviderWorkspaceRegistry.register('dsh', dshWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('freebuff', freebuffWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('hermes', hermesWorkspaceRegistration);
+  ProviderWorkspaceRegistry.register('zcode', zcodeWorkspaceRegistration);
 
   ModelConfigSyncRegistry.register('kimi', kimiModelConfigSync);
 

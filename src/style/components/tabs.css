@@ -181,31 +181,40 @@ body.theme-light .claudian-tab-badge:hover {
   z-index: 3;
 }
 
-/* Close button on hover */
+/* Close button: visible on hover of any tab, and subtly visible on the active tab */
 .claudian-tab-badge-close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   margin-left: 4px;
   border-radius: 50%;
   opacity: 0;
-  transition: all 120ms ease;
+  transition: opacity 140ms ease, background 140ms ease, color 140ms ease;
   color: var(--text-muted);
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .claudian-tab-badge-close svg {
   width: 10px;
   height: 10px;
+  pointer-events: none;
+}
+
+.claudian-tab-badge-active .claudian-tab-badge-close,
+.claudian-tab-badge--active .claudian-tab-badge-close {
+  opacity: 0.55;
 }
 
 .claudian-tab-badge:hover .claudian-tab-badge-close {
-  opacity: 0.7;
+  opacity: 0.85;
 }
 
-.claudian-tab-badge-close:hover {
+.claudian-tab-badge-close:hover,
+.claudian-tab-badge-active .claudian-tab-badge-close:hover,
+.claudian-tab-badge--active .claudian-tab-badge-close:hover {
   opacity: 1;
   background: rgba(255, 255, 255, 0.2);
   color: var(--text-error, #f87171);
@@ -260,6 +269,10 @@ body.theme-light .claudian-tab-badge:hover {
   box-shadow: inset 0 -2px 0 var(--claudian-brand-cline, #00C9A7);
 }
 
+.claudian-tab-badge[data-provider="zcode"] {
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-zcode, #2B5BF7);
+}
+
 .claudian-tab-badge-streaming {
   border-color: var(--claudian-brand, #da7756);
   animation: cl-tab-pulse 1.6s var(--cl-ease) infinite;
@@ -311,6 +324,10 @@ body.theme-light .claudian-tab-badge:hover {
 
 .claudian-tab-badge-streaming[data-provider="cline"] {
   border-color: var(--claudian-brand-cline, #00C9A7);
+}
+
+.claudian-tab-badge-streaming[data-provider="zcode"] {
+  border-color: var(--claudian-brand-zcode, #2B5BF7);
 }
 
 .claudian-tab-badge-attention {

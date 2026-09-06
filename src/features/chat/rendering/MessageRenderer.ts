@@ -795,12 +795,62 @@ export class MessageRenderer {
     const newWelcomeEl = this.messagesEl.createDiv({ cls: 'claudian-welcome' });
     renderWelcomeContent(newWelcomeEl, getGreeting(), this.plugin);
 
-    for (let i = 0; i < messages.length; i++) {
-      this.renderStoredMessage(messages[i], messages, i);
+    const coalescedMessages = this.coalesceConsecutiveAssistantMessages(messages);
+
+    for (let i = 0; i < coalescedMessages.length; i++) {
+      this.renderStoredMessage(coalescedMessages[i], coalescedMessages, i);
     }
 
     this.scrollToBottom();
     return newWelcomeEl;
+  }
+
+  /**
+   * Coalesces consecutive assistant messages into a single unified turn card.
+   * Prevents fragmentation where tool calls, reasoning chunks, or mid-turn boundaries
+   * might otherwise render as multiple disconnected assistant bubbles for a single response turn.
+   */
+  private coalesceConsecutiveAssistantMessages(messages: ChatMessage[]): ChatMessage[] {
+    if (messages.length <= 1) return messages;
+
+    const result: ChatMessage[] = [];
+
+    for (const msg of messages) {
+      if (msg.role !== "assistant" || msg.isInterrupt) {
+        result.push(msg);
+        continue;
+      }
+
+      const prev = result[result.length - 1];
+      if (prev && prev.role === "assistant" && !prev.isInterrupt) {
+        const combinedBlocks: ContentBlock[] = [
+          ...(prev.contentBlocks || (prev.content ? [{ type: "text", content: prev.content } as ContentBlock] : [])),
+          ...(msg.contentBlocks || (msg.content ? [{ type: "text", content: msg.content } as ContentBlock] : [])),
+        ];
+
+        const combinedTools = [
+          ...(prev.toolCalls || []),
+          ...(msg.toolCalls || []),
+        ];
+
+        const combinedContent = [prev.content, msg.content].filter(Boolean).join("\n\n").trim();
+
+        prev.content = combinedContent;
+        prev.contentBlocks = combinedBlocks.length > 0 ? combinedBlocks : undefined;
+        prev.toolCalls = combinedTools.length > 0 ? combinedTools : undefined;
+
+        if (msg.durationSeconds) {
+          prev.durationSeconds = (prev.durationSeconds || 0) + msg.durationSeconds;
+        }
+        if (msg.assistantMessageId) {
+          prev.assistantMessageId = msg.assistantMessageId;
+        }
+      } else {
+        result.push({ ...msg });
+      }
+    }
+
+    return result;
   }
 
   renderStoredMessage(msg: ChatMessage, allMessages?: ChatMessage[], index?: number): void {
