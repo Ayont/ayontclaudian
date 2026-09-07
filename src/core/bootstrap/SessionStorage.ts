@@ -8,10 +8,11 @@ import type {
 } from '../types';
 import type { SubagentInfo } from '../types';
 import { toPersistedMessages, toPersistedSubagent } from './persistedMessages';
-import { LEGACY_SESSIONS_PATH, SESSIONS_PATH } from './StoragePaths';
+import { LEGACY_SESSIONS_PATH, SESSIONS_INDEX_PATH, SESSIONS_PATH } from './StoragePaths';
 
 export {
   LEGACY_SESSIONS_PATH,
+  SESSIONS_INDEX_PATH,
   SESSIONS_PATH,
 };
 
@@ -23,6 +24,9 @@ export {
 const OVERSIZED_METADATA_BYTES = 512_000;
 
 export class SessionStorage {
+  private indexCache: Map<string, SessionMetadata> | null = null;
+  private indexSaveTimer: number | null = null;
+
   constructor(private adapter: VaultFileAdapter) {}
 
   getMetadataPath(id: string): string {
@@ -33,11 +37,107 @@ export class SessionStorage {
     return `${LEGACY_SESSIONS_PATH}/${id}.meta.json`;
   }
 
+  /**
+   * Resets the in-memory index cache (primarily for tests).
+   */
+  resetIndexCache(): void {
+    this.indexCache = null;
+    if (this.indexSaveTimer !== null) {
+      const clearTimer = typeof window !== 'undefined' ? window.clearTimeout : clearTimeout;
+      clearTimer(this.indexSaveTimer);
+      this.indexSaveTimer = null;
+    }
+  }
+
+  private scheduleIndexSave(): void {
+    if (this.indexSaveTimer !== null) {
+      return;
+    }
+    const setTimer = typeof window !== 'undefined' ? window.setTimeout : setTimeout;
+    this.indexSaveTimer = setTimer(() => {
+      this.indexSaveTimer = null;
+      void this.persistIndex();
+    }, 400) as unknown as number;
+  }
+
+  private async persistIndex(): Promise<void> {
+    if (!this.indexCache) return;
+    try {
+      const obj: Record<string, SessionMetadata> = {};
+      for (const [id, meta] of this.indexCache.entries()) {
+        obj[id] = meta;
+      }
+      await this.adapter.write(SESSIONS_INDEX_PATH, JSON.stringify(obj));
+    } catch {
+      // Non-fatal background cache write
+    }
+  }
+
+  extractLightMetadata(raw: SessionMetadata): SessionMetadata & {
+    _messageCount?: number;
+    _preview?: string;
+    _lazyMessages?: boolean;
+  } {
+    const messageCount = raw.messages?.length ?? 0;
+    let preview = '';
+    if (raw.messages && raw.messages.length > 0) {
+      const firstUser = raw.messages.find((m) => m.role === 'user');
+      if (firstUser?.content) {
+        const clean = firstUser.content.replace(/\n/g, ' ').trim();
+        preview = clean.length > 50 ? clean.slice(0, 50) + '...' : clean;
+      }
+    }
+
+    let lastResponseAt = raw.lastResponseAt;
+    if (lastResponseAt == null && raw.messages && raw.messages.length > 0) {
+      for (let m = raw.messages.length - 1; m >= 0; m--) {
+        if (raw.messages[m].role === 'assistant') {
+          lastResponseAt = raw.messages[m].timestamp;
+          break;
+        }
+      }
+    }
+
+    return {
+      id: raw.id,
+      providerId: raw.providerId,
+      title: raw.title,
+      titleGenerationStatus: raw.titleGenerationStatus,
+      createdAt: raw.createdAt,
+      updatedAt: raw.updatedAt,
+      lastResponseAt,
+      sessionId: raw.sessionId,
+      goal: raw.goal,
+      workspaceMode: raw.workspaceMode,
+      pinned: raw.pinned,
+      currentNote: raw.currentNote,
+      externalContextPaths: raw.externalContextPaths,
+      enabledMcpServers: raw.enabledMcpServers,
+      usage: raw.usage,
+      resumeAtMessageId: raw.resumeAtMessageId,
+      providerState: raw.providerState
+        ? { ...raw.providerState, subagentData: undefined }
+        : undefined,
+      providerSessions: raw.providerSessions,
+      pendingContextBootstrap: raw.pendingContextBootstrap,
+      messages: [],
+      _messageCount: messageCount,
+      _preview: preview,
+      _lazyMessages: messageCount > 0 || !!raw.providerState?.subagentData,
+    };
+  }
+
   async saveMetadata(metadata: SessionMetadata): Promise<void> {
     const filePath = this.getMetadataPath(metadata.id);
     const content = JSON.stringify(metadata, null, 2);
     await this.adapter.write(filePath, content);
     await this.deleteLegacyMetadataIfPresent(metadata.id);
+
+    if (this.indexCache) {
+      const light = this.extractLightMetadata(metadata);
+      this.indexCache.set(metadata.id, light);
+      this.scheduleIndexSave();
+    }
   }
 
   async loadMetadata(id: string): Promise<SessionMetadata | null> {
@@ -68,99 +168,136 @@ export class SessionStorage {
   async deleteMetadata(id: string): Promise<void> {
     await this.adapter.delete(this.getMetadataPath(id));
     await this.deleteLegacyMetadataIfPresent(id);
+
+    if (this.indexCache) {
+      this.indexCache.delete(id);
+      this.scheduleIndexSave();
+    }
   }
 
   async listMetadata(): Promise<SessionMetadata[]> {
     const files = await this.listUniqueMetadataFiles();
 
-    // Read + parse metadata files in bounded batches so Electron renderer memory
-    // does not spike from hundreds of concurrent multi-megabyte JSON allocations.
-    // Heavy transcript messages and subagent data are deferred for on-demand loading,
-    // keeping startup memory lean (<5 MB) even with hundreds of historical conversations.
-    const results: SessionMetadata[] = [];
-    const BATCH_SIZE = 10;
+    const returnOrderedFiles = (): SessionMetadata[] => {
+      const ordered: SessionMetadata[] = [];
+      for (const file of files) {
+        const id = this.getFileName(file).replace(/\.meta\.json$/, "");
+        const item = this.indexCache?.get(id);
+        if (item) {
+          ordered.push(item);
+        }
+      }
+      return ordered;
+    };
 
+    if (this.indexCache) {
+      return returnOrderedFiles();
+    }
+
+    this.indexCache = new Map();
+
+    // 1. Try to read persisted index cache for instant sub-millisecond startup
+    let indexLoaded = false;
+    try {
+      if (await this.adapter.exists(SESSIONS_INDEX_PATH)) {
+        const content = await this.adapter.read(SESSIONS_INDEX_PATH);
+        const parsed = JSON.parse(content) as Record<string, SessionMetadata>;
+        if (parsed && typeof parsed === "object") {
+          for (const [id, meta] of Object.entries(parsed)) {
+            if (id && meta && meta.id) {
+              this.indexCache.set(id, meta);
+            }
+          }
+          indexLoaded = true;
+        }
+      }
+    } catch {
+      this.indexCache.clear();
+    }
+
+    const diskIdSet = new Set<string>();
+    for (const file of files) {
+      const fileName = this.getFileName(file);
+      const id = fileName.replace(/\.meta\.json$/, "");
+      if (id) {
+        diskIdSet.add(id);
+      }
+    }
+
+    // Fast path: index loaded, reconcile with files on disk
+    if (indexLoaded && this.indexCache.size > 0) {
+      let indexDirty = false;
+
+      // Remove deleted files
+      for (const id of Array.from(this.indexCache.keys())) {
+        if (!diskIdSet.has(id)) {
+          this.indexCache.delete(id);
+          indexDirty = true;
+        }
+      }
+
+      // Add missing files not yet in index
+      const missingFiles = files.filter((filePath) => {
+        const id = this.getFileName(filePath).replace(/\.meta\.json$/, "");
+        return id && !this.indexCache!.has(id);
+      });
+
+      if (missingFiles.length > 0) {
+        indexDirty = true;
+        for (const filePath of missingFiles) {
+          try {
+            const content = await this.adapter.read(filePath);
+            const raw = JSON.parse(content) as SessionMetadata;
+            if (raw && raw.id) {
+              const light = this.extractLightMetadata(raw);
+              this.indexCache.set(raw.id, light);
+            }
+          } catch {
+            // Skip unreadable file
+          }
+        }
+      }
+
+      if (indexDirty) {
+        this.scheduleIndexSave();
+      }
+
+      return returnOrderedFiles();
+    }
+
+    // Cold path: read + parse metadata files in bounded batches
+    const BATCH_SIZE = 15;
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
       const batch = files.slice(i, i + BATCH_SIZE);
       const batchResults = await Promise.all(
         batch.map(async (filePath) => {
           try {
             const content = await this.adapter.read(filePath);
-            const raw = JSON.parse(content) as SessionMetadata & {
-              _messageCount?: number;
-              _preview?: string;
-              _lazyMessages?: boolean;
-            };
+            const raw = JSON.parse(content) as SessionMetadata;
 
             if (filePath.startsWith(`${LEGACY_SESSIONS_PATH}/`)) {
               await this.saveMetadata(raw);
             }
 
-            const messageCount = raw.messages?.length ?? 0;
-            let preview = "";
-            if (raw.messages && raw.messages.length > 0) {
-              const firstUser = raw.messages.find((m) => m.role === "user");
-              if (firstUser?.content) {
-                const clean = firstUser.content.replace(/\n/g, " ").trim();
-                preview = clean.length > 50 ? clean.slice(0, 50) + "..." : clean;
-              }
+            if (raw && raw.id) {
+              return this.extractLightMetadata(raw);
             }
-
-            let lastResponseAt = raw.lastResponseAt;
-            if (lastResponseAt == null && raw.messages && raw.messages.length > 0) {
-              for (let m = raw.messages.length - 1; m >= 0; m--) {
-                if (raw.messages[m].role === "assistant") {
-                  lastResponseAt = raw.messages[m].timestamp;
-                  break;
-                }
-              }
-            }
-
-            const light: SessionMetadata & {
-              _messageCount?: number;
-              _preview?: string;
-              _lazyMessages?: boolean;
-            } = {
-              id: raw.id,
-              providerId: raw.providerId,
-              title: raw.title,
-              titleGenerationStatus: raw.titleGenerationStatus,
-              createdAt: raw.createdAt,
-              updatedAt: raw.updatedAt,
-              lastResponseAt,
-              sessionId: raw.sessionId,
-              goal: raw.goal,
-              workspaceMode: raw.workspaceMode,
-              pinned: raw.pinned,
-              currentNote: raw.currentNote,
-              externalContextPaths: raw.externalContextPaths,
-              enabledMcpServers: raw.enabledMcpServers,
-              usage: raw.usage,
-              resumeAtMessageId: raw.resumeAtMessageId,
-              providerState: raw.providerState
-                ? { ...raw.providerState, subagentData: undefined }
-                : undefined,
-              providerSessions: raw.providerSessions,
-              pendingContextBootstrap: raw.pendingContextBootstrap,
-              messages: [],
-              _messageCount: messageCount,
-              _preview: preview,
-              _lazyMessages: messageCount > 0 || !!raw.providerState?.subagentData,
-            };
-
-            return light;
+            return null;
           } catch {
             return null;
           }
         }),
       );
 
-      for (const res of batchResults) {
-        if (res !== null) results.push(res);
+      for (const item of batchResults) {
+        if (item) {
+          this.indexCache.set(item.id, item);
+        }
       }
     }
 
-    return results;
+    this.scheduleIndexSave();
+    return returnOrderedFiles();
   }
 
   async listAllConversations(): Promise<ConversationMeta[]> {

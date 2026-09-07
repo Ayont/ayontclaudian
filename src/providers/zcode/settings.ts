@@ -136,10 +136,12 @@ export function getZcodeProviderSettings(
   const explicitBaseURL = asString(config.baseURL, '').trim();
   const baseURL = explicitBaseURL || detected.baseURL || DEFAULT_ZCODE_PROVIDER_SETTINGS.baseURL;
 
+  const enabled = config.enabled === true;
+
   return {
     cliPath: asString(config.cliPath, DEFAULT_ZCODE_PROVIDER_SETTINGS.cliPath).trim(),
     cliPathsByHost: normalizeHostnameCliPaths(config.cliPathsByHost),
-    enabled: config.enabled === true,
+    enabled,
     apiKey,
     baseURL,
     mode: normalizeExecutionMode(config.mode),
@@ -178,9 +180,9 @@ export function getResolvedZcodeCliPath(
   settings: PersistedZcodeProviderSettings,
   hostname = getHostnameKey(),
 ): string {
-  const hostPath = settings.cliPathsByHost[hostname]?.trim();
-  if (hostPath) {
-    return hostPath;
+  const hostSpecific = settings.cliPathsByHost[hostname]?.trim();
+  if (hostSpecific) {
+    return hostSpecific;
   }
   return settings.cliPath.trim() || DEFAULT_ZCODE_PROVIDER_SETTINGS.cliPath;
 }

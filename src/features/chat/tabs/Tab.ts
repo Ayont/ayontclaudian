@@ -690,7 +690,16 @@ async function switchBoundTabProvider(
   onProviderChanged?: (providerId: ProviderId) => void | Promise<void>,
 ): Promise<void> {
   const oldProvider = tab.providerId;
-  const newProvider = getEnabledProviderForModel(model, plugin.settings);
+  let newProvider = getEnabledProviderForModel(model, plugin.settings);
+  const intrinsicProvider = getProviderForModel(model, plugin.settings);
+  if (intrinsicProvider && intrinsicProvider !== newProvider) {
+    const providerConfig = (plugin.settings.providerConfigs as Record<string, Record<string, unknown>>)?.[intrinsicProvider];
+    if (providerConfig) {
+      providerConfig.enabled = true;
+      await plugin.saveSettings();
+      newProvider = intrinsicProvider;
+    }
+  }
 
   // Per-provider session isolation: stash the OUTGOING provider's native session and
   // restore the INCOMING provider's own (or start clean). Without this the shared

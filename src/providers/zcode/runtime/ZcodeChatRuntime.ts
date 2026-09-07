@@ -201,7 +201,10 @@ export class ZcodeChatRuntime implements ChatRuntime {
     const abortController = new AbortController();
     this.activeAbortController = abortController;
 
-    const endpoint = `${settings.baseURL.replace(/\/+$/, '')}/v1/messages`;
+    const cleanBase = settings.baseURL.replace(/\/+$/, "");
+    const endpoint = cleanBase.endsWith("/v1")
+      ? `${cleanBase}/messages`
+      : `${cleanBase}/v1/messages`;
     const payload: Record<string, unknown> = {
       model: normalizedModel,
       max_tokens: 16384,
@@ -338,18 +341,19 @@ export class ZcodeChatRuntime implements ChatRuntime {
     }
   }
 
-  private mapModelId(raw: string): string {
-    const trimmed = raw.trim().toLowerCase();
-    if (trimmed === 'glm-5.3') {
-      return 'glm-5.3';
+    private mapModelId(raw: string): string {
+    const withoutPrefix = raw.replace(/^zcode\//i, "").trim();
+    const lower = withoutPrefix.toLowerCase();
+    if (lower === "glm-5.3") {
+      return "glm-5.3";
     }
-    if (trimmed === 'glm-5.3-flash') {
-      return 'glm-5.3-flash';
+    if (lower === "glm-5.3-flash") {
+      return "glm-5.3-flash";
     }
-    if (trimmed === 'glm-5-turbo') {
-      return 'glm-5-turbo';
+    if (lower === "glm-5-turbo") {
+      return "glm-5-turbo";
     }
-    return raw.trim();
+    return withoutPrefix;
   }
 
   private resolveThinkingConfig(
