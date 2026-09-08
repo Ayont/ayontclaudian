@@ -242,12 +242,23 @@ export class ClaudianView extends ItemView {
     );
 
     this.wireEventHandlers();
-    await this.restoreOrCreateTabs();
-    this.syncProviderBrandColor();
-    this.applyChatAppearance();
-    this.updateLayoutForPosition();
-    this.applyWorkspaceMode();
-    this.tabManager?.primeProviderRuntime();
+
+    const restoreTabs = async () => {
+      await this.restoreOrCreateTabs();
+      this.syncProviderBrandColor();
+      this.applyChatAppearance();
+      this.updateLayoutForPosition();
+      this.applyWorkspaceMode();
+      this.tabManager?.primeProviderRuntime();
+    };
+
+    if (this.plugin.app.workspace.layoutReady) {
+      await restoreTabs();
+    } else {
+      this.plugin.app.workspace.onLayoutReady(() => {
+        void restoreTabs();
+      });
+    }
   }
 
   /**

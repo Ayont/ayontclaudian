@@ -285,6 +285,7 @@ export class CodexChatRuntime implements ChatRuntime {
       return;
     }
 
+    let keepaliveTimer: ReturnType<typeof setInterval> | null = null;
     try {
       // Thread lifecycle
       const existingThreadId = this.session.getThreadId();
@@ -555,6 +556,17 @@ export class CodexChatRuntime implements ChatRuntime {
       }
 
       // Yield chunks until done or canceled
+      const KEEPALIVE_INTERVAL_MS = 15_000;
+      keepaliveTimer = setInterval(() => {
+        if (this.chunkBuffer.length === 0 && !this.canceled) {
+          this.chunkBuffer.push({ type: "keepalive" });
+          if (this.chunkResolve) {
+            this.chunkResolve();
+            this.chunkResolve = null;
+          }
+        }
+      }, KEEPALIVE_INTERVAL_MS);
+
       while (true) {
         if (this.canceled) {
           // Drain remaining chunks before exiting
@@ -595,6 +607,11 @@ export class CodexChatRuntime implements ChatRuntime {
       yield { type: 'done' };
       return;
     } finally {
+      if (keepaliveTimer !== null) {
+        clearInterval(keepaliveTimer);
+        keepaliveTimer = null;
+      }
+
       this.notificationRouter?.endTurn();
 
       this.cleanupActiveInputBundles();

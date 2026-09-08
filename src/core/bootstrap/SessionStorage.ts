@@ -118,12 +118,23 @@ export class SessionStorage {
       providerState: raw.providerState
         ? { ...raw.providerState, subagentData: undefined }
         : undefined,
-      providerSessions: raw.providerSessions,
-      pendingContextBootstrap: raw.pendingContextBootstrap,
+      providerSessions: (() => {
+        if (!raw.providerSessions || typeof raw.providerSessions !== "object") return undefined;
+        const cleaned = {};
+        for (const [pk, pv] of Object.entries(raw.providerSessions)) {
+          if (!pv || typeof pv !== "object") continue;
+          const pState = pv.providerState ? { ...pv.providerState, subagentData: undefined } : undefined;
+          cleaned[pk] = { ...pv, providerState: pState };
+        }
+        return cleaned;
+      })(),
+      pendingContextBootstrap: typeof raw.pendingContextBootstrap === "string" && raw.pendingContextBootstrap.length <= 500
+        ? raw.pendingContextBootstrap
+        : undefined,
       messages: [],
       _messageCount: messageCount,
       _preview: preview,
-      _lazyMessages: messageCount > 0 || !!raw.providerState?.subagentData,
+      _lazyMessages: messageCount > 0 || !!raw.providerState?.subagentData || !!raw.pendingContextBootstrap,
     };
   }
 
@@ -409,6 +420,23 @@ export class SessionStorage {
             subagentData: nextSubMap,
           };
           modified = true;
+        }
+
+        if (compacted.providerSessions && typeof compacted.providerSessions === "object") {
+          for (const pSession of Object.values(compacted.providerSessions)) {
+            if (pSession && typeof pSession === "object" && (pSession as any).providerState?.subagentData) {
+              const subMap = (pSession as any).providerState.subagentData as Record<string, SubagentInfo>;
+              const nextSubMap: Record<string, SubagentInfo> = {};
+              for (const [id, sub] of Object.entries(subMap)) {
+                nextSubMap[id] = toPersistedSubagent(sub);
+              }
+              (pSession as any).providerState = {
+                ...(pSession as any).providerState,
+                subagentData: nextSubMap,
+              };
+              modified = true;
+            }
+          }
         }
 
         if (!modified) {

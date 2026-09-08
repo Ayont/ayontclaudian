@@ -460,12 +460,17 @@ export class AntigravityChatRuntime implements ChatRuntime {
     });
     let lastUsageLen = -1;
 
+    let lastDiscoveryTime = 0;
     const drainTranscript = (): StreamChunk[] => {
       if (!this.conversationId && previousBrainIds) {
-        const discovered = discoverNewestConversationId(previousBrainIds);
-        if (discovered) {
-          this.conversationId = discovered;
-          this.transcriptPath = getAntigravityTranscriptPath(discovered);
+        const now = Date.now();
+        if (now - lastDiscoveryTime >= 500) {
+          lastDiscoveryTime = now;
+          const discovered = discoverNewestConversationId(previousBrainIds);
+          if (discovered) {
+            this.conversationId = discovered;
+            this.transcriptPath = getAntigravityTranscriptPath(discovered);
+          }
         }
       }
       if (!this.conversationId) {
@@ -511,14 +516,18 @@ export class AntigravityChatRuntime implements ChatRuntime {
 
     try {
       let exited: { code: number | null; error?: Error } | null = null;
+      let lastYieldTime = Date.now();
+      const KEEPALIVE_INTERVAL_MS = 15_000;
       while (!exited) {
         const settled = await Promise.race([
           exitPromise.then((value) => ({ done: true as const, value })),
           sleep(TRANSCRIPT_POLL_INTERVAL_MS).then(() => ({ done: false as const })),
         ]);
+        let yieldedAnyChunk = false;
         for (const chunk of drainStream()) {
           accumulateResponse(chunk);
           yield chunk;
+          yieldedAnyChunk = true;
         }
         for (const chunk of drainTranscript()) {
           if (emittedAnyTextFromStream && chunk.type === 'text') {
@@ -532,6 +541,13 @@ export class AntigravityChatRuntime implements ChatRuntime {
           }
           accumulateResponse(chunk);
           yield chunk;
+          yieldedAnyChunk = true;
+        }
+        if (yieldedAnyChunk) {
+          lastYieldTime = Date.now();
+        } else if (Date.now() - lastYieldTime >= KEEPALIVE_INTERVAL_MS) {
+          lastYieldTime = Date.now();
+          yield { type: 'keepalive' };
         }
         // Live context meter: emit an updated estimate when the response grew
         // and stream-json has not already reported real usage.
