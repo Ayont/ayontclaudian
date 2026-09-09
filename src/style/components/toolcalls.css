@@ -759,7 +759,7 @@
   box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.2);
 }
 
-.claudian-code-header {
+.claudian-code-viewer-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -768,7 +768,7 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.claudian-code-title {
+.claudian-code-viewer-title {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -776,23 +776,23 @@
   color: var(--text-normal);
 }
 
-.claudian-code-format-icon {
+.claudian-code-viewer-format-icon {
   display: inline-flex;
   align-items: center;
 }
 
-.claudian-code-filename {
+.claudian-code-viewer-filename {
   font-family: var(--cl-font-ui);
   font-size: 12px;
 }
 
-.claudian-code-meta {
+.claudian-code-viewer-meta {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.claudian-code-range-badge {
+.claudian-code-viewer-range-badge {
   font-size: 11px;
   color: var(--text-muted);
   background: rgba(255, 255, 255, 0.06);
@@ -800,7 +800,7 @@
   border-radius: 6px;
 }
 
-.claudian-code-copy-btn,
+.claudian-code-viewer-copy-btn,
 .claudian-bash-copy-btn {
   background: transparent;
   border: none;
@@ -814,13 +814,31 @@
   transition: all 0.15s ease;
 }
 
-.claudian-code-copy-btn:hover,
+.claudian-code-viewer-copy-btn:hover,
 .claudian-bash-copy-btn:hover {
   background: rgba(255, 255, 255, 0.1);
   color: var(--text-normal);
 }
 
-.claudian-code-body {
+.claudian-code-viewer-open-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.claudian-code-viewer-open-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-normal);
+}
+
+.claudian-code-viewer-body {
   display: flex;
   flex-direction: column;
   max-height: 420px;
@@ -828,18 +846,18 @@
   padding: 6px 0;
 }
 
-.claudian-code-row {
+.claudian-code-viewer-row {
   display: flex;
   line-height: 1.5;
   padding: 0 10px;
   transition: background 0.1s ease;
 }
 
-.claudian-code-row:hover {
+.claudian-code-viewer-row:hover {
   background: rgba(255, 255, 255, 0.03);
 }
 
-.claudian-code-gutter {
+.claudian-code-viewer-gutter {
   width: 44px;
   flex-shrink: 0;
   text-align: right;
@@ -849,14 +867,14 @@
   font-size: 11px;
 }
 
-.claudian-code-content {
+.claudian-code-viewer-content {
   flex: 1;
   white-space: pre-wrap;
   word-break: break-all;
   color: var(--text-normal);
 }
 
-.claudian-code-truncated {
+.claudian-code-viewer-truncated {
   padding: 6px 12px;
   text-align: center;
   font-size: 11px;

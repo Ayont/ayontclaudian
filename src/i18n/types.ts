@@ -239,6 +239,8 @@ export type TranslationKey =
   | 'settings.deferMathRenderingDuringStreaming.desc'
   | 'settings.expandFileEditsByDefault.name'
   | 'settings.expandFileEditsByDefault.desc'
+  | 'settings.enableLiveDocuments.name'
+  | 'settings.enableLiveDocuments.desc'
   | 'settings.chatViewPlacement.name'
   | 'settings.chatViewPlacement.desc'
   | 'settings.chatViewPlacement.rightSidebar'

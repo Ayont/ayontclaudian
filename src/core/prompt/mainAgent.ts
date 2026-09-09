@@ -197,7 +197,11 @@ function getLiveDocumentInstructions(): string {
 
 ## Live Document Builder
 
-When the user asks to create, draft, design, rewrite, or structure a substantial document — such as a report, proposal, concept, brief, handbook, SOP, letter, meeting summary, project plan, policy, or client deliverable — use a \`claudian-document\` fenced block. ayontclaudian renders it as a polished live document canvas inside the chat while the answer streams.
+Use a \`claudian-document\` fenced block ONLY when the user explicitly asks to create, draft, design, or structure a substantial document, report, concept, or formal deliverable (e.g. with explicit words like "erstelle ein Dokument", "schreib ein Konzept", "erstelle einen Bericht / Report / Deliverable").
+
+STRICT NEGATIVE CONSTRAINT:
+- NEVER use \`claudian-document\` for shell commands, bash scripts, diagnostics, technical troubleshooting, diagnostic tables, error investigations, or regular conversational answers.
+- Even if the user asks for a "Checkliste", "Übersicht", or "Commands", use regular Markdown tables, lists, and code blocks unless they explicitly say "als Dokument" or "als Live-Dokument".
 
 \`\`\`claudian-document
 ---
@@ -217,7 +221,7 @@ Document content in clean Markdown...
 Themes: \`editorial\`, \`business\`, \`minimal\`, \`warm\`, \`technical\`.
 
 Rules:
-- Use this only when the user wants an actual document or designed deliverable, not for ordinary chat answers.
+- Use this ONLY when the user explicitly requests an actual document or designed deliverable, never for ordinary chat answers, technical support, commands, or troubleshooting.
 - Put the complete document inside one block; keep commentary outside it.
 - Use clear headings, short paragraphs, lists, tables, blockquotes, and task lists where useful.
 - Do not invent names, facts, dates, prices, or legal claims. Mark missing fields with \`[To be completed]\`.
@@ -437,6 +441,7 @@ export interface TurnOutputContractOptions {
   detailedSurfaceInstructions?: boolean;
   mediaFolder?: string;
   workspaceMode?: WorkspaceMode;
+  enableLiveDocuments?: boolean;
 }
 
 function getCompactWorkspaceInstructions(mode: WorkspaceMode): string {
@@ -465,7 +470,7 @@ function getCompactNetworkInstructions(): string {
 function getCompactLiveDocumentInstructions(): string {
   return [
     '## Live-document surface',
-    'Put the complete deliverable in one editable Markdown fence; commentary stays outside:',
+    'ONLY use when user explicitly requests a document, report or concept (never for troubleshooting, commands, scripts, or ordinary chat answers). Put the complete deliverable in one editable Markdown fence; commentary stays outside:',
     '```claudian-document',
     '---',
     'title: Project proposal',
@@ -583,6 +588,10 @@ const ENGINEERING_WORDS = new Set([
   'stylesheet', 'terminal', 'test', 'tests', 'typescript', 'funktion',
   'quellcode', 'änderungen', 'changes', 'datei', 'file', 'formular', 'signup',
   'upload', 'validierung', 'validation', 'flow', 'screenshot',
+  'befehl', 'befehle', 'command', 'commands', 'bash', 'shell', 'sh', 'ssh',
+  'curl', 'systemctl', 'service', 'daemon', 'script', 'skript', 'psql',
+  'sql', 'query', 'log', 'logs', 'grep', 'debug', 'diagnose', 'diagnostics',
+  'server', 'linux', 'debian', 'root', 'sudo', 'troubleshoot',
 ]);
 
 /* Nouns that name a standalone deliverable. Matched as WHOLE words: "E-Mail"
@@ -694,8 +703,12 @@ export function resolveTurnOutputSurface(
   requestedSurface?: OutputSurface,
   options: ResolveOutputSurfaceOptions = {},
 ): OutputSurface {
-  if (requestedSurface && requestedSurface !== 'chat') return requestedSurface;
+  if (requestedSurface && requestedSurface !== 'chat') {
+    if (requestedSurface === 'live-document' && options.enableLiveDocuments === false) return 'chat';
+    return requestedSurface;
+  }
   if ((options.workspaceMode ?? DEFAULT_WORKSPACE_MODE) === 'code') return 'chat';
+  if (options.enableLiveDocuments === false) return 'chat';
 
   const source = text.toLocaleLowerCase('de-DE');
   const words = tokenizeIntent(source);
@@ -798,7 +811,10 @@ export function buildTurnOutputContract(
   request: ChatTurnRequest,
   options: TurnOutputContractOptions = {},
 ): string {
-  const surface = resolveTurnOutputSurface(request.text, request.outputSurface);
+  const surface = resolveTurnOutputSurface(request.text, request.outputSurface, {
+    workspaceMode: options.workspaceMode,
+    enableLiveDocuments: options.enableLiveDocuments,
+  });
   const workspaceMode = options.workspaceMode ?? DEFAULT_WORKSPACE_MODE;
   const detailed = options.detailedSurfaceInstructions === true;
   const sections = [
@@ -851,6 +867,7 @@ export function applyTurnOutputContract(
 
   const outputSurface = resolveTurnOutputSurface(request.text, request.outputSurface, {
     workspaceMode: options.workspaceMode,
+    enableLiveDocuments: options.enableLiveDocuments,
   });
   const contract = buildTurnOutputContract({ ...request, outputSurface }, options);
   return {

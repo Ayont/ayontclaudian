@@ -135,17 +135,21 @@
   height: 13px;
 }
 
+.claudian-code-wrapper .claudian-code-body,
 .claudian-code-body {
-  display: grid;
+  display: grid !important;
   grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   background: var(--cl-ink);
+  position: relative;
 }
 
+.claudian-code-wrapper .claudian-code-body.has-line-numbers,
 .claudian-code-body.has-line-numbers {
-  grid-template-columns: 46px minmax(0, 1fr);
+  grid-template-columns: 46px minmax(0, 1fr) !important;
 }
 
+.claudian-code-wrapper .claudian-code-gutter,
 .claudian-code-gutter {
   display: flex;
   flex-direction: column;
@@ -161,9 +165,15 @@
   font-variant-numeric: tabular-nums;
   line-height: 1.55;
   user-select: none;
+  box-sizing: border-box;
 }
 
-.claudian-code-gutter span { display: block; min-height: 1.55em; }
+.claudian-code-wrapper .claudian-code-gutter span,
+.claudian-code-gutter span {
+  display: block;
+  min-height: 1.55em;
+  line-height: 1.55;
+}
 
 /* Code body — monospace, scrollable; the wrapper owns the border/radius. */
 .claudian-code-wrapper pre,
@@ -179,23 +189,58 @@
 .claudian-code-wrapper .claudian-code-body pre {
   min-width: 0;
   background: transparent;
+  padding: var(--cl-space-3);
+  margin: 0;
+  border: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  box-sizing: border-box;
 }
 
 .claudian-code-wrapper .claudian-code-body pre code {
+  display: block;
+  min-width: 100%;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-md);
   line-height: 1.55;
+  color: var(--text-normal);
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+  white-space: pre;
 }
 
 .claudian-code-wrapper.is-collapsed .claudian-code-body {
   max-height: 340px;
   overflow: hidden;
+  position: relative;
 }
 
 .claudian-code-wrapper.is-collapsed .claudian-code-body pre {
   max-height: 340px;
 }
 
+.claudian-code-wrapper.is-collapsed .claudian-code-body::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 48px;
+  background: linear-gradient(to bottom, transparent, var(--cl-ink));
+  pointer-events: none;
+  z-index: 2;
+}
+
 .claudian-code-wrapper.is-wrapped .claudian-code-body pre {
   overflow-x: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.claudian-code-wrapper.is-wrapped .claudian-code-body pre code {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -205,7 +250,7 @@
 }
 
 .claudian-code-wrapper.is-wrapped .claudian-code-body {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) !important;
 }
 
 /* Light mode fill comes from --cl-ink (theme-flipping); hljs comment colors

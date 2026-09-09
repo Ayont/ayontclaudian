@@ -375,6 +375,10 @@
     "sessionTokenBudget": {
       "name": "Session token budget",
       "desc": "0 = unlimited."
+    },
+    "enableLiveDocuments": {
+      "name": "Включить живые документы",
+      "desc": "Включить интерактивный холст документов для отчетов и концептов. При отключении модель всегда отвечает обычным Markdown."
     }
   }
 }

@@ -2061,6 +2061,7 @@ export class MessageRenderer {
         await renderLiveDocuments(el, renderMarkdown, {
           app: this.app,
           component: this.component,
+          enableLiveDocuments: (this.plugin.settings as any).enableLiveDocuments !== false,
           onDockDocument: (document, theme) => {
             this.liveDocumentDockHandler?.(document, theme);
           },
@@ -2089,7 +2090,7 @@ export class MessageRenderer {
       // Wrap pre elements and move buttons outside scroll area
       el.querySelectorAll('pre').forEach((pre) => {
         // Skip if already wrapped
-        if (pre.parentElement?.classList.contains('claudian-code-wrapper')) return;
+        if (pre.closest('.claudian-code-wrapper')) return;
 
         // Create wrapper
         const wrapper = createEl('div', { cls: 'claudian-code-wrapper' });

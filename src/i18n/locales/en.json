@@ -375,6 +375,10 @@
     "language": {
       "name": "Language",
       "desc": "Change the display language of the plugin interface"
+    },
+    "enableLiveDocuments": {
+      "name": "Enable live documents (Canvas)",
+      "desc": "Enable interactive live document canvases for reports and concepts. When disabled, the model always responds in plain Markdown."
     }
   }
 }

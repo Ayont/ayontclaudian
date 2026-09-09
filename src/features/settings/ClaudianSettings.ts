@@ -471,6 +471,18 @@ export class ClaudianSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+    new Setting(streamingCard)
+      .setName(t('settings.enableLiveDocuments.name'))
+      .setDesc(t('settings.enableLiveDocuments.desc'))
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.enableLiveDocuments ?? true)
+          .onChange(async (value) => {
+            this.plugin.settings.enableLiveDocuments = value;
+            await this.plugin.saveSettings();
+          })
+      );
   }
 
   // ─────────────────────────────────────────────────────────────

@@ -859,6 +859,7 @@ export class InputController {
         turnRequest = applyTurnOutputContract(turnRequest, {
           mediaFolder: plugin.settings.mediaFolder,
           workspaceMode: normalizeWorkspaceMode(plugin.settings.workspaceMode),
+          enableLiveDocuments: plugin.settings.enableLiveDocuments !== false,
         });
       }
 

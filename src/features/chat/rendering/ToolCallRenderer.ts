@@ -1519,21 +1519,21 @@ function renderFileReadExpanded(
   const fileName = cleanFilePath.split(/[\\/]/).pop() || "Datei";
 
   const viewerEl = container.createDiv({ cls: "claudian-code-viewer" });
-  const headerEl = viewerEl.createDiv({ cls: "claudian-code-header" });
+  const headerEl = viewerEl.createDiv({ cls: "claudian-code-viewer-header" });
 
-  const titleEl = headerEl.createDiv({ cls: "claudian-code-title" });
-  const iconContainer = titleEl.createSpan({ cls: "claudian-code-format-icon" });
+  const titleEl = headerEl.createDiv({ cls: "claudian-code-viewer-title" });
+  const iconContainer = titleEl.createSpan({ cls: "claudian-code-viewer-format-icon" });
   renderFileFormatBadge(iconContainer, fileName);
-  titleEl.createSpan({ cls: "claudian-code-filename", text: fileName });
+  titleEl.createSpan({ cls: "claudian-code-viewer-filename", text: fileName });
 
-  const metaEl = headerEl.createDiv({ cls: "claudian-code-meta" });
+  const metaEl = headerEl.createDiv({ cls: "claudian-code-viewer-meta" });
   if (rangeStart !== undefined && rangeEnd !== undefined) {
-    metaEl.createSpan({ cls: "claudian-code-range-badge", text: `Zeilen ${rangeStart}–${rangeEnd}` });
+    metaEl.createSpan({ cls: "claudian-code-viewer-range-badge", text: `Zeilen ${rangeStart}–${rangeEnd}` });
   } else if (codeLines.length > 0) {
-    metaEl.createSpan({ cls: "claudian-code-range-badge", text: `${codeLines.length} Zeilen` });
+    metaEl.createSpan({ cls: "claudian-code-viewer-range-badge", text: `${codeLines.length} Zeilen` });
   }
 
-  const copyBtn = metaEl.createEl("button", { cls: "claudian-code-copy-btn" });
+  const copyBtn = metaEl.createEl("button", { cls: "claudian-code-viewer-copy-btn" });
   copyBtn.setAttribute("type", "button");
   copyBtn.setAttribute("aria-label", "Code kopieren");
   copyBtn.setAttribute("title", "Code kopieren");
@@ -1546,7 +1546,7 @@ function renderFileReadExpanded(
 
   const app = (window as unknown as { app?: any }).app;
   if (cleanFilePath && app) {
-    const openBtn = metaEl.createEl("button", { cls: "claudian-code-open-btn" });
+    const openBtn = metaEl.createEl("button", { cls: "claudian-code-viewer-open-btn" });
     openBtn.setAttribute("type", "button");
     openBtn.setAttribute("aria-label", "In Obsidian öffnen");
     openBtn.setAttribute("title", "In Obsidian öffnen");
@@ -1557,7 +1557,7 @@ function renderFileReadExpanded(
     });
   }
 
-  const bodyEl = viewerEl.createDiv({ cls: "claudian-code-body" });
+  const bodyEl = viewerEl.createDiv({ cls: "claudian-code-viewer-body" });
   const maxDisplay = 40;
   const truncated = codeLines.length > maxDisplay;
   let isExpanded = false;
@@ -1567,9 +1567,9 @@ function renderFileReadExpanded(
     const displayLines = (!isExpanded && truncated) ? codeLines.slice(0, maxDisplay) : codeLines;
 
     for (const line of displayLines) {
-      const rowEl = bodyEl.createDiv({ cls: "claudian-code-row" });
-      rowEl.createSpan({ cls: "claudian-code-gutter", text: line.lineNum || " " });
-      rowEl.createSpan({ cls: "claudian-code-content claudian-tool-line", text: line.text || " " });
+      const rowEl = bodyEl.createDiv({ cls: "claudian-code-viewer-row" });
+      rowEl.createSpan({ cls: "claudian-code-viewer-gutter", text: line.lineNum || " " });
+      rowEl.createSpan({ cls: "claudian-code-viewer-content claudian-tool-line", text: line.text || " " });
     }
 
     if (truncated) {

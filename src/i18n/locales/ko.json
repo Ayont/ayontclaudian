@@ -375,6 +375,10 @@
     "sessionTokenBudget": {
       "name": "Session token budget",
       "desc": "0 = unlimited."
+    },
+    "enableLiveDocuments": {
+      "name": "라이브 문서 활성화",
+      "desc": "보고서 및 콘셉트에 대한 대화형 문서 캔버스를 활성화합니다. 비활성화하면 일반 마크다운으로 응답합니다."
     }
   }
 }

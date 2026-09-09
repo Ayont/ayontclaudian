@@ -375,6 +375,10 @@
     "sessionTokenBudget": {
       "name": "Session token budget",
       "desc": "0 = unlimited."
+    },
+    "enableLiveDocuments": {
+      "name": "啟用即時文件畫布",
+      "desc": "為報告和方案啟用互動式即時文件畫布。禁用後，模型將始終以純 Markdown 回覆。"
     }
   }
 }

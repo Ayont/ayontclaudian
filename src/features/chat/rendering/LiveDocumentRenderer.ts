@@ -24,6 +24,7 @@ export interface LiveDocumentBlock {
 interface LiveDocumentRenderContext {
   app: App;
   component: Component;
+  enableLiveDocuments?: boolean;
   onDockDocument?: (document: LiveDocument, theme: LiveDocumentTheme) => void;
 }
 
@@ -403,6 +404,7 @@ export async function renderLiveDocuments(
   markdown: string,
   context: LiveDocumentRenderContext,
 ): Promise<boolean> {
+  if (context.enableLiveDocuments === false) return false;
   const blocks = parseLiveDocumentBlocks(markdown);
   const frameSignature = blocks.map((block) => JSON.stringify(block.liveDocument ?? null)).join('\u0002');
   if (liveDocumentFrameSignatures.get(root) === frameSignature && root.querySelector('.claudian-live-document-page')) {

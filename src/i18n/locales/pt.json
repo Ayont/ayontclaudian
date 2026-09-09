@@ -375,6 +375,10 @@
     "sessionTokenBudget": {
       "name": "Session token budget",
       "desc": "0 = unlimited."
+    },
+    "enableLiveDocuments": {
+      "name": "Ativar documentos ao vivo",
+      "desc": "Ativar o canvas de documento interativo para relatórios e conceitos. Desativado, o modelo responderá em Markdown simples."
     }
   }
 }

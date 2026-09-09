@@ -375,6 +375,10 @@
     "sessionTokenBudget": {
       "name": "Sitzungs-Token-Budget",
       "desc": "0 = unbegrenzt."
+    },
+    "enableLiveDocuments": {
+      "name": "Live-Dokumente (Canvas) aktivieren",
+      "desc": "Interaktiven Dokument-Canvas für Berichte und Konzepte aktivieren. Bei Deaktivierung antwortet das Modell immer in reinem Markdown."
     }
   }
 }
