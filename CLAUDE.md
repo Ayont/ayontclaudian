@@ -24,7 +24,7 @@ ships via GitHub releases and BRAT.
 - **TDD for behavior changes:** failing test first in the mirrored `tests/` path.
 - Throwaway scripts and handoff notes go in `.context/` (git-ignored), not `dev/`.
 
-## Providers (12)
+## Providers (14)
 
 Every provider is a directory under `src/providers/<id>/` plus two calls in
 `src/providers/index.ts` and one entry in `defaultProviderConfigs.ts`.
@@ -45,6 +45,8 @@ to extend. What differs between providers is the **transport shape**:
 | `antigravity` | `agy --print`, single-shot; state recovered by tailing `transcript.jsonl` |
 | `pi` | `--print` |
 | `freebuff` | HTTP + SSE against the local desktop app (no child process) |
+| `zcode` | Z.ai GLM; CLI **or** direct API mode, chosen in settings |
+| `omp` | ACP (`omp acp`); Oh My Pi. Model catalog, modes (`default`/`plan`) and thinking levels all arrive as `session/new` **config options**; history is JSONL under `~/.omp/agent/sessions/` |
 
 `Conversation` carries `providerId` plus opaque, provider-owned `providerState`.
 

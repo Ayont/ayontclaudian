@@ -132,6 +132,24 @@ for await (const chunk of runtime.query(preparedTurn, history)) {
 }
 ```
 
+### Streamed Markdown is rendered incrementally
+
+`renderContent` empties the element and re-renders the whole string, so calling
+it per frame with a growing answer is quadratic — that was the main source of
+"the UI feels heavy on long answers". Streaming therefore goes through
+`MessageRenderer.renderStreamingContent`, which commits settled Markdown once
+and re-renders only the live edge.
+
+- The cut comes from `findStableMarkdownSplit` and is deliberately conservative:
+  only a blank line outside a code fence, never right after a list item, table
+  row, or blockquote, since those can still be continued.
+- Correctness does not depend on the cut. `finalizeStreamingContent` re-renders
+  the full answer once when the stream ends, so a finished message is identical
+  to a reloaded one. **If you add a new streaming render path, call it** — the
+  committed/tail wrapper divs must not survive into the final DOM.
+- Rich output surfaces bypass the split entirely; their passes inspect the
+  complete Markdown and must never see a fragment.
+
 ### Auto-Scroll
 
 - Enabled by default during streaming
