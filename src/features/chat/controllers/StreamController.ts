@@ -52,6 +52,7 @@ import {
   foldDownActivity,
   unfoldActivity,
 } from '../rendering/activityFold';
+import { containsMermaidFence } from '../rendering/DisplayOnlyCodeFences';
 import type { MessageRenderer, RenderContentOptions } from '../rendering/MessageRenderer';
 import {
   resolveRichOutputSurface,
@@ -608,10 +609,12 @@ export class StreamController {
     outputSurface = this.currentTextOutputSurface,
   ): RenderContentOptions | undefined {
     const deferMath = this.shouldDeferMathRendering() && hasStreamingMathDelimiters(content);
+    const holdMermaid = containsMermaidFence(content);
     const richSurface = outputSurface && outputSurface !== 'chat' ? outputSurface : undefined;
-    if (!deferMath && !richSurface) return undefined;
+    if (!deferMath && !holdMermaid && !richSurface) return undefined;
     return {
       ...(deferMath ? { deferMath: true } : {}),
+      ...(holdMermaid ? { streaming: true } : {}),
       ...(richSurface ? { outputSurface: richSurface } : {}),
     };
   }
@@ -1041,11 +1044,10 @@ export class StreamController {
             : undefined,
         );
       }
-      if (
-        state.currentTextEl
-        && this.shouldDeferMathRendering()
-        && hasStreamingMathDelimiters(state.currentTextContent)
-      ) {
+      const needsCanonicalMath = this.shouldDeferMathRendering()
+        && hasStreamingMathDelimiters(state.currentTextContent);
+      const needsCanonicalMermaid = containsMermaidFence(state.currentTextContent);
+      if (state.currentTextEl && (needsCanonicalMath || needsCanonicalMermaid)) {
         if (requestedOutputSurface && requestedOutputSurface !== 'chat') {
           await renderer.renderContent(
             state.currentTextEl,

@@ -50,8 +50,9 @@ interface OmpContentPart {
 
 export async function loadOmpSessionMessages(
   sessionId: string,
+  env: NodeJS.ProcessEnv = process.env,
 ): Promise<ChatMessage[]> {
-  const filePath = findOmpSessionFile(sessionId);
+  const filePath = findOmpSessionFile(sessionId, env);
   if (!filePath) {
     return [];
   }

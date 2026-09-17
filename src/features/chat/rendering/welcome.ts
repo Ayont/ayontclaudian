@@ -41,11 +41,11 @@ export function renderWelcomeContent(
   const workEnv = welcomeEl.createDiv({ cls: 'claudian-welcome-env claudian-welcome-env--work' });
   const workBadge = workEnv.createDiv({ cls: 'claudian-welcome-mode-badge claudian-welcome-mode-badge--work' });
   const workIcon = workBadge.createSpan({ cls: 'claudian-welcome-mode-icon' });
-  setIcon(workIcon, 'scale');
-  workBadge.createSpan({ text: 'WORK STUDIO · LEGAL & ENTERPRISE' });
+  setIcon(workIcon, 'wrench');
+  workBadge.createSpan({ text: 'WORK STUDIO · IT-BETRIEB' });
   workEnv.createDiv({
     cls: 'claudian-welcome-sub claudian-welcome-sub--work',
-    text: 'Spezialisiert auf DSGVO, EU AI Act, Dokument-Versionen, Verträge & akademische Normen',
+    text: 'Störungen (Mail, Firewall, Netz), Tickets und Ausbildungsnachweise',
   });
 
   // "Was steht an?" - Clean Dynamic History & Memory suggestions

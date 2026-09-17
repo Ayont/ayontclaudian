@@ -1,6 +1,7 @@
 import { createMockEl } from '@test/helpers/mockElement';
 
 import {
+  containsMermaidFence,
   prepareDisplayOnlyCodeFences,
   restoreDisplayOnlyCodeFences,
 } from '@/features/chat/rendering/DisplayOnlyCodeFences';
@@ -24,6 +25,38 @@ describe('prepareDisplayOnlyCodeFences', () => {
     const prepared = prepareDisplayOnlyCodeFences('```ts {title="a.ts"}\nconst n = 1;\n```');
     expect(prepared.markdown).toBe('```claudian-display-only-fence-0 {title="a.ts"}\nconst n = 1;\n```');
     expect(prepared.fences[0].originalLanguage).toBe('ts');
+  });
+
+  it('lets mermaid fences through so Obsidian can render mindmaps and flowcharts', () => {
+    const source = '```mermaid\nmindmap\n  root((Thema))\n```';
+    const prepared = prepareDisplayOnlyCodeFences(source);
+    expect(prepared.markdown).toBe(source);
+    expect(prepared.fences).toEqual([]);
+  });
+
+  it('rewrites mermaid while streaming so Obsidian cannot re-init the diagram', () => {
+    const source = '```mermaid\nmindmap\n  root((Thema))\n```';
+    const prepared = prepareDisplayOnlyCodeFences(source, { passthroughMermaid: false });
+    expect(prepared.markdown).toBe('```claudian-display-only-fence-0\nmindmap\n  root((Thema))\n```');
+    expect(prepared.fences).toEqual([
+      { placeholderLanguage: 'claudian-display-only-fence-0', originalLanguage: 'mermaid' },
+    ]);
+  });
+
+  it('still rewrites mermaid on the streaming path when dataview is in the same answer', () => {
+    const prepared = prepareDisplayOnlyCodeFences(
+      '```mermaid\nflowchart TD\nA-->B\n```\n\n```dataview\nLIST\n```',
+      { passthroughMermaid: false },
+    );
+    expect(prepared.markdown).not.toContain('```mermaid\n');
+    expect(prepared.fences.map((fence) => fence.originalLanguage)).toEqual(['mermaid', 'dataview']);
+  });
+
+  it('still rewrites dataview when mermaid is in the same answer', () => {
+    const prepared = prepareDisplayOnlyCodeFences('```mermaid\nflowchart TD\nA-->B\n```\n\n```dataview\nLIST\n```');
+    expect(prepared.markdown).toContain('```mermaid\n');
+    expect(prepared.markdown).toContain('claudian-display-only-fence-0');
+    expect(prepared.fences.map((fence) => fence.originalLanguage)).toEqual(['dataview']);
   });
 
   it('rewrites multiple fences independently', () => {
@@ -60,5 +93,14 @@ describe('restoreDisplayOnlyCodeFences', () => {
     ]);
 
     expect(code.className).toBe('language-claudian-document');
+  });
+});
+
+describe('containsMermaidFence', () => {
+  it('detects backtick and tilde mermaid openers, including unfinished streams', () => {
+    expect(containsMermaidFence('```mermaid\nflowchart TD')).toBe(true);
+    expect(containsMermaidFence('~~~mermaid\nmindmap')).toBe(true);
+    expect(containsMermaidFence('``` mermaid\ngraph TD')).toBe(true);
+    expect(containsMermaidFence('```js\nconst a = 1\n```')).toBe(false);
   });
 });

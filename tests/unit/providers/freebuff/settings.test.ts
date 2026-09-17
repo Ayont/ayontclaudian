@@ -1,4 +1,5 @@
 import { getProviderConfig } from '@/core/providers/providerConfig';
+import { getFreebuffModelOptions } from '@/providers/freebuff/modelOptions';
 import { FREEBUFF_PROVIDER_ID,getFreebuffProviderSettings, updateFreebuffProviderSettings } from '@/providers/freebuff/settings';
 import { buildPersistedFreebuffState,getFreebuffState } from '@/providers/freebuff/types';
 import {
@@ -35,6 +36,14 @@ describe('freebuff model catalog', () => {
   it('formats labels and rejects unknown ids', () => {
     expect(formatFreebuffModelLabel('deepseek/deepseek-v4-pro')).toBe('DeepSeek V4 Pro');
     expect(isKnownFreebuffModel('totally/fake')).toBe(false);
+  });
+
+  it('offers user-typed custom model ids in the picker', () => {
+    const bag: Record<string, unknown> = {};
+    updateFreebuffProviderSettings(bag, { customModels: 'acme/my-model\ndeepseek/deepseek-v4-flash' });
+    const options = getFreebuffModelOptions(bag);
+    expect(options.some((option) => option.value === 'acme/my-model')).toBe(true);
+    expect(options.filter((option) => option.value === 'deepseek/deepseek-v4-flash')).toHaveLength(1);
   });
 });
 

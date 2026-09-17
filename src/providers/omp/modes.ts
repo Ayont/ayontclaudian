@@ -146,3 +146,27 @@ export function resolvePermissionModeForManagedOmpMode(
   }
   return null;
 }
+
+/**
+ * The posture actually in effect, combining the ACP session mode with the
+ * user's stored choice.
+ *
+ * `default` is the only executing mode omp has, so it maps to both `normal` and
+ * `yolo` — the session mode alone cannot tell them apart, and the stored value
+ * has to break the tie. `plan` is unambiguous and always wins, so a mode changed
+ * by omp itself (`/mode plan`) is still reported correctly.
+ *
+ * Lives here rather than in the chat UI config so the runtime can consult it
+ * without importing the UI layer (which imports the runtime).
+ */
+export function resolveEffectiveOmpPermissionMode(
+  selectedMode: unknown,
+  storedPermissionMode: unknown,
+): 'normal' | 'plan' | 'yolo' | null {
+  const fromMode = resolvePermissionModeForManagedOmpMode(selectedMode);
+  if (fromMode === 'normal'
+    && (storedPermissionMode === 'yolo' || storedPermissionMode === 'normal')) {
+    return storedPermissionMode;
+  }
+  return fromMode;
+}

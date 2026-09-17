@@ -120,5 +120,20 @@ export const freebuffSettingsTabRenderer: ProviderSettingsTabRenderer = {
     new Setting(container)
       .setName('Aktuelles Modell')
       .setDesc(`Aktiv: ${formatFreebuffModelLabel(settings.model)} — umschaltbar im Chat über den Modell-Umschalter.`);
+
+    new Setting(container)
+      .setName('Eigene Modelle')
+      .setDesc('Zusätzliche Freebuff-Harness-Ids, eine pro Zeile. Erscheinen im Modell-Umschalter neben dem Katalog.')
+      .addTextArea((text) => {
+        text
+          .setPlaceholder('anbieter/modell-id')
+          .setValue(settings.customModels)
+          .onChange(async (value) => {
+            updateFreebuffProviderSettings(settingsBag, { customModels: value });
+            await context.plugin.saveSettings();
+            context.refreshModelSelectors();
+          });
+        text.inputEl.rows = 3;
+      });
   },
 };

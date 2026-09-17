@@ -50,6 +50,17 @@
   --doc-rule: rgba(20, 43, 39, 0.14);
 }
 
+/* Word: a human page typed in Office, not a magazine. White paper, modest
+   headings, Calibri/Segoe, no kicker, no cream art-stock. */
+.claudian-live-document.theme-word,
+.claudian-live-document-expanded.theme-word {
+  --doc-accent: #2b579a;
+  --doc-paper: #ffffff;
+  --doc-ink: #1f1f1f;
+  --doc-muted: #5f5f5f;
+  --doc-rule: #c8c8c8;
+}
+
 .claudian-live-document-toolbar {
   display: flex;
   align-items: center;
@@ -135,6 +146,11 @@
     color-mix(in srgb, var(--background-secondary) 88%, #000);
 }
 
+.theme-word .claudian-live-document-viewport {
+  background: #e6e6e6;
+  padding: clamp(10px, 2vw, 18px);
+}
+
 .claudian-live-document-page {
   width: min(100%, 760px);
   min-height: 640px;
@@ -145,6 +161,14 @@
   background: var(--doc-paper);
   color: var(--doc-ink);
   box-shadow: 0 20px 48px rgba(0, 0, 0, 0.24);
+}
+
+.theme-word .claudian-live-document-page {
+  width: min(100%, 794px);
+  padding: 48px 56px 56px;
+  border: 1px solid #bfbfbf;
+  border-radius: 0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
 }
 
 .claudian-live-document-masthead {
@@ -163,6 +187,15 @@
   text-transform: uppercase;
 }
 
+.theme-word .claudian-live-document-type {
+  margin-bottom: 8px;
+  color: var(--doc-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 .claudian-live-document-masthead h1 {
   margin: 0;
   color: var(--doc-ink);
@@ -175,9 +208,35 @@
 
 .theme-business .claudian-live-document-masthead h1,
 .theme-minimal .claudian-live-document-masthead h1,
-.theme-technical .claudian-live-document-masthead h1 {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+.theme-technical .claudian-live-document-masthead h1,
+.theme-word .claudian-live-document-masthead h1 {
+  font-family: Calibri, 'Segoe UI', 'Liberation Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-weight: 680;
+}
+
+.theme-word .claudian-live-document-masthead {
+  margin-bottom: 18px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--doc-rule);
+}
+
+.theme-word .claudian-live-document-masthead h1 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.25;
+}
+
+.theme-word .claudian-live-document-subtitle {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.theme-word .claudian-live-document-byline {
+  margin-top: 8px;
+  font-size: 12px;
+  letter-spacing: 0;
 }
 
 .claudian-live-document-subtitle {
@@ -206,10 +265,40 @@
 
 .theme-business .claudian-live-document-body,
 .theme-minimal .claudian-live-document-body,
-.theme-technical .claudian-live-document-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+.theme-technical .claudian-live-document-body,
+.theme-word .claudian-live-document-body {
+  font-family: Calibri, 'Segoe UI', 'Liberation Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 14px;
   line-height: 1.65;
+}
+
+.theme-word .claudian-live-document-body {
+  font-size: 14.67px;
+  line-height: 1.35;
+}
+
+.theme-word .claudian-live-document-body h2 {
+  margin: 18px 0 8px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.theme-word .claudian-live-document-body h3 {
+  margin: 14px 0 6px;
+  color: var(--doc-ink);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.theme-word .claudian-live-document-body p { margin: 0 0 10px; }
+.theme-word .claudian-live-document-body blockquote {
+  margin: 12px 0;
+  padding: 4px 12px;
+  border-left: 3px solid #a6a6a6;
+  background: transparent;
+  color: var(--doc-ink);
 }
 
 .claudian-live-document-body h1:first-child { display: none; }

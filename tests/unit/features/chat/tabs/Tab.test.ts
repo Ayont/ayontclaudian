@@ -1454,6 +1454,7 @@ describe('Tab - Service Callbacks', () => {
 
       tab.renderer = {
         addMessage,
+        removeMessage: jest.fn(),
         renderContent: jest.fn(),
         addTextCopyButton: jest.fn(),
         scrollToBottom,
@@ -1493,8 +1494,8 @@ describe('Tab - Service Callbacks', () => {
       return { tab, addMessageSpy, addMessage, handleStreamChunk, scrollToBottom, autoTurnCallback };
     }
 
-    it('renders tool-only auto-triggered turns with a placeholder assistant message', async () => {
-      const { addMessageSpy, addMessage, handleStreamChunk, scrollToBottom, autoTurnCallback } = setupAutoTurnTest();
+    it('does not leak an English background-task placeholder into the transcript', async () => {
+      const { addMessageSpy, handleStreamChunk, autoTurnCallback, tab } = setupAutoTurnTest();
 
       await autoTurnCallback({
         chunks: [
@@ -1503,18 +1504,9 @@ describe('Tab - Service Callbacks', () => {
         metadata: {},
       });
 
-      expect(addMessageSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          role: 'assistant',
-          content: '(background task completed)',
-        })
-      );
-      expect(addMessage).toHaveBeenCalled();
-      expect(handleStreamChunk).toHaveBeenCalledWith(
-        { type: 'tool_result', id: 'task-1', content: 'done' },
-        expect.objectContaining({ role: 'assistant' })
-      );
-      expect(scrollToBottom).toHaveBeenCalled();
+      expect(handleStreamChunk).toHaveBeenCalled();
+      expect(addMessageSpy.mock.calls.some((call) => call[0]?.content === '(background task completed)')).toBe(false);
+      expect(tab.state.messages.some((message: { content: string }) => message.content === '(background task completed)')).toBe(false);
     });
 
     it('routes hidden async subagent auto-turn chunks without adding a placeholder message', async () => {

@@ -9,6 +9,7 @@ import {
   parseLiveDocumentBlocks,
   renderLiveDocument,
   renderLiveDocuments,
+  resolveLiveDocumentTheme,
 } from '@/features/chat/rendering/LiveDocumentRenderer';
 
 function installObsidianDomHelpers(): void {
@@ -92,6 +93,14 @@ describe('LiveDocumentRenderer', () => {
 
   it('uses a German fallback title when no title or heading exists', () => {
     expect(parseLiveDocument('Nur Inhalt.')?.title).toBe('Unbenanntes Dokument');
+  });
+
+  it('defaults everyday documents to the Word theme instead of magazine editorial', () => {
+    expect(parseLiveDocument('---\ntitle: Lernfeld 7 / AB Einstieg\ntype: Arbeitsblatt\n---\n# AB\nText')?.theme).toBe('word');
+    expect(parseLiveDocument('Nur Inhalt.')?.theme).toBe('word');
+    expect(resolveLiveDocumentTheme(undefined, { type: 'Arbeitsblatt', title: 'LF7' })).toBe('word');
+    expect(resolveLiveDocumentTheme('editorial')).toBe('editorial');
+    expect(resolveLiveDocumentTheme(undefined, { type: 'Kampagne' })).toBe('editorial');
   });
 
   it('uses an explicit document id and otherwise a normalized title identity', () => {

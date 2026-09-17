@@ -2874,9 +2874,10 @@ async function renderAutoTriggeredTurn(tab: TabData, plugin: ClaudianPlugin, res
     }
 
     if (hasVisibleContent && !hasVisibleAutoTurnMessageContent(assistantMsg)) {
-      const placeholder = '(background task completed)';
-      assistantMsg.content = placeholder;
-      await tab.controllers.streamController?.appendText(placeholder);
+      // Empty auto-turns used to leak the SDK English string
+      // "(background task completed)" as a full assistant bubble.
+      tab.renderer?.removeMessage?.(assistantMsg.id);
+      tab.state.messages = tab.state.messages.filter((message) => message !== assistantMsg);
     }
 
     if (hasVisibleContent) {

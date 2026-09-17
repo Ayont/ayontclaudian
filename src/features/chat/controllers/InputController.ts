@@ -50,7 +50,13 @@ import type {
 import { finishRunTimeline, recordRunTimelineChunk, startRunTimeline } from '../../../core/timeline/runTimeline';
 import { TOOL_EXIT_PLAN_MODE } from '../../../core/tools/toolNames';
 import type { ApprovalDecision, ChatMessage, ExitPlanModeDecision, ImageAttachment, StreamChunk } from '../../../core/types';
-import { normalizeWorkspaceMode } from '../../../core/workspace/workspaceMode';
+import {
+  buildAngebotPrompt,
+  buildBerichtsheftPrompt,
+  buildDiagramPrompt,
+  buildMindmapPrompt,
+  normalizeWorkspaceMode,
+} from '../../../core/workspace/workspaceMode';
 import type { TemplateContext } from '../../../features/templates/PromptTemplateService';
 import type { VaultHealthResult } from '../../../features/templates/VaultHealthService';
 import type ClaudianPlugin from '../../../main';
@@ -3016,6 +3022,31 @@ export class InputController {
         });
         break;
       }
+      case 'berichtsheft': {
+        await this.sendMessage({
+          content: buildBerichtsheftPrompt(args),
+        });
+        break;
+      }
+      case 'angebot': {
+        await this.sendMessage({
+          content: buildAngebotPrompt(args),
+          outputSurface: 'live-document',
+        });
+        break;
+      }
+      case 'mindmap': {
+        await this.sendMessage({
+          content: buildMindmapPrompt(args),
+        });
+        break;
+      }
+      case 'diagram': {
+        await this.sendMessage({
+          content: buildDiagramPrompt(args),
+        });
+        break;
+      }
       case 'image': {
         const request = args.trim();
         if (!request) {
@@ -3161,6 +3192,24 @@ export class InputController {
         }
         lines.push(
           `- Vault RAG: ${ragService ? '✅ on' : '⬛ off'}${lastRag ? ` · last **${lastRag.ms.toFixed(1)} ms**` : ''}`,
+        );
+
+        // Startup cost is the one number users feel but cannot otherwise see:
+        // Obsidian awaits onload(), so this is added directly to app start.
+        const onloadTotal = getLastPerf('onload-total');
+        if (onloadTotal) {
+          const parts = (['onload-settings', 'onload-os-services', 'onload-provider-registry'] as const)
+            .map((key) => ({ key, record: getLastPerf(key) }))
+            .filter((entry) => entry.record)
+            .map((entry) => `${entry.key.replace('onload-', '')} ${entry.record!.ms.toFixed(0)} ms`);
+          lines.push(
+            '',
+            '### 🚀 Start',
+            `- Plugin onload: **${onloadTotal.ms.toFixed(0)} ms**${parts.length ? ` · ${parts.join(' · ')}` : ''}`,
+          );
+        }
+
+        lines.push(
           '',
           '### 💰 Budget',
           `- Token budget: ${budgetState}`,

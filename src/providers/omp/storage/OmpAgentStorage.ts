@@ -8,13 +8,24 @@ import {
   type OmpAgentDefinition,
 } from '../types/agent';
 
+/**
+ * `.omp/agent` is omp's STATE directory (agent.db, config.yml, sessions/) — not
+ * a place it looks for agent definitions. Project task agents live in
+ * `.omp/agents`, verified against the shipped binary: `omp agents --help`
+ * (v18.2.3) documents `--project  Write to ./.omp/agents`, and the runtime runs
+ * with the vault as cwd.
+ *
+ * The singular path stays in the SCAN list only so agents written there by an
+ * earlier build still show up and can be migrated by editing them; nothing new
+ * is ever saved into it.
+ */
 export const OMP_AGENT_PATH = '.omp/agent';
 export const OMP_AGENTS_PATH = '.omp/agents';
 const OMP_AGENT_SCAN_PATHS = [
   OMP_AGENTS_PATH,
   OMP_AGENT_PATH,
 ] as const;
-const OMP_DEFAULT_AGENT_SAVE_PATH = OMP_AGENT_PATH;
+const OMP_DEFAULT_AGENT_SAVE_PATH = OMP_AGENTS_PATH;
 const OMP_AGENT_PERSISTENCE_PREFIX = 'omp-agent';
 
 export interface OmpAgentLocation {

@@ -43,12 +43,12 @@
   }
 }
 
-/* Premium entrance: each message (and the activity blocks inside it) rises +
-   fades in. Compositor-only (opacity/transform) for smoothness. */
+/* Message / chip entrance. Compositor-only (opacity + transform). Start from
+   a visible scale — never scale(0) — so the plate already has shape. */
 @keyframes cl-rise {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(6px) scale(0.97);
   }
 
   to {
@@ -59,6 +59,18 @@
 
 .claudian-message {
   animation: cl-rise var(--cl-dur) var(--cl-ease) both;
+}
+
+@keyframes cl-composer-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* Status-flip pop (e.g. a tool/agent finishing): scales its check/result in. */
@@ -88,9 +100,8 @@
   }
 }
 
-/* Accessibility: honor the OS "reduce motion" setting — neutralize all motion
-   inside the plugin (including the infinite spin/pulse) without touching the
-   rest of Obsidian. */
+/* Accessibility: honor the OS "reduce motion" setting — neutralize decorative
+   motion inside the plugin without touching the rest of Obsidian. */
 @media (prefers-reduced-motion: reduce) {
   .claudian-container *,
   .claudian-container *::before,
@@ -99,6 +110,18 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+
+  .claudian-message,
+  .claudian-message-user,
+  .claudian-input-wrapper,
+  .claudian-mode-quick-chip,
+  .claudian-welcome,
+  .claudian-welcome-starter,
+  .claudian-welcome-greeting::after,
+  .claudian-stream-status {
+    animation: none !important;
+    transform: none !important;
   }
 }
 

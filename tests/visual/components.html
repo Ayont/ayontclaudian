@@ -469,6 +469,26 @@
     </section>
   </div>
 
+  <div class="harness-section claudian-container claudian-message-content claudian-message-assistant" data-vis="stream-split" style="max-width:1200px">
+    <div class="harness-label">Streaming-Split (committed + tail)</div>
+    <div class="claudian-text-block" data-stream-split>
+      <div class="claudian-stream-committed">
+        <div><p id="split-committed-a">Erster committeter Absatz, der bereits fertig gerendert wurde und nicht erneut angefasst wird.</p></div>
+        <div><p id="split-committed-b">Zweiter committeter Absatz im naechsten Segment-Container.</p></div>
+      </div>
+      <div class="claudian-stream-tail"><p id="split-tail">Die laufende Kante, die noch waechst.</p></div>
+    </div>
+  </div>
+
+  <div class="harness-section claudian-container claudian-message-content claudian-message-assistant" data-vis="stream-flat" style="max-width:1200px">
+    <div class="harness-label">Referenz: fertig gerenderter Block</div>
+    <div class="claudian-text-block" data-stream-flat>
+      <p id="flat-a">Erster committeter Absatz, der bereits fertig gerendert wurde und nicht erneut angefasst wird.</p>
+      <p id="flat-b">Zweiter committeter Absatz im naechsten Segment-Container.</p>
+      <p id="flat-c">Die laufende Kante, die noch waechst.</p>
+    </div>
+  </div>
+
   <div class="harness-section claudian-container claudian-message-content" data-vis="code-block" style="max-width:620px">
     <div class="harness-label">Codeblock mit Sprache</div>
     <div class="claudian-code-wrapper has-language">

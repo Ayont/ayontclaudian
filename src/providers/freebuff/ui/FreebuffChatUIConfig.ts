@@ -46,9 +46,7 @@ export const freebuffChatUIConfig: ProviderChatUIConfig = {
       return;
     }
     const bag = settings as Record<string, unknown>;
-    if (DEFAULT_FREEBUFF_MODEL_SET.has(model)) {
-      bag.model = model;
-    }
+    bag.model = model;
   },
 
   normalizeModelVariant(model: string, _settings: Record<string, unknown>): string {

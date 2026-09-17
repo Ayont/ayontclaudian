@@ -338,6 +338,26 @@ describe('StreamController - Text Content', () => {
         'Final $x^2$'
       );
     });
+
+    it('holds mermaid during live text renders and draws it on finalize', async () => {
+      const msg = createTestMessage();
+      const mermaid = '```mermaid\nmindmap\n  root((Thema))\n```';
+
+      await controller.appendText(mermaid);
+      await controller.finalizeCurrentTextBlock(msg);
+
+      expect(deps.renderer.renderContent).toHaveBeenNthCalledWith(
+        1,
+        expect.anything(),
+        mermaid,
+        { streaming: true },
+      );
+      expect(deps.renderer.renderContent).toHaveBeenNthCalledWith(
+        2,
+        expect.anything(),
+        mermaid,
+      );
+    });
   });
 
   describe('Text block finalization', () => {

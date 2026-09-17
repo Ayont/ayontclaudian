@@ -147,6 +147,47 @@ test('code blocks never hide content behind a clipped, unscrollable overflow', a
   expect(offenders).toEqual([]);
 });
 
+test('a split streaming block is styled exactly like the finished block', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'w1440', 'measure clamp only where the pane is wider than 78ch');
+
+  // While streaming, paragraphs sit under .claudian-stream-committed/-tail
+  // wrappers instead of directly under .claudian-text-block. If the message
+  // rules only reach direct children, long answers lose their 78ch measure and
+  // their paragraph gaps — and snap back when the stream ends.
+  const measured = await page.evaluate(() => {
+    const read = (id: string) => {
+      const el = document.getElementById(id)!;
+      const style = getComputedStyle(el);
+      return {
+        maxWidth: style.maxWidth,
+        marginBottom: style.marginBottom,
+        width: Math.round(el.getBoundingClientRect().width),
+      };
+    };
+    return {
+      committedA: read('split-committed-a'),
+      committedB: read('split-committed-b'),
+      tail: read('split-tail'),
+      flatA: read('flat-a'),
+      flatC: read('flat-c'),
+    };
+  });
+
+  // The 78ch clamp must survive the wrappers.
+  expect(measured.committedA.maxWidth).toBe(measured.flatA.maxWidth);
+  expect(measured.committedA.maxWidth).not.toBe('none');
+  expect(measured.tail.maxWidth).toBe(measured.flatA.maxWidth);
+  expect(measured.committedA.width).toBe(measured.flatA.width);
+
+  // A committed paragraph is never the last paragraph of the message, so it
+  // must keep its gap — `p:last-child` must not swallow it per segment.
+  expect(measured.committedA.marginBottom).not.toBe('0px');
+  expect(measured.committedB.marginBottom).not.toBe('0px');
+
+  // The true final paragraph still collapses its trailing margin.
+  expect(measured.tail.marginBottom).toBe(measured.flatC.marginBottom);
+});
+
 for (const section of LEGACY_SECTIONS) {
   test(`component ${section} matches snapshot`, async ({ page }, testInfo) => {
     // Keep the established fixture order stable so existing snapshots are not

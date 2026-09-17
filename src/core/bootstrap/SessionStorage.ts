@@ -24,9 +24,24 @@ export {
  */
 const OVERSIZED_METADATA_BYTES = 512_000;
 
+/**
+ * Background compaction must not JSON.parse files this large on the Electron
+ * renderer — a 14 MB session freezes the window. Those archives compact the
+ * next time the conversation is opened and saved.
+ */
+const MAX_BACKGROUND_COMPACT_BYTES = 2_000_000;
+
+type LightSessionMetadata = SessionMetadata & {
+  _messageCount?: number;
+  _preview?: string;
+  _lazyMessages?: boolean;
+};
+
 export class SessionStorage {
   private indexCache: Map<string, SessionMetadata> | null = null;
   private indexSaveTimer: number | null = null;
+  /** path → size last seen with no reclaimable slack (skip on the next pass). */
+  private compactedMinimalSizes = new Map<string, number>();
 
   constructor(private adapter: VaultFileAdapter) {}
 
@@ -43,6 +58,7 @@ export class SessionStorage {
    */
   resetIndexCache(): void {
     this.indexCache = null;
+    this.compactedMinimalSizes.clear();
     if (this.indexSaveTimer !== null) {
       const clearTimer = typeof window !== 'undefined' ? window.clearTimeout : clearTimeout;
       clearTimer(this.indexSaveTimer);
@@ -74,11 +90,7 @@ export class SessionStorage {
     }
   }
 
-  extractLightMetadata(raw: SessionMetadata): SessionMetadata & {
-    _messageCount?: number;
-    _preview?: string;
-    _lazyMessages?: boolean;
-  } {
+  extractLightMetadata(raw: SessionMetadata): LightSessionMetadata {
     const messageCount = raw.messages?.length ?? 0;
     let preview = '';
     if (raw.messages && raw.messages.length > 0) {
@@ -257,15 +269,9 @@ export class SessionStorage {
       if (missingFiles.length > 0) {
         indexDirty = true;
         for (const filePath of missingFiles) {
-          try {
-            const content = await this.adapter.read(filePath);
-            const raw = JSON.parse(content) as SessionMetadata;
-            if (raw && raw.id) {
-              const light = this.extractLightMetadata(raw);
-              this.indexCache.set(raw.id, light);
-            }
-          } catch {
-            // Skip unreadable file
+          const light = await this.ingestMetadataFile(filePath);
+          if (light) {
+            this.indexCache.set(light.id, light);
           }
         }
       }
@@ -282,23 +288,7 @@ export class SessionStorage {
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
       const batch = files.slice(i, i + BATCH_SIZE);
       const batchResults = await Promise.all(
-        batch.map(async (filePath) => {
-          try {
-            const content = await this.adapter.read(filePath);
-            const raw = JSON.parse(content) as SessionMetadata;
-
-            if (filePath.startsWith(`${LEGACY_SESSIONS_PATH}/`)) {
-              await this.saveMetadata(raw);
-            }
-
-            if (raw && raw.id) {
-              return this.extractLightMetadata(raw);
-            }
-            return null;
-          } catch {
-            return null;
-          }
-        }),
+        batch.map((filePath) => this.ingestMetadataFile(filePath)),
       );
 
       for (const item of batchResults) {
@@ -391,12 +381,32 @@ export class SessionStorage {
 
     const files = await this.listMetadataFiles(SESSIONS_PATH);
     let reclaimed = 0;
+    const canStat = typeof this.adapter.stat === 'function';
 
     for (const filePath of files) {
       await yieldBetweenFiles();
       try {
+        let size: number | null = null;
+        if (canStat) {
+          const st = await this.adapter.stat(filePath);
+          size = st?.size ?? null;
+          if (size !== null && size <= OVERSIZED_METADATA_BYTES) {
+            continue;
+          }
+          if (size !== null && this.compactedMinimalSizes.get(filePath) === size) {
+            continue;
+          }
+          // JSON.parse of a 14 MB session freezes the renderer. Leave archives
+          // this large for the next open+save, which already caps tool results.
+          if (size !== null && size > MAX_BACKGROUND_COMPACT_BYTES) {
+            this.compactedMinimalSizes.set(filePath, size);
+            continue;
+          }
+        }
+
         const content = await this.adapter.read(filePath);
         if (content.length <= OVERSIZED_METADATA_BYTES) {
+          this.compactedMinimalSizes.set(filePath, size ?? content.length);
           continue;
         }
 
@@ -441,17 +451,23 @@ export class SessionStorage {
         }
 
         if (!modified) {
+          this.compactedMinimalSizes.set(filePath, size ?? content.length);
+          this.rememberLightInIndex(this.extractLightMetadata(metadata));
           continue;
         }
 
         const next = JSON.stringify(compacted, null, 2);
         if (next.length >= content.length) {
+          this.compactedMinimalSizes.set(filePath, size ?? content.length);
+          this.rememberLightInIndex(this.extractLightMetadata(metadata));
           continue;
         }
 
         await this.adapter.write(filePath, next);
         reclaimed += content.length - next.length;
         options.onProgress?.(content.length - next.length);
+        this.compactedMinimalSizes.set(filePath, next.length);
+        this.rememberLightInIndex(this.extractLightMetadata(compacted));
       } catch {
         // A corrupt or unreadable file is skipped; compaction is best-effort and
         // must never be the reason a conversation disappears.
@@ -459,6 +475,57 @@ export class SessionStorage {
     }
 
     return reclaimed;
+  }
+
+  private rememberLightInIndex(light: LightSessionMetadata): void {
+    if (!this.indexCache) return;
+    this.indexCache.set(light.id, light);
+    this.scheduleIndexSave();
+  }
+
+  private stubOversizedMetadata(id: string, mtime: number): LightSessionMetadata {
+    return {
+      id,
+      title: id,
+      createdAt: mtime,
+      updatedAt: mtime,
+      lastResponseAt: mtime,
+      messages: [],
+      _messageCount: 0,
+      _preview: '',
+      _lazyMessages: true,
+    };
+  }
+
+  /**
+   * Builds light index metadata for one session file without pulling oversized
+   * transcripts into the renderer. Title/preview for those arrive later, when
+   * the conversation is opened or background-compacted.
+   */
+  private async ingestMetadataFile(filePath: string): Promise<LightSessionMetadata | null> {
+    const id = this.getFileName(filePath).replace(/\.meta\.json$/, '');
+    if (!id) return null;
+
+    try {
+      if (typeof this.adapter.stat === 'function') {
+        const st = await this.adapter.stat(filePath);
+        if (st && st.size > OVERSIZED_METADATA_BYTES) {
+          return this.stubOversizedMetadata(id, st.mtime);
+        }
+      }
+
+      const content = await this.adapter.read(filePath);
+      const raw = JSON.parse(content) as SessionMetadata;
+      if (!raw?.id) return null;
+
+      if (filePath.startsWith(`${LEGACY_SESSIONS_PATH}/`)) {
+        await this.saveMetadata(raw);
+      }
+
+      return this.extractLightMetadata(raw);
+    } catch {
+      return null;
+    }
   }
 
   private async getLoadPath(id: string): Promise<string | null> {

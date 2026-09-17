@@ -741,7 +741,7 @@ describe('MessageRenderer', () => {
     expect(onDiscover).toHaveBeenCalledTimes(1);
     expect(onDiscover).toHaveBeenCalledWith(
       expect.objectContaining({ title: 'Bibliothek', body: expect.stringContaining('Teil B') }),
-      'editorial',
+      'word',
     );
   });
 
@@ -1811,6 +1811,36 @@ describe('MessageRenderer', () => {
     await renderer.renderContent(el, 'plain markdown without links');
 
     expect(processFileLinks).not.toHaveBeenCalled();
+  });
+
+  it('holds mermaid fences during streaming and lets them through on the final pass', async () => {
+    const { MarkdownRenderer } = await import('obsidian');
+    const { renderer } = createRenderer();
+    const el = createMockEl();
+    const source = '```mermaid\nmindmap\n  root((Thema))\n```';
+
+    await renderer.renderContent(el, source, { streaming: true });
+    expect(MarkdownRenderer.renderMarkdown).toHaveBeenCalledWith(
+      expect.stringContaining('claudian-display-only-fence-'),
+      el,
+      '',
+      expect.anything(),
+    );
+    expect(MarkdownRenderer.renderMarkdown).toHaveBeenCalledWith(
+      expect.not.stringContaining('```mermaid\n'),
+      el,
+      '',
+      expect.anything(),
+    );
+
+    (MarkdownRenderer.renderMarkdown as jest.Mock).mockClear();
+    await renderer.renderContent(el, source);
+    expect(MarkdownRenderer.renderMarkdown).toHaveBeenCalledWith(
+      source,
+      el,
+      '',
+      expect.anything(),
+    );
   });
 
   it('renderContent escapes math delimiters only when requested for streaming', async () => {

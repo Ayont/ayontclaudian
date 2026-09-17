@@ -1,6 +1,7 @@
 import type { ChatTurnRequest, OutputSurface } from '../runtime/types';
 import {
   DEFAULT_WORKSPACE_MODE,
+  getCompactWorkspaceModeInstructions,
   getWorkspaceModeInstructions,
   type WorkspaceMode,
 } from '../workspace/workspaceMode';
@@ -205,28 +206,31 @@ STRICT NEGATIVE CONSTRAINT:
 
 \`\`\`claudian-document
 ---
-title: Project proposal
-subtitle: A concise optional subtitle
+title: Lernfeld 7 / AB Einstieg
+subtitle: Grundlagen von Cyber-physischen Systemen erarbeiten
 author: Optional author
-date: 2026-07-10
-type: Proposal
-theme: editorial
+date: 2026-09-17
+type: Arbeitsblatt
+theme: word
 ---
-# Project proposal
+# Lernfeld 7 / AB Einstieg
 
-## Executive summary
+## Arbeitsauftrag a)
 Document content in clean Markdown...
 \`\`\`
 
-Themes: \`editorial\`, \`business\`, \`minimal\`, \`warm\`, \`technical\`.
+Themes: \`word\` (default — looks like a human Word page: Calibri/Segoe, white paper, modest headings), \`editorial\`, \`business\`, \`minimal\`, \`warm\`, \`technical\`.
 
 Rules:
 - Use this ONLY when the user explicitly requests an actual document or designed deliverable, never for ordinary chat answers, technical support, commands, or troubleshooting.
+- Default \`theme: word\` for Arbeitsblätter, Angebote, Protokolle, Berichtsheft, Lernfelder, memos, and everyday office documents. These must read as if typed in Word — not a magazine. No kicker labels, no huge display serif, no cream art-paper.
+- Use \`theme: editorial\` only when the user asks for a designed look (Kampagne, Pitch, Magazin, Keyvisual).
 - Put the complete document inside one block; keep commentary outside it.
 - Use clear headings, short paragraphs, lists, tables, blockquotes, and task lists where useful.
 - Do not invent names, facts, dates, prices, or legal claims. Mark missing fields with \`[To be completed]\`.
 - For nested code examples, wrap the outer document in four backticks so triple-backtick code remains intact.
-- Keep the document editable as Markdown; do not output raw HTML inside the block.`;
+- Keep the document editable as Markdown; do not output raw HTML inside the block.
+- For process/BWL diagrams and mind maps, add a \`\`\`mermaid\`\`\` fence (flowchart or mindmap) in the chat answer or inside the document body.`;
 }
 
 function getEmailTemplateInstructions(): string {
@@ -445,9 +449,7 @@ export interface TurnOutputContractOptions {
 }
 
 function getCompactWorkspaceInstructions(mode: WorkspaceMode): string {
-  return mode === 'work'
-    ? '## Active Workspace Mode: WORK (Work Studio · Legal & Document Intelligence)\nLead with clear vault-ready knowledge work, document versioning headers, DSGVO/GDPR & EU AI Act compliance checks. Code requests still remain normal chat.'
-    : '## Active Workspace Mode: CODE (Code Studio · Multi-Agent Swarm)\nLead with concrete engineering action, multi-agent orchestration, precise edits and test verification. Artifact requests still remain available.';
+  return getCompactWorkspaceModeInstructions(mode);
 }
 
 function getCompactAutoMemoryInstructions(): string {
@@ -477,14 +479,14 @@ function getCompactLiveDocumentInstructions(): string {
     'subtitle: Optional subtitle',
     'author: Optional author',
     'date: 2026-07-10',
-    'type: Proposal',
-    'theme: editorial',
+    'type: Arbeitsblatt',
+    'theme: word',
     '---',
-    '# Project proposal',
-    '## Executive summary',
+    '# Lernfeld 7 / AB Einstieg',
+    '## Arbeitsauftrag a)',
     'Document content...',
     '```',
-    'Themes: `editorial`, `business`, `minimal`, `warm`, `technical`. Use clear structure. Never invent facts, names, dates, prices or legal claims; write `[To be completed]` for missing facts. No raw HTML. Use four backticks for the outer fence when the body contains triple-backtick code.',
+    'Default theme `word` (Word-like page) for worksheets, quotes, protocols. Use `editorial` only for designed/magazine pieces. Never invent facts, names, dates, prices or legal claims; write `[To be completed]` for missing facts. No raw HTML. Use four backticks for the outer fence when the body contains triple-backtick code. For mind maps and process diagrams emit a `mermaid` fence.',
   ].join('\n');
 }
 

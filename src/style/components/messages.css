@@ -40,7 +40,7 @@
   gap: 10px;
   padding: 28px 16px 12px;
   min-height: 240px;
-  animation: cl-rise var(--cl-dur-slow) var(--cl-ease) both;
+  animation: cl-rise var(--cl-dur) var(--cl-ease) both;
 }
 
 .claudian-welcome-greeting {
@@ -74,7 +74,7 @@
   border-radius: 999px;
   background: var(--cl-accent);
   opacity: 0.55;
-  animation: cl-hairline-draw 480ms var(--cl-ease) 160ms both;
+  animation: cl-hairline-draw var(--cl-dur) var(--cl-ease) 80ms both;
 }
 
 /* Mode-aware environment headers & badges */
@@ -100,16 +100,19 @@
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  border-radius: 6px;
+  border-radius: var(--cl-radius-pill);
   font-family: var(--cl-font-mono);
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  background: var(--cl-surface-sunken);
+  background: var(--cl-glass-sheen), var(--cl-glass-body);
   border: 1px solid var(--cl-border-subtle);
   color: var(--text-muted);
-  transition: all var(--cl-dur-fast) var(--cl-ease);
+  transition:
+    color var(--cl-dur-fast) var(--cl-ease),
+    border-color var(--cl-dur-fast) var(--cl-ease),
+    background var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-welcome-mode-badge--code {
@@ -257,8 +260,13 @@ body.theme-light .claudian-welcome-starter:hover {
     0 3px 12px rgba(0, 0, 0, 0.12);
 }
 
+.claudian-welcome-starter:nth-child(1) { animation: cl-rise var(--cl-dur) var(--cl-ease) both; animation-delay: 0ms; }
+.claudian-welcome-starter:nth-child(2) { animation: cl-rise var(--cl-dur) var(--cl-ease) both; animation-delay: 40ms; }
+.claudian-welcome-starter:nth-child(3) { animation: cl-rise var(--cl-dur) var(--cl-ease) both; animation-delay: 80ms; }
+.claudian-welcome-starter:nth-child(4) { animation: cl-rise var(--cl-dur) var(--cl-ease) both; animation-delay: 120ms; }
+
 .claudian-welcome-starter:active {
-  transform: scale(0.98);
+  transform: scale(0.97);
 }
 
 .claudian-welcome-starter:focus-visible {
@@ -302,12 +310,13 @@ body.theme-light .claudian-welcome-starter:hover {
 .claudian-message-user {
   position: relative;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%),
-    color-mix(in srgb, var(--cl-user-bubble, var(--cl-accent)) 10%, var(--cl-surface-raised));
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+    var(--cl-glass-sheen),
+    color-mix(in srgb, var(--cl-user-bubble, var(--cl-accent)) 10%, var(--cl-glass-body));
+  -webkit-backdrop-filter: var(--cl-glass-filter);
+  backdrop-filter: var(--cl-glass-filter);
   border: 1px solid color-mix(in srgb, var(--cl-user-bubble, var(--cl-accent)) 22%, var(--cl-border-subtle));
   box-shadow:
+    var(--cl-glass-edge),
     0 2px 8px -1px rgba(0, 0, 0, 0.16),
     0 1px 2px rgba(0, 0, 0, 0.08);
   align-self: flex-end;
@@ -317,8 +326,15 @@ body.theme-light .claudian-welcome-starter:hover {
   padding: 10px 16px;
   font-size: 14px;
   line-height: 1.5;
-  animation: cl-spring-up 0.28s var(--cl-spring-smooth) both;
-  transition: transform 0.2s var(--cl-ease), box-shadow 0.2s var(--cl-ease), border-color 0.2s var(--cl-ease);
+  animation: cl-rise var(--cl-dur) var(--cl-ease) both;
+  transition:
+    transform var(--cl-dur-fast) var(--cl-ease),
+    box-shadow var(--cl-dur) var(--cl-ease),
+    border-color var(--cl-dur) var(--cl-ease);
+}
+
+.claudian-message-user:active {
+  transform: scale(0.985);
 }
 
 .claudian-message-user:hover {
@@ -511,6 +527,24 @@ body.theme-light .claudian-welcome-starter:hover {
   text-wrap: pretty;
 }
 
+/* While a turn streams, MessageRenderer.renderStreamingContent mounts the
+   settled Markdown under .claudian-stream-committed (one div per committed
+   segment) and the live edge under .claudian-stream-tail, so the rendered
+   blocks are no longer direct children of .claudian-text-block.
+   `display: contents` keeps the wrappers out of the layout, and the rule below
+   restores the measure — without both, long answers lose their 78ch column
+   mid-stream and snap back when finalizeStreamingContent collapses the split. */
+.claudian-stream-committed,
+.claudian-stream-committed > *,
+.claudian-stream-tail {
+  display: contents;
+}
+
+.claudian-message-assistant :is(.claudian-stream-committed > *, .claudian-stream-tail) > :is(p, ul, ol, blockquote) {
+  max-width: 78ch;
+  text-wrap: pretty;
+}
+
 /* Typing caret: while THIS turn streams and its last content element is a
    text block, a soft accent caret blinks at the end — the visible "the AI is
    writing here" signal. Opacity-only; killed by the global reduced-motion
@@ -554,6 +588,7 @@ body.theme-light .claudian-welcome-starter:hover {
   display: flex;
   align-items: center;
   gap: 7px;
+  min-width: 0;
   min-height: 34px;
   padding: 7px 10px;
   color: var(--text-normal);
@@ -580,7 +615,14 @@ body.theme-light .claudian-welcome-starter:hover {
 
 .claudian-vault-context-icon svg { width: 14px; height: 14px; }
 
-.claudian-vault-context-title { font-size: var(--cl-text-xs); font-weight: 700; }
+.claudian-vault-context-title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--cl-text-xs);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .claudian-vault-context-hint {
   margin-inline-start: auto;
@@ -607,8 +649,17 @@ body.theme-light .claudian-welcome-starter:hover {
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 6px;
+  min-width: 0;
+  max-width: 100%;
   margin: 4px 0 2px;
   padding: 0 2px;
+}
+
+.claudian-message-user .claudian-vault-context-card,
+.claudian-message-user .claudian-context-sources,
+.claudian-message-user .claudian-message-content {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .claudian-context-sources-label {
@@ -619,6 +670,9 @@ body.theme-light .claudian-welcome-starter:hover {
 
 button.claudian-context-source-chip {
   height: auto;
+  min-width: 0;
+  max-width: min(16ch, 100%);
+  flex: 0 1 auto;
   padding: 2px 8px;
   border: 1px solid rgba(var(--claudian-brand-rgb), 0.28);
   border-radius: 999px;
@@ -627,11 +681,16 @@ button.claudian-context-source-chip {
   font-size: var(--cl-text-xs);
   line-height: 1.4;
   cursor: pointer;
-  max-width: 22ch;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: nowrap !important;
   transition: background var(--cl-dur-fast) var(--cl-ease), border-color var(--cl-dur-fast) var(--cl-ease);
+}
+
+button.claudian-context-source-chip--more {
+  max-width: 8ch;
+  flex: 0 0 auto;
+  font-weight: 700;
 }
 
 button.claudian-context-source-chip:hover {
@@ -741,6 +800,13 @@ button.claudian-context-source-chip:focus-visible {
 
 .claudian-message-content p:last-child {
   margin-bottom: 0;
+}
+
+/* A committed streaming segment is never the end of the message, so its last
+   paragraph must keep its gap — otherwise paragraphs jam together at every
+   split boundary while the answer streams. */
+.claudian-message-content .claudian-stream-committed > * > p:last-child {
+  margin-bottom: var(--cl-space-2);
 }
 
 .claudian-message-content ul,

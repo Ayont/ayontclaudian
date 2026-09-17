@@ -46,6 +46,27 @@ export function sourceChipLabel(path: string): string {
   const base = path.split('/').pop() ?? path;
   return base.replace(/\.md$/i, '');
 }
+
+/** How many source chips sit in the collapsed citation row before "+N". */
+export const MAX_VISIBLE_CONTEXT_SOURCE_CHIPS = 2;
+
+/**
+ * Caps the always-visible citation row so long note titles cannot blow out a
+ * fit-content user bubble. Overflow stays one click away in the details card.
+ */
+export function visibleContextSourceChips(
+  sources: readonly ContextSource[],
+  maxVisible: number = MAX_VISIBLE_CONTEXT_SOURCE_CHIPS,
+): { shown: ContextSource[]; overflow: number } {
+  const limit = Math.max(0, maxVisible);
+  if (sources.length <= limit) {
+    return { shown: [...sources], overflow: 0 };
+  }
+  return {
+    shown: sources.slice(0, limit),
+    overflow: sources.length - limit,
+  };
+}
 /**
  * Format injected graph context for display: condense multi-note dumps into a
  * compact card showing the hub note and linked notes without the raw snippets.

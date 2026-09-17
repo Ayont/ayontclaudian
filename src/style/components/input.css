@@ -29,9 +29,10 @@
     color-mix(in srgb, var(--cl-composer-tint, transparent) 18%, var(--cl-surface-raised));
   -webkit-backdrop-filter: var(--cl-glass-filter);
   backdrop-filter: var(--cl-glass-filter);
-  box-shadow: var(--claudian-input-wrapper-box-shadow);
+  box-shadow: var(--claudian-input-wrapper-box-shadow), var(--cl-glass-edge);
   transition: border-color var(--cl-dur) var(--cl-ease),
     box-shadow var(--cl-dur) var(--cl-ease);
+  animation: cl-composer-enter var(--cl-dur) var(--cl-ease) both;
 }
 
 /* Effort / budget menus open upward. Lift the clip so they are not painted
@@ -722,7 +723,7 @@
   box-shadow:
     0 4px 16px -2px rgba(0, 0, 0, 0.22),
     0 1px 3px rgba(0, 0, 0, 0.10);
-  animation: cl-spring-up 0.28s var(--cl-spring-smooth) both;
+  animation: cl-rise var(--cl-dur) var(--cl-ease) both;
   transition: border-radius var(--cl-dur-fast) var(--cl-ease), border-color var(--cl-dur-fast) var(--cl-ease);
 }
 

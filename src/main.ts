@@ -42,6 +42,7 @@ import {
 } from './core/control/workflows/WorkflowEngine';
 import { buildDiagnosticsMarkdown } from './core/diagnostics/buildDiagnostics';
 import { getErrorHistory } from './core/diagnostics/errorHistory';
+import { perfMark, perfSince } from './core/diagnostics/perfLog';
 import {
   firstOutputLine,
   formatHealthReportMarkdown,
@@ -350,9 +351,24 @@ export default class ClaudianPlugin extends Plugin {
   turnUndoService!: TurnUndoService;
 
   async onload() {
+    // Obsidian awaits onload(), so everything below delays the whole app's
+    // startup. The marks make that cost visible: enable with
+    // `localStorage.setItem('claudian:perf','1')`, or read the last values
+    // back through /status.
+    const onloadStart = perfMark();
     this.unloaded = false;
+
+    const settingsStart = perfMark();
     await this.loadSettings();
-    await this.initializeClaudianOSServices();
+    perfSince(settingsStart, 'onload-settings');
+
+    // OS services and provider workspace setup share no state — overlap the
+    // vault/home I/O instead of paying both sequentially on the blocking
+    // onload path (Obsidian waits for this method before the workspace paints).
+    const osServicesStart = perfMark();
+    const osServicesReady = this.initializeClaudianOSServices().then(() => {
+      perfSince(osServicesStart, 'onload-os-services');
+    });
 
     // Initialize image staging service and clean up stale compose drafts.
     this.imageStagingService = new ImageStagingService(this.app.vault);
@@ -373,7 +389,11 @@ export default class ClaudianPlugin extends Plugin {
     // Initialize the artifact system (Claude Code Artifacts adapted for Obsidian).
     this.artifactService = new ArtifactService(this.app);
 
-    await ProviderWorkspaceRegistry.initializeAll(this);
+    const registryStart = perfMark();
+    const registryReady = ProviderWorkspaceRegistry.initializeAll(this).then(() => {
+      perfSince(registryStart, 'onload-provider-registry');
+    });
+    await Promise.all([osServicesReady, registryReady]);
 
     this.registerView(
       VIEW_TYPE_CLAUDIAN,
@@ -885,6 +905,8 @@ export default class ClaudianPlugin extends Plugin {
 
     // One-time repair for session files written before tool results were capped.
     this.scheduleSessionCompaction();
+
+    perfSince(onloadStart, 'onload-total');
   }
 
   /**
@@ -907,7 +929,11 @@ export default class ClaudianPlugin extends Plugin {
       this.sessionCompactionTimer = window.setTimeout(() => {
         this.sessionCompactionTimer = null;
         if (this.unloaded) return;
-        void this.storage.sessions.compactOversizedMetadata?.()
+        void this.storage.sessions.compactOversizedMetadata?.({
+          // Give the renderer a frame between files so a vault with dozens of
+          // oversized sessions doesn't hitch the whole window.
+          yieldBetweenFiles: () => new Promise((resolve) => window.setTimeout(resolve, 32)),
+        })
           .then((reclaimed: number) => {
             if (reclaimed > 0) {
               new Notice(`Claudian: ${(reclaimed / 1_048_576).toFixed(0)} MB Sitzungsdaten aufgeräumt.`);
@@ -2381,9 +2407,6 @@ export default class ClaudianPlugin extends Plugin {
       async () => this.app.vault.adapter.read(metadataPath).catch(() => '{}'),
       async (content) => this.app.vault.adapter.write(metadataPath, content),
     );
-    await this.metadataStore.initialize();
-
-    this.auditLogService = new AuditLogService(this.metadataStore);
     const workflowPath = '.claudian/scheduled-jobs.json';
     this.workflowEngine = new WorkflowEngine(async (step) => {
       globalEventBus.emit('agent:run-started', { stepId: step.id, action: step.action });
@@ -2405,12 +2428,21 @@ export default class ClaudianPlugin extends Plugin {
         await this.app.vault.adapter.write(workflowPath, JSON.stringify(workflows, null, 2));
       },
     });
-    await this.workflowEngine.load();
+    // Three independent vault reads (metadata db, scheduled jobs, usage state).
+    // Run sequentially they cost the SUM of three adapter round-trips on the
+    // blocking startup path — and on a synced or network-backed vault a single
+    // round-trip is not cheap. They share no state, so overlap them.
+    await Promise.all([
+      this.metadataStore.initialize(),
+      this.workflowEngine.load(),
+      this.loadTokenUsage(),
+    ]);
+
+    this.auditLogService = new AuditLogService(this.metadataStore);
     this.workflowEngine.start();
 
     this.projectService = new ProjectService(this.app.vault);
     this.agenticMemoryService = new AgenticMemoryService(this.app.vault);
-    await this.loadTokenUsage();
     this.cachedMemoryStore = new CachedMemoryStore(this.app.vault);
     this.multiAgentService = new MultiAgentService();
     this.missionStateStorage = new MissionStateStorage(this.storage.getAdapter());

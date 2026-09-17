@@ -130,6 +130,16 @@ describe('builtInCommands', () => {
       expect(alias?.args).toBe('Build an SOP');
     });
 
+    it('detects /berichtsheft and Ausbildungsnachweis aliases', () => {
+      const command = detectBuiltInCommand('/berichtsheft KW 12 Firewall down');
+      expect(command?.command.action).toBe('berichtsheft');
+      expect(command?.args).toBe('KW 12 Firewall down');
+
+      const alias = detectBuiltInCommand('/ihk-bericht Mail geht nicht');
+      expect(alias?.command.action).toBe('berichtsheft');
+      expect(alias?.args).toBe('Mail geht nicht');
+    });
+
     it('detects /email and /mail with the email request', () => {
       const email = detectBuiltInCommand('/email Kunden an Termin erinnern');
       expect(email?.command.action).toBe('email');
@@ -291,8 +301,8 @@ describe('builtInCommands', () => {
     it('returns only commands supported by codex capabilities', () => {
       const commands = getBuiltInCommandsForDropdown('codex');
       // Universal commands (no required capability) join the supported set.
-      expect(commands.length).toBe(27);
-      expect(commands.map(c => c.name)).toEqual(['daily', 'summary', 'todo', 'canvas', 'clear', 'add-dir', 'resume', 'fork', 'undo', 'branches', 'commands', 'export-html', 'export-pdf', 'goal', 'workflow', 'schedule', 'team', 'template', 'vault-health', 'artifact', 'document', 'email', 'image', 'skill', 'packet-tracer', 'status', 'fast']);
+      expect(commands.length).toBe(BUILT_IN_COMMANDS.length);
+      expect(commands.map(c => c.name)).toEqual(['daily', 'summary', 'todo', 'canvas', 'clear', 'add-dir', 'resume', 'fork', 'undo', 'branches', 'commands', 'export-html', 'export-pdf', 'goal', 'workflow', 'schedule', 'team', 'template', 'vault-health', 'artifact', 'document', 'email', 'berichtsheft', 'angebot', 'mindmap', 'diagram', 'image', 'skill', 'packet-tracer', 'status', 'fast']);
     });
   });
 

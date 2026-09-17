@@ -46,6 +46,7 @@
 @import "./features/image-embed.css";
 @import "./features/image-modal.css";
 @import "./features/network-map.css";
+@import "./features/mermaid.css";
 @import "./features/live-document.css";
 @import "./features/email-template.css";
 @import "./features/skill-card.css";

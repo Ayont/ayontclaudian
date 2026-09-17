@@ -15,8 +15,8 @@ import {
   resolveOmpBaseModelRawId,
 } from '../models';
 import {
+  resolveEffectiveOmpPermissionMode,
   resolveOmpModeForPermissionMode,
-  resolvePermissionModeForManagedOmpMode,
 } from '../modes';
 import { OmpChatRuntime } from '../runtime/OmpChatRuntime';
 import { getOmpProviderSettings, updateOmpProviderSettings } from '../settings';
@@ -59,7 +59,11 @@ export const ompChatUIConfig: ProviderChatUIConfig = {
 
     const seenValues = new Set<string>();
     const options: ProviderUIOption[] = [];
-    for (const rawModelId of ompSettings.visibleModels) {
+    const customRawIds = ompSettings.customModels
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    for (const rawModelId of [...ompSettings.visibleModels, ...customRawIds]) {
       const encodedModelId = encodeOmpModelId(rawModelId);
       pushOption(
         options,
@@ -242,8 +246,10 @@ export const ompChatUIConfig: ProviderChatUIConfig = {
   },
 
   resolvePermissionMode(settings: Record<string, unknown>): string | null {
-    const selectedMode = getOmpProviderSettings(settings).selectedMode;
-    return resolvePermissionModeForManagedOmpMode(selectedMode);
+    return resolveEffectiveOmpPermissionMode(
+      getOmpProviderSettings(settings).selectedMode,
+      settings.permissionMode,
+    );
   },
 
   applyPermissionMode(value: string, settings: unknown): void {

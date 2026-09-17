@@ -1,7 +1,7 @@
 import type { App, Component } from 'obsidian';
 import { MarkdownRenderer, Menu, Notice, setIcon, setTooltip } from 'obsidian';
 
-import { extractContextSources, formatGraphContextForDisplay, sourceChipLabel } from '../../../core/prompt/contextSources';
+import { extractContextSources, formatGraphContextForDisplay, sourceChipLabel, visibleContextSourceChips } from '../../../core/prompt/contextSources';
 import { ProviderRegistry } from '../../../core/providers/ProviderRegistry';
 import { DEFAULT_CHAT_PROVIDER_ID, type ProviderCapabilities, type ProviderId } from '../../../core/providers/types';
 import type { ChatRewindMode } from '../../../core/runtime/types';
@@ -63,6 +63,10 @@ import {
   parseLiveDocumentBlocks,
   renderLiveDocuments,
 } from './LiveDocumentRenderer';
+import {
+  frameMermaidDiagrams,
+  snapshotMermaidFrames,
+} from './MermaidFrame';
 import { renderNetworkMaps } from './NetworkMapRenderer';
 import {
   coalesceRichOutputBlocks,
@@ -83,6 +87,11 @@ import { renderStoredWriteEdit } from './WriteEditRenderer';
 
 export interface RenderContentOptions {
   deferMath?: boolean;
+  /**
+   * Live stream frame. Mermaid stays a pending source card so Obsidian does
+   * not re-init the diagram on every token.
+   */
+  streaming?: boolean;
   /** Deterministic presentation target selected for this assistant turn/block. */
   outputSurface?: OutputSurface;
 }
@@ -504,7 +513,8 @@ export class MessageRenderer {
     if (sources.length > 0) {
       const sourcesEl = parentEl.createDiv({ cls: 'claudian-context-sources' });
       sourcesEl.createSpan({ cls: 'claudian-context-sources-label', text: 'Quellen' });
-      for (const source of sources) {
+      const { shown, overflow } = visibleContextSourceChips(sources);
+      for (const source of shown) {
         const chip = sourcesEl.createEl('button', {
           cls: 'claudian-context-source-chip',
           text: sourceChipLabel(source.path),
@@ -517,6 +527,21 @@ export class MessageRenderer {
           event.preventDefault();
           event.stopPropagation();
           void this.app.workspace.openLinkText(source.path, '', false);
+        });
+      }
+      if (overflow > 0) {
+        const more = sourcesEl.createEl('button', {
+          cls: 'claudian-context-source-chip claudian-context-source-chip--more',
+          text: `+${overflow}`,
+          attr: {
+            type: 'button',
+            title: `${overflow} weitere Quelle${overflow === 1 ? '' : 'n'}`,
+          },
+        });
+        more.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          detailsEl.open = true;
         });
       }
     }
@@ -2102,11 +2127,13 @@ export class MessageRenderer {
     const richMarkdown = prepareRichOutputMarkdown(formattedMarkdown, options?.outputSurface);
     const renderSignature = [
       options?.deferMath === true ? 'defer-math' : 'final-math',
+      options?.streaming === true ? 'hold-mermaid' : 'draw-mermaid',
       options?.outputSurface ?? 'chat',
       richMarkdown,
     ].join('\u0000');
     if (this.contentRenderSignatures.get(el) === renderSignature) return;
 
+    const mermaidRestore = snapshotMermaidFrames(el);
     el.empty();
 
     // Error/notice marker blocks render as a designed status card (clear title,
@@ -2134,7 +2161,9 @@ export class MessageRenderer {
         this.app,
         { mediaFolder: this.plugin.settings.mediaFolder }
       );
-      const displayOnly = prepareDisplayOnlyCodeFences(processedMarkdown);
+      const displayOnly = prepareDisplayOnlyCodeFences(processedMarkdown, {
+        passthroughMermaid: options?.streaming !== true,
+      });
       await MarkdownRenderer.render(
         this.app,
         displayOnly.markdown,
@@ -2190,11 +2219,16 @@ export class MessageRenderer {
       }
 
       renderInlineImages(el, this.app, { mediaFolder: this.plugin.settings.mediaFolder });
+      frameMermaidDiagrams(el, { restore: mermaidRestore });
 
       // Wrap pre elements and move buttons outside scroll area
       el.querySelectorAll('pre').forEach((pre) => {
-        // Skip if already wrapped
+        // Skip if already wrapped, or mermaid (framed above).
         if (pre.closest('.claudian-code-wrapper')) return;
+        if (pre.closest('.claudian-mermaid')) return;
+        if (pre.classList.contains('mermaid')) return;
+        const mermaidCode = pre.querySelector('code.language-mermaid');
+        if (mermaidCode) return;
 
         // Create wrapper
         const wrapper = createEl('div', { cls: 'claudian-code-wrapper' });

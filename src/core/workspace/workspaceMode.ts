@@ -2,15 +2,21 @@
  * Workspace mode — the Code/Work switch.
  *
  * ayontclaudian serves two very different jobs: building software (tool-heavy
- * coding sessions) and knowledge work (documents, notes, emails, research in
- * the vault). The workspace mode lets the user pick the current job and tunes
- * BOTH the agent (a mode section in the system prompt) and the UI (accent
- * color, input placeholder) to it.
+ * coding sessions) and knowledge work (IT-ops incidents, tickets, notes,
+ * Berichtsheft, documents in the vault). The workspace mode lets the user pick
+ * the current job and tunes BOTH the agent (a mode section in the system
+ * prompt) and the UI (accent color, input placeholder) to it.
  *
  * Pure logic only — no Obsidian imports. The UI toggle lives in
  * `features/chat/ui/WorkspaceModeToggle.ts`, the prompt wiring in
  * `core/prompt/mainAgent.ts`.
  */
+
+import { buildBerichtsheftPrompt } from './berichtsheft';
+import { buildAngebotPrompt, buildMindmapPrompt } from './visualPrompts';
+
+export { buildBerichtsheftPrompt } from './berichtsheft';
+export { buildAngebotPrompt, buildDiagramPrompt, buildMindmapPrompt } from './visualPrompts';
 
 export type WorkspaceMode = 'code' | 'work';
 
@@ -47,11 +53,11 @@ const MODE_META: Readonly<Record<WorkspaceMode, WorkspaceModeMeta>> = Object.fre
   }),
   work: Object.freeze({
     label: 'Work',
-    tooltip: 'Work-Modus — Work Studio, DSGVO, EU AI Act, Dokument-Versionen & Recht',
+    tooltip: 'Work-Modus — IT-Betrieb, Schule, Angebote & Privates',
     icon: 'pen-line',
-    placeholder: 'Woran arbeiten wir?',
+    placeholder: 'Was ist kaputt — oder was halten wir fest?',
     badgeTitle: 'WORK STUDIO',
-    badgeFeatures: 'DSGVO & EU AI Act Ready · Dokument-Versionen · Normen & Compliance',
+    badgeFeatures: 'IT-Störungen · Berichtsheft · Angebot · Privat',
   }),
 });
 
@@ -93,12 +99,13 @@ const QUICK_PROMPTS: Readonly<Record<WorkspaceMode, readonly WorkspaceQuickPromp
       { label: 'Architektur & Plan', prompt: 'Analysiere das System und erstelle einen fundierten Architektur- und Umsetzungsplan für: ', icon: 'layers' },
     ]),
     work: Object.freeze([
-      { label: 'DSGVO-Audit', prompt: 'Führe ein DSGVO-Audit durch: Rechtsgrundlagen (Art. 6 DSGVO), AVV (Art. 28), TOMs (Art. 32) und Informationspflichten bewerten.', icon: 'scale' },
-      { label: 'EU AI Act Prüfung', prompt: 'Prüfe diesen Anwendungsfall nach dem EU AI Act (KI-Verordnung): Risikoklassifizierung (Art. 6 / GPAI), Transparenz- und Dokumentationspflichten.', icon: 'shield-check' },
-      { label: 'Dokument erstellen', prompt: 'Erstelle ein strukturiertes Dokument mit Versions-Header (v1.0), Revisionstabelle und Geltungsbereich zu: ', icon: 'file-text' },
-      { label: 'Vertrag & Richtlinie', prompt: 'Formuliere eine rechtssichere Vereinbarung / interne Richtlinie mit verbindlichen Klauseln, Haftungsbegrenzung und Salvatorischer Klausel zu: ', icon: 'scroll' },
-      { label: 'Akademisches Dossier', prompt: 'Verfasse ein wissenschaftlich fundiertes Dossier mit formalen Belegen, Gegenthesen und präzisen Zitaten zu: ', icon: 'graduation-cap' },
-      { label: 'Vault-Recherche', prompt: 'Recherchiere in meinem Vault und fasse zusammen: ', icon: 'search' },
+      { label: 'Outlook / Mail', prompt: 'Störung: Outlook oder Mail geht nicht. Diagnose systematisch (Client, Autodiscover, Konto, Server, Netzwerk) und gib reproduzierbare Schritte plus eine Ticket-Notiz.', icon: 'mail' },
+      { label: 'Firewall / Netz', prompt: 'Störung: Firewall oder Netzwerk ist down bzw. blockiert. Eingrenzen (Client, Switch, Gateway, Firewall-Policy, DNS) und ein klares Incident-Protokoll schreiben.', icon: 'shield' },
+      { label: 'Ticket entwerfen', prompt: 'Formuliere aus dieser Störung eine klare IT-Ticket-Notiz (Symptom, Auswirkung, bisherige Schritte, nächster Check): ', icon: 'clipboard-list' },
+      { label: 'Berichtsheft', prompt: buildBerichtsheftPrompt(), icon: 'notebook-pen' },
+      { label: 'Angebot', prompt: buildAngebotPrompt(), icon: 'file-text' },
+      { label: 'Mindmap', prompt: buildMindmapPrompt(), icon: 'git-fork' },
+      { label: 'Privat / Plan', prompt: 'Private Notiz oder Wochenplan — ohne Arbeits- oder Schulkontext. Hilf mir, das klar, kurz und umsetzbar festzuhalten: ', icon: 'calendar' },
     ]),
   });
 
@@ -111,16 +118,37 @@ export function getWorkspaceQuickPrompts(mode: WorkspaceMode): readonly Workspac
  * restriction — the agent keeps all capabilities in both modes, it just
  * leads with the right defaults for the current job.
  */
+/** Compact turn-contract copy. Same source as the detailed mode section. */
+export function getCompactWorkspaceModeInstructions(mode: WorkspaceMode): string {
+  return mode === 'work'
+    ? '## Active Workspace Mode: WORK (Work Studio · IT operations)\nLead with German IT-ops: Outlook/mail outages, firewall/network incidents, tickets, Ausbildungsnachweis / Berichtsheft, Word-like Angebote, mermaid mindmaps, and private notes or weekly planning. Keep all capabilities. Code requests stay normal chat.'
+    : '## Active Workspace Mode: CODE (Code Studio · Multi-Agent Swarm)\nKeep all capabilities. Lead with concrete engineering action, multi-agent orchestration, precise edits and test verification. Artifact requests remain available.';
+}
+
 export function getWorkspaceModeInstructions(mode: WorkspaceMode): string {
   if (mode === 'work') {
     return `
 
-## Active Workspace Mode: WORK (Work Studio · Enterprise & Legal Intelligence)
+## Active Workspace Mode: WORK (Work Studio · IT operations)
 
-The user has switched this workspace into WORK mode — specialized for knowledge work, document versioning, legal compliance (DSGVO, EU AI Act), and academic rigor. Keep all capabilities, but lead with these defaults:
+The user has switched this workspace into WORK mode — specialized for German IT-ops incidents, tickets, vault documentation, and the weekly Ausbildungsnachweis (Berichtsheft). Keep all capabilities, but lead with these defaults:
 
-### 1. Document Versioning & Structured Drafting
-- Manage documents with formal versioning headers whenever drafting policies, agreements, guidelines, or reports:
+### 1. Incident first (mail, firewall, network, tickets)
+- Treat "Outlook geht nicht", mail delivery failures, firewall down / blocked, DNS, VPN, Wi-Fi, and similar sysadmin tickets as the primary job.
+- Diagnose in layers (client → account → server → network → policy). Give reproducible checks, then a short Ticket-Notiz (Symptom, Auswirkung, bisherige Schritte, nächster Check).
+- Do not invent employer names, customer names, or school names. Stay generic.
+
+### 2. Berichtsheft / Ausbildungsnachweis
+- When asked for a weekly report, write vault-ready German Markdown with Kalenderwoche, Betrieb, Berufsschule, Tätigkeiten, and Stunden.
+- First person, sachlich, lernzielbezogen. Never fabricate a Firmenname or Schulname.
+
+### 3. Word-like documents, Angebote, and diagrams
+- Everyday deliverables (Arbeitsblatt, Angebot, Protokoll, Lernfeld) use \`claudian-document\` with \`theme: word\` so they look typed in Word — not a magazine.
+- Use \`theme: editorial\` only when the user wants a designed look.
+- For mind maps and process diagrams emit a \`mermaid\` fence (mindmap or flowchart). Never invent Draw.io XML.
+
+### 4. Document Versioning & Structured Drafting
+- Manage documents with formal versioning headers whenever drafting policies, runbooks, or reports:
   \`\`\`markdown
   # [Dokumenttitel]
   **Dokumenten-Version:** v1.0 (oder v1.1, v2.0) · **Stand:** [Datum] · **Status:** [Entwurf / Prüfung / Freigegeben]
@@ -129,22 +157,11 @@ The user has switched this workspace into WORK mode — specialized for knowledg
   \`\`\`
 - ONLY reach for the live document builder (\`claudian-document\`) when the user EXPLICITLY asks to create, draft, or format a standalone document, report, or concept (e.g. "erstelle ein Dokument", "schreib ein Konzept", "erstelle einen Bericht"). For technical answers, command checklists, bash scripts, diagnostic steps, code examples, or normal chat conversations, ALWAYS use standard Markdown text and code blocks (\`\`\`bash, etc.). NEVER use \`claudian-document\` unprompted.
 
-### 2. Legal & Regulatory Intelligence (DSGVO / GDPR & EU AI Act)
-- **DSGVO / GDPR (Verordnung (EU) 2016/679)**:
-  - Explicitly cite legal bases: Art. 6 Abs. 1 lit. a (Einwilligung), lit. b (Vertragserfüllung), lit. c (rechtliche Verpflichtung), lit. f (berechtigtes Interesse).
-  - Check special categories of personal data (Art. 9 DSGVO).
-  - Detail Auftragsverarbeitungsverträge (AVV / DPA, Art. 28 DSGVO) with required contractual safeguards.
-  - Review Technische und organisatorische Maßnahmen (TOMs, Art. 32 DSGVO: Vertraulichkeit, Integrität, Verfügbarkeit, Belastbarkeit).
-  - Assess Datenschutz-Folgenabschätzung (DSFA, Art. 35 DSGVO) and third-country transfers (Art. 44 ff., Standardvertragsklauseln SCCs).
-- **EU AI Act / KI-Verordnung (Verordnung (EU) 2024/1689)**:
-  - Classify AI systems by risk tier: Verbotene Praktiken (Art. 5 - Social Scoring, biometrische Fernidentifikation), Hochrisiko-KI (Art. 6 & Anhang III - Bildung, HR, kritische Infrastruktur), Transparenzpflichten (Art. 50/52 - Kennzeichnung von KI und Deepfakes), General Purpose AI (GPAI, Art. 51 ff.).
-  - Specify compliance requirements: Risikomanagement (Art. 9), Data Governance (Art. 10), technische Dokumentation (Art. 11), Logging (Art. 12) und menschliche Aufsicht (Art. 14).
-- **German & International Contract Standards (BGB / HGB)**:
-  - Structure contractual clauses logically: Geltungsbereich, Pflichten, Haftungsbeschränkung, Kündigung und Salvatorische Klausel.
+### 5. Private life
+- Personal notes, household planning, calendar, errands: keep them out of the workplace/school voice. Short, practical, vault-ready Markdown.
 
-### 3. Academic, Political & Formal Synthesis
-- Provide balanced, objective analyses: Thesis, arguments, empirical counterarguments, and formal synthesis.
-- Integrate vault knowledge: Use Wikilinks to related notes, YAML frontmatter, and clear folder recommendations.
+### 6. Vault notes
+- Integrate vault knowledge: Wikilinks, YAML frontmatter, clear folder recommendations.
 - Code questions are still fine — answer them normally — but do not steer conversations toward code.`;
   }
 

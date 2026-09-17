@@ -613,6 +613,21 @@ export const ompSettingsTabRenderer: ProviderSettingsTabRenderer = {
       void loadModelCatalog();
     }
 
+    new Setting(container)
+      .setName('Eigene Modell-IDs')
+      .setDesc('Zusätzliche OMP-Modell-Ids, eine pro Zeile. Erscheinen im Chat-Umschalter auch wenn die CLI sie nicht listet.')
+      .addTextArea((text) => {
+        text
+          .setPlaceholder('anbieter/modell')
+          .setValue(getOmpProviderSettings(settingsBag).customModels)
+          .onChange(async (value) => {
+            updateOmpProviderSettings(settingsBag, { customModels: value });
+            await context.plugin.saveSettings();
+            context.refreshModelSelectors();
+          });
+        text.inputEl.rows = 3;
+      });
+
     new Setting(container).setName('Befehle und Skills').setHeading();
 
     const commandsDesc = container.createDiv({ cls: 'claudian-sp-settings-desc' });
@@ -633,7 +648,7 @@ export const ompSettingsTabRenderer: ProviderSettingsTabRenderer = {
       const subagentsDesc = container.createDiv({ cls: 'claudian-sp-settings-desc' });
       subagentsDesc.createEl('p', {
         cls: 'setting-item-description',
-        text: 'Manage vault-level OMP subagents from .omp/agent/ and legacy .omp/agents/. New entries are saved as subagent-only files and appear in the @mention menu.',
+        text: 'Verwaltet Vault-Subagenten in .omp/agents/ — dem Verzeichnis, in dem omp Projekt-Agenten sucht. Ältere Einträge aus .omp/agent/ werden weiterhin gelesen und beim Bearbeiten dorthin verschoben. Neue Einträge erscheinen im @mention-Menü.',
       });
 
       const subagentsContainer = container.createDiv({ cls: 'claudian-slash-commands-container' });

@@ -30,6 +30,40 @@ describe('findStableMarkdownSplit', () => {
     expect(split).toBeLessThanOrEqual(markdown.indexOf('```ts'));
   });
 
+  it('does not treat a ~~~ line inside a ``` fence as closing it', () => {
+    // Showing Markdown syntax inside a code block is routine for this product.
+    const markdown = [
+      'Beispiel:',
+      '',
+      '```md',
+      '~~~',
+      'nicht wirklich ein Fence-Ende',
+      '',
+      'noch immer im Codeblock',
+      '',
+      'und weiter',
+    ].join('\n');
+
+    // The only safe boundary is the blank line before the ``` fence opens.
+    expect(findStableMarkdownSplit(markdown, { minStable: 5, minTail: 5 }))
+      .toBeLessThanOrEqual(markdown.indexOf('```md'));
+  });
+
+  it('does not treat a ``` line inside a ~~~ fence as closing it', () => {
+    const markdown = [
+      'Beispiel:',
+      '',
+      '~~~md',
+      '```',
+      'immer noch im Block',
+      '',
+      'und weiter',
+    ].join('\n');
+
+    expect(findStableMarkdownSplit(markdown, { minStable: 5, minTail: 5 }))
+      .toBeLessThanOrEqual(markdown.indexOf('~~~md'));
+  });
+
   it('splits after a closed fence', () => {
     const stable = 'Text davor.\n\n```ts\nconst a = 1;\n```\n\n';
     const tail = 'Und der Fließtext danach geht weiter und weiter.';

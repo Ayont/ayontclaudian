@@ -8,7 +8,7 @@
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import type { ProviderCapabilities, ProviderId } from '../providers/types';
 
-export type BuiltInCommandAction = 'clear' | 'add-dir' | 'resume' | 'fork' | 'undo' | 'branches' | 'command-center' | 'export-html' | 'export-pdf' | 'goal' | 'workflow' | 'schedule' | 'team' | 'template' | 'vault-health' | 'artifact' | 'document' | 'email' | 'image' | 'skill' | 'packet-tracer' | 'status' | 'fast' | 'daily' | 'summary' | 'todo' | 'canvas';
+export type BuiltInCommandAction = 'clear' | 'add-dir' | 'resume' | 'fork' | 'undo' | 'branches' | 'command-center' | 'export-html' | 'export-pdf' | 'goal' | 'workflow' | 'schedule' | 'team' | 'template' | 'vault-health' | 'artifact' | 'document' | 'email' | 'image' | 'skill' | 'packet-tracer' | 'status' | 'fast' | 'daily' | 'summary' | 'todo' | 'canvas' | 'berichtsheft' | 'angebot' | 'mindmap' | 'diagram';
 type BuiltInCommandCapability = 'supportsNativeHistory' | 'supportsFork';
 type BuiltInCommandSupportContext = ProviderId | Pick<ProviderCapabilities, BuiltInCommandCapability>;
 
@@ -176,6 +176,38 @@ export const BUILT_IN_COMMANDS: BuiltInCommand[] = [
     action: 'email',
     hasArgs: true,
     argumentHint: '[E-Mail-Wunsch]',
+  },
+  {
+    name: 'berichtsheft',
+    aliases: ['ausbildungsnachweis', 'ihk-bericht'],
+    description: 'IHK-Berichtsheft (wöchentlicher Ausbildungsnachweis) als Markdown schreiben',
+    action: 'berichtsheft',
+    hasArgs: true,
+    argumentHint: '[KW / Tätigkeiten / Vorfall]',
+  },
+  {
+    name: 'angebot',
+    aliases: ['quote', 'offerte'],
+    description: 'Kundenangebot als Word-ähnliches Live-Dokument erstellen',
+    action: 'angebot',
+    hasArgs: true,
+    argumentHint: '[Leistung / Mengen / Preise]',
+  },
+  {
+    name: 'mindmap',
+    aliases: ['mind-map'],
+    description: 'Mermaid-Mindmap zum Thema zeichnen',
+    action: 'mindmap',
+    hasArgs: true,
+    argumentHint: '[Thema]',
+  },
+  {
+    name: 'diagram',
+    aliases: ['flowchart', 'prozess'],
+    description: 'Mermaid-Prozessdiagramm zeichnen (kein Draw.io-XML)',
+    action: 'diagram',
+    hasArgs: true,
+    argumentHint: '[Prozess / Struktur]',
   },
   {
     name: 'image',

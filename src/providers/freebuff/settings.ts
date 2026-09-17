@@ -13,12 +13,14 @@ export const FREEBUFF_PROVIDER_ID = 'freebuff';
 export interface PersistedFreebuffProviderSettings {
   /** Whether the provider is selectable / enabled. */
   enabled: boolean;
-  /** Harness model id (verified catalog ids only). */
+  /** Harness model id (catalog or a customModels entry). */
   model: string;
   /** Explicit orchestrator port; empty = auto-discover via pgrep/lsof. */
   orchestratorPort: string;
   /** Project directory the desktop app should use; empty = vault path. */
   projectPath: string;
+  /** Extra harness ids, one per line, shown in the model picker. */
+  customModels: string;
 }
 
 export const DEFAULT_FREEBUFF_PROVIDER_SETTINGS: Readonly<PersistedFreebuffProviderSettings> = Object.freeze({
@@ -26,6 +28,7 @@ export const DEFAULT_FREEBUFF_PROVIDER_SETTINGS: Readonly<PersistedFreebuffProvi
   model: 'deepseek/deepseek-v4-flash',
   orchestratorPort: '',
   projectPath: '',
+  customModels: '',
 });
 
 function asString(value: unknown, fallback: string): string {
@@ -42,6 +45,7 @@ export function getFreebuffProviderSettings(
     model: asString(config.model, DEFAULT_FREEBUFF_PROVIDER_SETTINGS.model).trim(),
     orchestratorPort: asString(config.orchestratorPort, '').trim(),
     projectPath: asString(config.projectPath, '').trim(),
+    customModels: asString(config.customModels, ''),
   };
 }
 

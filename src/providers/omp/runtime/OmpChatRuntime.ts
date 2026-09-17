@@ -85,6 +85,7 @@ import {
   getManagedOmpModes,
   isManagedOmpModeId,
   normalizeOmpAvailableModes,
+  resolveEffectiveOmpPermissionMode,
   resolveOmpModeForPermissionMode,
   resolvePermissionModeForManagedOmpMode,
 } from '../modes';
@@ -1210,6 +1211,13 @@ export class OmpChatRuntime implements ChatRuntime {
   private async handlePermissionRequest(
     request: AcpRequestPermissionRequest,
   ): Promise<AcpRequestPermissionResponse> {
+    // Oh My Pi has no unattended mode of its own — `default` is the only
+    // executing ACP mode — so YOLO has to mean something here or it means
+    // nothing at all: answer omp's permission requests instead of the user.
+    if (this.isYoloPermissionMode()) {
+      return selectPermissionOption(request.options, ['allow_always', 'allow_once']);
+    }
+
     if (!this.approvalCallback) {
       return { outcome: { outcome: 'cancelled' } };
     }
@@ -1228,6 +1236,15 @@ export class OmpChatRuntime implements ChatRuntime {
     );
 
     return mapApprovalDecision(decision, request.options);
+  }
+
+  /** True when the user put this provider in the unattended posture. */
+  private isYoloPermissionMode(): boolean {
+    const settings = this.plugin.settings as unknown as Record<string, unknown>;
+    return resolveEffectiveOmpPermissionMode(
+      getOmpProviderSettings(settings).selectedMode,
+      settings.permissionMode,
+    ) === 'yolo';
   }
 
   private setSupportedCommands(commands: SlashCommand[]): void {

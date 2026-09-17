@@ -1,6 +1,7 @@
 import { getBuiltInProviderDefaultConfigs } from '@/providers/defaultProviderConfigs';
 import { ompProviderRegistration } from '@/providers/omp/registration';
-import { DEFAULT_OMP_PROVIDER_SETTINGS } from '@/providers/omp/settings';
+import { DEFAULT_OMP_PROVIDER_SETTINGS, updateOmpProviderSettings } from '@/providers/omp/settings';
+import { ompChatUIConfig } from '@/providers/omp/ui/OmpChatUIConfig';
 
 describe('ompProviderRegistration', () => {
   it('ships disabled so an uninstalled CLI never appears as a broken provider', () => {
@@ -32,5 +33,12 @@ describe('ompProviderRegistration', () => {
     const configs = getBuiltInProviderDefaultConfigs();
     expect(configs).toHaveProperty('omp');
     expect(configs.omp).not.toBe(getBuiltInProviderDefaultConfigs().omp);
+  });
+
+  it('offers user-typed custom model ids in the picker', () => {
+    const bag: Record<string, unknown> = {};
+    updateOmpProviderSettings(bag, { customModels: 'acme/my-omp-model' });
+    const options = ompChatUIConfig.getModelOptions(bag);
+    expect(options.some((option) => option.label === 'acme/my-omp-model' || option.value.includes('my-omp-model'))).toBe(true);
   });
 });

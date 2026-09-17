@@ -26,7 +26,13 @@ export interface StableSplitOptions {
   minTail: number;
 }
 
-const FENCE_PATTERN = /^\s{0,3}(?:```|~~~)/;
+/**
+ * Captures the fence marker so an open fence is only closed by its OWN marker.
+ * A single boolean would let a `~~~` line inside a ``` block close it, and the
+ * splitter would then cut in the middle of the code — showing Markdown syntax
+ * inside a fence is routine here, so this is not hypothetical.
+ */
+const FENCE_PATTERN = /^\s{0,3}(```+|~~~+)/;
 /** Lines whose block can be continued after a blank line. */
 const CONTINUABLE_PATTERN = /^\s{0,3}(?:[-*+]\s|\d+[.)]\s|>|\|)/;
 
@@ -40,23 +46,30 @@ export function findStableMarkdownSplit(
   }
 
   const lines = markdown.split('\n');
-  let insideFence = false;
+  /** Marker char of the fence currently open ('`' or '~'), or null outside one. */
+  let openFenceChar: string | null = null;
   let offset = 0;
   let lastSafeSplit = 0;
   let previousContentLine = '';
 
   for (const line of lines) {
     const lineEnd = offset + line.length + 1;
+    const fence = FENCE_PATTERN.exec(line);
 
-    if (FENCE_PATTERN.test(line)) {
-      insideFence = !insideFence;
+    if (fence) {
+      const marker = fence[1][0];
+      if (openFenceChar === null) {
+        openFenceChar = marker;
+      } else if (openFenceChar === marker) {
+        openFenceChar = null;
+      }
       previousContentLine = line;
       offset = lineEnd;
       continue;
     }
 
     const isBlank = line.trim() === '';
-    if (isBlank && !insideFence && previousContentLine !== '') {
+    if (isBlank && openFenceChar === null && previousContentLine !== '') {
       // `lineEnd` is the offset just past this blank line's newline, i.e. the
       // start of the next block.
       if (!CONTINUABLE_PATTERN.test(previousContentLine)) {

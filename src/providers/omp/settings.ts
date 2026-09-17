@@ -38,6 +38,8 @@ export interface PersistedOmpProviderSettings {
   selectedMode: string;
   thinkingOptionsByModel: OmpThinkingOptionsByModel;
   visibleModels: string[];
+  /** Extra raw model ids, one per line, always offered even if undiscovered. */
+  customModels: string;
 }
 
 export interface OmpProviderSettings extends PersistedOmpProviderSettings {
@@ -58,6 +60,7 @@ export const DEFAULT_OMP_PROVIDER_SETTINGS: Readonly<PersistedOmpProviderSetting
   selectedMode: '',
   thinkingOptionsByModel: {},
   visibleModels: [],
+  customModels: '',
 });
 
 function normalizeHostnameCliPaths(value: unknown): HostnameCliPaths {
@@ -199,6 +202,7 @@ export function getOmpProviderSettings(
     selectedMode: normalizeManagedOmpSelectedMode(config.selectedMode, availableModes),
     thinkingOptionsByModel,
     visibleModels: normalizeOmpVisibleModels(config.visibleModels, discoveredModels),
+    customModels: typeof config.customModels === 'string' ? config.customModels : '',
   };
 }
 
@@ -299,6 +303,7 @@ export function updateOmpProviderSettings(
     selectedMode: next.selectedMode,
     thinkingOptionsByModel: persistedThinkingOptionsByModel,
     visibleModels: next.visibleModels,
+    customModels: next.customModels,
   });
 
   return next;

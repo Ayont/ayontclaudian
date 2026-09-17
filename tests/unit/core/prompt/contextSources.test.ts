@@ -1,4 +1,4 @@
-import { extractContextSources, formatGraphContextForDisplay, sourceChipLabel } from '@/core/prompt/contextSources';
+import { extractContextSources, formatGraphContextForDisplay, sourceChipLabel, visibleContextSourceChips } from '@/core/prompt/contextSources';
 
 const SAMPLE = `<vault_context>
 Relevant vault knowledge:
@@ -69,5 +69,23 @@ describe('sourceChipLabel', () => {
     expect(sourceChipLabel('02-Projekte/Veylor.md')).toBe('Veylor');
     expect(sourceChipLabel('note.md')).toBe('note');
     expect(sourceChipLabel('folder/sub/Deep Note.md')).toBe('Deep Note');
+  });
+});
+
+describe('visibleContextSourceChips', () => {
+  it('keeps short lists intact and caps long citation rows', () => {
+    const sources = [
+      { path: 'a.md', score: 1 },
+      { path: 'b.md', score: 2 },
+      { path: 'c.md', score: 3 },
+    ];
+    expect(visibleContextSourceChips(sources.slice(0, 2))).toEqual({
+      shown: sources.slice(0, 2),
+      overflow: 0,
+    });
+    expect(visibleContextSourceChips(sources)).toEqual({
+      shown: sources.slice(0, 2),
+      overflow: 1,
+    });
   });
 });

@@ -32,7 +32,7 @@ describe('workspace mode metadata', () => {
     expect(getWorkspaceModeMeta('code').label).toBe('Code');
     expect(getWorkspaceModeMeta('work').label).toBe('Work');
     expect(getWorkspaceModeMeta('code').placeholder).toBe('Was bauen wir?');
-    expect(getWorkspaceModeMeta('work').placeholder).toBe('Woran arbeiten wir?');
+    expect(getWorkspaceModeMeta('work').placeholder).toContain('kaputt');
   });
 
   it('maps modes onto container classes covered by the removal list', () => {
@@ -49,12 +49,19 @@ describe('getWorkspaceModeInstructions', () => {
     expect(work).toContain('Active Workspace Mode: WORK');
     expect(work).toContain('claudian-document');
     expect(work).toContain('Keep all capabilities');
+    expect(work).toMatch(/Outlook|mail/i);
+    expect(work).toMatch(/firewall|network/i);
+    expect(work).toMatch(/Berichtsheft|Ausbildungsnachweis/);
+    expect(work).toMatch(/Private life|personal notes|weekly planning/i);
+    expect(work).not.toMatch(/HUNARI|Hilden/);
   });
 
   it('describes the CODE job without dropping capabilities', () => {
     const code = getWorkspaceModeInstructions('code');
     expect(code).toContain('Active Workspace Mode: CODE');
     expect(code).toContain('Keep all capabilities');
+    expect(code).toContain('engineering');
+    expect(code).not.toMatch(/HUNARI|Hilden/);
   });
 });
 
@@ -69,6 +76,11 @@ describe('turn output contract workspace mode wiring', () => {
     const prompt = buildTurnOutputContract({ text: 'Hilf mir.' }, { workspaceMode: 'work' });
     expect(prompt).toContain('Active Workspace Mode: WORK');
     expect(prompt).not.toContain('Active Workspace Mode: CODE');
+    expect(prompt).toMatch(/Outlook|mail/i);
+    expect(prompt).toMatch(/firewall|network/i);
+    expect(prompt).toMatch(/Berichtsheft|Ausbildungsnachweis/);
+    expect(prompt).toMatch(/private notes|weekly planning/i);
+    expect(prompt).not.toMatch(/HUNARI|Hilden/);
   });
 
   it('keeps custom instructions in the base prompt without duplicating the mode', () => {
@@ -107,5 +119,17 @@ describe('getWorkspaceQuickPrompts', () => {
     }
     const codeLabels = new Set(code.map((quick) => quick.label));
     expect(work.some((quick) => codeLabels.has(quick.label))).toBe(false);
+  });
+
+  it('gives Work-mode starters for mail, firewall, tickets, and Berichtsheft without employer branding', () => {
+    const work = getWorkspaceQuickPrompts('work');
+    const blob = work.map((quick) => `${quick.label}\n${quick.prompt}`).join('\n');
+    expect(blob).toMatch(/Outlook|Mail/);
+    expect(blob).toMatch(/Firewall|Netz/);
+    expect(blob).toMatch(/Berichtsheft|Ausbildungsnachweis/);
+    expect(blob).toMatch(/Angebot|theme: word/);
+    expect(blob).toMatch(/Mindmap|mermaid/);
+    expect(blob).toMatch(/Privat|Wochenplan|Notiz/);
+    expect(blob).not.toMatch(/HUNARI|Hilden/);
   });
 });

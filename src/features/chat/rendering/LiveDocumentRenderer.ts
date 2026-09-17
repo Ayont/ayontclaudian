@@ -1,7 +1,9 @@
 import type { App, Component } from 'obsidian';
 import { MarkdownRenderer, Notice, setIcon } from 'obsidian';
 
-export type LiveDocumentTheme = 'editorial' | 'business' | 'minimal' | 'warm' | 'technical';
+import { frameMermaidDiagrams } from './MermaidFrame';
+
+export type LiveDocumentTheme = 'word' | 'editorial' | 'business' | 'minimal' | 'warm' | 'technical';
 
 export interface LiveDocument {
   /** Stable identity supplied by the producer or persisted frontmatter. */
@@ -29,10 +31,12 @@ interface LiveDocumentRenderContext {
 }
 
 const DOCUMENT_FOLDER = '.claudian/documents';
-const THEMES: LiveDocumentTheme[] = ['editorial', 'business', 'minimal', 'warm', 'technical'];
+const DEFAULT_LIVE_DOCUMENT_THEME: LiveDocumentTheme = 'word';
+const THEMES: LiveDocumentTheme[] = ['word', 'editorial', 'business', 'minimal', 'warm', 'technical'];
 /** Keeps a user's theme choice stable while the same document is still streaming. */
 const THEME_OVERRIDES = new Map<string, LiveDocumentTheme>();
 const THEME_LABELS: Record<LiveDocumentTheme, string> = {
+  word: 'Word',
   editorial: 'Editorial',
   business: 'Business',
   minimal: 'Minimal',
@@ -40,12 +44,31 @@ const THEME_LABELS: Record<LiveDocumentTheme, string> = {
   technical: 'Technisch',
 };
 
-function sanitizeMetaValue(value: string): string {
-  return value.trim().replace(/^['"]|['"]$/g, '').slice(0, 160);
-}
-
 function isTheme(value: string): value is LiveDocumentTheme {
   return THEMES.includes(value as LiveDocumentTheme);
+}
+
+/**
+ * Everyday school/work docs (Arbeitsblatt, Angebot, Protokoll) look like a
+ * Word page. Designed magazine themes stay opt-in via frontmatter or the
+ * palette toggle.
+ */
+export function resolveLiveDocumentTheme(
+  requested: string | undefined,
+  hints: { type?: string; title?: string } = {},
+): LiveDocumentTheme {
+  const explicit = (requested ?? '').trim().toLowerCase();
+  if (isTheme(explicit)) return explicit;
+
+  const haystack = `${hints.type ?? ''} ${hints.title ?? ''}`.toLocaleLowerCase('de-DE');
+  if (/\b(?:editorial|magazin|kampagne|pitch|keynote)\b/.test(haystack)) {
+    return 'editorial';
+  }
+  return DEFAULT_LIVE_DOCUMENT_THEME;
+}
+
+function sanitizeMetaValue(value: string): string {
+  return value.trim().replace(/^['"]|['"]$/g, '').slice(0, 160);
 }
 
 function parseMetadata(content: string): { metadata: Record<string, string>; body: string } {
@@ -71,15 +94,15 @@ export function parseLiveDocument(content: string): LiveDocument | null {
 
   const firstHeading = body.match(/^#\s+(.+)$/m)?.[1]?.trim();
   const title = sanitizeMetaValue(metadata.title ?? firstHeading ?? 'Unbenanntes Dokument');
-  const requestedTheme = (metadata.theme ?? '').toLowerCase();
+  const documentType = metadata.type ?? metadata.document;
   return {
     documentId: metadata.document_id ?? metadata.id,
     title,
     subtitle: metadata.subtitle,
     author: metadata.author,
     date: metadata.date,
-    documentType: metadata.type ?? metadata.document,
-    theme: isTheme(requestedTheme) ? requestedTheme : 'editorial',
+    documentType,
+    theme: resolveLiveDocumentTheme(metadata.theme, { type: documentType, title }),
     body,
   };
 }
@@ -196,6 +219,7 @@ async function renderDocumentBody(
 ): Promise<void> {
   target.empty();
   await MarkdownRenderer.render(context.app, document.body, target, '', context.component);
+  frameMermaidDiagrams(target);
 }
 
 function createIconButton(

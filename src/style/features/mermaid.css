@@ -1,0 +1,204 @@
+/* Glass card around Obsidian-rendered mermaid (mindmap / flowchart / sequence). */
+.claudian-mermaid {
+  --mermaid-accent: var(--cl-accent, var(--interactive-accent));
+  margin: var(--cl-space-3) 0 var(--cl-space-2);
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--cl-radius-lg);
+  border: 1px solid var(--cl-border-subtle);
+  background: var(--cl-glass-sheen), var(--cl-glass-body);
+  backdrop-filter: var(--cl-glass-filter);
+  box-shadow: var(--cl-glass-edge), var(--cl-shadow-md);
+  transition: border-color var(--cl-dur) var(--cl-ease), box-shadow var(--cl-dur) var(--cl-ease);
+}
+
+.claudian-mermaid:hover {
+  border-color: var(--cl-accent-line);
+}
+
+.claudian-mermaid-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--cl-border-subtle);
+  background: var(--cl-wash);
+}
+
+.claudian-mermaid-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.claudian-mermaid-icon {
+  display: inline-flex;
+  color: var(--mermaid-accent);
+}
+
+.claudian-mermaid-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.claudian-mermaid-label {
+  color: var(--text-normal);
+  font-size: var(--cl-text-md);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.claudian-mermaid-live {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px 2px 14px;
+  border: 1px solid color-mix(in srgb, var(--mermaid-accent) 36%, transparent);
+  border-radius: var(--cl-radius-pill);
+  color: var(--mermaid-accent);
+  background: var(--cl-accent-softer);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.claudian-mermaid-live::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 6px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  transform: translateY(-50%);
+  animation: claudian-mermaid-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes claudian-mermaid-pulse {
+  0%, 100% { opacity: 0.45; box-shadow: 0 0 0 0 color-mix(in srgb, var(--mermaid-accent) 40%, transparent); }
+  50% { opacity: 1; box-shadow: 0 0 0 4px transparent; }
+}
+
+.claudian-mermaid-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.claudian-mermaid-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: var(--cl-radius-xs);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: color var(--cl-dur-fast) var(--cl-ease), background-color var(--cl-dur-fast) var(--cl-ease), transform var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-mermaid-action svg {
+  width: 14px;
+  height: 14px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .claudian-mermaid-action:hover {
+    color: var(--mermaid-accent);
+    background: var(--background-modifier-hover);
+  }
+}
+
+.claudian-mermaid-action:active {
+  transform: scale(0.97);
+}
+
+.claudian-mermaid-action:focus-visible {
+  outline: 2px solid var(--mermaid-accent);
+  outline-offset: 1px;
+}
+
+.claudian-mermaid-canvas {
+  overflow-x: auto;
+  padding: 16px 14px;
+  background:
+    var(--cl-glass-sheen),
+    color-mix(in srgb, var(--background-primary) 88%, var(--cl-surface-raised));
+}
+
+.claudian-mermaid-canvas .mermaid,
+.claudian-mermaid-canvas pre,
+.claudian-mermaid-canvas svg {
+  display: block;
+  margin: 0 auto;
+  max-width: none;
+  height: auto;
+}
+
+/* Chat messages cap every svg at 100%; mermaid must scroll, not squash. */
+.claudian-message-content .claudian-mermaid-canvas svg {
+  max-width: none;
+}
+
+.claudian-mermaid.is-pending .claudian-mermaid-canvas pre,
+.claudian-mermaid.is-pending .claudian-mermaid-canvas code {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-family: var(--cl-font-mono);
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.claudian-mermaid-footer {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 6px 14px;
+  border-top: 1px solid var(--cl-border-subtle);
+  color: var(--text-faint);
+  font-size: var(--cl-text-xs);
+  background: var(--cl-wash);
+}
+
+.claudian-mermaid-modal svg {
+  display: block;
+  width: min(92vw, 1100px);
+  height: auto;
+  max-height: 82vh;
+}
+
+/* Word-page mermaid: sit on paper, not a second glass plate. */
+.claudian-live-document-body .claudian-mermaid {
+  box-shadow: none;
+  border-color: var(--doc-rule, var(--cl-border-subtle));
+  background: color-mix(in srgb, var(--doc-paper, var(--background-primary)) 92%, transparent);
+}
+
+.theme-word .claudian-live-document-body .claudian-mermaid-canvas {
+  background: #f7f7f7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-mermaid-live::before {
+    animation: none;
+  }
+  .claudian-mermaid-action {
+    transition: none;
+  }
+}

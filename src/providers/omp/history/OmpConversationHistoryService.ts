@@ -1,5 +1,6 @@
 import type {
   ProviderConversationHistoryService,
+  ProviderHistoryPathContext,
 } from '../../../core/providers/types';
 import type { Conversation } from '../../../core/types';
 import {
@@ -11,8 +12,14 @@ import {
  * Oh My Pi owns its transcripts on disk; Claudian only replays them.
  *
  * There is no database-path hint to carry in `providerState` (unlike Opencode):
- * the transcript filename ends with the session id, so the session id alone is
- * enough to find it.
+ * the transcript filename ends with the session id, so the session id plus the
+ * right agent directory is enough to find it.
+ *
+ * The directory is NOT `process.env`-derived. `OMP_PROFILE` relocates omp's
+ * whole agent dir to `~/.omp/profiles/<name>/agent`, and the user sets it in the
+ * provider's environment box — so replay has to resolve against the same
+ * environment the runtime hands the child process, which is exactly what
+ * `pathContext.environment` carries.
  */
 export class OmpConversationHistoryService implements ProviderConversationHistoryService {
   private hydratedKeys = new Map<string, string>();
@@ -20,6 +27,7 @@ export class OmpConversationHistoryService implements ProviderConversationHistor
   async hydrateConversationHistory(
     conversation: Conversation,
     _vaultPath: string | null,
+    pathContext?: ProviderHistoryPathContext,
   ): Promise<void> {
     const sessionId = conversation.sessionId;
     if (!sessionId) {
@@ -27,14 +35,18 @@ export class OmpConversationHistoryService implements ProviderConversationHistor
       return;
     }
 
+    const environment = pathContext?.environment;
+    // Keyed on the profile too: the same session id resolves to a different
+    // transcript once the profile changes, so a cached hit would be wrong.
+    const hydrationKey = `${sessionId}::${environment?.OMP_PROFILE ?? ''}`;
     if (
       conversation.messages.length > 0
-      && this.hydratedKeys.get(conversation.id) === sessionId
+      && this.hydratedKeys.get(conversation.id) === hydrationKey
     ) {
       return;
     }
 
-    const messages = await loadOmpSessionMessages(sessionId);
+    const messages = await loadOmpSessionMessages(sessionId, environment);
     if (messages.length === 0) {
       this.hydratedKeys.delete(conversation.id);
       return;
@@ -49,7 +61,7 @@ export class OmpConversationHistoryService implements ProviderConversationHistor
       return;
     }
 
-    this.hydratedKeys.set(conversation.id, sessionId);
+    this.hydratedKeys.set(conversation.id, hydrationKey);
   }
 
   async deleteConversationSession(
