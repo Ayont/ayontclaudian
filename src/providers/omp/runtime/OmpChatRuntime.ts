@@ -60,6 +60,7 @@ import {
   extractAcpSessionModeState,
   extractAcpSessionThoughtLevelState,
 } from '../../acp';
+import { ACP_KEEPALIVE_INTERVAL_MS, ACP_KEEPALIVE_MAX_SILENCE_MS } from '../../acp/keepalive';
 import { OMP_PROVIDER_CAPABILITIES } from '../capabilities';
 import { updateOmpDiscoveryState } from '../discoveryState';
 import {
@@ -164,6 +165,8 @@ export class OmpChatRuntime implements ChatRuntime {
   private supportedCommands: SlashCommand[] = [];
   private sessionCwds = new Map<string, string>();
   private sessionId: string | null = null;
+  /** Last real wire activity; caps keepalive heartbeats (see acp/keepalive). */
+  private lastNotificationAt = 0;
   private readonly sessionUpdateNormalizer = new AcpSessionUpdateNormalizer();
   private readonly toolStreamAdapter = createOmpToolStreamAdapter();
   private transport: AcpJsonRpcTransport | null = null;
@@ -418,6 +421,17 @@ export class OmpChatRuntime implements ChatRuntime {
       }
     });
 
+    this.lastNotificationAt = Date.now();
+    const keepaliveTimer = window.setInterval(() => {
+      if (this.activeTurn !== activeTurn) {
+        return;
+      }
+      if (Date.now() - this.lastNotificationAt > ACP_KEEPALIVE_MAX_SILENCE_MS) {
+        return;
+      }
+      activeTurn.queue.push({ type: 'keepalive' });
+    }, ACP_KEEPALIVE_INTERVAL_MS);
+
     try {
       while (true) {
         const chunk = await activeTurn.queue.next();
@@ -428,6 +442,7 @@ export class OmpChatRuntime implements ChatRuntime {
       }
       await promptPromise;
     } finally {
+      window.clearInterval(keepaliveTimer);
       if (this.activeTurn === activeTurn) {
         this.activeTurn = null;
       }
@@ -1117,6 +1132,7 @@ export class OmpChatRuntime implements ChatRuntime {
     if (notification.sessionId !== this.sessionId) {
       return;
     }
+    this.lastNotificationAt = Date.now();
 
     const normalized = this.sessionUpdateNormalizer.normalize(notification.update);
     if (normalized.type === 'config_options') {
