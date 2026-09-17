@@ -178,6 +178,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
   plugin: ClaudianPlugin;
   private activeCategory: SettingsCategoryId = 'general';
   private activeProviderId: ProviderId = 'claude';
+  /** Guards the one-shot redraw once deferred provider workspaces are ready. */
+  private awaitedProviderWorkspaces = false;
 
   constructor(app: App, plugin: ClaudianPlugin) {
     super(app, plugin);
@@ -206,6 +208,19 @@ export class ClaudianSettingTab extends PluginSettingTab {
     containerEl.addClass('claudian-settings');
 
     setLocale(this.plugin.settings.locale as Locale);
+
+    // Workspace services for DISABLED providers finish after onload so they do
+    // not delay Obsidian's startup. They are normally ready long before anyone
+    // opens settings, but if this pane wins the race a provider would render
+    // without its tab — so redraw once, exactly once, when they land.
+    if (!this.awaitedProviderWorkspaces) {
+      this.awaitedProviderWorkspaces = true;
+      void ProviderWorkspaceRegistry.whenFullyInitialized().then(() => {
+        if (this.containerEl.isConnected) {
+          this.display();
+        }
+      });
+    }
 
     const categories: SettingsCategoryId[] = [
       'general',

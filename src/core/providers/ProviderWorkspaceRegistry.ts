@@ -1,6 +1,7 @@
 import type ClaudianPlugin from '../../main';
 import { HomeFileAdapter } from '../storage/HomeFileAdapter';
 import type { ProviderCommandCatalog } from './commands/ProviderCommandCatalog';
+import { ProviderRegistry } from './ProviderRegistry';
 import type {
   AgentMentionProvider,
   ProviderCliResolver,
@@ -38,27 +39,69 @@ export class ProviderWorkspaceRegistry {
     return registration;
   }
 
+  /** Resolves once the background half of {@link initializeAll} has settled. */
+  private static backgroundInit: Promise<void> = Promise.resolve();
+
+  /**
+   * Brings up provider workspace services.
+   *
+   * This is awaited inside `onload()`, so its duration is added directly to
+   * Obsidian's startup. Two rules follow from that:
+   *
+   * - **Only enabled providers are awaited.** A provider the user switched off
+   *   still gets its services (the settings tab needs them to switch it back
+   *   on), but it finishes in the background instead of holding up the window.
+   *   With 14 providers and most of them off by default, that is most of the
+   *   work.
+   * - **Failures are isolated.** A single rejection used to propagate out of
+   *   `onload()`, which meant no `registerView`, no ribbon icon and no commands
+   *   — the plugin looked completely dead because one provider's vault scan
+   *   threw. Each initializer now fails on its own.
+   */
   static async initializeAll(plugin: ClaudianPlugin): Promise<void> {
     const providerIds = Object.keys(this.registrations);
     const storage = plugin.storage;
     const vaultAdapter = storage.getAdapter();
     const homeAdapter = new HomeFileAdapter();
+    const settings = plugin.settings as unknown as Record<string, unknown>;
 
-    // Initialize all providers in parallel — each provider's workspace setup
-    // (dir creation, MCP config read, plugin/agent scans) is independent, and
-    // this runs in the onload critical path before the view is registered.
-    // Running them concurrently overlaps their async I/O instead of paying the
-    // sum across all 8 providers.
-    await Promise.all(
-      providerIds.map(async (providerId) => {
+    const initialize = async (providerId: ProviderId): Promise<void> => {
+      try {
         this.services[providerId] = await this.getWorkspaceRegistration(providerId).initialize({
           plugin,
           storage,
           vaultAdapter,
           homeAdapter,
         });
-      }),
-    );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`[Claudian] provider workspace "${providerId}" failed to initialize:`, message);
+      }
+    };
+
+    const isEnabled = (providerId: ProviderId): boolean => {
+      try {
+        return ProviderRegistry.isEnabled(providerId, settings);
+      } catch {
+        // An unregistered or half-configured provider is treated as enabled so
+        // it is never silently skipped.
+        return true;
+      }
+    };
+
+    const enabled = providerIds.filter(isEnabled);
+    const deferred = providerIds.filter((providerId) => !enabled.includes(providerId));
+
+    this.backgroundInit = Promise.all(deferred.map(initialize)).then(() => undefined);
+    await Promise.all(enabled.map(initialize));
+  }
+
+  /**
+   * Awaits the deferred initializers too. Call this before anything that needs
+   * services for a provider the user has not enabled (the settings hub).
+   */
+  static async whenFullyInitialized(): Promise<void> {
+    await this.backgroundInit;
   }
 
   static setServices(
