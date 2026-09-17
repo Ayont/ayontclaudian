@@ -37,6 +37,10 @@ body,
   /* Hermes (Nous Research): violet accent, legible on both themes. */
   --claudian-brand-hermes: oklch(0.62 0.21 296);
   --claudian-brand-hermes-rgb: 139, 92, 246;
+  /* Oh My Pi (OMP): magenta — the only warm pink in the set, so it stays
+     distinct from Hermes violet and Kimi purple at chip size. */
+  --claudian-brand-omp: oklch(0.70 0.19 350);
+  --claudian-brand-omp-rgb: 241, 100, 175;
   /* Cline / ClinePass: teal brand used on cline.bot. */
   --claudian-brand-cline: oklch(0.76 0.12 175);
   --claudian-brand-cline-rgb: 0, 201, 167;
@@ -282,6 +286,9 @@ body.theme-light .claudian-container {
 }
 
 body.theme-light {
+  /* Full-chroma magenta loses contrast on white; darken for light mode. */
+  --claudian-brand-omp: oklch(0.46 0.19 350);
+  --claudian-brand-omp-rgb: 157, 4, 103;
   --claudian-brand-codex: oklch(0.24 0.008 255);
   --claudian-brand-codex-rgb: 32, 33, 36;
   --claudian-brand-opencode: oklch(0.48 0.01 30);
@@ -362,6 +369,11 @@ body.theme-light .claudian-container {
 .claudian-container[data-provider="hermes"] {
   --claudian-brand: var(--claudian-brand-hermes);
   --claudian-brand-rgb: var(--claudian-brand-hermes-rgb);
+}
+
+.claudian-container[data-provider="omp"] {
+  --claudian-brand: var(--claudian-brand-omp);
+  --claudian-brand-rgb: var(--claudian-brand-omp-rgb);
 }
 
 /* ── Workspace mode accents ──────────────────────────────────────────────

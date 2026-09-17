@@ -25,7 +25,7 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
   sessionTokenBudget: 0,
 
   ollamaEmbedding: {
-    enabled: true,
+    enabled: false,
     baseUrl: 'http://localhost:11434',
     model: 'nomic-embed-text',
   },

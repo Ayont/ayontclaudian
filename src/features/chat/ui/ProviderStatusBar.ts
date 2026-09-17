@@ -29,6 +29,7 @@ const PROVIDER_COLOR: Record<string, string> = {
   dsh: '#4D6BFE',
   freebuff: '#E8A33D',
   hermes: '#8B5CF6',
+  omp: '#F164AF',
 };
 
 /** One rate-limit window chip (see core/budget/rateLimitDisplay). */

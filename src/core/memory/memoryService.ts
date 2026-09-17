@@ -100,18 +100,21 @@ export async function loadMemoryNotes(
     return [];
   }
 
-  const notes: MemoryNote[] = [];
-  for (const filePath of listing.files) {
-    if (!filePath.endsWith('.md')) continue;
-    const raw = await adapter.read(filePath).catch(() => '');
-    if (!raw.trim()) continue;
-    const stat = await adapter.stat(filePath).catch(() => null);
-    const basename = filePath.split('/').pop()?.replace(/\.md$/, '') ?? filePath;
-    notes.push(parseMemoryNote(
-      { path: filePath, basename, stat: { mtime: stat?.mtime ?? 0 } },
-      raw,
-    ));
-  }
+  const readPromises = listing.files
+    .filter((filePath) => filePath.endsWith('.md'))
+    .map(async (filePath) => {
+      const raw = await adapter.read(filePath).catch(() => '');
+      if (!raw.trim()) return null;
+      const stat = await adapter.stat(filePath).catch(() => null);
+      const basename = filePath.split('/').pop()?.replace(/\.md$/, '') ?? filePath;
+      return parseMemoryNote(
+        { path: filePath, basename, stat: { mtime: stat?.mtime ?? 0 } },
+        raw,
+      );
+    });
+
+  const resolved = await Promise.all(readPromises);
+  const notes = resolved.filter((note): note is MemoryNote => note !== null);
 
   return notes.sort((a, b) => b.mtime - a.mtime);
 }

@@ -262,6 +262,8 @@ export interface ClaudianSettings {
   enableAutoScroll: boolean;
   deferMathRenderingDuringStreaming: boolean;
   expandFileEditsByDefault: boolean;
+  /** Master switch for the live-document surface; off keeps every turn in chat. */
+  enableLiveDocuments: boolean;
   chatViewPlacement: ChatViewPlacement;
 
   // Provider command visibility

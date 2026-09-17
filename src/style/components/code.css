@@ -260,11 +260,20 @@ body.theme-light .claudian-code-wrapper .claudian-code-body pre {
   background: transparent;
 }
 
-/* Code blocks without language — wrap content. */
-.claudian-code-wrapper:not(.has-language) pre {
+/* Code blocks without language — wrap content instead of scrolling. The inner
+   <code> carries its own `white-space: pre`, so it has to be unwound too;
+   otherwise the text stays unwrapped inside an `overflow-x: hidden` box and
+   every long line is silently truncated with no way to reach the rest. */
+.claudian-code-wrapper:not(.has-language) pre,
+.claudian-code-wrapper:not(.has-language) .claudian-code-body pre {
   white-space: pre-wrap;
   word-wrap: break-word;
   overflow-x: hidden;
+}
+
+.claudian-code-wrapper:not(.has-language) .claudian-code-body pre code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* Unwrapped pre (rendered outside our wrapper) keeps its own card look. */

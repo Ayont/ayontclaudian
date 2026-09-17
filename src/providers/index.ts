@@ -19,6 +19,8 @@ import { hermesWorkspaceRegistration } from './hermes/app/HermesWorkspaceService
 import { hermesProviderRegistration } from './hermes/registration';
 import { kimiWorkspaceRegistration } from './kimi/app/KimiWorkspaceServices';
 import { kimiModelConfigSync, kimiProviderRegistration } from './kimi/registration';
+import { ompWorkspaceRegistration } from './omp/app/OmpWorkspaceServices';
+import { ompProviderRegistration } from './omp/registration';
 import { opencodeWorkspaceRegistration } from './opencode/app/OpencodeWorkspaceServices';
 import { opencodeProviderRegistration } from './opencode/registration';
 import { piWorkspaceRegistration } from './pi/app/PiWorkspaceServices';
@@ -48,6 +50,7 @@ export function registerBuiltInProviders(): void {
   ProviderRegistry.register('freebuff', freebuffProviderRegistration);
   ProviderRegistry.register('hermes', hermesProviderRegistration);
   ProviderRegistry.register('zcode', zcodeProviderRegistration);
+  ProviderRegistry.register('omp', ompProviderRegistration);
 
   ProviderWorkspaceRegistry.register('claude', claudeWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('cline', clineWorkspaceRegistration);
@@ -62,6 +65,7 @@ export function registerBuiltInProviders(): void {
   ProviderWorkspaceRegistry.register('freebuff', freebuffWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('hermes', hermesWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('zcode', zcodeWorkspaceRegistration);
+  ProviderWorkspaceRegistry.register('omp', ompWorkspaceRegistration);
 
   ModelConfigSyncRegistry.register('kimi', kimiModelConfigSync);
 

@@ -21,6 +21,7 @@ const NPM_PACKAGES: Record<string, string> = {
   opencode: 'opencode-ai',
   dsh: '@deepseek-ai/dsh',
   freebuff: 'freebuff',
+  omp: '@oh-my-pi/pi-coding-agent',
 };
 
 const PYPI_PACKAGES: Record<string, string> = {
@@ -36,6 +37,7 @@ const NATIVE_UPDATE_COMMANDS: Record<string, string> = {
   vibe: 'uv tool upgrade mistral-vibe',
   kimi: 'uv tool upgrade kimi-cli',
   hermes: 'hermes update',
+  omp: 'omp update',
 };
 
 /** Vendor-managed install dirs whose binary is owned by the CLI's own

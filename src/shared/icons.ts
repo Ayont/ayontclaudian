@@ -118,6 +118,37 @@ export const PI_PROVIDER_ICON: ProviderIconSvg = {
   ],
 };
 
+// Oh My Pi — a literal pi glyph. Deliberately NOT a variant of the blocky
+// PI_PROVIDER_ICON above: the two providers wrap different CLIs and sit next to
+// each other in the model picker, so they must not read as the same mark.
+export const OMP_PROVIDER_ICON: ProviderIconSvg = {
+  kind: 'composite',
+  viewBox: '0 0 24 24',
+  children: [
+    {
+      tag: 'rect',
+      attributes: {
+        x: '3.4', y: '5', width: '17.2', height: '2.7', rx: '1.15',
+        fill: 'currentColor',
+      },
+    },
+    {
+      tag: 'rect',
+      attributes: {
+        x: '7', y: '7.7', width: '2.7', height: '11.3', rx: '1.15',
+        fill: 'currentColor',
+      },
+    },
+    {
+      tag: 'rect',
+      attributes: {
+        x: '14.3', y: '7.7', width: '2.7', height: '11.3', rx: '1.15',
+        fill: 'currentColor',
+      },
+    },
+  ],
+};
+
 // Google Antigravity brand mark (the "gravity wave" glyph; internal codename
 // "jetski"), taken from Antigravity IDE's vector asset. Single path → tints to
 // `currentColor` like the other monochrome provider marks.

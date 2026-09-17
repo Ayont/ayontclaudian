@@ -1,3 +1,4 @@
+import type { ProviderSessionSnapshot } from '../conversation/providerSessionHandoff';
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import { DEFAULT_CHAT_PROVIDER_ID } from '../providers/types';
 import type { VaultFileAdapter } from '../storage/VaultFileAdapter';
@@ -120,7 +121,7 @@ export class SessionStorage {
         : undefined,
       providerSessions: (() => {
         if (!raw.providerSessions || typeof raw.providerSessions !== "object") return undefined;
-        const cleaned = {};
+        const cleaned: Record<string, ProviderSessionSnapshot> = {};
         for (const [pk, pv] of Object.entries(raw.providerSessions)) {
           if (!pv || typeof pv !== "object") continue;
           const pState = pv.providerState ? { ...pv.providerState, subagentData: undefined } : undefined;

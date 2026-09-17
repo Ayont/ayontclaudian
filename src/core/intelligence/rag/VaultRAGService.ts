@@ -162,9 +162,16 @@ export class VaultRAGService {
     return this.isIndexing;
   }
 
-  async query(question: string, options: { limit?: number } = {}): Promise<RAGChunk[]> {
+  async query(question: string, options: { limit?: number; timeoutMs?: number } = {}): Promise<RAGChunk[]> {
+    const timeoutMs = options.timeoutMs ?? 800;
     try {
-      const [embedding] = await this.embeddingService.embed([question]);
+      const embedPromise = this.embeddingService.embed([question]);
+      const [embedding] = await Promise.race([
+        embedPromise,
+        new Promise<never>((_, reject) =>
+          window.setTimeout(() => reject(new Error(`Embedding timed out after ${timeoutMs}ms`)), timeoutMs)
+        ),
+      ]);
       const results = this.vectorStore.search(embedding, { limit: options.limit ?? 5 });
       return results.map(result => ({
         id: result.record.id,

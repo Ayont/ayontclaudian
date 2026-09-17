@@ -190,6 +190,22 @@ export const CLI_INSTALL_CATALOG: Record<string, CliInstallSpec> = {
     },
   },
 
+  // Oh My Pi — published to npm as @oh-my-pi/pi-coding-agent, bin name `omp`
+  // (verified with `npm view @oh-my-pi/pi-coding-agent bin`). Distinct package
+  // and binary from the older `pi` entry below.
+  omp: {
+    id: 'omp',
+    displayName: 'OMP (Oh My Pi)',
+    binary: 'omp',
+    docsUrl: 'https://www.npmjs.com/package/@oh-my-pi/pi-coding-agent',
+    methods: {
+      darwin: [{ label: 'npm', command: 'npm install -g @oh-my-pi/pi-coding-agent' }],
+      linux: [{ label: 'npm', command: 'npm install -g @oh-my-pi/pi-coding-agent' }],
+      win32: [{ label: 'npm', command: 'npm install -g @oh-my-pi/pi-coding-agent' }],
+      default: [{ label: 'npm', command: 'npm install -g @oh-my-pi/pi-coding-agent' }],
+    },
+  },
+
   pi: {
     id: 'pi',
     displayName: 'Pi',

@@ -17,13 +17,13 @@ export interface OllamaEmbeddingConfig {
  * hangs `fetch` indefinitely. That is not hypothetical: it is exactly the state
  * a machine is in while Ollama boots.
  *
- * Two seconds is generous for a localhost round-trip and short enough that a
- * dead server costs a blink instead of the session.
+ * One second is generous for a localhost round-trip and fast enough that an
+ * unresponsive server doesn't delay startup or chat.
  */
-const DEFAULT_TIMEOUT_MS = 2_000;
+const DEFAULT_TIMEOUT_MS = 1_000;
 
-/** Embedding a chunk is real work, so it gets a longer — but still finite — leash. */
-const DEFAULT_EMBED_TIMEOUT_MS = 30_000;
+/** Embedding a chunk should be responsive; keep a tight 3s leash so chat never freezes. */
+const DEFAULT_EMBED_TIMEOUT_MS = 3_000;
 
 export class OllamaEmbeddingProvider implements EmbeddingService {
   constructor(private readonly config: OllamaEmbeddingConfig) {}

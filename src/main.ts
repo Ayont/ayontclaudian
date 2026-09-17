@@ -937,37 +937,31 @@ export default class ClaudianPlugin extends Plugin {
     if (typeof this.app.workspace?.onLayoutReady !== 'function') return;
 
     this.app.workspace.onLayoutReady(() => {
-      void (async () => {
-        // Probe/swap to Ollama embeddings here (off the onload critical path)
-        // before the index is loaded, so the dimension guard below sees the
-        // final provider's dimension and rebuilds once if it changed.
-        await this.upgradeEmbeddingProviderIfConfigured();
+      // Defer all RAG initialization off the startup critical path so Obsidian
+      // layout, workspace, and initial note paint complete instantly.
+      window.setTimeout(() => {
+        if (this.unloaded) return;
+        void (async () => {
+          // Probe/swap to Ollama embeddings here (off the onload critical path)
+          // before the index is loaded, so the dimension guard below sees the
+          // final provider's dimension and rebuilds once if it changed.
+          await this.upgradeEmbeddingProviderIfConfigured();
 
-        await this.loadRAGIndex();
+          await this.loadRAGIndex();
 
-        // If the embedding model changed since the index was built (e.g. keyword
-        // 256-dim → Ollama 768-dim), the stored vectors are incompatible and
-        // every query would silently return nothing. Drop them and re-index.
-        const storedDim = this.vectorStore.dimension();
-        const currentDim = this.embeddingService.getDimension();
-        if (storedDim > 0 && storedDim !== currentDim) {
-          console.warn(`[Claudian] RAG embedding dimension changed (${storedDim} → ${currentDim}); rebuilding index.`);
-          this.vectorStore.clear();
-        }
-
-        // Empty index (fresh install or never indexed) → background full pass.
-        if (this.vectorStore.size() === 0 && !this.vaultRAGService.indexing) {
-          try {
-            await this.vaultRAGService.indexVault({ limit: 1000 });
-            await this.saveRAGIndex();
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            console.warn('[Claudian] background RAG index failed:', message);
+          // If the embedding model changed since the index was built (e.g. keyword
+          // 256-dim → Ollama 768-dim), the stored vectors are incompatible and
+          // every query would silently return nothing. Drop them and re-index.
+          const storedDim = this.vectorStore.dimension();
+          const currentDim = this.embeddingService.getDimension();
+          if (storedDim > 0 && storedDim !== currentDim) {
+            console.warn(`[Claudian] RAG embedding dimension changed (${storedDim} → ${currentDim}); rebuilding index.`);
+            this.vectorStore.clear();
           }
-        }
 
-        this.registerVaultRAGListeners();
-      })();
+          this.registerVaultRAGListeners();
+        })();
+      }, 2500);
     });
   }
 
@@ -1007,7 +1001,7 @@ export default class ClaudianPlugin extends Plugin {
     this.ragSaveTimer = window.setTimeout(() => {
       this.ragSaveTimer = null;
       if (this.ragDirty) void this.saveRAGIndex();
-    }, 5_000);
+    }, 15_000);
   }
 
   /** Persists the vector store so the index survives restarts. */

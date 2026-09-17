@@ -468,5 +468,36 @@
       <div class="claudian-usage-provider-meta"><span class="claudian-usage-reset-chip">↻ Reset in 2 h 14 min</span><span class="claudian-usage-provider-sums">Heute 8,2k · 7 Tage 38,4k</span></div>
     </section>
   </div>
+
+  <div class="harness-section claudian-container claudian-message-content" data-vis="code-block" style="max-width:620px">
+    <div class="harness-label">Codeblock mit Sprache</div>
+    <div class="claudian-code-wrapper has-language">
+      <div class="claudian-code-header">
+        <div class="claudian-code-identity"><span class="claudian-code-lang">typescript</span><span class="claudian-code-lines">4 Zeilen</span></div>
+        <div class="claudian-code-actions"><button class="claudian-code-copy" type="button">Kopieren</button></div>
+      </div>
+      <div class="claudian-code-body has-line-numbers">
+        <div class="claudian-code-gutter" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span></div>
+        <pre><code class="language-typescript">export async function loadProviderCatalog(providerId: string, options: CatalogOptions): Promise&lt;Catalog&gt; {
+  const response = await fetch(buildCatalogEndpoint(providerId, options.region), { signal: options.signal });
+  return response.json();
+}</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="harness-section claudian-container claudian-message-content" data-vis="code-block-plain" style="max-width:620px">
+    <div class="harness-label">Codeblock ohne Sprache</div>
+    <div class="claudian-code-wrapper">
+      <div class="claudian-code-header">
+        <div class="claudian-code-identity"><span class="claudian-code-lang">text</span><span class="claudian-code-lines">2 Zeilen</span></div>
+        <div class="claudian-code-actions"><button class="claudian-code-copy" type="button">Kopieren</button></div>
+      </div>
+      <div class="claudian-code-body">
+        <pre><code>SELECT customer_id, order_total, shipping_address FROM orders WHERE created_at &gt; NOW() - INTERVAL 30 DAY ORDER BY order_total DESC;
+kurze Zeile</code></pre>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

@@ -111,6 +111,7 @@ describe('types.ts', () => {
         enableAutoScroll: true,
         deferMathRenderingDuringStreaming: true,
         expandFileEditsByDefault: false,
+        enableLiveDocuments: true,
         chatViewPlacement: 'right-sidebar',
         hiddenProviderCommands: {
           claude: [],
@@ -166,6 +167,7 @@ describe('types.ts', () => {
         enableAutoScroll: true,
         deferMathRenderingDuringStreaming: true,
         expandFileEditsByDefault: false,
+        enableLiveDocuments: true,
         chatViewPlacement: 'right-sidebar',
         hiddenProviderCommands: {
           claude: [],
@@ -222,6 +224,7 @@ describe('types.ts', () => {
         enableAutoScroll: false,
         deferMathRenderingDuringStreaming: true,
         expandFileEditsByDefault: true,
+        enableLiveDocuments: true,
         chatViewPlacement: 'right-sidebar',
         hiddenProviderCommands: {
           claude: [],

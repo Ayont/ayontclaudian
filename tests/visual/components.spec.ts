@@ -126,6 +126,27 @@ test('composer adapts to a narrow Obsidian pane independently of viewport width'
   expect(sendBox.x + sendBox.width).toBeLessThanOrEqual(toolbarBox.x + toolbarBox.width + 0.5);
 });
 
+test('code blocks never hide content behind a clipped, unscrollable overflow', async ({ page }) => {
+  // A <pre> may scroll horizontally, or it may wrap — but it must never combine
+  // `overflow-x: hidden` with real overflow, which silently truncates long lines
+  // with no affordance to reach the rest.
+  const offenders = await page.locator('.claudian-code-wrapper pre').evaluateAll((elements) =>
+    elements.flatMap((element) => {
+      const style = getComputedStyle(element);
+      const scrollable = style.overflowX === 'auto' || style.overflowX === 'scroll';
+      const overflowPx = element.scrollWidth - element.clientWidth;
+      if (scrollable || overflowPx <= 1) return [];
+      return [{
+        variant: element.closest('.claudian-code-wrapper')?.className ?? '',
+        overflowPx,
+        overflowX: style.overflowX,
+        codeWhiteSpace: getComputedStyle(element.querySelector('code') ?? element).whiteSpace,
+      }];
+    })
+  );
+  expect(offenders).toEqual([]);
+});
+
 for (const section of LEGACY_SECTIONS) {
   test(`component ${section} matches snapshot`, async ({ page }, testInfo) => {
     // Keep the established fixture order stable so existing snapshots are not

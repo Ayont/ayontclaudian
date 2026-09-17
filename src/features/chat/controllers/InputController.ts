@@ -13,11 +13,12 @@ import { getLastPerf, perfMark, perfSince } from '../../../core/diagnostics/perf
 import { ensureProviderHealthy } from '../../../core/diagnostics/providerHealthCheck';
 import { buildDiffPreview } from '../../../core/diff/diffPreview';
 import type { MissionProgress, SpecialistAgent } from '../../../core/intelligence/multiAgent/MultiAgentService';
-import type { VaultRAGService } from '../../../core/intelligence/rag/VaultRAGService';
+import type { RAGChunk, VaultRAGService } from '../../../core/intelligence/rag/VaultRAGService';
 import { persistAutoMemories } from '../../../core/memory/autoMemory';
 import {
   formatMemoryContext,
   loadMemoryNotes,
+  type MemoryNote,
   rankMemoryNotes,
 } from '../../../core/memory/memoryService';
 import {
@@ -578,6 +579,26 @@ export class InputController {
       turnRequest = { ...turnRequest, images: turnRequest.images.map((img) => ({ ...img })) };
     }
 
+    // Render the user message immediately in the UI so the user gets instant feedback
+    // and the chat window is never left blank.
+    const userMsg: ChatMessage = {
+      id: this.deps.generateId(),
+      role: 'user',
+      content: displayContent,
+      displayContent,                // Original user input (for UI display)
+      timestamp: Date.now(),
+      images: imagesForMessage,
+      // Persisted so video/PDF attachments render as media cards in the
+      // transcript (and survive restarts — the staged files stay in the vault).
+      attachments: stagedAttachments.length > 0 ? stagedAttachments : undefined,
+      ...this.buildAgentStamp(),
+    };
+    state.addMessage(userMsg);
+    state.hasPendingConversationSave = true;
+    renderer.addMessage(userMsg);
+
+    const CONTEXT_FETCH_DEADLINE_MS = 800;
+
     // Kick off the one-hop graph neighborhood read HERE so it overlaps the
     // memory/RAG lookups below instead of running as a separate sequential
     // await afterward. All three only prepend independent context blocks, so
@@ -606,9 +627,14 @@ export class InputController {
         ? plugin.cachedMemoryStore.getNotes(memoryFolder)
         : loadMemoryNotes(plugin.app.vault, memoryFolder);
       const ragChunksPromise = ragService
-        ? ragService.query(displayContent, { limit: 3 }).catch(() => [])
+        ? ragService.query(displayContent, { limit: 3, timeoutMs: CONTEXT_FETCH_DEADLINE_MS }).catch(() => [])
         : Promise.resolve([]);
-      const [memoryNotes, ragChunks] = await Promise.all([memoryNotesPromise, ragChunksPromise]);
+      const [memoryNotes, ragChunks] = await Promise.race([
+        Promise.all([memoryNotesPromise, ragChunksPromise]),
+        new Promise<[MemoryNote[], RAGChunk[]]>((resolve) =>
+          window.setTimeout(() => resolve([[], []]), CONTEXT_FETCH_DEADLINE_MS)
+        ),
+      ]);
       const memoryCandidates = rankMemoryNotes(displayContent, memoryNotes, {
         limit: plugin.settings.memoryMaxNotes ?? 5,
       });
@@ -633,34 +659,15 @@ export class InputController {
     }
 
     // Add a bounded one-hop graph neighborhood for the attached current note.
-    // This complements semantic RAG with explicit Obsidian relationships and is
-    // deliberately small so densely linked notes cannot flood the prompt. The
-    // read was started above in parallel with memory/RAG; here we only await the
-    // remaining time and prepend last to keep the graph block outermost. Only
-    // await when a note is actually attached so turns without one don't pay an
-    // extra microtask hop (the promise is an already-resolved '' otherwise).
     if (graphNotePath) {
-      const graphContext = await graphContextPromise;
+      const graphContext = await Promise.race([
+        graphContextPromise,
+        new Promise<string>((resolve) => window.setTimeout(() => resolve(''), CONTEXT_FETCH_DEADLINE_MS)),
+      ]);
       if (graphContext) turnRequest.text = `${graphContext}\n\n${turnRequest.text}`;
     }
 
     fileContextManager?.markCurrentNoteSent();
-
-    const userMsg: ChatMessage = {
-      id: this.deps.generateId(),
-      role: 'user',
-      content: displayContent,
-      displayContent,                // Original user input (for UI display)
-      timestamp: Date.now(),
-      images: imagesForMessage,
-      // Persisted so video/PDF attachments render as media cards in the
-      // transcript (and survive restarts — the staged files stay in the vault).
-      attachments: stagedAttachments.length > 0 ? stagedAttachments : undefined,
-      ...this.buildAgentStamp(),
-    };
-    state.addMessage(userMsg);
-    state.hasPendingConversationSave = true;
-    renderer.addMessage(userMsg);
 
     this.reportLiveActivity({
       primary: 'Erstelle Unterhaltung',

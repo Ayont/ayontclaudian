@@ -686,6 +686,8 @@ function isRawProviderCommand(text: string): boolean {
 export interface ResolveOutputSurfaceOptions {
   /** Active workspace mode. In `code`, surfaces are never inferred from prose. */
   workspaceMode?: WorkspaceMode;
+  /** When false, live documents are never opened — not even on an explicit request. */
+  enableLiveDocuments?: boolean;
 }
 
 /**

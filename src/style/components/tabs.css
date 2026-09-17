@@ -269,6 +269,10 @@ body.theme-light .claudian-tab-badge:hover {
   box-shadow: inset 0 -2px 0 var(--claudian-brand-cline, #00C9A7);
 }
 
+.claudian-tab-badge[data-provider="omp"] {
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-omp, #F164AF);
+}
+
 .claudian-tab-badge[data-provider="zcode"] {
   box-shadow: inset 0 -2px 0 var(--claudian-brand-zcode, #2B5BF7);
 }
@@ -324,6 +328,10 @@ body.theme-light .claudian-tab-badge:hover {
 
 .claudian-tab-badge-streaming[data-provider="cline"] {
   border-color: var(--claudian-brand-cline, #00C9A7);
+}
+
+.claudian-tab-badge-streaming[data-provider="omp"] {
+  border-color: var(--claudian-brand-omp, #F164AF);
 }
 
 .claudian-tab-badge-streaming[data-provider="zcode"] {

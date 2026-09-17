@@ -1252,6 +1252,14 @@ body {
   --claudian-accent-rgb: var(--claudian-brand-cline-rgb);
 }
 
+.claudian-multi-agent-modal[data-provider="omp"],
+.claudian-dashboard[data-provider="omp"],
+.claudian-dashboard-browser-modal[data-provider="omp"],
+.claudian-dashboard-provider-chip[data-provider="omp"] {
+  --claudian-accent: var(--claudian-brand-omp);
+  --claudian-accent-rgb: var(--claudian-brand-omp-rgb);
+}
+
 .claudian-multi-agent-modal[data-provider="hermes"],
 .claudian-dashboard[data-provider="hermes"],
 .claudian-dashboard-browser-modal[data-provider="hermes"],
@@ -1510,6 +1518,7 @@ body {
 .claudian-dashboard-provider-item[data-provider="grok"] { --provider-color: var(--claudian-brand-grok); }
 .claudian-dashboard-provider-item[data-provider="cline"] { --provider-color: var(--claudian-brand-cline); }
 .claudian-dashboard-provider-item[data-provider="hermes"] { --provider-color: var(--claudian-brand-hermes); }
+.claudian-dashboard-provider-item[data-provider="omp"] { --provider-color: var(--claudian-brand-omp); }
 .claudian-dashboard-provider-item[data-provider="dsh"] { --provider-color: var(--claudian-brand-dsh); }
 .claudian-dashboard-provider-item[data-provider="freebuff"] { --provider-color: var(--claudian-brand-freebuff); }
 .claudian-dashboard-provider-item.is-active { color: var(--claudian-text); border-color: color-mix(in srgb, var(--provider-color) 44%, transparent); background: color-mix(in srgb, var(--provider-color) 9%, transparent); }
