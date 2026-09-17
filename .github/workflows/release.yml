@@ -1,9 +1,22 @@
 name: Release
 
+# Manual only, on purpose.
+#
+# This used to trigger on any tag push. `gh release create` — the documented
+# release path in CONTRIBUTING.md — creates its tag through the API with a user
+# token, which DOES start workflows, so every release raced this job: it rebuilt
+# the assets and `softprops/action-gh-release` then overwrote the hand-written
+# German release notes with an English commit dump and replaced the attached
+# main.js/styles.css with a CI rebuild nobody had smoke-tested.
+#
+# Use this workflow only to (re)publish a tag that already exists without a
+# release; the normal path stays `gh release create`.
 on:
-  push:
-    tags:
-      - '*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to publish (bare version, e.g. 5.131.0)'
+        required: true
 
 jobs:
   release:
@@ -18,6 +31,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.tag }}
           fetch-depth: 0  # Full history for changelog generation
 
       - name: Setup Node
@@ -50,7 +64,7 @@ jobs:
         id: changelog
         run: |
           if [ -n "${{ steps.prev_tag.outputs.tag }}" ]; then
-            CHANGELOG=$(git log ${{ steps.prev_tag.outputs.tag }}..HEAD --pretty=format:"- %s" --no-merges | grep -v "^- ${{ github.ref_name }}$" || true)
+            CHANGELOG=$(git log ${{ steps.prev_tag.outputs.tag }}..HEAD --pretty=format:"- %s" --no-merges | grep -v "^- ${{ inputs.tag }}$" || true)
           else
             CHANGELOG=$(git log --pretty=format:"- %s" --no-merges | head -20)
           fi
@@ -62,11 +76,12 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ inputs.tag }}
           body: |
             ## What's Changed
             ${{ steps.changelog.outputs.notes }}
 
-            **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.prev_tag.outputs.tag }}...${{ github.ref_name }}
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.prev_tag.outputs.tag }}...${{ inputs.tag }}
           files: |
             main.js
             manifest.json

@@ -60,14 +60,17 @@ gh release create 5.91.0 main.js manifest.json styles.css \
 **Assets must be exactly these three:** `main.js`, `manifest.json`, `styles.css`.
 BRAT downloads them by name.
 
-### Tag creation: pick one path
+### Tag creation
 
-`.github/workflows/release.yml` triggers on any tag push and creates a release with
-auto-generated notes. `gh release create` creates the tag itself. Running both for
-one version produces a duplicate/competing release.
+**`gh release create` is the only path.** It creates the tag, attaches the assets
+you actually smoke-tested, and lets you write German release notes.
 
-**The documented path is `gh release create`** (it lets you write German release
-notes and attach the built assets). Do not also push the tag separately.
+`.github/workflows/release.yml` used to trigger on any tag push, which silently
+fought this: `gh release create` makes its tag through the API with a user token,
+and that *does* start workflows, so the job rebuilt the assets and
+`softprops/action-gh-release` overwrote the German notes with an English commit
+dump. The workflow is now `workflow_dispatch` only — use it to publish a tag that
+exists without a release, and pass the bare version as its `tag` input.
 
 ### Environment note
 
