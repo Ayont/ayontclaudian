@@ -959,7 +959,25 @@ export default class ClaudianPlugin extends Plugin {
             this.vectorStore.clear();
           }
 
+          // Listeners first: they only cover files that change from now on, so
+          // registering them before the full pass means nothing edited during
+          // indexing is missed.
           this.registerVaultRAGListeners();
+
+          // An empty index (fresh install, or a rebuild forced above) has to be
+          // filled once — without it every RAG query silently returns nothing
+          // and only notes the user happens to edit ever become searchable.
+          // `indexVault` awaits a macrotask between files, so this stays a
+          // background trickle rather than a startup stall.
+          if (this.vectorStore.size() === 0 && !this.vaultRAGService.indexing) {
+            try {
+              await this.vaultRAGService.indexVault({ limit: 1000 });
+              await this.saveRAGIndex();
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+              console.warn('[Claudian] background RAG index failed:', message);
+            }
+          }
         })();
       }, 2500);
     });

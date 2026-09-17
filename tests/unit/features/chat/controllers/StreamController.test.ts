@@ -140,10 +140,18 @@ function createMockDeps(): StreamControllerDeps {
       },
     } as any,
     state,
-    renderer: {
-      renderContent: jest.fn(),
-      addTextCopyButton: jest.fn(),
-    } as any,
+    renderer: (() => {
+      // Mirrors MessageRenderer: below the split threshold (every fixture here)
+      // the streaming path is just a full render, and finalization has no
+      // committed segments to collapse.
+      const renderContent = jest.fn();
+      return {
+        renderContent,
+        renderStreamingContent: jest.fn((...args: unknown[]) => renderContent(...args)),
+        finalizeStreamingContent: jest.fn(),
+        addTextCopyButton: jest.fn(),
+      };
+    })() as any,
     subagentManager: {
       isAsyncTask: jest.fn().mockReturnValue(false),
       isPendingAsyncTask: jest.fn().mockReturnValue(false),

@@ -70,6 +70,7 @@ import {
 } from './RichOutputFences';
 import { renderSkillCards } from './SkillCardRenderer';
 import { renderStatusCard } from './StatusCardRenderer';
+import { findStableMarkdownSplit } from './streamingSplit';
 import { resolveSubagentLifecycleAdapter } from './subagentLifecycleResolution';
 import {
   renderStoredAsyncSubagent,
@@ -254,9 +255,27 @@ function containsPotentialVaultLink(markdown: string): boolean {
     .test(markdown);
 }
 
+interface StreamingSegments {
+  /** Markdown already rendered into `committedEl` and never re-rendered. */
+  committed: string;
+  committedEl: HTMLElement;
+  tailEl: HTMLElement;
+}
+
+/**
+ * Only answers past this size pay the quadratic re-render cost badly enough to
+ * be worth splitting; below it the simple whole-block path stays in charge.
+ */
+const STREAMING_MIN_STABLE_CHARS = 2_000;
+
+/** Live edge kept re-renderable so the trailing block can finish forming. */
+const STREAMING_MIN_TAIL_CHARS = 400;
+
 export class MessageRenderer {
   /** Completed render signatures; unchanged frames keep their mounted UI state. */
   private readonly contentRenderSignatures = new WeakMap<HTMLElement, string>();
+  /** Per-element streaming state for the incremental render (see renderStreamingContent). */
+  private readonly streamingSegments = new WeakMap<HTMLElement, StreamingSegments>();
   private app: App;
   private plugin: ClaudianPlugin;
   private component: Component;
@@ -1986,11 +2005,96 @@ export class MessageRenderer {
   /**
    * Renders markdown content with code block enhancements.
    */
+  /**
+   * Streaming-only render that commits settled Markdown once instead of
+   * re-rendering the whole answer every frame.
+   *
+   * Falls back to {@link renderContent} whenever the content is small, has no
+   * safe boundary yet, or uses a rich output surface — those passes inspect the
+   * complete Markdown and must not see a fragment.
+   *
+   * The end of the stream still calls {@link renderContent} with the full text,
+   * so the committed DOM is always replaced by a canonical render and a
+   * suboptimal split can never survive the turn.
+   */
+  async renderStreamingContent(
+    el: HTMLElement,
+    markdown: string,
+    options?: RenderContentOptions
+  ): Promise<void> {
+    if (options?.outputSurface && options.outputSurface !== 'chat') {
+      await this.renderContent(el, markdown, options);
+      return;
+    }
+
+    const split = findStableMarkdownSplit(markdown, {
+      minStable: STREAMING_MIN_STABLE_CHARS,
+      minTail: STREAMING_MIN_TAIL_CHARS,
+    });
+    const existing = this.streamingSegments.get(el);
+
+    if (split === 0 && !existing) {
+      await this.renderContent(el, markdown, options);
+      return;
+    }
+
+    // A rewritten prefix (retry, rewind, surface switch) invalidates everything
+    // already committed — rebuild from scratch rather than append to stale DOM.
+    const isContinuation = existing
+      && split >= existing.committed.length
+      && markdown.startsWith(existing.committed);
+    if (existing && !isContinuation) {
+      this.streamingSegments.delete(el);
+      await this.renderContent(el, markdown, options);
+      return;
+    }
+
+    let segments = existing;
+    if (!segments) {
+      el.empty();
+      this.contentRenderSignatures.delete(el);
+      segments = {
+        committed: '',
+        committedEl: el.createDiv({ cls: 'claudian-stream-committed' }),
+        tailEl: el.createDiv({ cls: 'claudian-stream-tail' }),
+      };
+      this.streamingSegments.set(el, segments);
+    }
+
+    if (split > segments.committed.length) {
+      const segmentEl = segments.committedEl.createDiv();
+      await this.renderContent(segmentEl, markdown.slice(segments.committed.length, split), options);
+      segments.committed = markdown.slice(0, split);
+    }
+
+    await this.renderContent(segments.tailEl, markdown.slice(segments.committed.length), options);
+  }
+
+  /**
+   * Collapses a streaming split back into one canonical render.
+   *
+   * Without this the committed/tail wrapper divs would survive into the final
+   * message, so every direct-child CSS rule and every whole-Markdown pass would
+   * see a different DOM than a reloaded conversation produces. No-ops when the
+   * element was never split, so short answers pay nothing.
+   */
+  async finalizeStreamingContent(
+    el: HTMLElement,
+    markdown: string,
+    options?: RenderContentOptions
+  ): Promise<void> {
+    if (!this.streamingSegments.has(el)) return;
+    await this.renderContent(el, markdown, options);
+  }
+
   async renderContent(
     el: HTMLElement,
     markdown: string,
     options?: RenderContentOptions
   ): Promise<void> {
+    // A full render supersedes any streaming split mounted on this element.
+    this.streamingSegments.delete(el);
+
     const formattedMarkdown = (markdown || '').replace(
       /<truncated\s+(\d+)\s+(bytes|chars|lines)>/gi,
       '\n\n> ✂️ *$1 $2 gekürzt (Truncated)*\n\n'

@@ -1030,6 +1030,17 @@ export class StreamController {
 
     if (msg && state.currentTextContent) {
       const requestedOutputSurface = this.currentTextOutputSurface ?? msg.outputSurface;
+      // Streaming may have committed the answer in two pieces; collapse it back
+      // into one render so the finished message matches a reloaded one exactly.
+      if (state.currentTextEl) {
+        await renderer.finalizeStreamingContent(
+          state.currentTextEl,
+          state.currentTextContent,
+          requestedOutputSurface && requestedOutputSurface !== 'chat'
+            ? { outputSurface: requestedOutputSurface }
+            : undefined,
+        );
+      }
       if (
         state.currentTextEl
         && this.shouldDeferMathRendering()
@@ -1177,9 +1188,9 @@ export class StreamController {
       if (textEl) {
         const options = this.getStreamingRenderOptions(content);
         if (options) {
-          await renderer.renderContent(textEl, content, options);
+          await renderer.renderStreamingContent(textEl, content, options);
         } else {
-          await renderer.renderContent(textEl, content);
+          await renderer.renderStreamingContent(textEl, content);
         }
         this.scrollToBottom();
         this.textRenderCostMs = StreamController.blendRenderCost(
