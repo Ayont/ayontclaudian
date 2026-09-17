@@ -1,4 +1,5 @@
 import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorkspaceRegistry';
+import { createPersistentRuntimeWarmupPolicy } from '../../../core/providers/tabWarmup';
 import type {
   ProviderWorkspaceRegistration,
   ProviderWorkspaceServices,
@@ -8,12 +9,19 @@ import { freebuffSettingsTabRenderer } from '../ui/FreebuffSettingsTab';
 export type FreebuffWorkspaceServices = ProviderWorkspaceServices;
 
 /**
+ * Brings the runtime up at tab open so the CLI cold start is off the
+ * first-response path. See createPersistentRuntimeWarmupPolicy.
+ */
+export const freebuffTabWarmupPolicy = createPersistentRuntimeWarmupPolicy('freebuff');
+
+/**
  * Workspace services for the HTTP-only Freebuff provider: no CLI resolver and
  * no command catalog — there is no local binary whose PATH matters, and the
  * desktop app expands its own skills.
  */
 export async function createFreebuffWorkspaceServices(): Promise<FreebuffWorkspaceServices> {
   return {
+    tabWarmupPolicy: freebuffTabWarmupPolicy,
     settingsTabRenderer: freebuffSettingsTabRenderer,
   };
 }

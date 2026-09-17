@@ -1,5 +1,6 @@
 import { SharedVaultCommandCatalog } from '../../../core/providers/commands/SharedVaultCommandCatalog';
 import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorkspaceRegistry';
+import { createPersistentRuntimeWarmupPolicy } from '../../../core/providers/tabWarmup';
 import type {
   ProviderWorkspaceRegistration,
   ProviderWorkspaceServices,
@@ -12,10 +13,17 @@ import { vibeSettingsTabRenderer } from '../ui/VibeSettingsTab';
 
 export type VibeWorkspaceServices = ProviderWorkspaceServices;
 
+/**
+ * Brings the runtime up at tab open so the CLI cold start is off the
+ * first-response path. See createPersistentRuntimeWarmupPolicy.
+ */
+export const vibeTabWarmupPolicy = createPersistentRuntimeWarmupPolicy('vibe');
+
 export async function createVibeWorkspaceServices(
   adapter: VaultFileAdapter,
 ): Promise<VibeWorkspaceServices> {
   return {
+    tabWarmupPolicy: vibeTabWarmupPolicy,
     cliResolver: new VibeCliResolver(),
     settingsTabRenderer: vibeSettingsTabRenderer,
     // Surfaces the shared vault commands/skills (.claude/commands, .claude/skills)

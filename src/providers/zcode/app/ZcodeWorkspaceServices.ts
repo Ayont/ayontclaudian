@@ -1,5 +1,6 @@
 import { SharedVaultCommandCatalog } from '../../../core/providers/commands/SharedVaultCommandCatalog';
 import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorkspaceRegistry';
+import { createPersistentRuntimeWarmupPolicy } from '../../../core/providers/tabWarmup';
 import type {
   ProviderWorkspaceRegistration,
   ProviderWorkspaceServices,
@@ -12,10 +13,17 @@ import { zcodeSettingsTabRenderer } from '../ui/ZcodeSettingsTab';
 
 export type ZcodeWorkspaceServices = ProviderWorkspaceServices;
 
+/**
+ * Brings the runtime up at tab open so the CLI cold start is off the
+ * first-response path. See createPersistentRuntimeWarmupPolicy.
+ */
+export const zcodeTabWarmupPolicy = createPersistentRuntimeWarmupPolicy('zcode');
+
 export async function createZcodeWorkspaceServices(
   adapter: VaultFileAdapter,
 ): Promise<ZcodeWorkspaceServices> {
   return {
+    tabWarmupPolicy: zcodeTabWarmupPolicy,
     cliResolver: new ZcodeCliResolver(),
     settingsTabRenderer: zcodeSettingsTabRenderer,
     commandCatalog: new SharedVaultCommandCatalog(

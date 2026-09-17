@@ -1,5 +1,6 @@
 import type { ProviderCommandCatalog } from '../../../core/providers/commands/ProviderCommandCatalog';
 import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorkspaceRegistry';
+import { createPersistentRuntimeWarmupPolicy } from '../../../core/providers/tabWarmup';
 import type {
   ProviderCliResolver,
   ProviderWorkspaceRegistration,
@@ -28,6 +29,12 @@ function createCodexCliResolver(): ProviderCliResolver {
   return new CodexCliResolver();
 }
 
+/**
+ * Brings the runtime up at tab open so the CLI cold start is off the
+ * first-response path. See createPersistentRuntimeWarmupPolicy.
+ */
+export const codexTabWarmupPolicy = createPersistentRuntimeWarmupPolicy('codex');
+
 export async function createCodexWorkspaceServices(
   plugin: ClaudianPlugin,
   vaultAdapter: VaultFileAdapter,
@@ -48,6 +55,7 @@ export async function createCodexWorkspaceServices(
   );
 
   return {
+    tabWarmupPolicy: codexTabWarmupPolicy,
     subagentStorage,
     commandCatalog,
     agentMentionProvider,

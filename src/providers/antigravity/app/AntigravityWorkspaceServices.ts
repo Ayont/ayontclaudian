@@ -1,5 +1,6 @@
 import { SharedVaultCommandCatalog } from '../../../core/providers/commands/SharedVaultCommandCatalog';
 import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorkspaceRegistry';
+import { createPersistentRuntimeWarmupPolicy } from '../../../core/providers/tabWarmup';
 import type {
   ProviderWorkspaceRegistration,
   ProviderWorkspaceServices,
@@ -12,10 +13,17 @@ import { antigravitySettingsTabRenderer } from '../ui/AntigravitySettingsTab';
 
 export type AntigravityWorkspaceServices = ProviderWorkspaceServices;
 
+/**
+ * Brings the runtime up at tab open so the CLI cold start is off the
+ * first-response path. See createPersistentRuntimeWarmupPolicy.
+ */
+export const antigravityTabWarmupPolicy = createPersistentRuntimeWarmupPolicy('antigravity');
+
 export async function createAntigravityWorkspaceServices(
   adapter: VaultFileAdapter,
 ): Promise<AntigravityWorkspaceServices> {
   return {
+    tabWarmupPolicy: antigravityTabWarmupPolicy,
     cliResolver: new AntigravityCliResolver(),
     settingsTabRenderer: antigravitySettingsTabRenderer,
     // Surfaces the shared vault commands/skills (.claude/commands, .claude/skills)

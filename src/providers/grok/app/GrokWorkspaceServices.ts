@@ -1,5 +1,6 @@
 import { SharedVaultCommandCatalog } from '../../../core/providers/commands/SharedVaultCommandCatalog';
 import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorkspaceRegistry';
+import { createPersistentRuntimeWarmupPolicy } from '../../../core/providers/tabWarmup';
 import type {
   ProviderWorkspaceRegistration,
   ProviderWorkspaceServices,
@@ -12,10 +13,17 @@ import { grokSettingsTabRenderer } from '../ui/GrokSettingsTab';
 
 export type GrokWorkspaceServices = ProviderWorkspaceServices;
 
+/**
+ * Brings the runtime up at tab open so the CLI cold start is off the
+ * first-response path. See createPersistentRuntimeWarmupPolicy.
+ */
+export const grokTabWarmupPolicy = createPersistentRuntimeWarmupPolicy('grok');
+
 export async function createGrokWorkspaceServices(
   adapter: VaultFileAdapter,
 ): Promise<GrokWorkspaceServices> {
   return {
+    tabWarmupPolicy: grokTabWarmupPolicy,
     cliResolver: new GrokCliResolver(),
     settingsTabRenderer: grokSettingsTabRenderer,
     // Surfaces the shared vault commands/skills (.claude/commands, .claude/skills)

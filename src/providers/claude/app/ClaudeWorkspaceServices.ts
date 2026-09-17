@@ -1,18 +1,16 @@
 import { McpServerManager } from '../../../core/mcp/McpServerManager';
 import type { ProviderCommandCatalog } from '../../../core/providers/commands/ProviderCommandCatalog';
-import { ProviderRegistry } from '../../../core/providers/ProviderRegistry';
 import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorkspaceRegistry';
+import { createPersistentRuntimeWarmupPolicy } from '../../../core/providers/tabWarmup';
 import type {
   AppAgentManager,
   AppAgentStorage,
   AppMcpStorage,
   AppPluginManager,
   ProviderCliResolver,
-  ProviderTabWarmupPolicy,
   ProviderWorkspaceRegistration,
   ProviderWorkspaceServices,
 } from '../../../core/providers/types';
-import { AUTO_MODEL_VALUE } from '../../../core/routing/modelRouterRules';
 import type { VaultFileAdapter } from '../../../core/storage/VaultFileAdapter';
 import type ClaudianPlugin from '../../../main';
 import { getVaultPath } from '../../../utils/path';
@@ -28,27 +26,13 @@ import { claudeSettingsTabRenderer } from '../ui/ClaudeSettingsTab';
  * Warm the Claude runtime as soon as a tab becomes active — spawning the
  * persistent CLI query at tab open/switch instead of on the first send moves
  * the multi-second cold start OFF the first-response path (the long-standing
- * "spawn at warmup" speed lever). `ensureReady()` is idempotent, so repeat
- * warmups are no-ops.
+ * "spawn at warmup" speed lever).
  *
- * Guard: a BLANK tab whose draft model belongs to another provider skips the
- * warmup — spawning Claude for a Kimi/Codex draft would be wasted work.
+ * Shares the standard persistent-runtime policy with every other provider that
+ * keeps a runtime alive; see createPersistentRuntimeWarmupPolicy for the
+ * foreign-draft-model guard and idempotency notes.
  */
-export const claudeTabWarmupPolicy: ProviderTabWarmupPolicy = {
-  resolveMode(context) {
-    const { draftModel, lifecycleState } = context.tab;
-    if (lifecycleState === 'blank' && draftModel && draftModel !== AUTO_MODEL_VALUE) {
-      const draftProvider = ProviderRegistry.resolveProviderForModel(
-        draftModel,
-        context.plugin.settings as unknown as Record<string, unknown>,
-      );
-      if (draftProvider !== 'claude') {
-        return 'none';
-      }
-    }
-    return 'runtime';
-  },
-};
+export const claudeTabWarmupPolicy = createPersistentRuntimeWarmupPolicy('claude');
 
 export interface ClaudeWorkspaceServices extends ProviderWorkspaceServices {
   claudeStorage: StorageService;

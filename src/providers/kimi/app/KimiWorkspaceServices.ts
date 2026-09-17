@@ -1,5 +1,6 @@
 import { SharedVaultCommandCatalog } from '../../../core/providers/commands/SharedVaultCommandCatalog';
 import { ProviderWorkspaceRegistry } from '../../../core/providers/ProviderWorkspaceRegistry';
+import { createPersistentRuntimeWarmupPolicy } from '../../../core/providers/tabWarmup';
 import type {
   ProviderWorkspaceRegistration,
   ProviderWorkspaceServices,
@@ -13,10 +14,17 @@ import { kimiSettingsTabRenderer } from '../ui/KimiSettingsTab';
 
 export type KimiWorkspaceServices = ProviderWorkspaceServices;
 
+/**
+ * Brings the runtime up at tab open so the CLI cold start is off the
+ * first-response path. See createPersistentRuntimeWarmupPolicy.
+ */
+export const kimiTabWarmupPolicy = createPersistentRuntimeWarmupPolicy('kimi');
+
 export async function createKimiWorkspaceServices(
   adapter: VaultFileAdapter,
 ): Promise<KimiWorkspaceServices> {
   return {
+    tabWarmupPolicy: kimiTabWarmupPolicy,
     cliResolver: new KimiCliResolver(),
     settingsTabRenderer: kimiSettingsTabRenderer,
     // Surfaces the shared vault commands/skills (.claude/commands, .claude/skills)
