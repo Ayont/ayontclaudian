@@ -30,7 +30,7 @@ import { extractInjectedContextPrompt, extractUserDisplayContent, stripInternalI
 import { formatDurationMmSs } from '../../../utils/date';
 import { processFileLinks, registerFileLinkHandler } from '../../../utils/fileLink';
 import { replaceImageEmbedsWithHtml } from '../../../utils/imageEmbed';
-import { escapeMathDelimitersForStreaming } from '../../../utils/markdownMath';
+import { escapeMathDelimitersForStreaming, neutralizeNonMathDollars } from '../../../utils/markdownMath';
 import { findRewindContext } from '../rewind';
 import { showFileContextMenu } from '../services/FileActionService';
 import { exportAssistantResponse } from '../services/ResponseExportService';
@@ -2152,9 +2152,13 @@ export class MessageRenderer {
     }
 
     try {
+      // Streaming escapes every dollar so half-typed math never reaches the
+      // renderer. The finished render keeps math working but still has to
+      // defuse shell syntax — otherwise a pasted `VAL=$(…)` … `"$VAL"` line
+      // becomes one italic math span that overflows the message.
       const renderMarkdown = options?.deferMath
         ? escapeMathDelimitersForStreaming(richMarkdown)
-        : richMarkdown;
+        : neutralizeNonMathDollars(richMarkdown);
       // Normalize embeds before MarkdownRenderer consumes them.
       const processedMarkdown = replaceImageEmbedsWithHtml(
         renderMarkdown,

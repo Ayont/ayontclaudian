@@ -147,6 +147,35 @@ test('code blocks never hide content behind a clipped, unscrollable overflow', a
   expect(offenders).toEqual([]);
 });
 
+test('a source chip stays readable from its first character', async ({ page }) => {
+  // Buttons centre their text, so a label wider than the chip used to be clipped
+  // at BOTH ends: "Audit-Report-2026-04-21-Easybell" showed as "dit-Report-2026-04-",
+  // which names no note the user can recognise.
+  const measured = await page.evaluate(() => {
+    const read = (id: string) => {
+      const el = document.getElementById(id)!;
+      const style = getComputedStyle(el);
+      return {
+        textAlign: style.textAlign,
+        textOverflow: style.textOverflow,
+        width: Math.round(el.getBoundingClientRect().width),
+        title: el.getAttribute('title') ?? '',
+      };
+    };
+    return { long: read('chip-long'), short: read('chip-short') };
+  });
+
+  // Clipping may only ever happen at the end.
+  expect(['start', 'left']).toContain(measured.long.textAlign);
+  expect(measured.long.textOverflow).toBe('ellipsis');
+
+  // Wide enough that a realistic note title is recognisable, not 16 characters.
+  expect(measured.long.width).toBeGreaterThan(150);
+
+  // A short label is never padded out to the cap.
+  expect(measured.short.width).toBeLessThan(measured.long.width);
+});
+
 test('a split streaming block is styled exactly like the finished block', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'w1440', 'measure clamp only where the pane is wider than 78ch');
 

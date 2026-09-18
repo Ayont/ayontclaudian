@@ -671,7 +671,12 @@ body.theme-light .claudian-welcome-starter:hover {
 button.claudian-context-source-chip {
   height: auto;
   min-width: 0;
-  max-width: min(16ch, 100%);
+  /* A button centres its label, so a title wider than the chip lost its START
+     as well as its end — "Audit-Report-2026-04-21" read as "dit-Report-2026-04-",
+     which identifies no note. Clip only at the end, and leave room for a real
+     title instead of 16 characters. */
+  max-width: min(30ch, 100%);
+  text-align: start;
   flex: 0 1 auto;
   padding: 2px 8px;
   border: 1px solid rgba(var(--claudian-brand-rgb), 0.28);
@@ -800,6 +805,23 @@ button.claudian-context-source-chip:focus-visible {
 
 .claudian-message-content p:last-child {
   margin-bottom: 0;
+}
+
+/* A math span never wraps, so a long one pushes straight out of the message.
+   Obsidian renders math as MathJax (`mjx-container`); block math gets its own
+   scroll area rather than widening the bubble, and inline math is allowed to
+   shrink. Shell `$` is defused before it ever reaches the renderer
+   (neutralizeNonMathDollars) — this is the backstop for genuine math. */
+.claudian-message-content mjx-container,
+.claudian-message-content .math {
+  max-width: 100%;
+}
+
+.claudian-message-content mjx-container[display="true"],
+.claudian-message-content .math-block {
+  display: block;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 /* A committed streaming segment is never the end of the message, so its last

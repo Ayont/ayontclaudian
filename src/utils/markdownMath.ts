@@ -171,6 +171,89 @@ export function escapeMathDelimitersForStreaming(markdown: string): string {
 }
 
 /**
+ * Shell uses `$` for command substitution and parameter expansion, and pasted
+ * terminal sessions are everywhere in this product. Left alone, a line like
+ *
+ *   VAL=$(psql -At -c "select …")   …   [ "$VAL" = "30" ]
+ *
+ * gives Obsidian's math renderer an opening `$` and a closing one, so the whole
+ * command is re-set in a serif italic math font and — because a math span never
+ * wraps — runs straight out of the message box.
+ *
+ * These three forms are unambiguous shell and never valid inline math:
+ *   `$(` command substitution, `${` parameter expansion, and `$` immediately
+ *   followed by an identifier that is NOT closed by a matching `$`.
+ *
+ * Everything else is left for the math renderer, so `$E = mc^2$` still works.
+ */
+const SHELL_SUBSTITUTION = /^\$[({]/;
+const SHELL_VARIABLE = /^\$[A-Za-z_][A-Za-z0-9_]*/;
+
+function isShellDollar(line: string, index: number): boolean {
+  const rest = line.slice(index);
+  if (SHELL_SUBSTITUTION.test(rest)) {
+    return true;
+  }
+
+  const variable = SHELL_VARIABLE.exec(rest);
+  if (!variable) {
+    return false;
+  }
+
+  // `$x$` closes immediately — that is math, not a variable.
+  const afterIdentifier = variable[0].length;
+  if (rest[afterIdentifier] === '$') {
+    return false;
+  }
+
+  // Otherwise decide by what an inline-math span WOULD have to contain. With no
+  // closing dollar on the line there is no span at all, so it is shell. With
+  // one, quotes/pipes/semicolons/backticks give it away: those belong to a
+  // command line, never to `$E = mc^2$`.
+  const closingIndex = rest.indexOf('$', afterIdentifier);
+  if (closingIndex === -1) {
+    return true;
+  }
+  return /["|;`]/.test(rest.slice(1, closingIndex));
+}
+
+function neutralizeLine(line: string): string {
+  if (!line.includes('$')) {
+    return line;
+  }
+
+  let escaped = '';
+  let copiedUpTo = 0;
+  forEachEscapableDollar(line, (index) => {
+    if (isShellDollar(line, index)) {
+      escaped += line.slice(copiedUpTo, index) + '\\$';
+      copiedUpTo = index + 1;
+    }
+    return true;
+  });
+
+  return copiedUpTo === 0 ? line : escaped + line.slice(copiedUpTo);
+}
+
+/**
+ * Escapes only those dollars that are unmistakably shell syntax, leaving code
+ * spans, fenced blocks and genuine math untouched. Safe to run on every render,
+ * unlike {@link escapeMathDelimitersForStreaming} which kills math outright.
+ */
+export function neutralizeNonMathDollars(markdown: string): string {
+  if (!markdown.includes('$')) {
+    return markdown;
+  }
+
+  let result = '';
+  forEachLineWithFenceState(markdown, (line, inFence) => {
+    result += inFence ? line : neutralizeLine(line);
+    return true;
+  });
+  return result;
+}
+
+/**
  * Cheap early-exit scan answering whether escaping would change the input.
  * Runs on every streaming frame, so it must not build the full escaped string
  * just to compare it against the original.
