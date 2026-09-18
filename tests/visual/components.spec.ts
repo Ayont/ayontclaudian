@@ -157,7 +157,7 @@ test('a source chip stays readable from its first character', async ({ page }) =
       const style = getComputedStyle(el);
       return {
         textAlign: style.textAlign,
-        textOverflow: style.textOverflow,
+        clipped: el.scrollWidth - el.clientWidth,
         width: Math.round(el.getBoundingClientRect().width),
         title: el.getAttribute('title') ?? '',
       };
@@ -165,15 +165,75 @@ test('a source chip stays readable from its first character', async ({ page }) =
     return { long: read('chip-long'), short: read('chip-short') };
   });
 
-  // Clipping may only ever happen at the end.
+  // The label starts at the start, and nothing is hidden at either end.
   expect(['start', 'left']).toContain(measured.long.textAlign);
-  expect(measured.long.textOverflow).toBe('ellipsis');
+  expect(measured.long.clipped).toBeLessThanOrEqual(1);
 
   // Wide enough that a realistic note title is recognisable, not 16 characters.
   expect(measured.long.width).toBeGreaterThan(150);
 
   // A short label is never padded out to the cap.
   expect(measured.short.width).toBeLessThan(measured.long.width);
+});
+
+test('source chips wrap in a narrow pane instead of being squeezed to nonsense', async ({ page }) => {
+  // In a sidebar two realistic note titles do not fit side by side. Shrinking
+  // them to fit produced "bug-babtec-service-after-firewall-migr…", which names
+  // no note; the row has to break instead.
+  const measured = await page.evaluate(() => {
+    const row = document.getElementById('chips-narrow')!;
+    const read = (id: string) => {
+      const el = document.getElementById(id)!;
+      const box = el.getBoundingClientRect();
+      return { top: Math.round(box.top), right: box.right, scrollWidth: el.scrollWidth, clientWidth: el.clientWidth };
+    };
+    return {
+      rowRight: row.getBoundingClientRect().right,
+      rowOverflow: row.scrollWidth - row.clientWidth,
+      a: read('chip-narrow-a'),
+      b: read('chip-narrow-b'),
+    };
+  });
+
+  // The row itself never scrolls sideways.
+  expect(measured.rowOverflow).toBeLessThanOrEqual(1);
+
+  // No chip is pushed past the right edge of its row.
+  expect(measured.a.right).toBeLessThanOrEqual(measured.rowRight + 0.5);
+  expect(measured.b.right).toBeLessThanOrEqual(measured.rowRight + 0.5);
+
+  // Two long titles land on separate lines rather than sharing one.
+  expect(measured.b.top).toBeGreaterThan(measured.a.top);
+});
+
+test('a source chip shows the whole note title, even when the pane is too narrow for one line', async ({ page }) => {
+  // This is the case the user actually sees: a 43-character note title in a
+  // sidebar. Squeezing it onto one line clipped it to
+  // "bug-babtec-service-after-firewall-migr", which is not a title anybody can
+  // act on — so the chip has to grow a second line instead.
+  const measured = await page.evaluate(() => {
+    const chip = document.getElementById('chip-tight')!;
+    const row = document.getElementById('chips-tight')!;
+    const probe = document.createElement('span');
+    probe.textContent = 'Xg';
+    probe.style.cssText = 'position:absolute;visibility:hidden;font:inherit';
+    chip.appendChild(probe);
+    const lineHeight = probe.getBoundingClientRect().height;
+    probe.remove();
+    return {
+      clipped: chip.scrollWidth - chip.clientWidth,
+      height: chip.getBoundingClientRect().height,
+      lineHeight,
+      rowOverflow: row.scrollWidth - row.clientWidth,
+    };
+  });
+
+  // Nothing is hidden horizontally any more.
+  expect(measured.clipped).toBeLessThanOrEqual(1);
+  expect(measured.rowOverflow).toBeLessThanOrEqual(1);
+
+  // The chip is taller than a single line, i.e. the title wrapped.
+  expect(measured.height).toBeGreaterThan(measured.lineHeight * 1.5);
 });
 
 test('a split streaming block is styled exactly like the finished block', async ({ page }, testInfo) => {

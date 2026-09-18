@@ -477,6 +477,21 @@
       <button class="claudian-context-source-chip" type="button" id="chip-short">Standup</button>
       <button class="claudian-context-source-chip claudian-context-source-chip--more" type="button" id="chip-more">+1</button>
     </div>
+    <!-- The real surface is a narrow sidebar, not a 640px card: two realistic
+         note titles do not fit on one line there. -->
+    <div class="claudian-context-sources" id="chips-narrow" style="max-width:320px">
+      <span class="claudian-context-sources-label">Quellen</span>
+      <button class="claudian-context-source-chip" type="button" id="chip-narrow-a">2026-05-11-design-spec</button>
+      <button class="claudian-context-source-chip" type="button" id="chip-narrow-b">bug-babtec-service-after-firewall-migration</button>
+      <button class="claudian-context-source-chip claudian-context-source-chip--more" type="button" id="chip-narrow-more">+1</button>
+    </div>
+    <!-- Narrower still: the title does not fit on one line at any width here,
+         so it must wrap rather than be clipped mid-word. -->
+    <div class="claudian-context-sources" id="chips-tight" style="max-width:220px">
+      <span class="claudian-context-sources-label">Quellen</span>
+      <button class="claudian-context-source-chip" type="button" id="chip-tight">bug-babtec-service-after-firewall-migration</button>
+      <button class="claudian-context-source-chip claudian-context-source-chip--more" type="button" id="chip-tight-more">+1</button>
+    </div>
   </div>
 
   <div class="harness-section claudian-container claudian-message-content claudian-message-assistant" data-vis="stream-split" style="max-width:1200px">

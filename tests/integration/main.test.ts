@@ -1,4 +1,6 @@
 
+import { Notice } from 'obsidian';
+
 import { TOOL_SUBAGENT } from '@/core/tools/toolNames';
 import { VIEW_TYPE_CLAUDIAN } from '@/core/types';
 import * as sdkSession from '@/providers/claude/history/ClaudeHistoryStore';
@@ -9,6 +11,8 @@ jest.mock('fs');
 
 // Now import the plugin after mocking
 import ClaudianPlugin from '@/main';
+
+const MockNotice = Notice as unknown as jest.Mock;
 
 describe('ClaudianPlugin', () => {
   let plugin: ClaudianPlugin;
@@ -245,6 +249,36 @@ describe('ClaudianPlugin', () => {
         active: true,
       });
       expect(mockApp.workspace.revealLeaf).toHaveBeenCalledWith(mockMainLeaf);
+    });
+
+    it('reports a click that produced no chat pane instead of staying silent', async () => {
+      // The view type not being registered (a half-unloaded instance, a stale
+      // ribbon item) makes setViewState a no-op that resolves happily. Without
+      // this check the click is indistinguishable from a dead button, which is
+      // the single most expensive failure mode this plugin has.
+      const mockRightLeaf = { setViewState: jest.fn().mockResolvedValue(undefined) };
+      mockApp.workspace.getLeavesOfType.mockReturnValue([]);
+      mockApp.workspace.getRightLeaf.mockReturnValue(mockRightLeaf);
+
+      await plugin.onload();
+      MockNotice.mockClear();
+      await plugin.activateView();
+
+      expect(MockNotice).toHaveBeenCalledWith(expect.stringContaining('Claudian'));
+    });
+
+    it('stays quiet when the pane did open', async () => {
+      const mockRightLeaf = { setViewState: jest.fn().mockResolvedValue(undefined) };
+      mockApp.workspace.getLeavesOfType
+        .mockReturnValueOnce([])
+        .mockReturnValue([mockRightLeaf]);
+      mockApp.workspace.getRightLeaf.mockReturnValue(mockRightLeaf);
+
+      await plugin.onload();
+      MockNotice.mockClear();
+      await plugin.activateView();
+
+      expect(MockNotice).not.toHaveBeenCalled();
     });
 
     it('reveals the pane even when the view fails to restore its content', async () => {

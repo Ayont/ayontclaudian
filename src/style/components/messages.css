@@ -677,24 +677,29 @@ button.claudian-context-source-chip {
      title instead of 16 characters. */
   max-width: min(30ch, 100%);
   text-align: start;
-  flex: 0 1 auto;
-  padding: 2px 8px;
+  /* Never shrink to fit: a squeezed chip clipped "bug-babtec-service-after-
+     firewall-migration" down to "…-firewall-migr", which names no note. The row
+     wraps instead, and in a pane too narrow for even one chip the title wraps
+     inside it — a two-line chip is readable, a truncated one is not. */
+  flex: 0 0 auto;
+  padding: 3px 9px;
   border: 1px solid rgba(var(--claudian-brand-rgb), 0.28);
-  border-radius: 999px;
+  /* A pill radius only reads well on one line; this holds up on two. */
+  border-radius: 9px;
   background: rgba(var(--claudian-brand-rgb), 0.08);
   color: var(--text-normal);
   font-size: var(--cl-text-xs);
   line-height: 1.4;
   cursor: pointer;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
   transition: background var(--cl-dur-fast) var(--cl-ease), border-color var(--cl-dur-fast) var(--cl-ease);
 }
 
 button.claudian-context-source-chip--more {
   max-width: 8ch;
   flex: 0 0 auto;
+  border-radius: 999px;
   font-weight: 700;
 }
 

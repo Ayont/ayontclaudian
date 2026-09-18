@@ -2373,6 +2373,13 @@ export default class ClaudianPlugin extends Plugin {
     }
 
     await revealWorkspaceLeaf(workspace, leaf);
+
+    // `setViewState` resolves happily when the view type is not registered — a
+    // half-unloaded instance or a stale ribbon item leaves an empty pane and no
+    // error at all. Saying so beats a click that reads as a dead button.
+    if (workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN).length === 0) {
+      new Notice('Claudian-Ansicht ließ sich nicht erzeugen — bitte Obsidian einmal neu starten.');
+    }
   }
 
   private getLeafForPlacement(placement: ChatViewPlacement): WorkspaceLeaf | null {

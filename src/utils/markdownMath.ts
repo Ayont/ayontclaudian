@@ -112,7 +112,7 @@ function lineHasEscapableDollar(line: string): boolean {
  * line to `visit` along with whether it sits inside a fence. Returning false
  * stops the walk early so detection can bail on the first math delimiter.
  */
-function forEachLineWithFenceState(
+export function forEachLineWithFenceState(
   markdown: string,
   visit: (line: string, inFence: boolean) => boolean
 ): void {
