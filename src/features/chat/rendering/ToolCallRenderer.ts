@@ -1,3 +1,4 @@
+import type { App } from 'obsidian';
 import { setIcon } from 'obsidian';
 
 import { describeBrowserActivity, resolveBrowserActivity } from '../../../core/tools/browserActivity';
@@ -46,6 +47,7 @@ import {
   resolveMediaActivity,
 } from './MediaActivityRenderer';
 import { renderTodoItems } from './todoUtils';
+import { planToolOutputRendering, writeToolOutputFile } from './toolOutputOffload';
 
 export function setToolIcon(el: HTMLElement, name: string, input: Record<string, unknown> = {}): void {
   const safeInput = input ?? {};
@@ -775,9 +777,14 @@ function renderLinesExpanded(
   container: HTMLElement,
   result: string,
   maxLines: number,
-  hoverable = false
+  hoverable = false,
+  toolName = 'tool-output'
 ): void {
-  const lines = result.split(/\r?\n/);
+  const allLines = result.split(/\r?\n/);
+  // Anything past the cap is never mounted, however often the user expands —
+  // one DOM node per line is what makes a 13k-line log freeze the renderer.
+  const plan = planToolOutputRendering(allLines);
+  const lines = plan.renderableLines;
   const truncated = lines.length > maxLines;
   let isExpanded = false;
 
@@ -813,8 +820,52 @@ function renderLinesExpanded(
         render();
       });
     }
+
+    if (plan.offloaded) {
+      renderToolOutputOffloadNotice(linesEl, result, plan.droppedLines, toolName);
+    }
   };
   render();
+}
+
+/**
+ * Footer for an output too large to mount: says how much is missing and writes
+ * the untruncated text to a .txt on demand.
+ */
+function renderToolOutputOffloadNotice(
+  container: HTMLElement,
+  fullResult: string,
+  droppedLines: number,
+  toolName: string,
+): void {
+  const noticeEl = container.createDiv({ cls: 'claudian-tool-offload' });
+  noticeEl.createSpan({
+    cls: 'claudian-tool-offload-label',
+    text: `${droppedLines.toLocaleString('de-DE')} weitere Zeilen ausgeblendet`,
+  });
+
+  const saveBtn = noticeEl.createEl('button', {
+    cls: 'claudian-tool-offload-btn',
+    attr: { type: 'button' },
+  });
+  saveBtn.setText('Vollständig als .txt öffnen');
+  saveBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const app = (window as unknown as { app?: App }).app;
+    if (!app) return;
+
+    saveBtn.disabled = true;
+    saveBtn.setText('Speichere …');
+    void writeToolOutputFile(app, toolName, fullResult).then((filePath) => {
+      if (!filePath) {
+        saveBtn.disabled = false;
+        saveBtn.setText('Speichern fehlgeschlagen — erneut versuchen');
+        return;
+      }
+      saveBtn.setText('In .txt geöffnet');
+      void app.workspace.openLinkText(filePath, '', false);
+    });
+  });
 }
 
 function renderToolSearchExpanded(container: HTMLElement, result: string): void {

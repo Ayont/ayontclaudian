@@ -1010,6 +1010,49 @@
   background: var(--cl-surface-active, rgba(255, 255, 255, 0.12)) !important;
 }
 
+/* Footer for output too large to ever mount (see toolOutputOffload): states how
+   much is withheld and offers the full text as a .txt. Deliberately quieter
+   than the expand button — it is a boundary notice, not the primary action. */
+.claudian-tool-offload {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--cl-border-subtle, rgba(255, 255, 255, 0.12));
+}
+
+.claudian-tool-offload-label {
+  color: var(--text-faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.claudian-tool-offload-btn {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: var(--cl-surface-hover, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--cl-border-subtle, rgba(255, 255, 255, 0.1));
+  color: var(--cl-accent);
+  font-size: 11px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background 140ms var(--cl-ease-out, ease);
+}
+
+.claudian-tool-offload-btn:hover:not(:disabled) {
+  background: var(--cl-surface-active, rgba(255, 255, 255, 0.12));
+}
+
+.claudian-tool-offload-btn:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
 /* ==========================================================================
    Interactive Search & Grep Visualizations
    ========================================================================== */

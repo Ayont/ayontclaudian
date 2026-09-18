@@ -685,6 +685,41 @@ function isRawProviderCommand(text: string): boolean {
   return /^\s*\/[a-z][\w-]*(?:\s|$)/i.test(text);
 }
 
+/**
+ * Phrases in which the user is deliberating about an action rather than asking
+ * for it to be carried out. The subject is the person deciding — "soll *ich*",
+ * "was meinst *du*" — not an instruction to produce something.
+ *
+ * `hasCreationIntent` already rejects a few of these, but only anchored at the
+ * start of the message, and the e-mail/report branches fire on noun+verb pairs
+ * ("Kunde" + "antworten", "Bericht" + "erstellen") without consulting creation
+ * intent at all. So the check has to sit in front of the whole inference.
+ */
+const DELIBERATION_PATTERNS: readonly RegExp[] = [
+  /\b(?:soll|sollte|sollen|solle|müsste|muss|müssen)\s+(?:ich|wir)\b/iu,
+  /\bshould\s+(?:i|we)\b/i,
+  /\b(?:schreibe|mache|sende|schicke)\s+ich\b/iu,
+  /\bwas\s+(?:meinst|denkst|sagst|rätst|empfiehlst)\s+du\b/iu,
+  /\bwhat\s+(?:do\s+you\s+think|would\s+you)\b/i,
+  /\bwürdest\s+du\b/iu,
+  /\bmacht\s+(?:es|das)\s+sinn\b/iu,
+  /\bdoes\s+it\s+make\s+sense\b/i,
+  /\b(?:lohnt|bringt)\s+(?:es|das|sich)\b/iu,
+];
+
+/**
+ * True when the message reads as a question about what to do, which never
+ * warrants a specialized output surface. Requires an actual question mark so a
+ * plain instruction ("Schreibe ich die Mail jetzt.") is unaffected.
+ */
+function isDeliberationQuestion(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed.endsWith('?')) {
+    return false;
+  }
+  return DELIBERATION_PATTERNS.some((pattern) => pattern.test(trimmed));
+}
+
 export interface ResolveOutputSurfaceOptions {
   /** Active workspace mode. In `code`, surfaces are never inferred from prose. */
   workspaceMode?: WorkspaceMode;
@@ -713,6 +748,11 @@ export function resolveTurnOutputSurface(
   }
   if ((options.workspaceMode ?? DEFAULT_WORKSPACE_MODE) === 'code') return 'chat';
   if (options.enableLiveDocuments === false) return 'chat';
+
+  // Someone weighing up what to do next wants an answer, not the artifact.
+  // "Soll ich dem Kunden direkt antworten?" used to open the e-mail editor and
+  // bury a one-line recommendation under a 200-word draft nobody asked for.
+  if (isDeliberationQuestion(text)) return 'chat';
 
   const source = text.toLocaleLowerCase('de-DE');
   const words = tokenizeIntent(source);

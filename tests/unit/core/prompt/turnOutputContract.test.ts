@@ -5,6 +5,35 @@ import {
 } from '@/core/prompt/mainAgent';
 
 describe('turn output contract', () => {
+  // A user weighing up what to do next is asking for advice, not for the
+  // deliverable. Opening the e-mail editor on "soll ich die Mail schon
+  // schreiben?" buries a one-line answer in a 200-word draft nobody asked for.
+  it.each([
+    'Soll ich jetzt schon die Mail schreiben, oder erst die Logs prüfen und dann die Mail mit dem neuen Termin anlegen?',
+    'Schreibe ich die Mail jetzt, oder soll ich erst messen?',
+    'Soll ich dem Kunden direkt antworten?',
+    'Sollte ich dazu ein Dokument anlegen?',
+    'Should I send the email now or check the logs first?',
+    'Was meinst du, Mail jetzt oder morgen?',
+    'Würdest du dem Kunden jetzt eine Antwort schreiben?',
+    'Macht es Sinn, dafür einen Bericht zu erstellen?',
+  ])('keeps a deliberation question in chat: %s', (text) => {
+    expect(resolveTurnOutputSurface(text, undefined, { workspaceMode: 'work' })).toBe('chat');
+  });
+
+  it('still produces the deliverable when actually instructed to', () => {
+    expect(resolveTurnOutputSurface(
+      'Schreib die Mail an Thorsten mit dem neuen Termin.',
+      undefined,
+      { workspaceMode: 'work' },
+    )).toBe('email');
+  });
+
+  it('an explicit surface command still wins over a question', () => {
+    expect(resolveTurnOutputSurface('Soll ich das so schreiben?', 'email', { workspaceMode: 'work' }))
+      .toBe('email');
+  });
+
   it('keeps ordinary engineering requests in chat even when they mention renderer features', () => {
     const text = 'Behebe das Dokument-System, den network-map Renderer und verwende die passenden Skills.';
 
