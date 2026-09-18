@@ -58,7 +58,11 @@
   font-size: 10.5px;
   font-weight: 500;
   flex-shrink: 0;
-  transition: all var(--cl-dur-fast) var(--cl-ease);
+  transition:
+    color var(--cl-dur-fast) var(--cl-ease),
+    background-color var(--cl-dur-fast) var(--cl-ease),
+    border-color var(--cl-dur-fast) var(--cl-ease),
+    box-shadow var(--cl-dur-fast) var(--cl-ease);
 }
 
 .claudian-subagent-status svg {

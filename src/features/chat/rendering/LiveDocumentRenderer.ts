@@ -1,6 +1,7 @@
 import type { App, Component } from 'obsidian';
 import { MarkdownRenderer, Notice, setIcon } from 'obsidian';
 
+import { containsMermaidFence } from './DisplayOnlyCodeFences';
 import { frameMermaidDiagrams } from './MermaidFrame';
 
 export type LiveDocumentTheme = 'word' | 'editorial' | 'business' | 'minimal' | 'warm' | 'technical';
@@ -219,7 +220,9 @@ async function renderDocumentBody(
 ): Promise<void> {
   target.empty();
   await MarkdownRenderer.render(context.app, document.body, target, '', context.component);
-  frameMermaidDiagrams(target);
+  if (containsMermaidFence(document.body)) {
+    frameMermaidDiagrams(target);
+  }
 }
 
 function createIconButton(

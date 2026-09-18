@@ -158,7 +158,7 @@ describe('systemPrompt', () => {
 
       const key = computeSystemPromptKey(settings);
 
-      expect(key).toBe('presentation-contract-v3::Be helpful::/vault::Alice');
+      expect(key).toBe('presentation-contract-v4::Be helpful::/vault::Alice');
     });
 
     it('handles empty or undefined values', () => {
@@ -169,7 +169,7 @@ describe('systemPrompt', () => {
         userName: '',
       });
 
-      expect(key).toBe('presentation-contract-v3::::::');
+      expect(key).toBe('presentation-contract-v4::::::');
     });
   });
 });

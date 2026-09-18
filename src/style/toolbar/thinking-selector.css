@@ -192,7 +192,10 @@ button.claudian-thinking-gear {
   color: var(--text-muted) !important;
   cursor: pointer !important;
   border-radius: 8px !important;
-  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  transition:
+    color 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.15s cubic-bezier(0.16, 1, 0.3, 1) !important;
   white-space: nowrap !important;
   display: flex !important;
   align-items: center !important;

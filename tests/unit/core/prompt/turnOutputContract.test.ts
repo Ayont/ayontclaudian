@@ -1,5 +1,6 @@
 import {
   applyTurnOutputContract,
+  asksForMermaidGuidance,
   buildTurnOutputContract,
   resolveTurnOutputSurface,
 } from '@/core/prompt/mainAgent';
@@ -148,6 +149,31 @@ describe('turn output contract', () => {
     expect(ordinary).not.toContain('## Video Analysis');
   });
 
+  it.each([
+    ['Zeichne eine Mindmap zu VLANs', 'work'],
+    ['Erklär den DHCP-Prozess', 'work'],
+    ['Erklär den Ablauf von Autodiscover', 'work'],
+    ['Skizziere die Architektur des Auth-Flows', 'code'],
+  ] as const)('attaches mermaid guidance without a slash command: %s', (text, mode) => {
+    expect(asksForMermaidGuidance(text, mode)).toBe(true);
+    const contract = buildTurnOutputContract({ text }, { workspaceMode: mode });
+    expect(contract).toContain('```mermaid');
+    expect(resolveTurnOutputSurface(text, undefined, { workspaceMode: mode })).toBe('chat');
+  });
+
+  it('does not attach a mermaid manual to ordinary code review', () => {
+    expect(asksForMermaidGuidance('Reviewe den aktuellen Code.', 'code')).toBe(false);
+  });
+
+  it.each([
+    ['Schreib das Berichtsheft für KW 12', 'live-document'],
+    ['Mach mir ein Arbeitsblatt zu Lernfeld 4', 'live-document'],
+    ['Erstelle den Ausbildungsnachweis für diese Woche', 'live-document'],
+  ] as const)('opens a live document from ordinary Work wording: %s', (text, expected) => {
+    expect(resolveTurnOutputSurface(text, undefined, { workspaceMode: 'work' })).toBe(expected);
+    expect(resolveTurnOutputSurface(text, undefined, { workspaceMode: 'code' })).toBe('chat');
+  });
+
   it('keeps the ordinary per-turn contract compact', () => {
     const contract = buildTurnOutputContract(
       { text: 'Reviewe den aktuellen Code.' },
@@ -158,10 +184,10 @@ describe('turn output contract', () => {
   });
 
   it.each([
-    ['live-document', 'Erstelle einen Projektbericht.', 1_600],
+    ['live-document', 'Erstelle einen Projektbericht.', 2_200],
     ['email', 'Schreibe eine E-Mail an den Kunden.', 1_800],
-    ['network-map', 'Analysiere FortiGate und VLAN 20.', 1_300],
-    ['image', 'Erzeuge ein Kampagnenbild.', 1_200],
+    ['network-map', 'Analysiere FortiGate und VLAN 20.', 1_700],
+    ['image', 'Erzeuge ein Kampagnenbild.', 1_600],
     ['skill', 'Erstelle einen Agent Skill.', 1_800],
   ] as const)('keeps the %s surface manual bounded', (outputSurface, text, maxLength) => {
     const contract = buildTurnOutputContract({ text, outputSurface }, { workspaceMode: 'work' });

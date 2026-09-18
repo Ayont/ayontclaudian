@@ -50,6 +50,7 @@ import {
 } from './activityFold';
 import { renderAutoMemoryChips } from './AutoMemoryChip';
 import {
+  containsMermaidFence,
   prepareDisplayOnlyCodeFences,
   restoreDisplayOnlyCodeFences,
 } from './DisplayOnlyCodeFences';
@@ -2300,7 +2301,9 @@ export class MessageRenderer {
       }
 
       renderInlineImages(el, this.app, { mediaFolder: this.plugin.settings.mediaFolder });
-      frameMermaidDiagrams(el, { restore: mermaidRestore });
+      if (containsMermaidFence(richMarkdown) || mermaidRestore.size > 0) {
+        frameMermaidDiagrams(el, { restore: mermaidRestore });
+      }
 
       // Wrap pre elements and move buttons outside scroll area
       el.querySelectorAll('pre').forEach((pre) => {

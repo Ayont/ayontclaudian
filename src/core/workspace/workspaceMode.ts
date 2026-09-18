@@ -12,9 +12,6 @@
  * `core/prompt/mainAgent.ts`.
  */
 
-import { buildBerichtsheftPrompt } from './berichtsheft';
-import { buildAngebotPrompt, buildMindmapPrompt } from './visualPrompts';
-
 export { buildBerichtsheftPrompt } from './berichtsheft';
 export { buildAngebotPrompt, buildDiagramPrompt, buildMindmapPrompt } from './visualPrompts';
 
@@ -102,9 +99,9 @@ const QUICK_PROMPTS: Readonly<Record<WorkspaceMode, readonly WorkspaceQuickPromp
       { label: 'Outlook / Mail', prompt: 'Störung: Outlook oder Mail geht nicht. Diagnose systematisch (Client, Autodiscover, Konto, Server, Netzwerk) und gib reproduzierbare Schritte plus eine Ticket-Notiz.', icon: 'mail' },
       { label: 'Firewall / Netz', prompt: 'Störung: Firewall oder Netzwerk ist down bzw. blockiert. Eingrenzen (Client, Switch, Gateway, Firewall-Policy, DNS) und ein klares Incident-Protokoll schreiben.', icon: 'shield' },
       { label: 'Ticket entwerfen', prompt: 'Formuliere aus dieser Störung eine klare IT-Ticket-Notiz (Symptom, Auswirkung, bisherige Schritte, nächster Check): ', icon: 'clipboard-list' },
-      { label: 'Berichtsheft', prompt: buildBerichtsheftPrompt(), icon: 'notebook-pen' },
-      { label: 'Angebot', prompt: buildAngebotPrompt(), icon: 'file-text' },
-      { label: 'Mindmap', prompt: buildMindmapPrompt(), icon: 'git-fork' },
+      { label: 'Berichtsheft', prompt: 'Schreib den IHK-Ausbildungsnachweis (Berichtsheft) für diese Woche. Abschnitte: Kalenderwoche, Betrieb, Berufsschule, Tätigkeiten, Stunden. Keine Firmen- oder Schulnamen erfinden.', icon: 'notebook-pen' },
+      { label: 'Angebot', prompt: 'Erstelle ein Kundenangebot: ', icon: 'file-text' },
+      { label: 'Mindmap', prompt: 'Zeichne eine Mindmap zu: ', icon: 'git-fork' },
       { label: 'Privat / Plan', prompt: 'Private Notiz oder Wochenplan — ohne Arbeits- oder Schulkontext. Hilf mir, das klar, kurz und umsetzbar festzuhalten: ', icon: 'calendar' },
     ]),
   });
@@ -121,8 +118,21 @@ export function getWorkspaceQuickPrompts(mode: WorkspaceMode): readonly Workspac
 /** Compact turn-contract copy. Same source as the detailed mode section. */
 export function getCompactWorkspaceModeInstructions(mode: WorkspaceMode): string {
   return mode === 'work'
-    ? '## Active Workspace Mode: WORK (Work Studio · IT operations)\nLead with German IT-ops: Outlook/mail outages, firewall/network incidents, tickets, Ausbildungsnachweis / Berichtsheft, Word-like Angebote, mermaid mindmaps, and private notes or weekly planning. Keep all capabilities. Code requests stay normal chat.'
-    : '## Active Workspace Mode: CODE (Code Studio · Multi-Agent Swarm)\nKeep all capabilities. Lead with concrete engineering action, multi-agent orchestration, precise edits and test verification. Artifact requests remain available.';
+    ? [
+      '## Active Workspace Mode: WORK (Work Studio · IT operations)',
+      'Lead with German IT-ops: Outlook/mail outages, firewall/network incidents, tickets, Ausbildungsnachweis / Berichtsheft, Word-like Angebote, diagrams, and private notes or weekly planning. Keep all capabilities. Code requests stay normal chat.',
+      'Pick the visual from intent — slash commands are optional shortcuts, never required:',
+      '- Standalone deliverable (Angebot, Protokoll, Arbeitsblatt, Berichtsheft, Konzept, Policy): one `claudian-document` fence, `theme: word`.',
+      '- Mail or a reply to a named person: `claudian-email`.',
+      '- Real network topology (firewall, VLAN, WAN, FortiGate): `network-map`.',
+      '- Structure, process, mindmap, Ablauf: one `mermaid` fence (`mindmap` or `flowchart TD`). Never Draw.io XML.',
+      '- Diagnosis, commands, checklists: ordinary Markdown. Never wrap those in a live document.',
+    ].join('\n')
+    : [
+      '## Active Workspace Mode: CODE (Code Studio · Multi-Agent Swarm)',
+      'Keep all capabilities. Lead with concrete engineering action, multi-agent orchestration, precise edits and test verification. Artifact requests remain available.',
+      'Architecture or process questions may include a `mermaid` flowchart or sequenceDiagram in chat — no slash command needed.',
+    ].join('\n');
 }
 
 export function getWorkspaceModeInstructions(mode: WorkspaceMode): string {
@@ -143,19 +153,21 @@ The user has switched this workspace into WORK mode — specialized for German I
 - First person, sachlich, lernzielbezogen. Never fabricate a Firmenname or Schulname.
 
 ### 3. Word-like documents, Angebote, and diagrams
-- Everyday deliverables (Arbeitsblatt, Angebot, Protokoll, Lernfeld) use \`claudian-document\` with \`theme: word\` so they look typed in Word — not a magazine.
+- Everyday deliverables (Arbeitsblatt, Angebot, Protokoll, Lernfeld, Berichtsheft) use \`claudian-document\` with \`theme: word\` so they look typed in Word — not a magazine.
 - Use \`theme: editorial\` only when the user wants a designed look.
 - For mind maps and process diagrams emit a \`mermaid\` fence (mindmap or flowchart). Never invent Draw.io XML.
+- Slash commands (\`/angebot\`, \`/mindmap\`, \`/diagram\`, \`/berichtsheft\`) are optional shortcuts. Infer the same surfaces from ordinary German requests — the user should not need a command.
 
-### 4. Document Versioning & Structured Drafting
-- Manage documents with formal versioning headers whenever drafting policies, runbooks, or reports:
+### 4. When to use a live document vs chat
+- Use \`claudian-document\` when the user wants a standalone deliverable they could save as a page (Angebot, Protokoll, Arbeitsblatt, Berichtsheft, Konzept, Policy, Handbuch), even if they never say "Dokument".
+- NEVER use it for shell commands, bash, diagnostics, troubleshooting tables, error investigations, or regular conversational answers. Those stay standard Markdown (\`\`\`bash, lists, tables).
+- Manage formal documents with a versioning header when drafting policies, runbooks, or reports:
   \`\`\`markdown
   # [Dokumenttitel]
   **Dokumenten-Version:** v1.0 (oder v1.1, v2.0) · **Stand:** [Datum] · **Status:** [Entwurf / Prüfung / Freigegeben]
   **Geltungsbereich:** [DE / EU / International]
   **Revisionshistorie:** [Änderungsgrund und wesentliche Modifikationen]
   \`\`\`
-- ONLY reach for the live document builder (\`claudian-document\`) when the user EXPLICITLY asks to create, draft, or format a standalone document, report, or concept (e.g. "erstelle ein Dokument", "schreib ein Konzept", "erstelle einen Bericht"). For technical answers, command checklists, bash scripts, diagnostic steps, code examples, or normal chat conversations, ALWAYS use standard Markdown text and code blocks (\`\`\`bash, etc.). NEVER use \`claudian-document\` unprompted.
 
 ### 5. Private life
 - Personal notes, household planning, calendar, errands: keep them out of the workplace/school voice. Short, practical, vault-ready Markdown.

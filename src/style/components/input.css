@@ -456,7 +456,9 @@
   font-size: 12px !important;
   line-height: 1 !important;
   max-width: 260px !important;
-  transition: all var(--cl-dur-fast) var(--cl-ease) !important;
+  transition:
+    border-color var(--cl-dur-fast) var(--cl-ease),
+    background-color var(--cl-dur-fast) var(--cl-ease) !important;
 }
 
 .claudian-file-chip:hover,
@@ -524,7 +526,9 @@
   color: var(--text-muted) !important;
   font-size: 11px !important;
   line-height: 1 !important;
-  transition: all var(--cl-dur-fast) var(--cl-ease) !important;
+  transition:
+    color var(--cl-dur-fast) var(--cl-ease),
+    background-color var(--cl-dur-fast) var(--cl-ease) !important;
   margin: 0 0 0 4px !important;
   padding: 0 !important;
   border: none !important;
@@ -891,7 +895,12 @@
   font-size: var(--cl-text-xs) !important;
   font-weight: 600 !important;
   cursor: pointer !important;
-  transition: all var(--cl-dur-fast) var(--cl-ease) !important;
+  transition:
+    color var(--cl-dur-fast) var(--cl-ease),
+    background-color var(--cl-dur-fast) var(--cl-ease),
+    border-color var(--cl-dur-fast) var(--cl-ease),
+    box-shadow var(--cl-dur-fast) var(--cl-ease),
+    transform var(--cl-dur-fast) var(--cl-ease) !important;
   box-shadow: none !important;
 }
 

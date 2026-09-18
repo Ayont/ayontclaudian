@@ -47,7 +47,12 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
   font-family: inherit !important;
   line-height: 1 !important;
-  transition: all var(--cl-dur-fast) var(--cl-ease) !important;
+  transition:
+    color var(--cl-dur-fast) var(--cl-ease),
+    background-color var(--cl-dur-fast) var(--cl-ease),
+    border-color var(--cl-dur-fast) var(--cl-ease),
+    box-shadow var(--cl-dur-fast) var(--cl-ease),
+    transform var(--cl-dur-fast) var(--cl-ease) !important;
 }
 
 body.theme-light .claudian-tab-badge {

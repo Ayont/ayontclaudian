@@ -53,6 +53,7 @@ describe('getWorkspaceModeInstructions', () => {
     expect(work).toMatch(/firewall|network/i);
     expect(work).toMatch(/Berichtsheft|Ausbildungsnachweis/);
     expect(work).toMatch(/Private life|personal notes|weekly planning/i);
+    expect(work).toMatch(/optional shortcuts/i);
     expect(work).not.toMatch(/HUNARI|Hilden/);
   });
 
@@ -80,6 +81,8 @@ describe('turn output contract workspace mode wiring', () => {
     expect(prompt).toMatch(/firewall|network/i);
     expect(prompt).toMatch(/Berichtsheft|Ausbildungsnachweis/);
     expect(prompt).toMatch(/private notes|weekly planning/i);
+    expect(prompt).toMatch(/optional shortcuts/i);
+    expect(prompt).toContain('mermaid');
     expect(prompt).not.toMatch(/HUNARI|Hilden/);
   });
 
@@ -127,8 +130,10 @@ describe('getWorkspaceQuickPrompts', () => {
     expect(blob).toMatch(/Outlook|Mail/);
     expect(blob).toMatch(/Firewall|Netz/);
     expect(blob).toMatch(/Berichtsheft|Ausbildungsnachweis/);
-    expect(blob).toMatch(/Angebot|theme: word/);
-    expect(blob).toMatch(/Mindmap|mermaid/);
+    expect(blob).toMatch(/Angebot/);
+    expect(blob).toMatch(/Mindmap/);
+    expect(blob).not.toContain('```mermaid');
+    expect(blob).not.toContain('theme: word');
     expect(blob).toMatch(/Privat|Wochenplan|Notiz/);
     expect(blob).not.toMatch(/HUNARI|Hilden/);
   });

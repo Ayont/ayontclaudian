@@ -6,7 +6,7 @@ import {
   type WorkspaceMode,
 } from '../workspace/workspaceMode';
 
-const SYSTEM_PROMPT_VERSION = 'presentation-contract-v3';
+const SYSTEM_PROMPT_VERSION = 'presentation-contract-v4';
 
 export interface SystemPromptSettings {
   mediaFolder?: string;
@@ -202,11 +202,11 @@ function getLiveDocumentInstructions(): string {
 
 ## Live Document Builder
 
-Use a \`claudian-document\` fenced block ONLY when the user explicitly asks to create, draft, design, or structure a substantial document, report, concept, or formal deliverable (e.g. with explicit words like "erstelle ein Dokument", "schreib ein Konzept", "erstelle einen Bericht / Report / Deliverable").
+Use a \`claudian-document\` fenced block when the user wants a standalone deliverable they could save as a page — Angebot, Protokoll, Arbeitsblatt, Berichtsheft, Konzept, Policy, Handbuch, Report. They do not need to say "Dokument" or use a slash command.
 
 STRICT NEGATIVE CONSTRAINT:
 - NEVER use \`claudian-document\` for shell commands, bash scripts, diagnostics, technical troubleshooting, diagnostic tables, error investigations, or regular conversational answers.
-- Even if the user asks for a "Checkliste", "Übersicht", or "Commands", use regular Markdown tables, lists, and code blocks unless they explicitly say "als Dokument" or "als Live-Dokument".
+- Even if the user asks for a "Checkliste", "Übersicht", or "Commands", use regular Markdown tables, lists, and code blocks. Those are chat, not a live document.
 
 \`\`\`claudian-document
 ---
@@ -226,7 +226,7 @@ Document content in clean Markdown...
 Themes: \`word\` (default — looks like a human Word page: Calibri/Segoe, white paper, modest headings), \`editorial\`, \`business\`, \`minimal\`, \`warm\`, \`technical\`.
 
 Rules:
-- Use this ONLY when the user explicitly requests an actual document or designed deliverable, never for ordinary chat answers, technical support, commands, or troubleshooting.
+- Use this when the user wants a standalone page-like deliverable, never for ordinary chat answers, technical support, commands, or troubleshooting. Slash commands are optional shortcuts.
 - Default \`theme: word\` for Arbeitsblätter, Angebote, Protokolle, Berichtsheft, Lernfelder, memos, and everyday office documents. These must read as if typed in Word — not a magazine. No kicker labels, no huge display serif, no cream art-paper.
 - Use \`theme: editorial\` only when the user asks for a designed look (Kampagne, Pitch, Magazin, Keyvisual).
 - Put the complete document inside one block; keep commentary outside it.
@@ -476,7 +476,7 @@ function getCompactNetworkInstructions(): string {
 function getCompactLiveDocumentInstructions(): string {
   return [
     '## Live-document surface',
-    'ONLY use when user explicitly requests a document, report or concept (never for troubleshooting, commands, scripts, or ordinary chat answers). Put the complete deliverable in one editable Markdown fence; commentary stays outside:',
+    'Use when the user wants a standalone deliverable (Angebot, Protokoll, Arbeitsblatt, Berichtsheft, Konzept, Policy, Handbuch) — they do not need to say "Dokument" or use a slash command. Never for troubleshooting, commands, scripts, or ordinary chat. Put the complete deliverable in one editable Markdown fence; commentary stays outside:',
     '```claudian-document',
     '---',
     'title: Project proposal',
@@ -562,6 +562,19 @@ function getCompactPacketTracerInstructions(): string {
   return 'Packet Tracer: add a buildable device/port/cable inventory, IP/VLAN table, per-device Cisco CLI and verification commands. Use real decoded XML names when present; never claim an encrypted `.pkt` was decoded without readable XML.';
 }
 
+function getCompactMermaidInstructions(): string {
+  return [
+    '## Mermaid surface',
+    'When a mindmap, process, Ablauf or architecture is the point of the answer, emit exactly one mermaid fence. No slash command needed. Never Draw.io XML.',
+    '```mermaid',
+    'flowchart TD',
+    '  A[Start] --> B[Schritt]',
+    '  B --> C[Ergebnis]',
+    '```',
+    'Use `mindmap` for topic maps, `flowchart TD` for processes, `sequenceDiagram` for role handoffs. German labels, few nodes, no invented company names. Network topology uses `network-map` instead.',
+  ].join('\n');
+}
+
 const CREATION_WORD_PATTERNS = [
   /^creat(?:e|es|ed|ing)$/,
   /^generat(?:e|es|ed|ing)$/,
@@ -578,6 +591,9 @@ const CREATION_WORD_PATTERNS = [
   /^umschreib(?:e|en|st|t)?$/,
   /^generier(?:e|en|st|t)?$/,
   /^erzeug(?:e|en|st|t)?$/,
+  /^zeichn(?:e|en|est|et)?$/,
+  /^visualisier(?:e|en|st|t)?$/,
+  /^skizzier(?:e|en|st|t)?$/,
 ];
 
 /* "mach / make" only counts as creation when the object is the artifact itself
@@ -605,8 +621,9 @@ const ENGINEERING_WORDS = new Set([
    compound never matches an artifact noun, while "eine E-Mail an" still does
    through the phrase check below. */
 const STRONG_DOCUMENT_WORDS = new Set([
-  'angebot', 'bericht', 'briefing', 'handbuch', 'konzept', 'policy',
-  'projektplan', 'proposal', 'report', 'richtlinie', 'sop',
+  'angebot', 'arbeitsblatt', 'ausbildungsnachweis', 'bericht', 'berichtsheft',
+  'briefing', 'handbuch', 'konzept', 'lernfeld', 'policy', 'projektplan',
+  'proposal', 'report', 'richtlinie', 'sop',
 ]);
 const DOCUMENT_WORDS = new Set([
   ...STRONG_DOCUMENT_WORDS,
@@ -616,6 +633,10 @@ const EMAIL_WORDS = new Set(['email', 'mail', 'mailvorlage', 'anschreiben']);
 const IMAGE_WORDS = new Set([
   'bild', 'image', 'grafik', 'illustration', 'kampagnenmotiv', 'motiv', 'poster',
   'banner', 'hero', 'keyvisual',
+]);
+const DIAGRAM_WORDS = new Set([
+  'mindmap', 'mindmaps', 'diagramm', 'flowchart', 'ablauf', 'organigramm',
+  'konzeptkarte', 'prozessdiagramm', 'sequenzdiagramm', 'ablaufdiagramm',
 ]);
 
 function includesAny(source: string, terms: readonly string[]): boolean {
@@ -834,6 +855,26 @@ export function resolveTurnOutputSurface(
   return 'chat';
 }
 
+/** True when the answer should include mermaid guidance (chat stays the surface). */
+export function asksForMermaidGuidance(
+  text: string,
+  workspaceMode: WorkspaceMode = DEFAULT_WORKSPACE_MODE,
+): boolean {
+  if (isDeliberationQuestion(text)) return false;
+  const source = text.toLocaleLowerCase('de-DE');
+  const words = tokenizeIntent(source);
+  if (hasStandaloneNoun(source, DIAGRAM_WORDS)) return true;
+  if (includesAny(source, [
+    'mindmap', 'mind-map', 'mind map', 'mermaid', 'flowchart',
+    'sequenzdiagramm', 'prozessdiagramm', 'ablaufdiagramm', 'sequence diagram',
+  ])) {
+    return true;
+  }
+  if (/\b(?:prozess|ablauf|architektur|struktur|zusammenhang)\b/iu.test(source)) return true;
+  const wantsExplanation = /\b(?:erklär\p{L}*|explain\p{L}*|wie funktioniert|how does|wie läuft)\b/iu.test(source);
+  return workspaceMode === 'work' && wantsExplanation && !hasEngineeringContext(words);
+}
+
 function hasVideoReference(text: string): boolean {
   return /(?:^|[\s@/])[^\s]+\.(?:mp4|mov|webm|mkv|m4v)(?:\s|$)/i.test(text);
 }
@@ -895,6 +936,10 @@ export function buildTurnOutputContract(
       break;
     case 'chat':
       break;
+  }
+
+  if (asksForMermaidGuidance(request.text, workspaceMode)) {
+    sections.push(getCompactMermaidInstructions());
   }
 
   const body = sections.map((section) => section.trim()).filter(Boolean).join('\n\n');

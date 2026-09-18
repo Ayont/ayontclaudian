@@ -38,7 +38,8 @@ describe('Berichtsheft chat entry', () => {
     expect(alias?.command.action).toBe('berichtsheft');
 
     const starter = getWorkspaceQuickPrompts('work').find((quick) => quick.label === 'Berichtsheft');
+    expect(starter?.prompt).toMatch(/Ausbildungsnachweis|Berichtsheft/);
     expect(starter?.prompt).toContain('Kalenderwoche');
-    expect(starter?.prompt).toBe(buildBerichtsheftPrompt());
+    expect(starter?.prompt).not.toBe(buildBerichtsheftPrompt());
   });
 });

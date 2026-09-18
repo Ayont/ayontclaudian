@@ -34,7 +34,10 @@
   font-family: var(--cl-font-mono);
   font-weight: 600;
   letter-spacing: 0.01em;
-  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    background-color 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .claudian-commit-bar-branch--clickable {
