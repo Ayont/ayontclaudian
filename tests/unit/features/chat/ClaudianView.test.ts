@@ -485,3 +485,61 @@ describe('ClaudianView Escape handling', () => {
     expect(result).toBeUndefined();
   });
 });
+
+/**
+ * Obsidian reveals a leaf only after the view's `onOpen()` resolves, and
+ * `setViewState()` is what the ribbon click awaits. Restoring the previously
+ * open conversation therefore must NOT be part of that promise: on a large
+ * archive it takes long enough that the pane never appears and the click reads
+ * as a dead button.
+ */
+describe('ClaudianView tab restore', () => {
+  function createRestoreHarness(restore: () => Promise<void>) {
+    const view = Object.create(ClaudianView.prototype) as any;
+    view.plugin = { app: { workspace: { layoutReady: true } } };
+    view.restoreOrCreateTabs = jest.fn().mockImplementation(restore);
+    view.syncProviderBrandColor = jest.fn();
+    view.applyChatAppearance = jest.fn();
+    view.updateLayoutForPosition = jest.fn();
+    view.applyWorkspaceMode = jest.fn();
+    view.tabManager = { primeProviderRuntime: jest.fn() };
+    return view;
+  }
+
+  it('returns before a slow restore has finished', () => {
+    let release: (() => void) | null = null;
+    const view = createRestoreHarness(() => new Promise<void>((resolve) => {
+      release = resolve;
+    }));
+
+    view.startTabRestore();
+
+    expect(view.restoreOrCreateTabs).toHaveBeenCalledTimes(1);
+    // Still pending — the call above returned anyway.
+    expect(view.applyChatAppearance).not.toHaveBeenCalled();
+    expect(release).not.toBeNull();
+  });
+
+  it('still finishes view setup when restoring the stored conversation throws', async () => {
+    const view = createRestoreHarness(() => Promise.reject(new Error('corrupt archive')));
+
+    view.startTabRestore();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(view.applyChatAppearance).toHaveBeenCalled();
+    expect(view.tabManager.primeProviderRuntime).toHaveBeenCalled();
+  });
+
+  it('waits for layout when Obsidian is still building it', () => {
+    const view = createRestoreHarness(() => Promise.resolve());
+    const onLayoutReady = jest.fn();
+    view.plugin.app.workspace = { layoutReady: false, onLayoutReady };
+
+    view.startTabRestore();
+
+    expect(view.restoreOrCreateTabs).not.toHaveBeenCalled();
+    expect(onLayoutReady).toHaveBeenCalledTimes(1);
+  });
+});

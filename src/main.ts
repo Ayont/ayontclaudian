@@ -411,14 +411,14 @@ export default class ClaudianPlugin extends Plugin {
     );
 
     this.addRibbonIcon('bot', 'Open Claudian', () => {
-      void this.activateView();
+      void this.openChatView();
     });
 
     this.addCommand({
       id: 'open-view',
       name: 'Open chat view',
       callback: () => {
-        void this.activateView();
+        void this.openChatView();
       },
     });
 
@@ -2321,24 +2321,58 @@ export default class ClaudianPlugin extends Plugin {
     });
   }
 
+  /**
+   * Entry point behind the ribbon icon and the open command. Both are
+   * fire-and-forget, so without this an unexpected rejection would be a silent
+   * unhandled promise and the click would appear to do nothing.
+   */
+  private async openChatView(): Promise<void> {
+    try {
+      await this.activateView();
+    } catch {
+      new Notice('Claudian konnte nicht geöffnet werden.');
+    }
+  }
+
+  /**
+   * Opens the chat pane.
+   *
+   * Two failure modes used to end here silently, and both look identical to the
+   * user — a ribbon click that does nothing:
+   *
+   * - the configured placement returns no leaf (a sidebar the layout no longer
+   *   has), so nothing was ever created;
+   * - `setViewState()` rejects because the view failed while rebuilding the
+   *   previously open conversation, so the reveal behind it never ran.
+   *
+   * The pane now always appears: the placement falls back to a main-area tab,
+   * and a broken restore costs the old conversation, not the whole window.
+   */
   async activateView() {
     const { workspace } = this.app;
-    let leaf = workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN)[0];
+    const existing = workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN)[0];
+    if (existing) {
+      await revealWorkspaceLeaf(workspace, existing);
+      return;
+    }
 
+    const leaf = this.getLeafForPlacement(this.settings.chatViewPlacement)
+      ?? workspace.getLeaf('tab');
     if (!leaf) {
-      const newLeaf = this.getLeafForPlacement(this.settings.chatViewPlacement);
-      if (newLeaf) {
-        await newLeaf.setViewState({
-          type: VIEW_TYPE_CLAUDIAN,
-          active: true,
-        });
-        leaf = newLeaf;
-      }
+      new Notice('Claudian konnte nicht geöffnet werden: kein freier Bereich im Workspace.');
+      return;
     }
 
-    if (leaf) {
-      await revealWorkspaceLeaf(workspace, leaf);
+    try {
+      await leaf.setViewState({
+        type: VIEW_TYPE_CLAUDIAN,
+        active: true,
+      });
+    } catch {
+      new Notice('Claudian wurde geöffnet, der zuletzt offene Chat ließ sich aber nicht laden.');
     }
+
+    await revealWorkspaceLeaf(workspace, leaf);
   }
 
   private getLeafForPlacement(placement: ChatViewPlacement): WorkspaceLeaf | null {

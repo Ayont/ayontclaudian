@@ -1295,3 +1295,45 @@ body.theme-light .claudian-response-provider-pill {
 .claudian-status-card ~ .claudian-text-copy-btn {
   display: none !important;
 }
+
+/*
+ * "Load older messages" — the conversation opens with only the newest turns
+ * mounted, so this sits above them as the way back into the archive. Styled as
+ * a quiet divider rather than a primary action: it is a navigation affordance,
+ * not something the user should feel pushed towards.
+ */
+.claudian-history-more {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+  margin: 4px 0 14px !important;
+}
+
+.claudian-history-more::before,
+.claudian-history-more::after {
+  content: '' !important;
+  flex: 1 !important;
+  height: 1px !important;
+  background: var(--background-modifier-border) !important;
+}
+
+.claudian-history-more-btn {
+  flex: none !important;
+  padding: 4px 12px !important;
+  border: 1px solid var(--background-modifier-border) !important;
+  border-radius: 999px !important;
+  background: var(--background-secondary) !important;
+  color: var(--text-muted) !important;
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+  cursor: pointer !important;
+  transition: color var(--claudian-duration-fast, 120ms) ease,
+              border-color var(--claudian-duration-fast, 120ms) ease !important;
+}
+
+.claudian-history-more-btn:hover,
+.claudian-history-more-btn:focus-visible {
+  color: var(--text-normal) !important;
+  border-color: var(--claudian-brand, var(--interactive-accent)) !important;
+}

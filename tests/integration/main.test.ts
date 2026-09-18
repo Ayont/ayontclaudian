@@ -229,6 +229,40 @@ describe('ClaudianPlugin', () => {
       await expect(plugin.activateView()).resolves.not.toThrow();
     });
 
+    it('falls back to a main-area tab when the configured sidebar yields no leaf', async () => {
+      // A ribbon click that produces neither a pane nor an error is the worst
+      // possible outcome: the user cannot tell the plugin from a dead button.
+      const mockMainLeaf = { setViewState: jest.fn().mockResolvedValue(undefined) };
+      mockApp.workspace.getLeavesOfType.mockReturnValue([]);
+      mockApp.workspace.getRightLeaf.mockReturnValue(null);
+      mockApp.workspace.getLeaf.mockReturnValue(mockMainLeaf);
+
+      await plugin.onload();
+      await plugin.activateView();
+
+      expect(mockMainLeaf.setViewState).toHaveBeenCalledWith({
+        type: VIEW_TYPE_CLAUDIAN,
+        active: true,
+      });
+      expect(mockApp.workspace.revealLeaf).toHaveBeenCalledWith(mockMainLeaf);
+    });
+
+    it('reveals the pane even when the view fails to restore its content', async () => {
+      // setViewState resolves only after ClaudianView.onOpen() does. A failure
+      // while rebuilding the previous conversation must still leave the user
+      // with a visible chat pane, not with nothing at all.
+      const mockRightLeaf = {
+        setViewState: jest.fn().mockRejectedValue(new Error('restore failed')),
+      };
+      mockApp.workspace.getLeavesOfType.mockReturnValue([]);
+      mockApp.workspace.getRightLeaf.mockReturnValue(mockRightLeaf);
+
+      await plugin.onload();
+      await expect(plugin.activateView()).resolves.not.toThrow();
+
+      expect(mockApp.workspace.revealLeaf).toHaveBeenCalledWith(mockRightLeaf);
+    });
+
     it('should create new leaf in main editor area when chatViewPlacement is main-tab', async () => {
       const mockMainLeaf = {
         setViewState: jest.fn().mockResolvedValue(undefined),

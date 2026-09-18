@@ -67,6 +67,7 @@ import {
   frameMermaidDiagrams,
   snapshotMermaidFrames,
 } from './MermaidFrame';
+import { HISTORY_WINDOW_STEP, planMessageHistoryWindow } from './messageHistoryWindow';
 import { renderNetworkMaps } from './NetworkMapRenderer';
 import {
   coalesceRichOutputBlocks,
@@ -308,6 +309,10 @@ export class MessageRenderer {
    * never gets a leading divider.
    */
   private lastRenderedProviderId: ProviderId | null = null;
+  /** Coalesced history of the open conversation, including unmounted turns. */
+  private coalescedHistory: ChatMessage[] = [];
+  /** Index of the oldest mounted turn within {@link coalescedHistory}. */
+  private mountedHistoryFrom = 0;
   private dockHandler: ((target: FileDockTarget) => void) | null = null;
   private liveDocumentDockHandler: ((document: LiveDocument, theme: LiveDocumentTheme) => void) | null = null;
   private liveDocumentDiscoveryHandler: ((document: LiveDocument, theme: LiveDocumentTheme) => void) | null = null;
@@ -840,13 +845,82 @@ export class MessageRenderer {
     renderWelcomeContent(newWelcomeEl, getGreeting(), this.plugin);
 
     const coalescedMessages = this.coalesceConsecutiveAssistantMessages(messages);
+    this.coalescedHistory = coalescedMessages;
 
-    for (let i = 0; i < coalescedMessages.length; i++) {
+    const { hidden, visible } = planMessageHistoryWindow(coalescedMessages);
+    this.mountedHistoryFrom = coalescedMessages.length - visible.length;
+
+    // Live documents live in the per-tab library, not in the DOM. A turn that
+    // is not mounted must still contribute its documents, or reopening a long
+    // conversation would quietly empty the library.
+    for (let i = 0; i < this.mountedHistoryFrom; i++) {
+      this.discoverLiveDocuments(coalescedMessages[i]);
+    }
+
+    if (hidden > 0) {
+      this.renderOlderHistoryControl(hidden);
+    }
+
+    // `allMessages` and the index stay absolute so rewind and fork keep
+    // addressing the whole conversation, not just the mounted window.
+    for (let i = this.mountedHistoryFrom; i < coalescedMessages.length; i++) {
       this.renderStoredMessage(coalescedMessages[i], coalescedMessages, i);
     }
 
     this.scrollToBottom();
     return newWelcomeEl;
+  }
+
+  /** Button above the mounted window that pulls the previous batch into the DOM. */
+  private renderOlderHistoryControl(hidden: number): void {
+    const control = this.messagesEl.createDiv({ cls: 'claudian-history-more' });
+    const button = control.createEl('button', {
+      cls: 'claudian-history-more-btn',
+      attr: { type: 'button' },
+    });
+    button.setText(this.olderHistoryLabel(hidden));
+    button.addEventListener('click', () => this.mountOlderHistory(control, button));
+  }
+
+  private olderHistoryLabel(hidden: number): string {
+    return hidden === 1 ? '1 ältere Nachricht laden' : `${hidden} ältere Nachrichten laden`;
+  }
+
+  /**
+   * Mounts the previous batch in place, without re-rendering what is already on
+   * screen. `renderStoredMessage` always appends, so the batch is moved in
+   * front of the control afterwards and the scroll position is corrected by the
+   * height that grew above the viewport — the user keeps their reading spot.
+   */
+  private mountOlderHistory(control: HTMLElement, button: HTMLElement): void {
+    const nextFrom = Math.max(0, this.mountedHistoryFrom - HISTORY_WINDOW_STEP);
+    if (nextFrom === this.mountedHistoryFrom) return;
+
+    const anchor = control.nextSibling;
+    const previousHeight = this.messagesEl.scrollHeight;
+    const appendedFrom = this.messagesEl.childElementCount;
+    // The batch is rendered in isolation, then the cursor is restored so the
+    // divider state of the already-mounted window stays correct.
+    const providerCursor = this.lastRenderedProviderId;
+    this.lastRenderedProviderId = null;
+
+    for (let i = nextFrom; i < this.mountedHistoryFrom; i++) {
+      this.renderStoredMessage(this.coalescedHistory[i], this.coalescedHistory, i);
+    }
+
+    this.lastRenderedProviderId = providerCursor;
+    for (const element of Array.from(this.messagesEl.children).slice(appendedFrom)) {
+      this.messagesEl.insertBefore(element, anchor);
+    }
+
+    this.mountedHistoryFrom = nextFrom;
+    this.messagesEl.scrollTop += this.messagesEl.scrollHeight - previousHeight;
+
+    if (nextFrom === 0) {
+      control.remove();
+      return;
+    }
+    button.setText(this.olderHistoryLabel(nextFrom));
   }
 
   /**

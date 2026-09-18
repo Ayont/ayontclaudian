@@ -163,6 +163,62 @@ describe('MessageRenderer', () => {
     expect(welcomeEl.hasClass('claudian-welcome')).toBe(true);
   });
 
+  describe('long conversations', () => {
+    const history = (count: number): ChatMessage[] =>
+      Array.from({ length: count }, (_, index) => ({
+        id: `m${index}`,
+        role: index % 2 === 0 ? 'user' : 'assistant',
+        content: `message ${index}`,
+        timestamp: index,
+      } as ChatMessage));
+
+    it('mounts only the newest turns, so opening a long chat is not a freeze', () => {
+      const { renderer } = createRenderer();
+      const renderStoredSpy = jest.spyOn(renderer, 'renderStoredMessage').mockImplementation(() => {});
+
+      renderer.renderMessages(history(138), () => 'Hi');
+
+      expect(renderStoredSpy).toHaveBeenCalledTimes(30);
+      const firstMounted = renderStoredSpy.mock.calls[0][0] as ChatMessage;
+      const lastMounted = renderStoredSpy.mock.calls[29][0] as ChatMessage;
+      expect(firstMounted.id).toBe('m108');
+      expect(lastMounted.id).toBe('m137');
+    });
+
+    it('keeps indices absolute so rewind and fork still address the whole chat', () => {
+      const { renderer } = createRenderer();
+      const renderStoredSpy = jest.spyOn(renderer, 'renderStoredMessage').mockImplementation(() => {});
+
+      renderer.renderMessages(history(138), () => 'Hi');
+
+      const [, allMessages, index] = renderStoredSpy.mock.calls[0];
+      expect(index).toBe(108);
+      expect((allMessages as ChatMessage[]).length).toBe(138);
+    });
+
+    it('offers the withheld turns instead of dropping them', () => {
+      const messagesEl = createMockEl();
+      const { renderer } = createRenderer(messagesEl);
+      jest.spyOn(renderer, 'renderStoredMessage').mockImplementation(() => {});
+
+      renderer.renderMessages(history(138), () => 'Hi');
+
+      const control = messagesEl.querySelector('.claudian-history-more-btn') as HTMLElement | null;
+      expect(control?.textContent).toBe('108 ältere Nachrichten laden');
+    });
+
+    it('mounts a short conversation completely and shows no control', () => {
+      const messagesEl = createMockEl();
+      const { renderer } = createRenderer(messagesEl);
+      const renderStoredSpy = jest.spyOn(renderer, 'renderStoredMessage').mockImplementation(() => {});
+
+      renderer.renderMessages(history(12), () => 'Hi');
+
+      expect(renderStoredSpy).toHaveBeenCalledTimes(12);
+      expect(messagesEl.querySelector('.claudian-history-more-btn')).toBeNull();
+    });
+  });
+
   // ============================================
   // renderStoredMessage
   // ============================================

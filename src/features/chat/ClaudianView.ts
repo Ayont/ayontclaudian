@@ -243,8 +243,26 @@ export class ClaudianView extends ItemView {
 
     this.wireEventHandlers();
 
+    this.startTabRestore();
+  }
+
+  /**
+   * Rebuilds the previously open chats — deliberately NOT awaited by onOpen().
+   *
+   * Obsidian resolves `setViewState()` only after `onOpen()` returns, and the
+   * ribbon click reveals the leaf only after that. Restoring a long
+   * conversation re-renders megabytes of stored messages, so awaiting it here
+   * kept the pane invisible for as long as that took: the click looked like it
+   * did nothing. The shell is complete at this point; the chats fill in behind
+   * it, and a corrupt archive costs the history, not the window.
+   */
+  private startTabRestore(): void {
     const restoreTabs = async () => {
-      await this.restoreOrCreateTabs();
+      try {
+        await this.restoreOrCreateTabs();
+      } catch {
+        new Notice('Der zuletzt offene Chat konnte nicht wiederhergestellt werden.');
+      }
       this.syncProviderBrandColor();
       this.applyChatAppearance();
       this.updateLayoutForPosition();
@@ -253,7 +271,7 @@ export class ClaudianView extends ItemView {
     };
 
     if (this.plugin.app.workspace.layoutReady) {
-      await restoreTabs();
+      void restoreTabs();
     } else {
       this.plugin.app.workspace.onLayoutReady(() => {
         void restoreTabs();
