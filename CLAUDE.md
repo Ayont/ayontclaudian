@@ -170,6 +170,13 @@ Each of these has cost a real debugging session. They are not theoretical.
     every open chat "gone". Tab layout and drafts now use
     `core/storage/atomicJsonFile` (serialized, deduplicated, temp file + rename)
     and are saved while the user works, so there is nothing left to write at quit.
+11. **Another plugin can close the view before it has restored.** The Homepage
+    plugin rebuilds the whole workspace on layout-ready ("Replace all open
+    notes"), which runs `ClaudianView.onClose()` before the deferred tab restore
+    finished. The empty layout it saved then overwrote the real one on every
+    start. `ClaudianView.getSavableTabState()` returns nothing until
+    `tabLayoutRestored` is set; any path that persists tab state must go
+    through it.
 
 ## Commands
 

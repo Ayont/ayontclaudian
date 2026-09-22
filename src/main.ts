@@ -40,6 +40,7 @@ import {
   WorkflowEngine,
   type WorkflowStep,
 } from './core/control/workflows/WorkflowEngine';
+import { buildConversationSearchIndex, type ConversationSearchIndex } from './core/conversation/conversationSearchIndex';
 import { buildDiagnosticsMarkdown } from './core/diagnostics/buildDiagnostics';
 import { getErrorHistory } from './core/diagnostics/errorHistory';
 import { perfMark, perfSince } from './core/diagnostics/perfLog';
@@ -192,7 +193,6 @@ import type { Locale } from './i18n/types';
 import { buildClaudeWindows, type ClaudeRateWindows,readClaudeUsageEvents } from './providers/claude/runtime/rateLimits';
 import { readLatestCodexRateLimits } from './providers/codex/runtime/rateLimits';
 import { OPENCODE_PLAN_MODE_ID, OPENCODE_SAFE_MODE_ID } from './providers/opencode/modes';
-import { extractUserDisplayContent } from './utils/context';
 import { buildCursorContext } from './utils/editor';
 import { clearEnvPathCache, getEnhancedPath } from './utils/env';
 import { revealWorkspaceLeaf } from './utils/obsidianCompat';
@@ -913,6 +913,7 @@ export default class ClaudianPlugin extends Plugin {
 
     // One-time repair for session files written before tool results were capped.
     this.scheduleSessionCompaction();
+    this.scheduleSearchIndexBackfill();
 
     perfSince(onloadStart, 'onload-total');
   }
@@ -926,6 +927,32 @@ export default class ClaudianPlugin extends Plugin {
    * thread, so it deliberately waits until the window is interactive rather
    * than competing with the very startup it is meant to speed up.
    */
+  /**
+   * Indexes chats an older build listed without a search index, from the
+   * messages their session files already hold. Waits for an interactive window
+   * and yields between files, like compaction.
+   */
+  private scheduleSearchIndexBackfill(): void {
+    if (typeof this.app.workspace?.onLayoutReady !== 'function') return;
+    this.app.workspace.onLayoutReady(() => {
+      window.setTimeout(() => {
+        if (this.unloaded) return;
+        void this.storage.sessions.backfillSearchIndexes?.({
+          yieldBetweenFiles: () => new Promise((resolve) => window.setTimeout(resolve, 16)),
+        })
+          .then((updated) => {
+            for (const { id, searchIndex } of updated ?? []) {
+              const conversation = this.conversations.find(c => c.id === id);
+              if (conversation) conversation.searchIndex = searchIndex;
+            }
+          })
+          .catch(() => {
+            // Best-effort housekeeping — never surface as an error.
+          });
+      }, 6_000);
+    });
+  }
+
   private scheduleSessionCompaction(): void {
     if (typeof this.app.workspace?.onLayoutReady !== 'function') return;
 
@@ -2295,10 +2322,9 @@ export default class ClaudianPlugin extends Plugin {
   private async persistOpenTabStates(): Promise<void> {
     // Ensures state is saved even if Obsidian quits without calling onClose()
     for (const view of this.getAllViews()) {
-      const tabManager = view.getTabManager();
-      if (tabManager) {
-        tabManager.flushComposerDrafts();
-        const state = tabManager.getPersistedState();
+      view.getTabManager()?.flushComposerDrafts();
+      const state = view.getSavableTabState();
+      if (state) {
         await this.persistTabManagerState(state);
       }
     }
@@ -2621,6 +2647,7 @@ export default class ClaudianPlugin extends Plugin {
         goal: meta.goal,
         workspaceMode: meta.workspaceMode,
         pinned: meta.pinned,
+        searchIndex: meta.searchIndex,
         messages: meta.messages ?? [],
         currentNote: meta.currentNote,
         externalContextPaths: meta.externalContextPaths,
@@ -2894,15 +2921,16 @@ export default class ClaudianPlugin extends Plugin {
     });
   }
 
-  private getConversationPreview(conv: Conversation): string {
-    const firstUserMsg = conv.messages.find(m => m.role === 'user');
-    if (!firstUserMsg) {
-      return 'New conversation';
+  /**
+   * The chat's search index: rebuilt from messages in memory, else the stored
+   * one. This used to return the literal 'New conversation' for every unloaded
+   * chat, which also blocked the stored-preview fallback, so every row read that.
+   */
+  private getConversationSearchIndex(conv: Conversation): ConversationSearchIndex | undefined {
+    if (conv.messages.length > 0) {
+      return buildConversationSearchIndex(conv.messages) ?? conv.searchIndex;
     }
-    const previewText = firstUserMsg.displayContent
-      ?? extractUserDisplayContent(firstUserMsg.content)
-      ?? firstUserMsg.content;
-    return previewText.substring(0, 50) + (previewText.length > 50 ? '...' : '');
+    return conv.searchIndex;
   }
 
   private async loadSdkMessagesForConversation(conversation: Conversation): Promise<void> {
@@ -2925,6 +2953,13 @@ export default class ClaudianPlugin extends Plugin {
         vaultPath: getVaultPath(this.app),
       });
     await this.restoreConversationImageData(conversation, cachedMessages);
+    // Chats whose messages live only in the provider's transcript (most Claude
+    // chats) get their history preview and search text the first time they load.
+    const searchIndex = buildConversationSearchIndex(conversation.messages);
+    if (searchIndex) {
+      conversation.searchIndex = searchIndex;
+      this.storage.sessions.rememberSearchIndex?.(conversation.id, searchIndex);
+    }
   }
 
   /** Restores archived user images after native conversation hydration. */
@@ -3145,18 +3180,23 @@ export default class ClaudianPlugin extends Plugin {
   }
 
   getConversationList(): ConversationMeta[] {
-    return this.conversations.map(c => ({
-      id: c.id,
-      providerId: c.providerId,
-      title: c.title,
-      createdAt: c.createdAt,
-      updatedAt: c.updatedAt,
-      lastResponseAt: c.lastResponseAt,
-      messageCount: c.messages.length > 0 ? c.messages.length : ((c as any)._messageCount || 0),
-      preview: this.getConversationPreview(c) || (c as any)._preview || "",
-      pinned: c.pinned,
-      titleGenerationStatus: c.titleGenerationStatus,
-    }));
+    return this.conversations.map(c => {
+      const searchIndex = this.getConversationSearchIndex(c);
+      return {
+        id: c.id,
+        providerId: c.providerId,
+        title: c.title,
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt,
+        lastResponseAt: c.lastResponseAt,
+        messageCount: c.messages.length > 0 ? c.messages.length : ((c as any)._messageCount || 0),
+        preview: searchIndex?.preview ?? '',
+        lastPrompt: searchIndex?.lastPrompt,
+        searchText: searchIndex?.text,
+        pinned: c.pinned,
+        titleGenerationStatus: c.titleGenerationStatus,
+      };
+    });
   }
 
   async persistTabManagerState(state: AppTabManagerState): Promise<void> {

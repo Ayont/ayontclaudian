@@ -1,3 +1,4 @@
+import { buildConversationSearchIndex, type ConversationSearchIndex } from '../conversation/conversationSearchIndex';
 import type { ProviderSessionSnapshot } from '../conversation/providerSessionHandoff';
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import { DEFAULT_CHAT_PROVIDER_ID } from '../providers/types';
@@ -115,14 +116,11 @@ export class SessionStorage {
 
   extractLightMetadata(raw: SessionMetadata): LightSessionMetadata {
     const messageCount = raw.messages?.length ?? 0;
-    let preview = '';
-    if (raw.messages && raw.messages.length > 0) {
-      const firstUser = raw.messages.find((m) => m.role === 'user');
-      if (firstUser?.content) {
-        const clean = firstUser.content.replace(/\n/g, ' ').trim();
-        preview = clean.length > 50 ? clean.slice(0, 50) + '...' : clean;
-      }
-    }
+    // The stored first prompt carries vault/graph/image envelopes; the index
+    // strips them, so the preview is what the user actually typed.
+    const searchIndex = raw.searchIndex
+      ?? (messageCount > 0 ? buildConversationSearchIndex(raw.messages ?? []) : undefined);
+    const preview = searchIndex?.preview ?? '';
 
     let lastResponseAt = raw.lastResponseAt;
     if (lastResponseAt == null && raw.messages && raw.messages.length > 0) {
@@ -167,6 +165,7 @@ export class SessionStorage {
       pendingContextBootstrap: typeof raw.pendingContextBootstrap === "string"
         ? raw.pendingContextBootstrap
         : undefined,
+      searchIndex,
       messages: [],
       _messageCount: messageCount,
       _preview: preview,
@@ -382,7 +381,57 @@ export class SessionStorage {
       enabledMcpServers: conversation.enabledMcpServers,
       usage: conversation.usage,
       resumeAtMessageId: conversation.resumeAtMessageId,
+      // Rebuilt only from messages in memory; a chat saved while unloaded (pin,
+      // rename, title) keeps the index it has instead of losing it.
+      searchIndex: (conversation.messages.length > 0
+        ? buildConversationSearchIndex(conversation.messages)
+        : undefined) ?? conversation.searchIndex,
     };
+  }
+
+  /**
+   * Records a chat's search index in the index cache only. Used when messages
+   * were loaded from a provider transcript: the metadata file picks the index
+   * up on the chat's next real save, without a rewrite now.
+   */
+  rememberSearchIndex(id: string, searchIndex: ConversationSearchIndex): void {
+    const entry = this.indexCache?.get(id) as LightSessionMetadata | undefined;
+    if (!entry) return;
+    this.rememberLightInIndex({ ...entry, searchIndex, _preview: searchIndex.preview });
+  }
+
+  /**
+   * Builds the search index for entries an older build listed without one,
+   * from the messages their metadata files already contain. Oversized files
+   * are skipped here, as in compaction; they index when opened.
+   */
+  async backfillSearchIndexes(
+    options: { yieldBetweenFiles?: () => Promise<void> } = {},
+  ): Promise<Array<{ id: string; searchIndex: ConversationSearchIndex }>> {
+    if (!this.indexCache) return [];
+    const pending = Array.from(this.indexCache.values())
+      .filter((entry) => !entry.searchIndex && ((entry as LightSessionMetadata)._messageCount ?? 0) > 0)
+      .map((entry) => entry.id);
+    const updated: Array<{ id: string; searchIndex: ConversationSearchIndex }> = [];
+    for (const id of pending) {
+      try {
+        const path = await this.getLoadPath(id);
+        if (!path) continue;
+        if (typeof this.adapter.stat === 'function') {
+          const st = await this.adapter.stat(path);
+          if (st && st.size > MAX_BACKGROUND_COMPACT_BYTES) continue;
+        }
+        const raw = JSON.parse(await this.adapter.read(path)) as SessionMetadata;
+        const searchIndex = raw.searchIndex ?? buildConversationSearchIndex(raw.messages ?? []);
+        if (!searchIndex) continue;
+        this.rememberSearchIndex(id, searchIndex);
+        updated.push({ id, searchIndex });
+      } catch {
+        // An unreadable file keeps its old row; indexing is best-effort.
+      }
+      await options.yieldBetweenFiles?.();
+    }
+    return updated;
   }
 
   /**

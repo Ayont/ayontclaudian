@@ -68,7 +68,10 @@ test.each(['abort', 'timeout', 'leader-exit'])('process-group cleanup includes T
   const c=spawn(process.execPath,['-e',"process.on('SIGTERM',()=>{});setTimeout(()=>process.exit(0),4000);setInterval(()=>{},100)"],{stdio:'ignore'});
   process.stdout.write(JSON.stringify({jsonrpc:'2.0',method:'fixture',params:{pid:c.pid}})+'\\n');
   ${mode === 'leader-exit' ? 'setTimeout(()=>process.exit(0),100)' : 'setInterval(()=>{},100);setTimeout(()=>process.exit(0),4000)'};`;
-  const transport = stdio(script, { signal: controller.signal, timeoutMs: mode === 'timeout' ? 350 : 2000 });
+  // Under full-suite load a 350ms timeout fired before the fixture could even
+  // report its descendant. 1s plus the 2.5s reap bound still ends before the
+  // descendant's own 4s expiry.
+  const transport = stdio(script, { signal: controller.signal, timeoutMs: mode === 'timeout' ? 1000 : 2000 });
   let pid = 0;
   const received = new Promise<void>(resolve => { transport.onmessage = message => { pid = (message as unknown as {params:{pid:number}}).params.pid; resolve(); }; });
   const closed = new Promise<void>(resolve => { transport.onclose = resolve; });

@@ -1,3 +1,4 @@
+import type { ConversationSearchIndex } from '../conversation/conversationSearchIndex';
 import type { ProviderSessionSnapshot } from '../conversation/providerSessionHandoff';
 import type { SDKToolUseResult } from './diff';
 import type { ProviderId } from './provider';
@@ -147,6 +148,8 @@ export interface Conversation {
   enabledMcpServers?: string[];
   /** Assistant checkpoint identifier for resumeAtMessageId after rewind. */
   resumeAtMessageId?: string;
+  /** What the history shows and searches without loading the messages. */
+  searchIndex?: ConversationSearchIndex;
 }
 
 /** Lightweight conversation metadata for the history dropdown. */
@@ -160,6 +163,10 @@ export interface ConversationMeta {
   lastResponseAt?: number;
   messageCount: number;
   preview: string;
+  /** Latest prompt, when the chat went on past its first one. */
+  lastPrompt?: string;
+  /** Indexed prompts and reply openings the history searches. */
+  searchText?: string;
   /** Pinned conversations sort to the top of the history. */
   pinned?: boolean;
   /** Status of AI title generation. */
@@ -200,6 +207,8 @@ export interface SessionMetadata {
   usage?: UsageInfo;
   /** Assistant checkpoint identifier for resumeAtMessageId after rewind. */
   resumeAtMessageId?: string;
+  /** See {@link Conversation.searchIndex}. */
+  searchIndex?: ConversationSearchIndex;
 }
 
 /**

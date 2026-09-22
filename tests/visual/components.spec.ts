@@ -22,7 +22,7 @@ const LEGACY_SECTIONS = [
   'usage-sparkline',
 ] as const;
 
-const CONTROL_SECTIONS = ['fast-chip', 'model-picker', 'composer-toolbar', 'browser-activity'] as const;
+const CONTROL_SECTIONS = ['fast-chip', 'model-picker', 'composer-toolbar', 'browser-activity', 'history-panel', 'history-search'] as const;
 
 test.beforeEach(async ({ page }) => {
   await page.goto(HARNESS_URL);
@@ -101,6 +101,36 @@ test('library rows keep separate names and actions without horizontal overflow',
     });
     expect(geometry.overflow).toBeLessThanOrEqual(1);
     expect(geometry.textRight).toBeLessThanOrEqual(geometry.actionsLeft);
+  }
+});
+
+// Regression: rows inherited Obsidian's generic button chrome (grey fill, fixed
+// height), and the search input kept the theme's focus ring inside its own.
+test('history rows are list rows, not buttons, and the search field has one ring', async ({ page }) => {
+  const panel = page.locator('[data-vis="history-panel"]');
+  const content = panel.locator('.claudian-history-item:not(.active) .claudian-history-item-content').first();
+  const button = await content.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { background: style.backgroundColor, boxShadow: style.boxShadow, height: element.getBoundingClientRect().height };
+  });
+  expect(button.background).toBe('rgba(0, 0, 0, 0)');
+  expect(button.boxShadow).toBe('none');
+  expect(button.height).toBeGreaterThan(30);
+
+  const input = panel.locator('.claudian-history-search-input');
+  await input.focus();
+  const ring = await input.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { boxShadow: style.boxShadow, borderTopWidth: style.borderTopWidth };
+  });
+  expect(ring).toEqual({ boxShadow: 'none', borderTopWidth: '0px' });
+});
+
+test('history panel keeps rows inside the pane without horizontal overflow', async ({ page }) => {
+  for (const vis of ['history-panel', 'history-search']) {
+    const list = page.locator(`[data-vis="${vis}"] .claudian-history-list`);
+    const overflow = await list.evaluate((element) => element.scrollWidth - element.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
   }
 });
 

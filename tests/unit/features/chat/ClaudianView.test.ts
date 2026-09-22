@@ -543,3 +543,98 @@ describe('ClaudianView tab restore', () => {
     expect(onLayoutReady).toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * Regression: every restart came back with one blank tab. The Homepage plugin
+ * ("Replace all open notes") rebuilds the whole workspace with changeLayout() at
+ * layout-ready, so the first Claudian pane was closed before its deferred restore
+ * ran. Its onClose saved the still-empty tab list over the good layout, and the
+ * rebuilt pane restored nothing.
+ */
+describe('ClaudianView tab layout saving', () => {
+  const layout = (openTabs: Array<{ tabId: string; conversationId: string | null }>) => ({
+    openTabs,
+    activeTabId: openTabs[0]?.tabId ?? null,
+  });
+
+  function createSaveHarness(state = layout([{ tabId: 'tab-1', conversationId: 'conv-1' }])) {
+    const view = Object.create(ClaudianView.prototype) as any;
+    const persistTabManagerState = jest.fn().mockResolvedValue(undefined);
+    view.plugin = {
+      app: { workspace: { layoutReady: true } },
+      persistTabManagerState,
+    };
+    view.pendingPersist = null;
+    view.tabManager = {
+      getPersistedState: jest.fn().mockReturnValue(state),
+      primeProviderRuntime: jest.fn(),
+    };
+    view.restoreOrCreateTabs = jest.fn().mockResolvedValue(undefined);
+    view.syncProviderBrandColor = jest.fn();
+    view.applyChatAppearance = jest.fn();
+    view.updateLayoutForPosition = jest.fn();
+    view.applyWorkspaceMode = jest.fn();
+    return { view, persistTabManagerState };
+  }
+
+  async function finishRestore(view: any): Promise<void> {
+    view.startTabRestore();
+    for (let i = 0; i < 4; i++) await Promise.resolve();
+  }
+
+  it('does not save when the pane closes before its own restore ran', async () => {
+    const { view, persistTabManagerState } = createSaveHarness(layout([]));
+    view.plugin.app.workspace = { layoutReady: false, onLayoutReady: jest.fn() };
+    view.startTabRestore();
+
+    await view.persistTabStateImmediate();
+
+    expect(persistTabManagerState).not.toHaveBeenCalled();
+  });
+
+  it('saves once its own restore has finished', async () => {
+    const { view, persistTabManagerState } = createSaveHarness();
+    await finishRestore(view);
+
+    await view.persistTabStateImmediate();
+
+    expect(persistTabManagerState).toHaveBeenCalledWith(layout([{ tabId: 'tab-1', conversationId: 'conv-1' }]));
+  });
+
+  it('never saves an empty tab list, even after restore', async () => {
+    const { view, persistTabManagerState } = createSaveHarness(layout([]));
+    await finishRestore(view);
+
+    await view.persistTabStateImmediate();
+
+    expect(persistTabManagerState).not.toHaveBeenCalled();
+  });
+
+  it('applies the same rule to the debounced save', async () => {
+    jest.useFakeTimers();
+    try {
+      const { view, persistTabManagerState } = createSaveHarness();
+      view.persistTabState();
+      jest.advanceTimersByTime(400);
+      expect(persistTabManagerState).not.toHaveBeenCalled();
+
+      view.startTabRestore();
+      await Promise.resolve();
+      await Promise.resolve();
+      view.persistTabState();
+      jest.advanceTimersByTime(400);
+      expect(persistTabManagerState).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('exposes nothing to save for the plugin until restore has finished', async () => {
+    const { view } = createSaveHarness();
+    expect(view.getSavableTabState()).toBeNull();
+
+    await finishRestore(view);
+
+    expect(view.getSavableTabState()).toEqual(layout([{ tabId: 'tab-1', conversationId: 'conv-1' }]));
+  });
+});

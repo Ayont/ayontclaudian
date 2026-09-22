@@ -641,7 +641,9 @@ describe('ConversationController', () => {
 
         controller.updateHistoryDropdown();
 
-        expect(dropdown.children.length).toBe(2);
+        // header + list + keyboard-hint footer
+        expect(dropdown.children.length).toBe(3);
+        expect(dropdown.children[2].hasClass('claudian-history-footer')).toBe(true);
         const list = dropdown.children[1];
         expect(list.hasClass('claudian-history-list')).toBe(true);
         expect(list.children.length).toBe(2);
@@ -770,7 +772,7 @@ describe('ConversationController', () => {
         expect(content.disabled).toBe(true);
         expect(content.getAttribute('aria-current')).toBe('true');
         expect(activeItem.querySelector('.claudian-history-item-date')?.textContent)
-          .toBe('Aktuelle Unterhaltung');
+          .toBe('Aktuell');
       });
 
       it('should show loading indicator for pending title generation', () => {
@@ -799,8 +801,8 @@ describe('ConversationController', () => {
         const item = list.children[0];
         const actions = item.querySelector('.claudian-history-item-actions');
         expect(actions).toBeTruthy();
-        // regenerate + rename + export + delete = 4 children
-        expect(actions!.children.length).toBe(4);
+        // regenerate + pin + rename + export + delete
+        expect(actions!.children.length).toBe(5);
       });
 
       it('should not show select click handler on current conversation', () => {
@@ -862,6 +864,92 @@ describe('ConversationController', () => {
       });
     });
 
+    describe('smarter history', () => {
+      const conversations = [
+        { id: 'conv-1', providerId: 'claude', title: 'Fax-Fehler C. Beuthel', createdAt: 1000, lastResponseAt: 5000, preview: 'Warum schlägt der Fax fehl?', lastPrompt: 'Jetzt den SIP-Trunk prüfen', searchText: 'SIP-Trunk meldet 488 Not Acceptable Here' },
+        { id: 'conv-2', providerId: 'codex', title: 'CERTUSS Portal', createdAt: 2000, lastResponseAt: 4000, preview: 'Portal-Umbau', pinned: true },
+        { id: 'conv-3', providerId: 'claude', title: 'Veylor Bazaar', createdAt: 3000, lastResponseAt: 3000, preview: 'Order Book' },
+      ];
+      const titles = (list: any) => list.querySelectorAll('.claudian-history-item-title').map((el: any) => el.textContent);
+
+      beforeEach(() => {
+        (deps.plugin.getConversationList as jest.Mock).mockReturnValue(conversations);
+        (deps.plugin as any).composerDrafts = { hasConversationDraft: (id: string) => id === 'conv-3' };
+      });
+
+      it('shows where the chat stopped instead of repeating its first prompt', () => {
+        controller.updateHistoryDropdown();
+
+        const row = dropdown.children[1].querySelectorAll('.claudian-history-item')
+          .find((item: any) => item.querySelector('.claudian-history-item-title')?.textContent === 'Fax-Fehler C. Beuthel');
+        expect(row.querySelector('.claudian-history-item-snippet')?.textContent).toBe('Jetzt den SIP-Trunk prüfen');
+      });
+
+      it('offers filter chips for pinned chats, drafts and each provider', () => {
+        controller.updateHistoryDropdown();
+
+        const labels = dropdown.children[0].querySelectorAll('.claudian-history-filter-label').map((el: any) => el.textContent);
+        expect(labels.slice(0, 3)).toEqual(['Alle', 'Angepinnt', 'Entwürfe']);
+        expect(labels).toHaveLength(5);
+      });
+
+      it('narrows the list when a chip is chosen', () => {
+        controller.updateHistoryDropdown();
+
+        const draftsChip = dropdown.children[0].querySelectorAll('.claudian-history-filter')
+          .find((chip: any) => chip.querySelector('.claudian-history-filter-label')?.textContent === 'Entwürfe');
+        draftsChip.dispatchEvent({ type: 'click' });
+
+        expect(titles(dropdown.children[1])).toEqual(['Veylor Bazaar']);
+        expect(draftsChip.getAttribute('aria-pressed')).toBe('false');
+        const refreshed = dropdown.children[0].querySelectorAll('.claudian-history-filter')
+          .find((chip: any) => chip.querySelector('.claudian-history-filter-label')?.textContent === 'Entwürfe');
+        expect(refreshed.getAttribute('aria-pressed')).toBe('true');
+      });
+
+      it('finds a chat by its content and highlights the match', () => {
+        controller.updateHistoryDropdown();
+
+        const searchInput = dropdown.children[0].querySelector('.claudian-history-search-input');
+        searchInput!.value = '488';
+        searchInput!.dispatchEvent({ type: 'input' });
+
+        const list = dropdown.children[1];
+        expect(titles(list)).toEqual(['Fax-Fehler C. Beuthel']);
+        expect(list.querySelector('.claudian-history-item-mark')?.textContent).toBe('488');
+        expect(dropdown.children[0].querySelector('.claudian-history-header-count')?.textContent).toBe('1 von 3');
+      });
+
+      it('opens the best match on Enter in the search field', () => {
+        const switchTo = jest.spyOn(controller, 'switchTo').mockResolvedValue(undefined);
+        controller.updateHistoryDropdown();
+
+        const searchInput = dropdown.children[0].querySelector('.claudian-history-search-input');
+        searchInput!.value = 'certuss';
+        searchInput!.dispatchEvent({ type: 'input' });
+        searchInput!.dispatchEvent({ type: 'keydown', key: 'Enter', preventDefault: jest.fn(), stopPropagation: jest.fn() });
+
+        expect(switchTo).toHaveBeenCalledWith('conv-2');
+      });
+
+      it('renders large histories a page at a time', () => {
+        const many = Array.from({ length: 130 }, (_, i) => ({
+          id: `c-${i}`, providerId: 'claude', title: `Chat ${i}`, createdAt: i, lastResponseAt: i, preview: '',
+        }));
+        (deps.plugin.getConversationList as jest.Mock).mockReturnValue(many);
+        controller.updateHistoryDropdown();
+
+        const list = dropdown.children[1];
+        expect(list.querySelectorAll('.claudian-history-item')).toHaveLength(80);
+        const more = list.querySelector('.claudian-history-more-results');
+        expect(more?.textContent).toBe('50 weitere anzeigen · 50 übrig');
+
+        more!.dispatchEvent({ type: 'click' });
+
+        expect(dropdown.children[1].querySelectorAll('.claudian-history-item')).toHaveLength(130);
+      });
+    });
+
     describe('renderHistoryDropdown', () => {
       it('should render history items to provided container', () => {
         const container = createMockEl();
@@ -873,7 +961,7 @@ describe('ConversationController', () => {
 
         controller.renderHistoryDropdown(container, { onSelectConversation });
 
-        expect(container.children.length).toBe(2); // header + list
+        expect(container.children.length).toBe(3); // header + list + footer
       });
 
       it('should open a conversation in a new tab on modifier click when supported', async () => {
@@ -1087,8 +1175,7 @@ describe('ConversationController', () => {
       const item = list.children[0];
       const actions = item.querySelector('.claudian-history-item-actions');
       expect(actions).toBeTruthy();
-      // For non-failed items: rename is children[0], delete is children[1]
-      const rBtn = actions!.children[0];
+      const rBtn = actions!.children.find((child: any) => child.getAttribute('aria-label') === 'Umbenennen');
       expect(rBtn).toBeTruthy();
       const clickHandlers = rBtn._eventListeners?.get('click');
       expect(clickHandlers).toBeDefined();

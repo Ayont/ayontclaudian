@@ -5,7 +5,7 @@ import { runSerializedSettingsMutation } from '../../app/settings/SettingsMutati
 import { getHiddenProviderCommandSet } from '../../core/providers/commands/hiddenCommands';
 import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '../../core/providers/ProviderSettingsCoordinator';
-import { DEFAULT_CHAT_PROVIDER_ID, type ProviderId } from '../../core/providers/types';
+import { type AppTabManagerState, DEFAULT_CHAT_PROVIDER_ID, type ProviderId } from '../../core/providers/types';
 import {
   applyChatAppearanceToContainer,
   type ChatAppearanceSettings,
@@ -83,6 +83,13 @@ export class ClaudianView extends ItemView {
 
   // Debouncing for tab state persistence
   private pendingPersist: number | null = null;
+  /**
+   * False until this pane's own restore has run. Another plugin can rebuild the
+   * workspace at startup (Homepage's "Replace all open notes" calls
+   * changeLayout(), which recreates sidebar panes too) and close this pane before
+   * it restored; saving then would write an empty tab list over the real layout.
+   */
+  private tabLayoutRestored = false;
 
   constructor(leaf: WorkspaceLeaf, plugin: ClaudianPlugin) {
     super(leaf);
@@ -263,6 +270,8 @@ export class ClaudianView extends ItemView {
         await this.restoreOrCreateTabs();
       } catch {
         new Notice('Der zuletzt offene Chat konnte nicht wiederhergestellt werden.');
+      } finally {
+        this.tabLayoutRestored = true;
       }
       this.syncProviderBrandColor();
       this.applyChatAppearance();
@@ -1107,12 +1116,23 @@ export class ClaudianView extends ItemView {
     }
     this.pendingPersist = window.setTimeout(() => {
       this.pendingPersist = null;
-      if (!this.tabManager) return;
-      const state = this.tabManager.getPersistedState();
+      const state = this.getSavableTabState();
+      if (!state) return;
       this.plugin.persistTabManagerState(state).catch(() => {
         // Silently ignore persistence errors
       });
     }, 300);
+  }
+
+  /**
+   * The tab layout to save, or null when saving would overwrite a good layout:
+   * before this pane's own restore ran, or when it holds no tab at all (a
+   * restored pane always has one; zero only occurs mid-teardown).
+   */
+  getSavableTabState(): AppTabManagerState | null {
+    if (!this.tabLayoutRestored || !this.tabManager) return null;
+    const state = this.tabManager.getPersistedState();
+    return state.openTabs.length > 0 ? state : null;
   }
 
   /** Force immediate persistence (for onClose/onunload). */
@@ -1122,8 +1142,8 @@ export class ClaudianView extends ItemView {
       window.clearTimeout(this.pendingPersist);
       this.pendingPersist = null;
     }
-    if (!this.tabManager) return;
-    const state = this.tabManager.getPersistedState();
+    const state = this.getSavableTabState();
+    if (!state) return;
     await this.plugin.persistTabManagerState(state);
   }
 

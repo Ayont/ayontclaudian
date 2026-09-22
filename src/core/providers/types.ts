@@ -2,6 +2,7 @@ import type ClaudianPlugin from '../../main';
 import type { CursorContext } from '../../utils/editor';
 import type { AuxQueryRunner } from '../auxiliary/AuxQueryRunner';
 import type { SharedAppStorage } from '../bootstrap/storage';
+import type { ConversationSearchIndex } from '../conversation/conversationSearchIndex';
 import type { McpServerManager } from '../mcp/McpServerManager';
 import type { ChatRuntime } from '../runtime/ChatRuntime';
 import type { HomeFileAdapter } from '../storage/HomeFileAdapter';
@@ -140,6 +141,12 @@ export interface AppSessionStorage {
     yieldBetweenFiles?: () => Promise<void>;
     onProgress?: (reclaimed: number) => void;
   }): Promise<number>;
+  /** Records a chat's search index in the listing without rewriting its file. */
+  rememberSearchIndex?(id: string, searchIndex: ConversationSearchIndex): void;
+  /** Indexes chats listed without a search index from their saved messages. */
+  backfillSearchIndexes?(options?: {
+    yieldBetweenFiles?: () => Promise<void>;
+  }): Promise<Array<{ id: string; searchIndex: ConversationSearchIndex }>>;
 }
 
 // ---------------------------------------------------------------------------
