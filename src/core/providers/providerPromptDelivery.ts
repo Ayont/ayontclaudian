@@ -142,6 +142,12 @@ export function withProviderPromptDelivery(
   if (base.loadSubagentFinalResult) {
     wrapped.loadSubagentFinalResult = agentId => base.loadSubagentFinalResult!(agentId);
   }
+  if (base.canCancelSubagent) {
+    wrapped.canCancelSubagent = target => base.canCancelSubagent!(target);
+  }
+  if (base.cancelSubagent) {
+    wrapped.cancelSubagent = target => base.cancelSubagent!(target);
+  }
 
   return wrapped;
 }

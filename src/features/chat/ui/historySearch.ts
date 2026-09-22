@@ -57,7 +57,7 @@ export function normalizeForSearch(value: string): string {
 }
 
 /** Normalized text plus, for each normalized character, its original index. */
-function normalizeWithMap(value: string): { text: string; map: number[] } {
+export function normalizeWithMap(value: string): { text: string; map: number[] } {
   let text = '';
   const map: number[] = [];
   let index = 0;

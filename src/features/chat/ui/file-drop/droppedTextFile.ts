@@ -1,13 +1,23 @@
 /**
  * Helpers for handling text-like files dropped onto the chat input.
  *
- * Dropping a non-image file used to be silently ignored. We now inline text-like
- * files into the prompt as a fenced code block — fully backwards compatible, since
- * the message stays a plain string. Pure functions only; no DOM, no I/O.
+ * Small text files are inlined into the prompt as a fenced code block, so the
+ * message stays a plain string the user can edit around. Anything too large to
+ * read in a chat bubble is staged as an attachment instead (tables always are,
+ * see tableProfile). Pure functions only; no DOM, no I/O.
  */
 
-/** Max size of a dropped text file we inline into the prompt (2 MB). */
-export const MAX_DROPPED_TEXT_SIZE = 2 * 1024 * 1024;
+/**
+ * Inline limits for a dropped text file. An inlined file is not sent once: it
+ * lives in the textarea, the user bubble, the prompt, the provider transcript,
+ * the session metadata and every replayed history turn. Past a few hundred
+ * lines that costs far more than it helps — the reported 3CX call logs made
+ * one message 1.3 MB — while the agent can open a staged file with its own
+ * tools. 400 lines is roughly the longest file still readable in a bubble;
+ * 64 KB (~16k tokens) catches files with few but very long lines.
+ */
+export const MAX_INLINE_TEXT_BYTES = 64 * 1024;
+export const MAX_INLINE_TEXT_LINES = 400;
 
 /** Extensions we treat as inline-able text. */
 const TEXT_EXTENSIONS = new Set([
@@ -81,4 +91,20 @@ export function formatDroppedFileBlock(name: string, content: string): string {
   const fence = '`'.repeat(Math.max(3, longestRun + 1));
   const lang = languageForFile(name);
   return `\n\n${fence}${lang} ${fileName}\n${normalized}\n${fence}\n`;
+}
+
+/** Number of lines, ignoring one trailing line break. */
+export function countTextLines(text: string): number {
+  if (!text) return 0;
+  const breaks = text.match(/\r\n|\r|\n/g)?.length ?? 0;
+  return /(?:\r\n|\r|\n)$/.test(text) ? breaks : breaks + 1;
+}
+
+/**
+ * True when a dropped text file should become an attachment instead of being
+ * inlined. `text` is optional so oversized files are decided before reading.
+ */
+export function exceedsInlineTextLimit(sizeBytes: number, text?: string): boolean {
+  if (sizeBytes > MAX_INLINE_TEXT_BYTES) return true;
+  return text !== undefined && countTextLines(text) > MAX_INLINE_TEXT_LINES;
 }

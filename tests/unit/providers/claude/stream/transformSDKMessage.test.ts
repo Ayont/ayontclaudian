@@ -196,6 +196,141 @@ describe('transformSDKMessage', () => {
       }]);
     });
 
+    // Shapes recorded live from Claude Code 2.1.280 (a foreground general-purpose agent).
+    describe('live subagent telemetry', () => {
+      it('links a started agent task to its Agent tool call', () => {
+        const results = [...transformSDKMessage(msg({
+          type: 'system',
+          subtype: 'task_started',
+          task_id: 'a53054abb0493d657',
+          tool_use_id: 'toolu_agent',
+          description: 'Run sleep command and list files',
+          subagent_type: 'general-purpose',
+          is_backgrounded: false,
+          spawn_depth: 1,
+          task_type: 'local_agent',
+          prompt: 'Run the Bash command',
+        } as any))];
+
+        expect(results).toContainEqual({
+          type: 'subagent_update',
+          subagentId: 'toolu_agent',
+          update: { taskId: 'a53054abb0493d657', agentType: 'general-purpose', background: false },
+        });
+      });
+
+      it('does not treat a Bash task inside a subagent as a subagent', () => {
+        const results = [...transformSDKMessage(msg({
+          type: 'system',
+          subtype: 'task_started',
+          task_id: 'bun7t93fr',
+          owned_by_subagent: true,
+          tool_use_id: 'toolu_bash',
+          description: 'sleep 25 && echo slept',
+          is_backgrounded: false,
+          task_type: 'local_bash',
+        } as any))];
+
+        expect(results.some(chunk => chunk.type === 'subagent_update')).toBe(false);
+      });
+
+      it('turns task progress into the live activity line and counters', () => {
+        const results = [...transformSDKMessage(msg({
+          type: 'system',
+          subtype: 'task_progress',
+          task_id: 'a53054abb0493d657',
+          tool_use_id: 'toolu_agent',
+          description: 'Running sleep 25 && echo slept',
+          subagent_type: 'general-purpose',
+          usage: { total_tokens: 15853, tool_uses: 1, duration_ms: 3303 },
+          last_tool_name: 'Bash',
+        } as any))];
+
+        expect(results).toContainEqual({
+          type: 'subagent_update',
+          subagentId: 'toolu_agent',
+          update: {
+            activity: 'Running sleep 25 && echo slept',
+            lastToolName: 'Bash',
+            totalTokens: 15853,
+            toolUses: 1,
+            durationMs: 3303,
+          },
+        });
+      });
+
+      it('prefers the periodic AI summary over the raw progress description', () => {
+        const results = [...transformSDKMessage(msg({
+          type: 'system',
+          subtype: 'task_progress',
+          task_id: 't',
+          tool_use_id: 'toolu_agent',
+          description: 'Running ls',
+          summary: 'Durchsucht die Konfiguration',
+          usage: { total_tokens: 1, tool_uses: 1, duration_ms: 1 },
+        } as any))];
+
+        expect(results).toContainEqual(expect.objectContaining({
+          type: 'subagent_update',
+          update: expect.objectContaining({ activity: 'Durchsucht die Konfiguration' }),
+        }));
+      });
+
+      it('reports a stopped task as cancelled on its subagent', () => {
+        const results = [...transformSDKMessage(msg({
+          type: 'system',
+          subtype: 'task_notification',
+          task_id: 'a53054abb0493d657',
+          tool_use_id: 'toolu_agent',
+          status: 'stopped',
+          output_file: '/tmp/x.output',
+          summary: 'Run sleep command and list files',
+        } as any))];
+
+        expect(results[0]).toEqual({
+          type: 'subagent_update',
+          subagentId: 'toolu_agent',
+          update: { cancelled: true },
+        });
+      });
+
+      // The SDK also reports tasks it found orphaned after a worker restart as
+      // stopped, with a reason; the user did not stop those.
+      it('does not report a stop the user did not ask for', () => {
+        const results = [...transformSDKMessage(msg({
+          type: 'system',
+          subtype: 'task_notification',
+          task_id: 't',
+          tool_use_id: 'toolu_agent',
+          status: 'stopped',
+          reason: 'worker_restart',
+          output_file: '',
+          summary: 'x',
+        } as any))];
+
+        expect(results.some(chunk => chunk.type === 'subagent_update')).toBe(false);
+      });
+
+      it('forwards what the subagent writes, and its model, without touching the chat', () => {
+        const results = [...transformSDKMessage(msg({
+          type: 'assistant',
+          parent_tool_use_id: 'toolu_agent',
+          message: {
+            model: 'claude-haiku-4-5-20251001',
+            content: [
+              { type: 'thinking', thinking: 'internal' },
+              { type: 'text', text: 'I will sleep for 25 seconds.' },
+            ],
+          },
+        } as any))];
+
+        expect(results).toEqual([
+          { type: 'subagent_update', subagentId: 'toolu_agent', update: { model: 'claude-haiku-4-5-20251001' } },
+          { type: 'subagent_text', subagentId: 'toolu_agent', text: 'I will sleep for 25 seconds.\n\n' },
+        ]);
+      });
+    });
+
     it('maps non-completed task_notification statuses to async subagent errors', () => {
       const message = msg({
         type: 'system',

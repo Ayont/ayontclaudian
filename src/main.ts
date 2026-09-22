@@ -166,6 +166,12 @@ import { registerAppShotGlobalHotkey, unregisterAppShotGlobalHotkey } from './fe
 import { composerDraftsFilePath, ComposerDraftStore, conversationDraftKey } from './features/chat/services/ComposerDraftStore';
 import { ImageStagingService } from './features/chat/services/ImageStagingService';
 import { PacketTracerService } from './features/chat/services/PacketTracerService';
+import {
+  type SubagentInspectorState,
+  SubagentInspectorView,
+  VIEW_TYPE_SUBAGENT_INSPECTOR,
+} from './features/chat/subagents/SubagentInspectorView';
+import { type LocatableTab, type LocatableView, resolveSubagentSource, type SubagentSource } from './features/chat/subagents/subagentLocator';
 import type { TabData } from './features/chat/tabs/types';
 import { ModelSelectModal } from './features/chat/ui/ModelSelectModal';
 import { ProviderStatusBar } from './features/chat/ui/ProviderStatusBar';
@@ -416,6 +422,11 @@ export default class ClaudianPlugin extends Plugin {
     this.registerView(
       VIEW_TYPE_CLAUDIAN_RELATED,
       (leaf) => new RelatedNotesView(leaf, this)
+    );
+
+    this.registerView(
+      VIEW_TYPE_SUBAGENT_INSPECTOR,
+      (leaf) => new SubagentInspectorView(leaf, this)
     );
 
     this.addRibbonIcon('bot', 'Open Claudian', () => {
@@ -1932,6 +1943,43 @@ export default class ClaudianPlugin extends Plugin {
       await leaf.setViewState({ type: VIEW_TYPE_CLAUDIAN_DASHBOARD });
     }
     this.app.workspace.revealLeaf(leaf);
+  }
+
+  /** Opens one subagent in its own workspace tab, or brings its open tab forward. */
+  async openSubagentInspector(state: SubagentInspectorState): Promise<void> {
+    const { workspace } = this.app;
+    const existing = workspace.getLeavesOfType(VIEW_TYPE_SUBAGENT_INSPECTOR)
+      .find(leaf => leaf.view instanceof SubagentInspectorView && leaf.view.getSubagentId() === state.subagentId);
+    if (existing) {
+      await revealWorkspaceLeaf(workspace, existing);
+      return;
+    }
+    const leaf = workspace.getLeaf('tab');
+    await leaf.setViewState({ type: VIEW_TYPE_SUBAGENT_INSPECTOR, active: true, state: { ...state } });
+    await revealWorkspaceLeaf(workspace, leaf);
+  }
+
+  /** Live from the chat tab that runs the subagent, else from the saved chat. */
+  resolveSubagentSource(subagentId: string, conversationId?: string | null): Promise<SubagentSource | null> {
+    return resolveSubagentSource({
+      getViews: () => this.getAllViews() as unknown as LocatableView[],
+      getConversation: (id) => this.getConversationById(id),
+      locate: (view, tab, id) => {
+        void this.revealSubagentCard(view as unknown as ClaudianView, tab, id);
+      },
+    }, subagentId, conversationId);
+  }
+
+  private async revealSubagentCard(view: ClaudianView, tab: LocatableTab, subagentId: string): Promise<void> {
+    await revealWorkspaceLeaf(this.app.workspace, view.leaf);
+    await view.getTabManager()?.switchToTab(tab.id);
+    const card = view.containerEl.querySelector<HTMLElement>(
+      `[data-subagent-card-id="${CSS.escape(subagentId)}"]`,
+    );
+    if (!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.addClass('claudian-swarm-flash');
+    window.setTimeout(() => card.removeClass('claudian-swarm-flash'), 1600);
   }
 
   async openRelatedNotesPanel(): Promise<void> {

@@ -177,6 +177,12 @@ Each of these has cost a real debugging session. They are not theoretical.
     start. `ClaudianView.getSavableTabState()` returns nothing until
     `tabLayoutRestored` is set; any path that persists tab state must go
     through it.
+12. **A runtime wrapper must forward every optional runtime method.**
+    `withGoalLoop` (every provider but Cline) and the prompt-delivery wrapper
+    build a new object from the base runtime; an optional method they do not
+    copy silently disappears. Per-subagent stop (`canCancelSubagent` /
+    `cancelSubagent`) was implemented and tested in two providers and still
+    never reached the chat until both wrappers forwarded it.
 
 ## Commands
 

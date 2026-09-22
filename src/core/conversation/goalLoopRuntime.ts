@@ -332,6 +332,12 @@ export function withGoalLoop(base: ChatRuntime, options: GoalLoopWrapperOptions)
   if (base.loadSubagentFinalResult) {
     wrapped.loadSubagentFinalResult = (agentId) => base.loadSubagentFinalResult!.call(base, agentId);
   }
+  if (base.canCancelSubagent) {
+    wrapped.canCancelSubagent = (target) => base.canCancelSubagent!.call(base, target);
+  }
+  if (base.cancelSubagent) {
+    wrapped.cancelSubagent = (target) => base.cancelSubagent!.call(base, target);
+  }
 
   return wrapped;
 }

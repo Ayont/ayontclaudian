@@ -41,6 +41,11 @@
     .harness-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
     .harness-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
     .harness-workflow-host { position: relative; min-height: 230px; }
+    .harness-subagent-host { max-width: 760px; }
+    .harness-swarm-host { min-height: 360px; }
+    .harness-inspector-host { position: relative; height: 900px; overflow: hidden; border-radius: 12px; background: var(--background-primary); }
+    .harness-inspector-host .claudian-inspector { animation: none; }
+    .harness-subagent-host *, .harness-inspector-host *, .harness-swarm-host * { animation-play-state: paused !important; }
     /* Capture the entire expanded dock, including its completed row on mobile. */
     @media (max-width: 380px) { .harness-workflow-host { min-height: 360px; } }
     .harness-library-host { position: relative; width: 100%; height: 580px; overflow: hidden; }
@@ -399,32 +404,223 @@
       </div>
     </div>
   </div>
+  <div class="harness-section claudian-container" data-provider="claude" data-vis="subagent-cards">
+    <div class="harness-label">Subagent-Karten</div>
+    <div class="harness-subagent-host">
+      <div class="claudian-subagent-list claudian-subagent-card is-live" data-subagent-card-id="toolu_1" data-subagent-id="toolu_1" data-phase="running">
+        <div class="claudian-subagent-header" tabindex="0" role="button" aria-expanded="false" aria-label="Subagent: Firewall-Regeln für CERTUSS prüfen – Läuft">
+          <div class="claudian-subagent-status status-running" aria-hidden="true"><span class="claudian-subagent-ring"></span></div>
+          <div class="claudian-subagent-heading">
+            <div class="claudian-subagent-title-row"><span class="claudian-subagent-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01"/></svg></span><span class="claudian-subagent-label" title="Firewall-Regeln für CERTUSS prüfen">Firewall-Regeln für CERTUSS prüfen</span><span class="claudian-subagent-type">Explore</span></div>
+            <div class="claudian-subagent-activity"><span class="claudian-subagent-activity-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></span><span class="claudian-subagent-activity-text">Liest die FortiGate-Richtlinien in 01-Arbeit/Clients</span></div>
+          </div>
+          <div class="claudian-subagent-side"><span class="claudian-subagent-status-text">Läuft</span><span class="claudian-subagent-elapsed">1m 12s</span></div>
+        </div>
+        <div class="claudian-subagent-actions">
+          <button class="claudian-subagent-action claudian-subagent-action--inspect" type="button" data-subagent-action="inspect" aria-label="Im Inspektor-Tab öffnen" title="Im Inspektor-Tab öffnen"><span class="claudian-subagent-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16M9 10l2 2-2 2"/></svg></span><span class="claudian-subagent-action-label"></span></button>
+          <button class="claudian-subagent-action claudian-subagent-action--stop" type="button" data-subagent-action="stop" aria-label="Subagent stoppen" title="Subagent stoppen"><span class="claudian-subagent-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></span><span class="claudian-subagent-action-label"></span></button>
+        </div>
+        <div class="claudian-subagent-trail" aria-hidden="true"><span class="claudian-subagent-trail-step" data-status="completed"></span><span class="claudian-subagent-trail-step" data-status="completed"></span><span class="claudian-subagent-trail-step" data-status="completed"></span><span class="claudian-subagent-trail-step" data-status="running"></span></div>
+        <div class="claudian-subagent-content claudian-hidden" style="display:none"></div>
+      </div>
+      <div class="claudian-subagent-list claudian-subagent-card is-live" data-subagent-card-id="toolu_2" data-subagent-id="toolu_2" data-phase="running">
+        <div class="claudian-subagent-header" tabindex="0" role="button" aria-expanded="false" aria-label="Subagent: Fax-Fehler bei C. Beuthel eingrenzen – Läuft">
+          <div class="claudian-subagent-status status-running" aria-hidden="true"><span class="claudian-subagent-ring"></span></div>
+          <div class="claudian-subagent-heading">
+            <div class="claudian-subagent-title-row"><span class="claudian-subagent-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01"/></svg></span><span class="claudian-subagent-label" title="Fax-Fehler bei C. Beuthel eingrenzen">Fax-Fehler bei C. Beuthel eingrenzen</span><span class="claudian-subagent-type">general-purpose</span></div>
+            <div class="claudian-subagent-activity"><span class="claudian-subagent-activity-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 4 4-4 4M12 16h7"/></svg></span><span class="claudian-subagent-activity-text">Running sleep 25 &amp;&amp; echo slept</span></div>
+          </div>
+          <div class="claudian-subagent-side"><span class="claudian-subagent-status-text">Läuft</span><span class="claudian-subagent-elapsed">18s</span></div>
+        </div>
+        <div class="claudian-subagent-actions">
+          <button class="claudian-subagent-action claudian-subagent-action--inspect" type="button" data-subagent-action="inspect" aria-label="Im Inspektor-Tab öffnen" title="Im Inspektor-Tab öffnen"><span class="claudian-subagent-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16M9 10l2 2-2 2"/></svg></span><span class="claudian-subagent-action-label"></span></button>
+          <button class="claudian-subagent-action claudian-subagent-action--stop is-armed" type="button" data-subagent-action="stop" aria-label="Subagent stoppen" title="Subagent stoppen"><span class="claudian-subagent-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></span><span class="claudian-subagent-action-label">Stoppen?</span></button>
+        </div>
+        <div class="claudian-subagent-trail" aria-hidden="true"><span class="claudian-subagent-trail-step" data-status="completed"></span><span class="claudian-subagent-trail-step" data-status="error"></span><span class="claudian-subagent-trail-step" data-status="running"></span></div>
+        <div class="claudian-subagent-content claudian-hidden" style="display:none"></div>
+      </div>
+      <div class="claudian-subagent-list claudian-subagent-card is-live done" data-subagent-card-id="toolu_3" data-subagent-id="toolu_3" data-phase="completed">
+        <div class="claudian-subagent-header" tabindex="0" role="button" aria-expanded="false" aria-label="Subagent: Web-Relaunch GF Partners bewerten – Fertig">
+          <div class="claudian-subagent-status status-completed" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+          <div class="claudian-subagent-heading">
+            <div class="claudian-subagent-title-row"><span class="claudian-subagent-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01"/></svg></span><span class="claudian-subagent-label" title="Web-Relaunch GF Partners bewerten">Web-Relaunch GF Partners bewerten</span><span class="claudian-subagent-type">Plan</span></div>
+            <div class="claudian-subagent-activity is-outcome"><span class="claudian-subagent-activity-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 10 5 5-5 5"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg></span><span class="claudian-subagent-activity-text">Drei Pakete mit Preisrahmen vorgeschlagen.</span></div>
+          </div>
+          <div class="claudian-subagent-side"><span class="claudian-subagent-status-text">Fertig</span><span class="claudian-subagent-elapsed">2m 04s</span></div>
+        </div>
+        <div class="claudian-subagent-actions">
+          <button class="claudian-subagent-action claudian-subagent-action--inspect" type="button" data-subagent-action="inspect" aria-label="Im Inspektor-Tab öffnen" title="Im Inspektor-Tab öffnen"><span class="claudian-subagent-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16M9 10l2 2-2 2"/></svg></span><span class="claudian-subagent-action-label"></span></button>
+          <button class="claudian-subagent-action claudian-subagent-action--stop claudian-hidden" type="button" data-subagent-action="stop" aria-label="Subagent stoppen" title="Subagent stoppen"><span class="claudian-subagent-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></span><span class="claudian-subagent-action-label"></span></button>
+        </div>
+        <div class="claudian-subagent-trail" aria-hidden="true"><span class="claudian-subagent-trail-step" data-status="completed"></span><span class="claudian-subagent-trail-step" data-status="completed"></span><span class="claudian-subagent-trail-step" data-status="completed"></span><span class="claudian-subagent-trail-step" data-status="completed"></span><span class="claudian-subagent-trail-step" data-status="completed"></span><span class="claudian-subagent-trail-step" data-status="completed"></span><span class="claudian-subagent-trail-step" data-status="completed"></span><span class="claudian-subagent-trail-step" data-status="completed"></span><span class="claudian-subagent-trail-step" data-status="completed"></span></div>
+        <div class="claudian-subagent-content claudian-hidden" style="display:none"></div>
+      </div>
+      <div class="claudian-subagent-list claudian-subagent-card is-live cancelled" data-subagent-card-id="toolu_4" data-subagent-id="toolu_4" data-phase="cancelled">
+        <div class="claudian-subagent-header" tabindex="0" role="button" aria-expanded="false" aria-label="Subagent: SIP-Trunk-Logs zusammenfassen – Gestoppt">
+          <div class="claudian-subagent-status status-cancelled" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></div>
+          <div class="claudian-subagent-heading">
+            <div class="claudian-subagent-title-row"><span class="claudian-subagent-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01"/></svg></span><span class="claudian-subagent-label" title="SIP-Trunk-Logs zusammenfassen">SIP-Trunk-Logs zusammenfassen</span><span class="claudian-subagent-type">Explore</span></div>
+            <div class="claudian-subagent-activity is-outcome"><span class="claudian-subagent-activity-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 10 5 5-5 5"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg></span><span class="claudian-subagent-activity-text">Von dir gestoppt.</span></div>
+          </div>
+          <div class="claudian-subagent-side"><span class="claudian-subagent-status-text">Gestoppt</span><span class="claudian-subagent-elapsed">41s</span></div>
+        </div>
+        <div class="claudian-subagent-actions">
+          <button class="claudian-subagent-action claudian-subagent-action--inspect" type="button" data-subagent-action="inspect" aria-label="Im Inspektor-Tab öffnen" title="Im Inspektor-Tab öffnen"><span class="claudian-subagent-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16M9 10l2 2-2 2"/></svg></span><span class="claudian-subagent-action-label"></span></button>
+          <button class="claudian-subagent-action claudian-subagent-action--stop claudian-hidden" type="button" data-subagent-action="stop" aria-label="Subagent stoppen" title="Subagent stoppen"><span class="claudian-subagent-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></span><span class="claudian-subagent-action-label"></span></button>
+        </div>
+        <div class="claudian-subagent-trail" aria-hidden="true"><span class="claudian-subagent-trail-step" data-status="completed"></span><span class="claudian-subagent-trail-step" data-status="completed"></span><span class="claudian-subagent-trail-step" data-status="running"></span></div>
+        <div class="claudian-subagent-content claudian-hidden" style="display:none"></div>
+      </div>
+      <div class="claudian-subagent-list claudian-subagent-card is-live error" data-subagent-card-id="toolu_5" data-subagent-id="toolu_5" data-phase="failed">
+        <div class="claudian-subagent-header" tabindex="0" role="button" aria-expanded="false" aria-label="Subagent: 3CX-Export nach CSV umwandeln – Fehlgeschlagen">
+          <div class="claudian-subagent-status status-error" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></div>
+          <div class="claudian-subagent-heading">
+            <div class="claudian-subagent-title-row"><span class="claudian-subagent-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01"/></svg></span><span class="claudian-subagent-label" title="3CX-Export nach CSV umwandeln">3CX-Export nach CSV umwandeln</span><span class="claudian-subagent-type claudian-hidden"></span></div>
+            <div class="claudian-subagent-activity is-outcome"><span class="claudian-subagent-activity-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 10 5 5-5 5"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg></span><span class="claudian-subagent-activity-text">Datei nicht gefunden: exports/calls.csv</span></div>
+          </div>
+          <div class="claudian-subagent-side"><span class="claudian-subagent-status-text">Fehlgeschlagen</span><span class="claudian-subagent-elapsed">9s</span></div>
+        </div>
+        <div class="claudian-subagent-actions">
+          <button class="claudian-subagent-action claudian-subagent-action--inspect" type="button" data-subagent-action="inspect" aria-label="Im Inspektor-Tab öffnen" title="Im Inspektor-Tab öffnen"><span class="claudian-subagent-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16M9 10l2 2-2 2"/></svg></span><span class="claudian-subagent-action-label"></span></button>
+          <button class="claudian-subagent-action claudian-subagent-action--stop claudian-hidden" type="button" data-subagent-action="stop" aria-label="Subagent stoppen" title="Subagent stoppen"><span class="claudian-subagent-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></span><span class="claudian-subagent-action-label"></span></button>
+        </div>
+        <div class="claudian-subagent-trail" aria-hidden="true"><span class="claudian-subagent-trail-step" data-status="completed"></span><span class="claudian-subagent-trail-step" data-status="error"></span></div>
+        <div class="claudian-subagent-content claudian-hidden" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+  <div class="harness-section" data-vis="subagent-swarm">
+    <div class="harness-label">Swarm-Panel mit Aktionen</div>
+    <div class="harness-workflow-host harness-swarm-host claudian-container" data-provider="claude">
+      <div class="claudian-swarm-panel has-running is-open">
+        <button class="claudian-swarm-toggle" type="button" aria-expanded="true">
+          <span class="claudian-swarm-toggle-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg></span>
+          <span class="claudian-swarm-toggle-label">Live-Arbeit</span>
+          <span class="claudian-swarm-count">4</span>
+          <span class="claudian-swarm-auto-continue claudian-hidden">Auto-continue</span>
+          <span class="claudian-swarm-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></span>
+        </button>
+        <div class="claudian-swarm-list">
+          <div class="claudian-swarm-agent status-running" data-kind="agent" data-provider="claude">
+            <button class="claudian-swarm-agent-open" type="button" aria-label="Firewall-Regeln für CERTUSS prüfen">
+              <span class="claudian-swarm-agent-status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg></span>
+              <div class="claudian-swarm-agent-main"><div class="claudian-swarm-agent-name-row"><span class="claudian-swarm-agent-name">Firewall-Regeln für CERTUSS prüfen</span><span class="claudian-swarm-agent-type">Explore</span></div><div class="claudian-swarm-agent-activity"><span class="claudian-swarm-agent-activity-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></span><span class="claudian-swarm-agent-activity-text">Liest die FortiGate-Richtlinien</span></div></div>
+              <div class="claudian-swarm-agent-meta"><span class="claudian-swarm-agent-tools">4 Werkzeuge</span><span class="claudian-swarm-agent-tokens">15.853 Tokens</span><span class="claudian-swarm-agent-duration is-live">1m 12s</span></div>
+            </button>
+            <div class="claudian-swarm-agent-actions"><button class="claudian-swarm-agent-action claudian-swarm-agent-locate" type="button" aria-label="Im Chat zeigen" title="Im Chat zeigen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button><button class="claudian-swarm-agent-action claudian-swarm-agent-stop" type="button" aria-label="Subagent stoppen"><span class="claudian-swarm-agent-stop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></span><span class="claudian-swarm-agent-stop-label"></span></button></div>
+          </div>
+          <div class="claudian-swarm-agent status-running" data-kind="agent" data-provider="opencode">
+            <button class="claudian-swarm-agent-open" type="button" aria-label="Tests für den Release schreiben">
+              <span class="claudian-swarm-agent-status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg></span>
+              <div class="claudian-swarm-agent-main"><div class="claudian-swarm-agent-name-row"><span class="claudian-swarm-agent-name">Tests für den Release schreiben</span><span class="claudian-swarm-agent-mode mode-async">Hintergrund</span></div><div class="claudian-swarm-agent-activity"><span class="claudian-swarm-agent-activity-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></span><span class="claudian-swarm-agent-activity-text">npm test -- --selectProjects unit</span></div></div>
+              <div class="claudian-swarm-agent-meta"><span class="claudian-swarm-agent-tools">7 Werkzeuge</span><span class="claudian-swarm-agent-duration is-live">3m 40s</span></div>
+            </button>
+            <div class="claudian-swarm-agent-actions"><button class="claudian-swarm-agent-action claudian-swarm-agent-locate" type="button" aria-label="Im Chat zeigen" title="Im Chat zeigen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button><button class="claudian-swarm-agent-action claudian-swarm-agent-stop is-armed" type="button" aria-label="Ganze Antwort stoppen?"><span class="claudian-swarm-agent-stop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></span><span class="claudian-swarm-agent-stop-label">Ganze Antwort stoppen?</span></button></div>
+          </div>
+          <div class="claudian-swarm-agent status-cancelled" data-kind="agent" data-provider="claude">
+            <button class="claudian-swarm-agent-open" type="button" aria-label="SIP-Trunk-Logs zusammenfassen">
+              <span class="claudian-swarm-agent-status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></span>
+              <div class="claudian-swarm-agent-main"><div class="claudian-swarm-agent-name-row"><span class="claudian-swarm-agent-name">SIP-Trunk-Logs zusammenfassen</span><span class="claudian-swarm-agent-type">Explore</span></div><div class="claudian-swarm-agent-activity"><span class="claudian-swarm-agent-activity-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></span><span class="claudian-swarm-agent-activity-text">Von dir gestoppt.</span></div></div>
+              <div class="claudian-swarm-agent-meta"><span class="claudian-swarm-agent-tools">3 Werkzeuge</span><span class="claudian-swarm-agent-duration">41s</span></div>
+            </button>
+            <div class="claudian-swarm-agent-actions"><button class="claudian-swarm-agent-action claudian-swarm-agent-locate" type="button" aria-label="Im Chat zeigen" title="Im Chat zeigen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button></div>
+          </div>
+          <div class="claudian-swarm-agent status-completed" data-kind="agent" data-provider="claude">
+            <button class="claudian-swarm-agent-open" type="button" aria-label="Web-Relaunch GF Partners bewerten">
+              <span class="claudian-swarm-agent-status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+              <div class="claudian-swarm-agent-main"><div class="claudian-swarm-agent-name-row"><span class="claudian-swarm-agent-name">Web-Relaunch GF Partners bewerten</span><span class="claudian-swarm-agent-type">Plan</span></div><div class="claudian-swarm-agent-activity"><span class="claudian-swarm-agent-activity-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></span><span class="claudian-swarm-agent-activity-text">Drei Pakete mit Preisrahmen vorgeschlagen.</span></div></div>
+              <div class="claudian-swarm-agent-meta"><span class="claudian-swarm-agent-tools">9 Werkzeuge</span><span class="claudian-swarm-agent-duration">2m 04s</span></div>
+            </button>
+            <div class="claudian-swarm-agent-actions"><button class="claudian-swarm-agent-action claudian-swarm-agent-locate" type="button" aria-label="Im Chat zeigen" title="Im Chat zeigen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="harness-section" data-vis="subagent-inspector">
+    <div class="harness-label">Subagent-Inspektor</div>
+    <div class="harness-inspector-host">
+      <div class="claudian-inspector-view claudian-inspector is-following" data-phase="running" data-provider="claude" style="--inspector-provider: var(--claudian-brand-claude, var(--cl-accent))">
+        <header class="claudian-inspector-hero">
+          <div class="claudian-inspector-glyph" aria-hidden="true" data-phase="running"><span class="claudian-inspector-ring"></span></div>
+          <div class="claudian-inspector-heading">
+            <h1 class="claudian-inspector-title">Firewall-Regeln für CERTUSS prüfen</h1>
+            <div class="claudian-inspector-provenance"><span class="claudian-inspector-provider"><span class="claudian-inspector-provider-dot" aria-hidden="true"></span><span>Claude</span></span><span class="claudian-inspector-provenance-parts">Explore · claude-haiku-4-5 · Vordergrund</span></div>
+            <div class="claudian-inspector-context"><span class="claudian-inspector-context-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span class="claudian-inspector-context-text">Chat: Implement urgent CERTUSS changes by October 1st</span></div>
+          </div>
+          <div class="claudian-inspector-side"><span class="claudian-inspector-phase" data-phase="running"><span class="claudian-inspector-phase-dot" aria-hidden="true"></span><span class="claudian-inspector-phase-text">Läuft</span></span><span class="claudian-inspector-elapsed">1m 12s</span></div>
+          <div class="claudian-inspector-actions">
+            <button class="claudian-inspector-button claudian-inspector-stop" type="button" title="Stoppt nur diesen Subagent; die Antwort läuft weiter."><span class="claudian-inspector-button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></span><span class="claudian-inspector-button-label">Stoppen</span></button>
+            <button class="claudian-inspector-button claudian-inspector-locate" type="button"><span class="claudian-inspector-button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span class="claudian-inspector-button-label">Im Chat zeigen</span></button>
+          </div>
+        </header>
+        <div class="claudian-inspector-activity" aria-live="polite"><span class="claudian-inspector-activity-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></span><span class="claudian-inspector-activity-text">Liest die FortiGate-Richtlinien in 01-Arbeit/Clients</span></div>
+        <dl class="claudian-inspector-stats">
+          <div class="claudian-inspector-stat"><dt class="claudian-inspector-stat-label">Werkzeuge</dt><dd class="claudian-inspector-stat-value">4 · 1 aktiv</dd></div>
+          <div class="claudian-inspector-stat"><dt class="claudian-inspector-stat-label">Fehler</dt><dd class="claudian-inspector-stat-value">0</dd></div>
+          <div class="claudian-inspector-stat"><dt class="claudian-inspector-stat-label">Tokens</dt><dd class="claudian-inspector-stat-value">15.853</dd></div>
+          <div class="claudian-inspector-stat"><dt class="claudian-inspector-stat-label">Dateien</dt><dd class="claudian-inspector-stat-value">2</dd></div>
+        </dl>
+        <div class="claudian-inspector-body">
+          <section class="claudian-inspector-stream" aria-label="Ablauf">
+            <ol class="claudian-inspector-timeline">
+              <li class="claudian-inspector-entry is-prompt"><div class="claudian-inspector-entry-title">Auftrag</div><div class="claudian-inspector-entry-text">Prüfe alle Firewall-Regeln für das CERTUSS-Portal und finde heraus, welche Regel Port 443 für die neue VPN-Gegenstelle blockiert.</div></li>
+              <li class="claudian-inspector-entry is-text"><div class="claudian-inspector-entry-text">Ich lese zuerst die exportierten Richtlinien und vergleiche sie mit der Anfrage vom 1. Oktober.</div></li>
+              <li class="claudian-inspector-entry is-tool" data-status="completed"><details class="claudian-inspector-tool"><summary class="claudian-inspector-tool-summary"><span class="claudian-inspector-tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></span><span class="claudian-inspector-tool-name">Read</span><span class="claudian-inspector-tool-target">01-Arbeit/Clients/CERTUSS - FortiGate.md</span><span class="claudian-inspector-tool-status">fertig</span></summary></details></li>
+              <li class="claudian-inspector-entry is-tool" data-status="completed"><details class="claudian-inspector-tool"><summary class="claudian-inspector-tool-summary"><span class="claudian-inspector-tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 4 4-4 4M12 16h7"/></svg></span><span class="claudian-inspector-tool-name">Grep</span><span class="claudian-inspector-tool-target">"443" in exports/policies</span><span class="claudian-inspector-tool-status">fertig</span></summary></details></li>
+              <li class="claudian-inspector-entry is-text"><div class="claudian-inspector-entry-text">Regel 12 erlaubt nur die alte Gegenstelle. Ich prüfe noch, ob eine Deny-Regel davor greift.</div></li>
+              <li class="claudian-inspector-entry is-tool" data-status="running"><details class="claudian-inspector-tool"><summary class="claudian-inspector-tool-summary"><span class="claudian-inspector-tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></span><span class="claudian-inspector-tool-name">Read</span><span class="claudian-inspector-tool-target">exports/policies/policy-11.conf</span><span class="claudian-inspector-tool-status">läuft</span></summary></details></li>
+            </ol>
+            <div class="claudian-inspector-live-tail"><span class="claudian-inspector-live-dots" aria-hidden="true"></span><span class="claudian-inspector-live-text">Arbeitet …</span></div>
+          </section>
+          <aside class="claudian-inspector-aside">
+            <section class="claudian-inspector-aside-section"><h2 class="claudian-inspector-aside-title">Dateien</h2>
+              <ul class="claudian-inspector-files">
+                <li><button class="claudian-inspector-file" type="button"><span class="claudian-inspector-file-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg></span><span class="claudian-inspector-file-name">policy-11.conf</span><span class="claudian-inspector-file-path">exports/policies/policy-11.conf</span></button></li>
+                <li><button class="claudian-inspector-file" type="button"><span class="claudian-inspector-file-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg></span><span class="claudian-inspector-file-name">CERTUSS - FortiGate.md</span><span class="claudian-inspector-file-path">01-Arbeit/Clients/CERTUSS - FortiGate.md</span></button></li>
+              </ul>
+            </section>
+            <section class="claudian-inspector-aside-section"><h2 class="claudian-inspector-aside-title">Werkzeug-Spur</h2>
+              <div class="claudian-inspector-trail" aria-hidden="true"><span class="claudian-inspector-trail-step" data-status="completed"></span><span class="claudian-inspector-trail-step" data-status="completed"></span><span class="claudian-inspector-trail-step" data-status="completed"></span><span class="claudian-inspector-trail-step" data-status="running"></span></div>
+            </section>
+          </aside>
+        </div>
+        <div class="claudian-inspector-footer"><label class="claudian-inspector-follow"><input type="checkbox" checked><span>Live folgen</span></label></div>
+      </div>
+    </div>
+  </div>
   <div class="harness-section" data-vis="workflow-live">
     <div class="harness-label">Workflow live dock</div>
     <div class="harness-workflow-host claudian-container">
       <div class="claudian-swarm-panel has-running is-open">
         <button class="claudian-swarm-toggle" type="button" aria-expanded="true">
           <span class="claudian-swarm-toggle-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg></span>
-          <span class="claudian-swarm-toggle-label">Live work</span>
+          <span class="claudian-swarm-toggle-label">Live-Arbeit</span>
           <span class="claudian-swarm-count">2</span>
           <span class="claudian-swarm-auto-continue">Auto-continue</span>
           <span class="claudian-swarm-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></span>
         </button>
         <div class="claudian-swarm-list">
-          <button class="claudian-swarm-agent status-running is-expanded" data-kind="workflow" type="button" aria-expanded="true">
-            <span class="claudian-swarm-agent-status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
-            <div class="claudian-swarm-agent-main">
-              <div class="claudian-swarm-agent-name-row"><span class="claudian-swarm-agent-name">release-review</span><span class="claudian-swarm-agent-mode mode-workflow">Workflow</span></div>
-              <div class="claudian-swarm-agent-activity"><span class="claudian-swarm-agent-activity-text">Prüft Regressionstests und Release-Artefakte</span></div>
-              <div class="claudian-swarm-workflow-detail"><div class="claudian-swarm-workflow-detail-text">Alle geänderten Dateien prüfen und Findings zusammenführen.</div><div class="claudian-swarm-workflow-continuation">Der Chat fährt nach Abschluss automatisch fort.</div></div>
-            </div>
-            <div class="claudian-swarm-agent-meta"><span class="claudian-swarm-agent-tools">7 tools</span><span class="claudian-swarm-agent-tokens">4.200 tok</span><span class="claudian-swarm-agent-duration is-live">18s</span></div>
-          </button>
-          <button class="claudian-swarm-agent status-completed" data-kind="workflow" type="button" aria-expanded="false">
-            <span class="claudian-swarm-agent-status">✓</span>
-            <div class="claudian-swarm-agent-main"><div class="claudian-swarm-agent-name-row"><span class="claudian-swarm-agent-name">test-audit</span><span class="claudian-swarm-agent-mode mode-workflow">Workflow</span></div><div class="claudian-swarm-agent-activity"><span class="claudian-swarm-agent-activity-text">Tests abgeschlossen</span></div></div>
-            <div class="claudian-swarm-agent-meta"><span class="claudian-swarm-agent-tools">5 tools</span><span class="claudian-swarm-agent-duration">12s</span></div>
-          </button>
+          <div class="claudian-swarm-agent status-running is-expanded" data-kind="workflow">
+            <button class="claudian-swarm-agent-open" type="button" aria-expanded="true">
+              <span class="claudian-swarm-agent-status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg></span>
+              <div class="claudian-swarm-agent-main">
+                <div class="claudian-swarm-agent-name-row"><span class="claudian-swarm-agent-name">release-review</span><span class="claudian-swarm-agent-mode mode-workflow">Workflow</span></div>
+                <div class="claudian-swarm-agent-activity"><span class="claudian-swarm-agent-activity-text">Prüft Regressionstests und Release-Artefakte</span></div>
+                <div class="claudian-swarm-workflow-detail"><div class="claudian-swarm-workflow-detail-text">Alle geänderten Dateien prüfen und Findings zusammenführen.</div><div class="claudian-swarm-workflow-continuation">Der Chat fährt nach Abschluss automatisch fort.</div></div>
+              </div>
+              <div class="claudian-swarm-agent-meta"><span class="claudian-swarm-agent-tools">7 Werkzeuge</span><span class="claudian-swarm-agent-tokens">4.200 Tokens</span><span class="claudian-swarm-agent-duration is-live">18s</span></div>
+            </button>
+            <div class="claudian-swarm-agent-actions"></div>
+          </div>
+          <div class="claudian-swarm-agent status-completed" data-kind="workflow">
+            <button class="claudian-swarm-agent-open" type="button" aria-expanded="false">
+              <span class="claudian-swarm-agent-status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+              <div class="claudian-swarm-agent-main"><div class="claudian-swarm-agent-name-row"><span class="claudian-swarm-agent-name">test-audit</span><span class="claudian-swarm-agent-mode mode-workflow">Workflow</span></div><div class="claudian-swarm-agent-activity"><span class="claudian-swarm-agent-activity-text">Tests abgeschlossen</span></div></div>
+              <div class="claudian-swarm-agent-meta"><span class="claudian-swarm-agent-tools">5 Werkzeuge</span><span class="claudian-swarm-agent-duration">12s</span></div>
+            </button>
+            <div class="claudian-swarm-agent-actions"></div>
+          </div>
         </div>
       </div>
     </div>

@@ -3,7 +3,18 @@ import { setIcon } from 'obsidian';
 import { getToolIcon } from '../../../core/tools/toolIcons';
 import type { SubagentInfo } from '../../../core/types';
 import type { SubagentManager } from '../services/SubagentManager';
-import { getToolLabel } from './ToolCallRenderer';
+import type { SubagentStopScope } from '../subagents/SubagentActionController';
+import { STOP_ARM_MS, stopConfirmLabel } from '../subagents/SubagentActionController';
+import {
+  describeSubagentActivity,
+  formatSubagentDuration,
+  formatSubagentTokens,
+  isLiveSubagentPhase,
+  resolveSubagentPhase,
+  SUBAGENT_PHASE_LABELS,
+  type SubagentPhase,
+  subagentTitle,
+} from '../subagents/subagentPresentation';
 
 /**
  * Floating overview of every subagent in the current conversation (a "swarm
@@ -21,6 +32,10 @@ export interface SwarmPanelOptions {
   mountEl: HTMLElement;
   /** Resolves the live transcript container used to locate inline blocks. */
   getMessagesEl: () => HTMLElement;
+  /** Opens the agent in the inspector tab; without it a row jumps to its card. */
+  onInspect?: (subagentId: string) => void;
+  onStop?: (subagentId: string) => void;
+  getStopScope?: (subagentId: string) => SubagentStopScope;
 }
 
 interface StatusVisual {
@@ -32,50 +47,27 @@ interface StatusVisual {
 const FLASH_CLASS = 'claudian-swarm-flash';
 const FLASH_MS = 1600;
 
+const PHASE_VISUALS: Record<SubagentPhase, { icon: string; cls: string }> = {
+  starting: { icon: 'clock', cls: 'pending' },
+  running: { icon: 'loader-2', cls: 'running' },
+  stopping: { icon: 'loader-2', cls: 'stopping' },
+  completed: { icon: 'check', cls: 'completed' },
+  failed: { icon: 'x', cls: 'error' },
+  cancelled: { icon: 'square', cls: 'cancelled' },
+  orphaned: { icon: 'alert-circle', cls: 'orphaned' },
+};
+
 function resolveStatusVisual(info: SubagentInfo): StatusVisual {
-  if (info.asyncStatus === 'orphaned') {
-    return { icon: 'alert-circle', cls: 'orphaned', label: 'Orphaned' };
-  }
-  if (info.status === 'error' || info.asyncStatus === 'error') {
-    return { icon: 'x', cls: 'error', label: 'Error' };
-  }
-  if (info.status === 'completed' || info.asyncStatus === 'completed') {
-    return { icon: 'check', cls: 'completed', label: 'Done' };
-  }
-  if (info.asyncStatus === 'pending') {
-    return { icon: 'clock', cls: 'pending', label: 'Starting' };
-  }
-  return { icon: 'loader-2', cls: 'running', label: 'Running' };
+  const phase = resolveSubagentPhase(info);
+  return { ...PHASE_VISUALS[phase], label: SUBAGENT_PHASE_LABELS[phase] };
 }
 
 function isRunning(info: SubagentInfo): boolean {
-  return info.status === 'running' && info.asyncStatus !== 'orphaned';
+  return isLiveSubagentPhase(resolveSubagentPhase(info));
 }
 
 function formatDuration(ms: number): string {
-  const totalSeconds = Math.max(0, Math.round(ms / 1000));
-  if (totalSeconds < 60) return `${totalSeconds}s`;
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
-}
-
-/** Latest tool the agent ran — the "what / where it codes" line. */
-function describeActivity(info: SubagentInfo): { icon: string; text: string } | null {
-  if (info.kind === 'workflow') {
-    if (info.lastToolName) {
-      return {
-        icon: getToolIcon(info.lastToolName),
-        text: info.progressSummary || info.description,
-      };
-    }
-    if (info.progressSummary) {
-      return { icon: 'activity', text: info.progressSummary };
-    }
-  }
-  const last = info.toolCalls[info.toolCalls.length - 1];
-  if (!last) return null;
-  return { icon: getToolIcon(last.name), text: getToolLabel(last.name, last.input) };
+  return formatSubagentDuration(ms);
 }
 
 function escapeSelectorId(id: string): string {
@@ -95,6 +87,7 @@ export class SwarmPanel {
 
   private isOpen = true;
   private readonly expandedWorkflowIds = new Set<string>();
+  private readonly armedStops = new Set<string>();
   private renderScheduled = false;
   private disposed = false;
   private readonly flashTimers = new Set<number>();
@@ -167,8 +160,8 @@ export class SwarmPanel {
     this.autoContinueEl.classList.toggle('claudian-hidden', runningWorkflowCount === 0);
     this.toggleEl.setAttribute(
       'aria-label',
-      `${agents.length} live task${agents.length === 1 ? '' : 's'}`
-        + (runningCount > 0 ? `, ${runningCount} running` : ''),
+      `${agents.length} ${agents.length === 1 ? 'Subagent' : 'Subagents'}`
+        + (runningCount > 0 ? `, ${runningCount} aktiv` : ''),
     );
     this.applyOpenState();
 
@@ -201,50 +194,40 @@ export class SwarmPanel {
 
   private renderAgentRow(info: SubagentInfo): void {
     const status = resolveStatusVisual(info);
-    const row = this.listEl.createEl('button', {
-      cls: `claudian-swarm-agent status-${status.cls}`,
-    });
-    row.setAttribute('type', 'button');
+    const row = this.listEl.createDiv({ cls: `claudian-swarm-agent status-${status.cls}` });
     row.dataset.kind = info.kind ?? 'agent';
+    if (info.providerId) row.dataset.provider = info.providerId;
+
+    // The row's main area is one button; its actions are siblings, never nested.
+    const open = row.createEl('button', { cls: 'claudian-swarm-agent-open', attr: { type: 'button' } });
     if (info.kind === 'workflow') {
-      row.setAttribute('aria-expanded', this.expandedWorkflowIds.has(info.id) ? 'true' : 'false');
+      open.setAttribute('aria-expanded', this.expandedWorkflowIds.has(info.id) ? 'true' : 'false');
     }
 
-    const statusEl = row.createSpan({ cls: 'claudian-swarm-agent-status' });
+    const statusEl = open.createSpan({ cls: 'claudian-swarm-agent-status' });
+    statusEl.setAttribute('aria-label', status.label);
     setIcon(statusEl, status.icon);
 
-    const main = row.createDiv({ cls: 'claudian-swarm-agent-main' });
+    const main = open.createDiv({ cls: 'claudian-swarm-agent-main' });
     const nameRow = main.createDiv({ cls: 'claudian-swarm-agent-name-row' });
-    nameRow.createSpan({
-      cls: 'claudian-swarm-agent-name',
-      text: info.workflowName || info.description || 'Subagent',
-    });
+    nameRow.createSpan({ cls: 'claudian-swarm-agent-name', text: subagentTitle(info) });
     if (info.kind === 'workflow') {
-      nameRow.createSpan({
-        cls: 'claudian-swarm-agent-mode mode-workflow',
-        text: 'Workflow',
-      });
-    } else if (info.mode) {
-      nameRow.createSpan({
-        cls: `claudian-swarm-agent-mode mode-${info.mode}`,
-        text: info.mode,
-      });
+      nameRow.createSpan({ cls: 'claudian-swarm-agent-mode mode-workflow', text: 'Workflow' });
+    } else if (info.mode === 'async') {
+      nameRow.createSpan({ cls: 'claudian-swarm-agent-mode mode-async', text: 'Hintergrund' });
+    }
+    if (info.agentType) {
+      nameRow.createSpan({ cls: 'claudian-swarm-agent-type', text: info.agentType });
     }
 
     const activityEl = main.createDiv({ cls: 'claudian-swarm-agent-activity' });
-    const activity = describeActivity(info);
+    const activity = describeSubagentActivity(info);
     if (activity) {
       const iconEl = activityEl.createSpan({ cls: 'claudian-swarm-agent-activity-icon' });
-      setIcon(iconEl, activity.icon);
-      activityEl.createSpan({
-        cls: 'claudian-swarm-agent-activity-text',
-        text: activity.text,
-      });
+      setIcon(iconEl, activity.toolName ? getToolIcon(activity.toolName) : 'activity');
+      activityEl.createSpan({ cls: 'claudian-swarm-agent-activity-text', text: activity.text });
     } else {
-      activityEl.createSpan({
-        cls: 'claudian-swarm-agent-activity-text is-muted',
-        text: status.label,
-      });
+      activityEl.createSpan({ cls: 'claudian-swarm-agent-activity-text is-muted', text: status.label });
     }
 
     if (info.kind === 'workflow') {
@@ -260,22 +243,17 @@ export class SwarmPanel {
       row.classList.toggle('is-expanded', this.expandedWorkflowIds.has(info.id));
     }
 
-    const meta = row.createDiv({ cls: 'claudian-swarm-agent-meta' });
-    const toolCount = info.kind === 'workflow' ? (info.toolUses ?? 0) : info.toolCalls.length;
+    const meta = open.createDiv({ cls: 'claudian-swarm-agent-meta' });
+    const toolCount = Math.max(info.toolCalls.length, info.toolUses ?? 0);
     if (toolCount > 0) {
       meta.createSpan({
         cls: 'claudian-swarm-agent-tools',
-        text: `${toolCount} tool${toolCount === 1 ? '' : 's'}`,
+        text: `${toolCount} ${toolCount === 1 ? 'Werkzeug' : 'Werkzeuge'}`,
       });
     }
-
-    if (info.kind === 'workflow' && (info.totalTokens ?? 0) > 0) {
-      meta.createSpan({
-        cls: 'claudian-swarm-agent-tokens',
-        text: `${info.totalTokens?.toLocaleString()} tok`,
-      });
+    if ((info.totalTokens ?? 0) > 0) {
+      meta.createSpan({ cls: 'claudian-swarm-agent-tokens', text: formatSubagentTokens(info.totalTokens ?? 0) });
     }
-
     if (isRunning(info) && info.startedAt !== undefined) {
       // Live, ticking elapsed time so a long-running agent never looks stuck.
       const durationEl = meta.createSpan({
@@ -290,15 +268,64 @@ export class SwarmPanel {
       }
     }
 
-    row.addEventListener('click', () => {
+    open.setAttribute('aria-label', `${subagentTitle(info)} – ${status.label}${
+      info.kind === 'workflow' ? '' : this.options.onInspect ? ' – im Inspektor öffnen' : ' – im Chat zeigen'
+    }`);
+    open.addEventListener('click', () => {
       if (info.kind === 'workflow') {
         if (this.expandedWorkflowIds.has(info.id)) this.expandedWorkflowIds.delete(info.id);
         else this.expandedWorkflowIds.add(info.id);
         this.render();
         return;
       }
-      this.focusSubagent(info.id);
+      if (this.options.onInspect) this.options.onInspect(info.id);
+      else this.focusSubagent(info.id);
     });
+
+    this.renderRowActions(row, info);
+  }
+
+  private renderRowActions(row: HTMLElement, info: SubagentInfo): void {
+    const actions = row.createDiv({ cls: 'claudian-swarm-agent-actions' });
+    if (info.kind !== 'workflow') {
+      const locate = actions.createEl('button', {
+        cls: 'claudian-swarm-agent-action claudian-swarm-agent-locate',
+        attr: { type: 'button', 'aria-label': 'Im Chat zeigen', title: 'Im Chat zeigen' },
+      });
+      setIcon(locate, 'locate-fixed');
+      locate.addEventListener('click', () => this.focusSubagent(info.id));
+    }
+
+    const scope = this.options.getStopScope?.(info.id) ?? 'none';
+    if (!this.options.onStop || !isRunning(info) || scope === 'none' || info.cancelState === 'requested') return;
+    const stop = actions.createEl('button', {
+      cls: 'claudian-swarm-agent-action claudian-swarm-agent-stop',
+      attr: { type: 'button', 'aria-label': 'Subagent stoppen', title: 'Subagent stoppen' },
+    });
+    setIcon(stop.createSpan({ cls: 'claudian-swarm-agent-stop-icon' }), 'square');
+    const label = stop.createSpan({ cls: 'claudian-swarm-agent-stop-label' });
+    stop.addEventListener('click', () => {
+      // Same two-step stop as the card: arm, then confirm.
+      if (!this.armedStops.has(info.id)) {
+        this.armedStops.add(info.id);
+        stop.addClass('is-armed');
+        label.setText(stopConfirmLabel(scope));
+        stop.setAttribute('aria-label', `${stopConfirmLabel(scope)} Zum Bestätigen erneut klicken.`);
+        const timer = window.setTimeout(() => {
+          this.armedStops.delete(info.id);
+          this.flashTimers.delete(timer);
+          this.scheduleRender();
+        }, STOP_ARM_MS);
+        this.flashTimers.add(timer);
+        return;
+      }
+      this.armedStops.delete(info.id);
+      this.options.onStop?.(info.id);
+    });
+    if (this.armedStops.has(info.id)) {
+      stop.addClass('is-armed');
+      label.setText(stopConfirmLabel(scope));
+    }
   }
 
   /** Total runtime for finished agents (running agents tick live instead). */

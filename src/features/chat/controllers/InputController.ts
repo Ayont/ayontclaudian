@@ -82,6 +82,11 @@ import type { DesktopContextSource } from '../services/desktopContext';
 import type { SubagentManager } from '../services/SubagentManager';
 import type { ChatState } from '../state/ChatState';
 import type { QueuedMessage } from '../state/types';
+import {
+  attachmentPromptReferences,
+  type ComposerAttachment,
+  toMessageAttachment,
+} from '../ui/file-drop/stagedAttachment';
 import type { FileContextManager } from '../ui/FileContext';
 import type { ImageContextManager } from '../ui/ImageContext';
 import type { AddExternalContextResult, McpServerSelector } from '../ui/InputToolbar';
@@ -229,6 +234,9 @@ export class InputController {
 
   constructor(deps: InputControllerDeps) {
     this.deps = deps;
+    deps.getImageContextManager()?.setVaultFilesReadable?.(
+      () => !['grok-bot', 'perplexity-chat'].includes(this.getActiveProviderId()),
+    );
   }
 
   private getAgentService(): ChatRuntime | null {
@@ -615,7 +623,8 @@ export class InputController {
       images: imagesForMessage,
       // Persisted so video/PDF attachments render as media cards in the
       // transcript (and survive restarts — the staged files stay in the vault).
-      attachments: stagedAttachments.length > 0 ? stagedAttachments : undefined,
+      // Tables keep their summary only; the preview rows are transport-only.
+      attachments: stagedAttachments.length > 0 ? stagedAttachments.map(toMessageAttachment) : undefined,
       ...this.buildAgentStamp(),
     };
     state.addMessage(userMsg);
@@ -1421,8 +1430,8 @@ export class InputController {
   private buildTurnSubmission(options: {
     content: string;
     images?: ChatMessage['images'];
-    /** Staged file chips whose `@relPath` refs are appended invisibly. */
-    attachments?: ChatMessage['attachments'];
+    /** Staged file chips whose references (`@relPath` or a table block) are appended invisibly. */
+    attachments?: ComposerAttachment[];
     outputSurface?: OutputSurface;
     editorContextOverride?: EditorSelectionContext | null;
     browserContextOverride?: BrowserSelectionContext | null;
@@ -1490,7 +1499,7 @@ export class InputController {
       if (editorContext?.mode === 'selection' && editorContext.selectedText !== undefined) sources.push({ kind: 'selection', label: editorContext.notePath, text: editorContext.selectedText });
     }
     const attachments = options.attachments ?? [];
-    const attachmentMentions = attachments.map((att) => `@${att.relPath}`).join('\n');
+    const attachmentMentions = attachmentPromptReferences(attachments);
     const textWithAttachments = attachmentMentions
       ? (transformedText ? `${transformedText}\n\n${attachmentMentions}` : attachmentMentions)
       : transformedText;

@@ -86,4 +86,51 @@ export interface SubagentInfo {
   totalTokens?: number;
   toolUses?: number;
   durationMs?: number;
+  /** Provider that ran the turn; the inspector shows provenance from it. */
+  providerId?: string;
+  /** Provider's agent role or type (Claude `subagent_type`, Codex role). */
+  agentType?: string;
+  model?: string;
+  /** Provider-native handle for stopping this one subagent (Claude task_id). */
+  taskId?: string;
+  /** Present-tense activity line reported by the provider. */
+  activity?: string;
+  /** Ordered child transcript (text and tool calls), bounded; see appendSubagentTimeline. */
+  timeline?: SubagentTimelineEntry[];
+  /** Set once the user asked to stop it, and again once the provider confirmed. */
+  cancelState?: SubagentCancelState;
+}
+
+export type SubagentCancelState = 'requested' | 'cancelled';
+
+/** `seq` is a stable per-subagent counter, so trimming the front never renames an entry. */
+export type SubagentTimelineEntry =
+  | { type: 'text'; text: string; at: number; seq?: number }
+  | { type: 'tool'; toolId: string; at: number; seq?: number };
+
+/** Live facts a provider reports about a running subagent; every field is optional. */
+export interface SubagentLiveUpdate {
+  taskId?: string;
+  agentType?: string;
+  model?: string;
+  description?: string;
+  prompt?: string;
+  activity?: string;
+  lastToolName?: string;
+  totalTokens?: number;
+  toolUses?: number;
+  durationMs?: number;
+  /** The provider confirmed that this subagent was stopped. */
+  cancelled?: boolean;
+  /** Known at launch on Claude: lets the card appear before any child event. */
+  background?: boolean;
+}
+
+/** What a runtime needs to stop exactly one subagent. */
+export interface SubagentCancelTarget {
+  /** Claudian's subagent id: the spawning tool call id. */
+  id: string;
+  taskId?: string;
+  agentId?: string;
+  mode?: SubagentMode;
 }

@@ -41,8 +41,10 @@ import {
   attachmentPeekMode,
   attachmentTypeMeta,
   type FileDockTarget,
+  formatFileSize,
 } from '../ui/file-drop/attachmentMeta';
 import { isRasterPeekSrc } from '../ui/file-drop/pdfPeek';
+import { formatTableSummary } from '../ui/file-drop/tableProfile';
 import {
   buildActivityLabels,
   foldDownActivity,
@@ -282,6 +284,32 @@ const STREAMING_MIN_STABLE_CHARS = 2_000;
 
 /** Live edge kept re-renderable so the trailing block can finish forming. */
 const STREAMING_MIN_TAIL_CHARS = 400;
+
+/**
+ * The spawn/wait calls say how a lifecycle agent (Codex) ended; what it did on
+ * the way (child tools, its transcript, provenance) was captured live on the
+ * spawn call. Stored history needs both.
+ */
+function mergeLiveLifecycleCapture(built: SubagentInfo, live: SubagentInfo | undefined): SubagentInfo {
+  if (!live) return built;
+  // The newer multi-agent flow reports completion through activity items the
+  // spawn/wait pair does not carry; the live capture saw the outcome.
+  const settledLive = built.status === 'running' && live.status !== 'running'
+    ? { status: live.status, result: live.result, ...(live.asyncStatus ? { asyncStatus: live.asyncStatus } : {}) }
+    : {};
+  return {
+    ...built,
+    ...settledLive,
+    toolCalls: built.toolCalls.length > 0 ? built.toolCalls : live.toolCalls ?? [],
+    ...(live.timeline ? { timeline: live.timeline } : {}),
+    ...(live.providerId ? { providerId: live.providerId } : {}),
+    agentType: built.agentType ?? live.agentType,
+    model: built.model ?? live.model,
+    startedAt: built.startedAt ?? live.startedAt,
+    completedAt: built.completedAt ?? live.completedAt,
+    cancelState: built.cancelState ?? live.cancelState,
+  };
+}
 
 export class MessageRenderer {
   /** Completed render signatures; unchanged frames keep their mounted UI state. */
@@ -1723,11 +1751,11 @@ export class MessageRenderer {
       return;
     }
 
-    const subagentInfo = subagentLifecycleAdapter.buildSubagentInfo(
+    const built = subagentLifecycleAdapter.buildSubagentInfo(
       spawnToolCall,
       msg.toolCalls ?? [],
     );
-    renderStoredSubagent(contentEl, subagentInfo);
+    renderStoredSubagent(contentEl, mergeLiveLifecycleCapture(built, spawnToolCall.subagent));
   }
 
   private resolveTaskSubagent(toolCall: ToolCallInfo, modeHint?: 'sync' | 'async'): SubagentInfo {
@@ -1853,7 +1881,8 @@ export class MessageRenderer {
   /**
    * Renders staged file attachments above a user message. Each kind gets a
    * visual peek (PDF iframe, media player, paper card) and docks into the
-   * document pane on click.
+   * document pane on click. Tables get a compact card with their size instead:
+   * a picture of a spreadsheet says nothing, "2.277 Zeilen · 9 Spalten" does.
    */
   renderMessageAttachments(containerEl: HTMLElement, attachments: MessageAttachment[]): void {
     const wrap = containerEl.createDiv({ cls: 'claudian-message-attachments' });
@@ -1861,23 +1890,30 @@ export class MessageRenderer {
     attachments.forEach((attachment, index) => {
       const meta = attachmentTypeMeta(attachment.name);
       const peek = attachmentPeekMode(attachment.name);
+      const isCompact = meta.kind === 'sheet';
+      const detail = isCompact ? this.attachmentDetail(attachment) : '';
       const card = wrap.createDiv({
         cls: `claudian-message-attachment claudian-message-attachment--${meta.kind} claudian-message-attachment--${peek}`,
       });
+      if (isCompact) card.addClass('claudian-message-attachment--compact');
       card.setCssProps({ '--cl-att-stagger': `${Math.min(index, 6) * 40}ms` });
       card.setAttribute('role', 'button');
       card.setAttribute('tabindex', '0');
-      card.setAttribute('aria-label', `${attachment.name} andocken`);
+      card.setAttribute('aria-label', `${detail ? `${attachment.name}, ${detail}` : attachment.name} andocken`);
 
-      const resourcePath = this.resolveAttachmentResource(attachment.relPath);
-      this.renderAttachmentPeek(card, attachment, peek, resourcePath);
+      if (!isCompact) {
+        const resourcePath = this.resolveAttachmentResource(attachment.relPath);
+        this.renderAttachmentPeek(card, attachment, peek, resourcePath);
+      }
 
       const info = card.createDiv({ cls: 'claudian-message-attachment-info' });
       const iconEl = info.createSpan({ cls: 'claudian-message-attachment-icon' });
       setIcon(iconEl, meta.icon);
-      const nameEl = info.createSpan({ cls: 'claudian-message-attachment-name' });
+      const labelEl = isCompact ? info.createDiv({ cls: 'claudian-message-attachment-text' }) : info;
+      const nameEl = labelEl.createSpan({ cls: 'claudian-message-attachment-name' });
       nameEl.setText(attachment.name);
       nameEl.setAttribute('title', attachment.relPath);
+      if (detail) labelEl.createSpan({ cls: 'claudian-message-attachment-meta', text: detail });
       info.createSpan({
         cls: 'claudian-message-attachment-kind',
         text: attachmentKindLabel(meta.kind),
@@ -1907,6 +1943,13 @@ export class MessageRenderer {
         }
       });
     });
+  }
+
+  /** "2.277 Zeilen · 9 Spalten", else the file size, else nothing (older messages). */
+  private attachmentDetail(attachment: MessageAttachment): string {
+    const summary = formatTableSummary(attachment.table);
+    if (summary) return summary;
+    return attachment.size !== undefined ? formatFileSize(attachment.size) : '';
   }
 
   private resolveAttachmentResource(relPath: string): string | null {

@@ -1,9 +1,12 @@
 import {
+  countTextLines,
+  exceedsInlineTextLimit,
   formatDroppedFileBlock,
   getFileExtension,
   isTextLikeFile,
   languageForFile,
-  MAX_DROPPED_TEXT_SIZE,
+  MAX_INLINE_TEXT_BYTES,
+  MAX_INLINE_TEXT_LINES,
 } from '../../../../../../src/features/chat/ui/file-drop/droppedTextFile';
 
 describe('getFileExtension', () => {
@@ -77,8 +80,32 @@ describe('formatDroppedFileBlock', () => {
     expect(out).toContain('line1\nline2');
     expect(out).not.toContain('\r');
   });
+});
 
-  it('exposes a sane size cap', () => {
-    expect(MAX_DROPPED_TEXT_SIZE).toBe(2 * 1024 * 1024);
+describe('countTextLines', () => {
+  it('counts lines regardless of line endings and a trailing newline', () => {
+    expect(countTextLines('')).toBe(0);
+    expect(countTextLines('one')).toBe(1);
+    expect(countTextLines('a\nb\n')).toBe(2);
+    expect(countTextLines('a\r\nb\r\nc')).toBe(3);
+  });
+});
+
+describe('exceedsInlineTextLimit', () => {
+  it('keeps ordinary source files inline', () => {
+    expect(MAX_INLINE_TEXT_BYTES).toBe(64 * 1024);
+    expect(MAX_INLINE_TEXT_LINES).toBe(400);
+    const file = Array.from({ length: 120 }, (_, i) => `export const v${i} = ${i};`).join('\n');
+    expect(exceedsInlineTextLimit(file.length, file)).toBe(false);
+  });
+
+  it('attaches instead of inlining once the file is too big to read in a chat bubble', () => {
+    expect(exceedsInlineTextLimit(MAX_INLINE_TEXT_BYTES + 1)).toBe(true);
+    const log = Array.from({ length: MAX_INLINE_TEXT_LINES + 1 }, (_, i) => `line ${i}`).join('\n');
+    expect(exceedsInlineTextLimit(log.length, log)).toBe(true);
+  });
+
+  it('decides on size alone before the file has been read', () => {
+    expect(exceedsInlineTextLimit(10)).toBe(false);
   });
 });

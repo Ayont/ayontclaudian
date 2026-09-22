@@ -5,6 +5,10 @@ jest.mock('obsidian', () => ({
   setIcon: jest.fn((el: any, iconName: string) => {
     el.setAttribute('data-icon', iconName);
   }),
+  setTooltip: jest.fn((el: any, label: string, options?: { placement?: string }) => {
+    el.setAttribute('aria-label', label);
+    if (options?.placement) el.setAttribute('data-tooltip-position', options.placement);
+  }),
 }));
 
 type Listener = (event: any) => void;
@@ -594,5 +598,189 @@ describe('NavigationSidebar', () => {
 
       expect(parentEl.querySelector('.claudian-nav-sidebar')).toBeNull();
     });
+  });
+});
+
+describe('NavigationSidebar end pill and scrolled-away state', () => {
+  let parentEl: MockElement;
+  let messagesEl: MockElement;
+  let sidebar: NavigationSidebar | null = null;
+  let observerCallback: (() => void) | null = null;
+  let reducedMotion = false;
+  let originalWindow: Window | undefined;
+
+  const scrollTo = (scrollTop: number) => {
+    messagesEl.scrollTop = scrollTop;
+    messagesEl.dispatchEvent({ type: 'scroll' });
+    jest.advanceTimersByTime(16);
+  };
+  const pill = () => parentEl.children[2];
+  const rail = () => parentEl.children[1];
+  const mount = () => {
+    sidebar = new NavigationSidebar(parentEl as unknown as HTMLElement, messagesEl as unknown as HTMLElement);
+    return sidebar;
+  };
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    observerCallback = null;
+    reducedMotion = false;
+    originalWindow = (globalThis as { window?: Window }).window;
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        requestAnimationFrame: (callback: FrameRequestCallback): number =>
+          globalThis.setTimeout(() => callback(performance.now()), 16) as unknown as number,
+        cancelAnimationFrame: (handle: number): void => {
+          globalThis.clearTimeout(handle as unknown as ReturnType<typeof setTimeout>);
+        },
+        setTimeout: (callback: () => void, timeout: number): number =>
+          globalThis.setTimeout(callback, timeout) as unknown as number,
+        clearTimeout: (handle: number): void => {
+          globalThis.clearTimeout(handle as unknown as ReturnType<typeof setTimeout>);
+        },
+        matchMedia: (query: string) => ({ matches: reducedMotion && query.includes('reduced-motion') }),
+        MutationObserver: class {
+          constructor(callback: () => void) { observerCallback = callback; }
+          observe(): void {}
+          disconnect(): void { observerCallback = null; }
+        },
+      } as unknown as Window,
+      configurable: true,
+    });
+    parentEl = new MockElement('div');
+    messagesEl = new MockElement('div');
+    parentEl.appendChild(messagesEl);
+    messagesEl.scrollHeight = 3000;
+    messagesEl.clientHeight = 600;
+    messagesEl.scrollTop = 2400;
+  });
+
+  afterEach(() => {
+    sidebar?.destroy();
+    sidebar = null;
+    if (originalWindow === undefined) {
+      delete (globalThis as { window?: Window }).window;
+    } else {
+      Object.defineProperty(globalThis, 'window', { value: originalWindow, configurable: true });
+    }
+    jest.useRealTimers();
+  });
+
+  it('renders a hidden "Zum Ende" pill after the rail', () => {
+    mount();
+
+    expect(pill().tagName).toBe('BUTTON');
+    expect(pill().classList.contains('claudian-nav-end-pill')).toBe(true);
+    expect(pill().getAttribute('aria-label')).toBe('Zum Ende scrollen');
+    expect(pill().classList.contains('is-visible')).toBe(false);
+    expect(pill().getAttribute('aria-hidden')).toBe('true');
+    expect(rail().classList.contains('is-at-bottom')).toBe(true);
+  });
+
+  it('shows the pill and compacts the chat a viewport third away from the end', () => {
+    mount();
+
+    scrollTo(2250);
+    expect(pill().classList.contains('is-visible')).toBe(false);
+    expect(rail().classList.contains('is-at-bottom')).toBe(false);
+
+    scrollTo(2000);
+    expect(pill().classList.contains('is-visible')).toBe(true);
+    expect(pill().getAttribute('aria-hidden')).toBe('false');
+    expect(rail().classList.contains('is-away')).toBe(true);
+    expect(parentEl.classList.contains('claudian-chat--scrolled-away')).toBe(true);
+
+    // Hysteresis: coming back part of the way keeps the pill.
+    scrollTo(2250);
+    expect(pill().classList.contains('is-visible')).toBe(true);
+
+    scrollTo(2395);
+    expect(pill().classList.contains('is-visible')).toBe(false);
+    expect(parentEl.classList.contains('claudian-chat--scrolled-away')).toBe(false);
+  });
+
+  it('re-pins the end after un-compacting the chat at the bottom', () => {
+    mount();
+    scrollTo(2000);
+
+    scrollTo(2395);
+
+    expect(messagesEl.scrollTop).toBe(3000);
+  });
+
+  it('scrolls to the end through the same path as the to-end button', () => {
+    mount();
+    scrollTo(1000);
+
+    pill().click();
+    rail().children[3].click();
+
+    expect(messagesEl.scrollToCalls).toEqual([
+      { top: 3000, behavior: 'smooth' },
+      { top: 3000, behavior: 'smooth' },
+    ]);
+  });
+
+  it('scrolls instantly under reduced motion', () => {
+    reducedMotion = true;
+    mount();
+    scrollTo(1000);
+
+    pill().click();
+    rail().children[0].click();
+
+    expect(messagesEl.scrollToCalls.map((call) => call.behavior)).toEqual(['auto', 'auto']);
+  });
+
+  it('lands on the real end when a streaming answer grew during the smooth scroll', () => {
+    mount();
+    scrollTo(1000);
+
+    pill().click();
+    messagesEl.scrollHeight = 3200;
+    messagesEl.scrollTop = 2400;
+    messagesEl.dispatchEvent({ type: 'scrollend' });
+
+    expect(messagesEl.scrollTop).toBe(3200);
+  });
+
+  it('flags new output that streams in while scrolled up, and resets it at the end', () => {
+    mount();
+    scrollTo(1000);
+    const label = pill().children.find((child: MockElement) => child.classList.contains('claudian-nav-end-pill-label'))!;
+    expect(label.textContent).toBe('Zum Ende');
+
+    // An old block changing size is not new output.
+    observerCallback?.();
+    expect(pill().classList.contains('has-new-output')).toBe(false);
+
+    messagesEl.createDiv({ cls: 'is-streaming-turn' });
+    observerCallback?.();
+    expect(pill().classList.contains('has-new-output')).toBe(true);
+    expect(label.textContent).toBe('Neue Ausgabe');
+    expect(pill().getAttribute('aria-label')).toBe('Neue Ausgabe – zum Ende scrollen');
+
+    scrollTo(2400);
+    expect(pill().classList.contains('has-new-output')).toBe(false);
+    expect(label.textContent).toBe('Zum Ende');
+  });
+
+  it('places rail tooltips on the left, away from the library drawer', () => {
+    mount();
+    for (const button of rail().children) {
+      expect(button.getAttribute('data-tooltip-position')).toBe('left');
+      expect(button.getAttribute('title')).toBeNull();
+    }
+  });
+
+  it('removes the pill and the chat state on destroy', () => {
+    mount();
+    scrollTo(1000);
+
+    sidebar!.destroy();
+    sidebar = null;
+
+    expect(parentEl.children).toHaveLength(1);
+    expect(parentEl.classList.contains('claudian-chat--scrolled-away')).toBe(false);
   });
 });

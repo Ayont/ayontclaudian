@@ -1,76 +1,320 @@
-/* Navigation Sidebar */
-.claudian-nav-sidebar {
-    position: absolute;
-    right: 2px;
-    top: 50%;
-    transform: translateY(-50%);
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    z-index: 100;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s ease;
+/* Chat navigation — one glass rail (top / previous / next / end) plus a centered
+   "Zum Ende" pill once the reader is well away from the end.
+   State hooks, all set by NavigationSidebar or the library drawer:
+   - rail: .visible, .is-at-bottom, .is-away
+   - wrapper: .claudian-preview-open (library drawer is open)
+   - chat root: .claudian-chat--scrolled-away (compact chrome while reading) */
+
+.claudian-messages-wrapper {
+  /* Shared with the library drawer so the docked rail always meets its edge. */
+  --claudian-library-width: min(328px, calc(100% - 16px));
+  --claudian-library-inset: var(--cl-space-2);
+  --claudian-nav-gap: 6px;
 }
 
+.claudian-nav-sidebar {
+  position: absolute;
+  top: 50%;
+  right: var(--claudian-nav-gap);
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--cl-radius-pill);
+  background: var(--cl-glass-sheen), var(--cl-glass-body);
+  -webkit-backdrop-filter: var(--cl-glass-filter);
+  backdrop-filter: var(--cl-glass-filter);
+  box-shadow: var(--cl-glass-edge), var(--cl-glass-shadow);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(6px, -50%);
+  transition:
+    opacity 180ms var(--cl-ease-out),
+    transform 200ms var(--cl-ease-out);
+}
+
+/* Over the transcript the rail rests slightly translucent; it firms up on use. */
 .claudian-nav-sidebar.visible {
-    opacity: 0.62;
-    pointer-events: auto;
+  opacity: 0.84;
+  pointer-events: auto;
+  transform: translate(0, -50%);
+  animation: cl-nav-undock 200ms var(--cl-ease-out);
 }
 
 .claudian-nav-sidebar.visible:hover,
 .claudian-nav-sidebar.visible:focus-within {
-    opacity: 1;
+  opacity: 1;
 }
 
-.claudian-nav-btn {
-    appearance: none;
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    border-radius: 16px;
-    background: var(--background-primary);
-    border: 1px solid var(--background-modifier-border);
-    color: var(--text-muted);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+.claudian-nav-sidebar button.claudian-nav-btn {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--cl-radius-pill);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    background-color var(--cl-dur-fast) var(--cl-ease-out),
+    color var(--cl-dur-fast) var(--cl-ease-out),
+    transform var(--cl-dur-fast) var(--cl-ease-out);
 }
 
-.claudian-nav-btn:hover {
-    background: var(--background-secondary);
+/* Three groups: jump to start · step through prompts · jump to end. */
+.claudian-nav-sidebar button.claudian-nav-btn-top {
+  margin-bottom: 3px;
+}
+
+.claudian-nav-sidebar button.claudian-nav-btn-bottom {
+  margin-top: 3px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .claudian-nav-sidebar button.claudian-nav-btn:hover {
+    background: var(--cl-wash-strong);
     color: var(--text-normal);
-    transform: scale(1.05);
+  }
 }
 
-.claudian-nav-btn:focus-visible {
-    outline: 2px solid var(--interactive-accent);
-    outline-offset: 2px;
+.claudian-nav-sidebar button.claudian-nav-btn:active {
+  transform: scale(0.95);
+}
+
+.claudian-nav-sidebar button.claudian-nav-btn:focus-visible {
+  outline: 2px solid var(--cl-accent);
+  outline-offset: 1px;
+  color: var(--text-normal);
+}
+
+.claudian-nav-sidebar button.claudian-nav-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* At the end, "down" has nothing left to do; while away, the pill owns "end". */
+.claudian-nav-sidebar.is-at-bottom .claudian-nav-btn-next,
+.claudian-nav-sidebar.is-at-bottom .claudian-nav-btn-bottom,
+.claudian-nav-sidebar.is-away .claudian-nav-btn-bottom {
+  display: none;
+}
+
+/* ── Library open: the rail docks to the drawer's outer edge ─────────────
+   Same glass as the drawer, one gap away, so both read as one instrument.
+   Tooltips open to the left (NavigationSidebar), never over the list. */
+.claudian-preview-open > .claudian-nav-sidebar {
+  right: calc(var(--claudian-library-width) + var(--claudian-library-inset) + var(--claudian-nav-gap));
+}
+
+.claudian-preview-open > .claudian-nav-sidebar.visible {
+  opacity: 1;
+  animation-name: cl-nav-dock;
+}
+
+/* The pill would sit under the drawer, so the rail keeps its own "Zum Ende". */
+.claudian-preview-open > .claudian-nav-sidebar.is-away .claudian-nav-btn-bottom {
+  display: flex;
+}
+
+/* Two keyframe names so the rail re-enters whenever it changes edge. */
+@keyframes cl-nav-dock {
+  from {
+    opacity: 0;
+    transform: translate(10px, -50%);
+  }
+}
+
+@keyframes cl-nav-undock {
+  from {
+    opacity: 0;
+    transform: translate(6px, -50%);
+  }
+}
+
+/* No room beside the drawer (it covers the transcript): hide the rail rather
+   than let it float over list content. Fine pointer: 34px rail + 2 gaps. */
+@container claudian-chat (max-width: 381.98px) {
+  .claudian-preview-open > .claudian-nav-sidebar.visible {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    animation: none;
+  }
+}
+
+/* The drawer goes fullscreen on small viewports (FilePreviewPanel). */
+@media (max-width: 768px) {
+  .claudian-preview-open > .claudian-nav-sidebar.visible {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    animation: none;
+  }
+}
+
+/* ── "Zum Ende" pill ─────────────────────────────────────────────────────
+   Centered over the transcript column, just above the composer. */
+.claudian-messages-wrapper button.claudian-nav-end-pill {
+  position: absolute;
+  left: 50%;
+  bottom: var(--cl-space-3);
+  z-index: 44;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  margin: 0;
+  padding: 0 14px 0 11px;
+  border: 0;
+  border-radius: var(--cl-radius-pill);
+  background: var(--cl-glass-sheen), var(--cl-glass-body-strong);
+  -webkit-backdrop-filter: var(--cl-glass-filter);
+  backdrop-filter: var(--cl-glass-filter);
+  box-shadow: var(--cl-glass-edge), var(--cl-glass-shadow-pop);
+  color: var(--text-muted);
+  font-family: var(--font-interface);
+  font-size: var(--cl-text-sm);
+  font-weight: 550;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translate(-50%, 8px);
+  /* Leaving is faster than arriving: the reader already reached the end. */
+  transition:
+    opacity 140ms var(--cl-ease-out),
+    transform 140ms var(--cl-ease-out),
+    color var(--cl-dur-fast) var(--cl-ease-out),
+    box-shadow var(--cl-dur-fast) var(--cl-ease-out),
+    visibility 0s linear 140ms;
+}
+
+.claudian-messages-wrapper button.claudian-nav-end-pill.is-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+  transition-duration: 180ms, 200ms, var(--cl-dur-fast), var(--cl-dur-fast), 0s;
+  transition-delay: 0s;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .claudian-messages-wrapper button.claudian-nav-end-pill.is-visible:hover {
     color: var(--text-normal);
-    opacity: 1;
+    box-shadow: inset 0 0 0 1px var(--cl-glass-rim-strong), var(--cl-glass-shadow-pop);
+    transform: translate(-50%, -1px);
+  }
 }
 
-.claudian-nav-btn svg {
-    width: 18px;
-    height: 18px;
+.claudian-messages-wrapper button.claudian-nav-end-pill.is-visible:active {
+  transform: translate(-50%, 0) scale(0.97);
 }
 
-/* Specific button spacing/grouping if needed */
-.claudian-nav-btn-top {
-    margin-bottom: 4px;
+.claudian-messages-wrapper button.claudian-nav-end-pill:focus-visible {
+  outline: 2px solid var(--cl-accent);
+  outline-offset: 2px;
+  color: var(--text-normal);
 }
 
-.claudian-nav-btn-bottom {
-    margin-top: 4px;
+.claudian-nav-end-pill-icon {
+  display: flex;
+  align-items: center;
+}
+
+.claudian-nav-end-pill-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* New output below: the label changes too, so the dot is never the only cue. */
+.claudian-nav-end-pill-dot {
+  display: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--cl-radius-pill);
+  background: var(--cl-accent);
+}
+
+.claudian-messages-wrapper button.claudian-nav-end-pill.has-new-output {
+  color: var(--text-normal);
+}
+
+.claudian-nav-end-pill.has-new-output .claudian-nav-end-pill-dot {
+  display: block;
+  animation: cl-nav-dot-in 200ms var(--cl-ease-out);
+}
+
+@keyframes cl-nav-dot-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
+.claudian-messages-wrapper.claudian-preview-open > .claudian-nav-end-pill.is-visible {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ── Compact chrome while reading history ────────────────────────────────
+   Starter chips are for writing, not reading; hiding them gives the transcript
+   the room back. Never touches the text field or the stop button. The
+   un-compact jump at the end is re-pinned by NavigationSidebar. */
+.claudian-tab-content.claudian-chat--scrolled-away .claudian-mode-quick-row {
+  display: none;
 }
 
 @media (pointer: coarse) {
-    .claudian-nav-btn {
-        width: 44px;
-        height: 44px;
-        border-radius: 22px;
+  .claudian-nav-sidebar button.claudian-nav-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .claudian-messages-wrapper button.claudian-nav-end-pill {
+    height: 44px;
+    padding: 0 18px 0 14px;
+  }
+}
+
+/* Coarse rail is 50px wide; hide it earlier beside the drawer. */
+@media (pointer: coarse) {
+  @container claudian-chat (max-width: 397.98px) {
+    .claudian-preview-open > .claudian-nav-sidebar.visible {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      animation: none;
     }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-nav-sidebar,
+  .claudian-nav-sidebar button.claudian-nav-btn,
+  .claudian-messages-wrapper button.claudian-nav-end-pill,
+  .claudian-nav-end-pill.has-new-output .claudian-nav-end-pill-dot {
+    transition: none;
+    animation: none;
+  }
+
+  .claudian-nav-sidebar button.claudian-nav-btn:active {
+    transform: none;
+  }
+
+  .claudian-messages-wrapper button.claudian-nav-end-pill.is-visible:hover,
+  .claudian-messages-wrapper button.claudian-nav-end-pill.is-visible:active {
+    transform: translate(-50%, 0);
+  }
 }

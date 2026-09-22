@@ -2537,4 +2537,208 @@ describe('CodexChatRuntime', () => {
       expect(chunks).toContainEqual({ type: 'done' });
     });
   });
+  describe('subagent child threads', () => {
+    const PARENT = 'thread-parent';
+    const PARENT_TURN = 'turn-parent';
+    const CHILD = 'thread-child';
+    const CHILD_TURN = 'turn-child';
+    const SPAWN_ID = 'call_spawn';
+
+    function spawnItem(status: 'inProgress' | 'completed'): Record<string, unknown> {
+      return {
+        type: 'collabAgentToolCall',
+        id: SPAWN_ID,
+        tool: 'spawnAgent',
+        status,
+        senderThreadId: PARENT,
+        receiverThreadIds: status === 'completed' ? [CHILD] : [],
+        agentsStates: status === 'completed' ? { [CHILD]: { status: 'pendingInit' } } : {},
+        prompt: 'Review the parser',
+        model: 'gpt-6-luna',
+      };
+    }
+
+    function emitSpawnWithRunningChild(): void {
+      emitNotification('item/started', { threadId: PARENT, turnId: PARENT_TURN, item: spawnItem('inProgress') });
+      emitNotification('thread/started', {
+        thread: {
+          id: CHILD,
+          parentThreadId: PARENT,
+          agentNickname: 'Laplace',
+          agentRole: 'explorer',
+          model: 'gpt-6-luna',
+          source: { subAgent: { thread_spawn: { parent_thread_id: PARENT, depth: 1 } } },
+        },
+      });
+      emitNotification('turn/started', {
+        threadId: CHILD,
+        turn: { id: CHILD_TURN, items: [], status: 'inProgress', error: null },
+      });
+      emitNotification('item/completed', { threadId: PARENT, turnId: PARENT_TURN, item: spawnItem('completed') });
+    }
+
+    function emitParentCompleted(): void {
+      emitNotification('turn/completed', {
+        threadId: PARENT,
+        turn: { id: PARENT_TURN, items: [], status: 'completed', error: null },
+      });
+    }
+
+    async function startQuery(): Promise<{ drain: () => Promise<StreamChunk[]> }> {
+      const gen = runtime.query(createTurn('spawn a helper'));
+      const first = gen.next();
+      await new Promise(resolve => setTimeout(resolve, 20));
+      return {
+        drain: async () => {
+          const collected: StreamChunk[] = [];
+          const head = await first;
+          if (!head.done && head.value) collected.push(head.value);
+          for await (const chunk of gen) collected.push(chunk);
+          return collected;
+        },
+      };
+    }
+
+    it('relays child-thread activity as subagent chunks and keeps it out of the parent stream', async () => {
+      mockTransportRequest.mockImplementation(buildRequestHandler({
+        'thread/start': () => threadStartResponse(PARENT),
+        'turn/start': () => {
+          setTimeout(() => {
+            emitSpawnWithRunningChild();
+            emitNotification('item/started', {
+              threadId: CHILD,
+              turnId: CHILD_TURN,
+              item: {
+                type: 'commandExecution', id: 'cmd-child', command: 'ls', cwd: '/test/vault', processId: '1',
+                source: 'agent', status: 'inProgress', commandActions: [], aggregatedOutput: null, exitCode: null, durationMs: null,
+              },
+            });
+            emitNotification('item/agentMessage/delta', {
+              threadId: CHILD, turnId: CHILD_TURN, itemId: 'child-msg', delta: 'child says hi',
+            });
+            emitNotification('thread/tokenUsage/updated', {
+              threadId: CHILD,
+              turnId: CHILD_TURN,
+              tokenUsage: {
+                total: { totalTokens: 50, inputTokens: 40, cachedInputTokens: 0, outputTokens: 10, reasoningOutputTokens: 0 },
+                last: { totalTokens: 50, inputTokens: 40, cachedInputTokens: 0, outputTokens: 10, reasoningOutputTokens: 0 },
+                modelContextWindow: 200000,
+              },
+            });
+            emitNotification('turn/completed', {
+              threadId: CHILD,
+              turn: { id: CHILD_TURN, items: [], status: 'completed', error: null },
+            });
+            emitNotification('item/agentMessage/delta', {
+              threadId: PARENT, turnId: PARENT_TURN, itemId: 'parent-msg', delta: 'parent done',
+            });
+            emitParentCompleted();
+          }, 0);
+          return turnStartResponse(PARENT_TURN);
+        },
+      }));
+
+      const chunks = await collectChunks(runtime.query(createTurn('spawn a helper')));
+
+      const spawnIndex = chunks.findIndex(chunk => chunk.type === 'tool_use' && chunk.id === SPAWN_ID);
+      const childToolIndex = chunks.findIndex(chunk => chunk.type === 'subagent_tool_use');
+      expect(spawnIndex).toBeGreaterThanOrEqual(0);
+      expect(childToolIndex).toBeGreaterThan(spawnIndex);
+      expect(chunks[childToolIndex]).toMatchObject({ subagentId: SPAWN_ID, id: 'cmd-child', name: 'Bash' });
+      expect(chunks).toContainEqual({ type: 'subagent_text', subagentId: SPAWN_ID, text: 'child says hi' });
+      expect(chunks).toContainEqual({
+        type: 'subagent_update',
+        subagentId: SPAWN_ID,
+        update: { agentType: 'explorer', model: 'gpt-6-luna', prompt: 'Review the parser' },
+      });
+      expect(chunks).not.toContainEqual({ type: 'text', content: 'child says hi' });
+      expect(chunks.filter(chunk => chunk.type === 'usage')).toEqual([]);
+      expect(chunks).toContainEqual({ type: 'text', content: 'parent done' });
+      expect(chunks.filter(chunk => chunk.type === 'done')).toHaveLength(1);
+      expect(chunks[chunks.length - 1]).toEqual({ type: 'done' });
+    });
+
+    it('cannot cancel a subagent it does not know', async () => {
+      expect(runtime.canCancelSubagent({ id: SPAWN_ID })).toBe(false);
+      await expect(runtime.cancelSubagent({ id: SPAWN_ID })).resolves.toBe(false);
+      expect(findCall('turn/interrupt')).toBeUndefined();
+    });
+
+    it('stops exactly one subagent by interrupting its own turn', async () => {
+      mockTransportRequest.mockImplementation(buildRequestHandler({
+        'thread/start': () => threadStartResponse(PARENT),
+        'turn/start': () => {
+          setTimeout(emitSpawnWithRunningChild, 0);
+          return turnStartResponse(PARENT_TURN);
+        },
+        'turn/interrupt': () => ({}),
+      }));
+
+      const { drain } = await startQuery();
+
+      expect(runtime.canCancelSubagent({ id: SPAWN_ID })).toBe(true);
+      await expect(runtime.cancelSubagent({ id: SPAWN_ID })).resolves.toBe(true);
+      expect(mockTransportRequest).toHaveBeenCalledWith('turn/interrupt', { threadId: CHILD, turnId: CHILD_TURN });
+      expect(mockTransportRequest).not.toHaveBeenCalledWith(
+        'turn/interrupt',
+        expect.objectContaining({ threadId: PARENT }),
+      );
+
+      emitNotification('turn/completed', {
+        threadId: CHILD,
+        turn: { id: CHILD_TURN, items: [], status: 'interrupted', error: null },
+      });
+      expect(runtime.canCancelSubagent({ id: SPAWN_ID })).toBe(false);
+      emitParentCompleted();
+
+      const chunks = await drain();
+      expect(chunks).toContainEqual({ type: 'subagent_update', subagentId: SPAWN_ID, update: { cancelled: true } });
+      expect(chunks.filter(chunk => chunk.type === 'done')).toHaveLength(1);
+    });
+
+    it('resolves false instead of throwing when the interrupt request fails', async () => {
+      mockTransportRequest.mockImplementation(buildRequestHandler({
+        'thread/start': () => threadStartResponse(PARENT),
+        'turn/start': () => {
+          setTimeout(emitSpawnWithRunningChild, 0);
+          return turnStartResponse(PARENT_TURN);
+        },
+        'turn/interrupt': () => {
+          throw new Error('turn already finished');
+        },
+      }));
+
+      const { drain } = await startQuery();
+
+      await expect(runtime.cancelSubagent({ id: SPAWN_ID })).resolves.toBe(false);
+
+      emitNotification('turn/completed', {
+        threadId: CHILD,
+        turn: { id: CHILD_TURN, items: [], status: 'interrupted', error: null },
+      });
+      emitParentCompleted();
+      const chunks = await drain();
+      expect(chunks.some(chunk => chunk.type === 'subagent_update' && chunk.update.cancelled)).toBe(false);
+    });
+
+    it('keeps a background child stoppable after the parent turn ends, until the session resets', async () => {
+      mockTransportRequest.mockImplementation(buildRequestHandler({
+        'thread/start': () => threadStartResponse(PARENT),
+        'turn/start': () => {
+          setTimeout(() => {
+            emitSpawnWithRunningChild();
+            emitParentCompleted();
+          }, 0);
+          return turnStartResponse(PARENT_TURN);
+        },
+      }));
+
+      await collectChunks(runtime.query(createTurn('spawn a helper')));
+
+      expect(runtime.canCancelSubagent({ id: SPAWN_ID })).toBe(true);
+
+      runtime.resetSession();
+      expect(runtime.canCancelSubagent({ id: SPAWN_ID })).toBe(false);
+    });
+  });
 });

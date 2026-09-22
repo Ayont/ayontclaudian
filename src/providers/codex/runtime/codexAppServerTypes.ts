@@ -1,6 +1,8 @@
 // Local protocol subset for Codex app-server stdio JSON-RPC.
 // Field names match the wire format (camelCase).
-// Probed against codex-cli 0.118.0 on 2026-04-01.
+// Probed against codex-cli 0.118.0 on 2026-04-01. The multi-agent shapes
+// (collab items, subAgentActivity, thread sources) follow the v2 schema
+// generated from codex-cli 0.156.0.
 
 // ---------------------------------------------------------------------------
 // JSON-RPC base
@@ -65,11 +67,41 @@ export interface Thread {
   updatedAt: number;
   name: string | null;
   modelProvider: string;
-  source: string;
+  source: SessionSource;
   agentNickname: string | null;
   agentRole: string | null;
   gitInfo: GitInfo | null;
+  /** Set only on subagent threads (v2 schema). */
+  parentThreadId?: string | null;
+  /** Configured model when loaded; null when unavailable. */
+  model?: string | null;
 }
+
+export interface ThreadSpawnSubAgentSource {
+  thread_spawn: {
+    parent_thread_id: string;
+    depth: number;
+    agent_nickname?: string | null;
+    agent_role?: string | null;
+    agent_path?: string | null;
+  };
+}
+
+export type SubAgentSource =
+  | 'review'
+  | 'compact'
+  | 'memory_consolidation'
+  | ThreadSpawnSubAgentSource
+  | { other: string };
+
+export type SessionSource =
+  | 'cli'
+  | 'vscode'
+  | 'exec'
+  | 'appServer'
+  | 'unknown'
+  | { custom: string }
+  | { subAgent: SubAgentSource };
 
 export interface ThreadStatus {
   type: 'idle' | 'active' | 'systemError';
@@ -109,6 +141,7 @@ export type ThreadItem =
   | ImageViewItem
   | WebSearchItem
   | CollabAgentToolCallItem
+  | SubAgentActivityItem
   | McpToolCallItem
   | ContextCompactionItem;
 
@@ -202,13 +235,64 @@ export interface WebSearchItem {
   status?: string;
 }
 
+export type CollabAgentTool =
+  | 'spawnAgent'
+  | 'sendInput'
+  | 'resumeAgent'
+  | 'wait'
+  | 'closeAgent'
+  | 'sendMessage'
+  | 'followupTask'
+  | 'interruptAgent'
+  | 'listAgents';
+
+export type CollabAgentToolCallStatus = 'inProgress' | 'completed' | 'failed' | 'interrupted';
+
+export type CollabAgentStatus =
+  | 'pendingInit'
+  | 'running'
+  | 'interrupted'
+  | 'completed'
+  | 'errored'
+  | 'shutdown'
+  | 'notFound';
+
+export interface CollabAgentState {
+  status: CollabAgentStatus;
+  message?: string | null;
+}
+
 export interface CollabAgentToolCallItem {
   type: 'collabAgentToolCall';
   id: string;
-  tool: string;
-  status?: string;
+  tool: CollabAgentTool;
+  status: CollabAgentToolCallStatus;
+  senderThreadId: string;
+  /** For spawnAgent, `[0]` is the newly spawned child thread. */
+  receiverThreadIds: string[];
+  /** Last known state per target thread, when available. */
+  agentsStates: Record<string, CollabAgentState>;
+  prompt?: string | null;
+  model?: string | null;
+  reasoningEffort?: string | null;
+  /** Pre-v2 CLIs sent the raw tool arguments and result instead of the fields above. */
   arguments?: Record<string, unknown>;
   result?: unknown;
+}
+
+export type SubAgentActivityKind = 'started' | 'interacted' | 'interrupted' | 'completed';
+
+/**
+ * Multi-agent v2 bookkeeping on the parent thread. For `started` and
+ * `interacted` the id is the spawn_agent / send_message call id; completions
+ * carry a synthetic id.
+ */
+export interface SubAgentActivityItem {
+  type: 'subAgentActivity';
+  id: string;
+  kind: SubAgentActivityKind;
+  agentThreadId: string;
+  agentPath: string;
 }
 
 export interface McpToolCallItem {

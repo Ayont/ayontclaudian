@@ -52,6 +52,17 @@ A single session file may contain both legacy (`type: 'event'`) and modern (`typ
 
 Images are written to a temp directory (`os.tmpdir()/claudian-codex-images-{random}/`), passed as `{ type: 'localImage', path }` inputs, and cleaned up in the `query()` `finally` block.
 
+### Subagents (Child Threads)
+
+Codex runs each subagent as its own thread. Two wire dialects exist and both are handled:
+
+- **Collab items** (`collabAgentToolCall`): `spawnAgent`'s `receiverThreadIds[0]` is the child; `wait` / `interruptAgent` / `listAgents` report `agentsStates`. The router turns them into snake_case tool calls whose result JSON (`agent_id`, `receiver_thread_ids`, `agents_states`) the lifecycle adapter reads.
+- **Multi-agent v2** (Codex Desktop, `spawn_agent {task_name, fork_turns, message}`): there is no `wait`. The parent gets `subAgentActivity` items — `started` shares its id with the spawn call and names `agentThreadId`; `completed`/`interrupted` carry a synthetic id. The router replays those completions as a hidden `subagent_activity` status call (with `spawn_tool_id`), because the chat only settles lifecycle cards from status calls. The spawn `message` is Fernet-encrypted: never display it (`isOpaqueCodexPayload`).
+
+`CodexChildThreadRelay` owns child-thread traffic. `CodexChatRuntime` offers every notification to it **before** the foreign-thread rejection (so a child's `turn/*` never touches the parent's turn state) and lets it observe parent items **after** the router (so the spawn `tool_use` precedes relayed chunks). Each child gets its own `CodexNotificationRouter`; only tool calls and text survive as `subagent_tool_use` / `subagent_tool_result` / `subagent_text`, keyed by the spawn tool-call id. Usage, `done`, thinking, notices, plans and errors are dropped — a child must never move the parent's context meter or end its turn. Child traffic seen before the spawn names the thread is buffered (200 per thread, oldest dropped).
+
+The relay survives the end of a parent turn (background agents keep running) and is reset only when the parent thread changes, the session is reset, or the app-server restarts. `cancelSubagent` sends `turn/interrupt` for the child's own live turn; the stop is confirmed with `subagent_update { cancelled: true }` once that turn ends `interrupted`. Child chunks arriving while no `query()` is streaming are dropped.
+
 ### `serverRequest/resolved`
 
 The server can resolve approval/ask-user requests without waiting for client input (e.g., timeout). The `serverRequest/resolved` notification auto-dismisses the pending approval/ask-user UI.

@@ -53,6 +53,7 @@ import type {
   ImageAttachment,
   SlashCommand,
   StreamChunk,
+  SubagentCancelTarget,
   ToolCallInfo,
 } from '../../../core/types';
 import type { ClaudianSettings, PermissionMode } from '../../../core/types/settings';
@@ -122,6 +123,15 @@ type QueryOptions = ChatRuntimeQueryOptions;
 function isChatMessageArray(value: unknown): value is ChatMessage[] {
   return Array.isArray(value) && value.length > 0 &&
     !!value[0] && typeof value[0] === 'object' && 'role' in value[0] && 'content' in value[0];
+}
+
+/**
+ * The SDK stops a task by the task_id from its task events. A background
+ * agent's id is that task id too, so it covers agents launched before the
+ * task_started event could be linked to the card.
+ */
+function resolveStopTaskId(target: SubagentCancelTarget): string | null {
+  return target.taskId || (target.mode === 'async' ? target.agentId ?? null : null) || null;
 }
 
 function isImageAttachmentArray(value: unknown): value is ImageAttachment[] {
@@ -1730,6 +1740,23 @@ export class ClaudianService implements ChatRuntime {
   async softSteer(_turn: PreparedChatTurn): Promise<boolean> {
     this.cancel();
     return true;
+  }
+
+  canCancelSubagent(target: SubagentCancelTarget): boolean {
+    return Boolean(this.persistentQuery && !this.shuttingDown && resolveStopTaskId(target));
+  }
+
+  async cancelSubagent(target: SubagentCancelTarget): Promise<boolean> {
+    const taskId = resolveStopTaskId(target);
+    const query = this.persistentQuery;
+    if (!query || this.shuttingDown || !taskId) return false;
+    try {
+      await query.stopTask(taskId);
+      return true;
+    } catch {
+      // The task already settled or belongs to an earlier CLI process.
+      return false;
+    }
   }
 
   /**

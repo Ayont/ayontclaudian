@@ -73,6 +73,21 @@ describe('withGoalLoop', () => {
     expect(loadSubagentFinalResult).toHaveBeenCalledWith('agent-1');
   });
 
+  // Without these, a wrapped runtime (every provider but Cline) could never
+  // stop a single subagent from the chat.
+  it('forwards stopping a single subagent to the base runtime', async () => {
+    const base = fakeRuntime(async function* () { yield { type: 'done' }; });
+    const canCancelSubagent = jest.fn(function (this: ChatRuntime) { return this === base; });
+    const cancelSubagent = jest.fn(function (this: ChatRuntime) { return Promise.resolve(this === base); });
+    Object.assign(base, { canCancelSubagent, cancelSubagent });
+    const wrapped = withGoalLoop(base, { isPaused: () => false });
+    const target = { id: 'toolu_1', taskId: 'task-1' };
+
+    expect(wrapped.canCancelSubagent?.(target)).toBe(true);
+    await expect(wrapped.cancelSubagent?.(target)).resolves.toBe(true);
+    expect(cancelSubagent).toHaveBeenCalledWith(target);
+  });
+
   it('passes turns without a framed goal straight through', async () => {
     const seen: string[] = [];
     const base = fakeRuntime(async function* (prompt) {

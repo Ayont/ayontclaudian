@@ -8,6 +8,7 @@ import { TOOL_TASK } from '../../../core/tools/toolNames';
 import { extractToolResultContent } from '../../../core/tools/toolResultContent';
 import type {
   SubagentInfo,
+  SubagentLiveUpdate,
   ToolCallInfo,
 } from '../../../core/types';
 import { extractFinalResultFromSubagentJsonl } from '../../../utils/subagentJsonl';
@@ -19,11 +20,48 @@ import {
   finalizeAsyncSubagent,
   finalizeSubagentBlock,
   markAsyncSubagentOrphaned,
+  refreshSubagentCard,
+  setSubagentTask,
+  SUBAGENT_ORPHANED_RESULT,
   type SubagentState,
   updateAsyncSubagentRunning,
   updateSubagentToolResult,
 } from '../rendering/SubagentRenderer';
 import type { PendingToolCall } from '../state/types';
+import { appendSubagentTimeline, isLiveSubagentPhase, resolveSubagentPhase } from '../subagents/subagentPresentation';
+
+const TURN_ENDED_RESULT = 'Die Antwort endete, bevor der Subagent fertig war.';
+
+type LiveField = 'taskId' | 'agentType' | 'model' | 'description' | 'prompt' | 'activity' | 'lastToolName'
+  | 'totalTokens' | 'toolUses' | 'durationMs';
+const LIVE_FIELDS: readonly LiveField[] = [
+  'taskId', 'agentType', 'model', 'description', 'prompt', 'activity', 'lastToolName',
+  'totalTokens', 'toolUses', 'durationMs',
+];
+
+/**
+ * Copies the fields a provider reported; absent fields keep what is known.
+ * Returns whether anything changed: Claude repeats the model on every child
+ * message, and those repeats must not redraw the card.
+ */
+function mergeLiveUpdate(info: SubagentInfo, update: SubagentLiveUpdate): boolean {
+  let changed = false;
+  for (const field of LIVE_FIELDS) {
+    const value = update[field];
+    if (value === undefined || value === '' || info[field] === value) continue;
+    (info as unknown as Record<LiveField, unknown>)[field] = value;
+    changed = true;
+  }
+  if (update.cancelled && info.cancelState !== 'cancelled') {
+    info.cancelState = 'cancelled';
+    changed = true;
+  }
+  return changed;
+}
+
+function combineLiveUpdates(previous: SubagentLiveUpdate | undefined, next: SubagentLiveUpdate): SubagentLiveUpdate {
+  return previous ? { ...previous, ...next } : { ...next };
+}
 
 export type SubagentStateChangeCallback = (subagent: SubagentInfo) => void;
 
@@ -80,6 +118,13 @@ export class SubagentManager {
   private allSubagents: Map<string, SubagentInfo> = new Map();
   private swarmListeners: Set<() => void> = new Set();
 
+  // Provider lifecycle agents (Codex spawn/wait) own their card outside the
+  // sync map: their spawn result arrives at once and must not finalize them.
+  private lifecycleStates: Map<string, SubagentState> = new Map();
+  // Telemetry that arrived while the Agent call was still buffered.
+  private pendingLiveUpdates: Map<string, SubagentLiveUpdate> = new Map();
+  private providerResolver: () => string | undefined = () => undefined;
+
   private onStateChange: SubagentStateChangeCallback;
   private taskResultInterpreter: ProviderTaskResultInterpreter;
 
@@ -97,6 +142,174 @@ export class SubagentManager {
 
   public setTaskResultInterpreter(interpreter: ProviderTaskResultInterpreter): void {
     this.taskResultInterpreter = interpreter;
+  }
+
+  /** Provenance for every subagent tracked from now on (the tab's provider). */
+  public setProviderResolver(resolver: () => string | undefined): void {
+    this.providerResolver = resolver;
+  }
+
+  // ============================================
+  // Live telemetry, transcript and stop lifecycle
+  // ============================================
+
+  /** Applies what the provider reported; buffered when the card is not drawn yet. */
+  public applyLiveUpdate(id: string, update: SubagentLiveUpdate): SubagentInfo | undefined {
+    const info = this.allSubagents.get(id);
+    if (!info) {
+      if (this.pendingTasks.has(id)) {
+        this.pendingLiveUpdates.set(id, combineLiveUpdates(this.pendingLiveUpdates.get(id), update));
+      }
+      return undefined;
+    }
+    if (!mergeLiveUpdate(info, update)) return info;
+    this.redraw(info);
+    this.notifySwarm();
+    return info;
+  }
+
+  /** Text the subagent wrote; it goes to its timeline, never to the chat. */
+  public appendText(id: string, text: string): SubagentInfo | undefined {
+    const info = this.allSubagents.get(id);
+    if (!info || !text) return undefined;
+    info.timeline = appendSubagentTimeline(info.timeline, { type: 'text', text, at: Date.now() });
+    this.notifySwarm();
+    return info;
+  }
+
+  /** Marks a live subagent as being stopped; undefined when it is not live. */
+  public requestCancel(id: string): SubagentInfo | undefined {
+    const info = this.allSubagents.get(id);
+    if (!info || !isLiveSubagentPhase(resolveSubagentPhase(info))) return undefined;
+    info.cancelState = 'requested';
+    this.redraw(info);
+    this.emitChange(info);
+    return info;
+  }
+
+  /** Withdraws a stop request the provider could not deliver. */
+  public clearCancelRequest(id: string): void {
+    const info = this.allSubagents.get(id);
+    if (!info || info.cancelState !== 'requested') return;
+    delete info.cancelState;
+    this.redraw(info);
+    this.emitChange(info);
+  }
+
+  /** Decides a buffered Agent call's mode as soon as the provider tells it. */
+  public resolvePendingMode(id: string, background: boolean): void {
+    const pending = this.pendingTasks.get(id);
+    if (!pending) return;
+    pending.toolCall.input = { ...pending.toolCall.input, run_in_background: background };
+  }
+
+  /** Registers a card a provider lifecycle adapter created (Codex spawn_agent). */
+  public trackLifecycleSubagent(state: SubagentState): void {
+    this.stamp(state.info);
+    state.info.startedAt = state.info.startedAt ?? Date.now();
+    this.lifecycleStates.set(state.info.id, state);
+    this.allSubagents.set(state.info.id, state.info);
+    refreshSubagentCard(state);
+    this.notifySwarm();
+  }
+
+  public getLifecycleSubagent(id: string): SubagentState | undefined {
+    return this.lifecycleStates.get(id);
+  }
+
+  /** Called after a lifecycle agent reached its outcome, so the overview updates. */
+  public settleLifecycleSubagent(id: string): void {
+    const state = this.lifecycleStates.get(id);
+    if (!state) return;
+    state.info.completedAt = state.info.completedAt ?? Date.now();
+    refreshSubagentCard(state);
+    this.notifySwarm();
+  }
+
+  /**
+   * A tool call the subagent itself made. Foreground agents render it in their
+   * card; lifecycle and background agents collect it on their info, which used
+   * to be dropped.
+   */
+  public addChildToolCall(parentId: string, toolCall: ToolCallInfo): boolean {
+    if (this.syncSubagents.has(parentId)) {
+      this.addSyncToolCall(parentId, toolCall);
+      return true;
+    }
+    const lifecycle = this.lifecycleStates.get(parentId);
+    if (lifecycle) {
+      addSubagentToolCall(lifecycle, toolCall);
+      this.recordToolInTimeline(lifecycle.info, toolCall.id);
+      this.notifySwarm();
+      return true;
+    }
+    const info = this.allSubagents.get(parentId);
+    if (!info) return false;
+    const index = info.toolCalls.findIndex(call => call.id === toolCall.id);
+    if (index >= 0) info.toolCalls[index] = { ...info.toolCalls[index], ...toolCall };
+    else info.toolCalls.push(toolCall);
+    this.recordToolInTimeline(info, toolCall.id);
+    this.redraw(info);
+    this.notifySwarm();
+    return true;
+  }
+
+  public updateChildToolResult(parentId: string, toolId: string, toolCall: ToolCallInfo): boolean {
+    if (this.syncSubagents.has(parentId)) {
+      this.updateSyncToolResult(parentId, toolId, toolCall);
+      return true;
+    }
+    const lifecycle = this.lifecycleStates.get(parentId);
+    if (lifecycle) {
+      updateSubagentToolResult(lifecycle, toolId, toolCall);
+      this.notifySwarm();
+      return true;
+    }
+    const info = this.allSubagents.get(parentId);
+    if (!info) return false;
+    const index = info.toolCalls.findIndex(call => call.id === toolId);
+    if (index < 0) return false;
+    info.toolCalls[index] = toolCall;
+    this.redraw(info);
+    this.notifySwarm();
+    return true;
+  }
+
+  /** The child tool call a subagent made, wherever that subagent is tracked. */
+  public findChildToolCall(parentId: string, toolId: string): ToolCallInfo | undefined {
+    return this.allSubagents.get(parentId)?.toolCalls.find(call => call.id === toolId)
+      ?? this.syncSubagents.get(parentId)?.info.toolCalls.find(call => call.id === toolId);
+  }
+
+  private recordToolInTimeline(info: SubagentInfo, toolId: string): void {
+    info.timeline = appendSubagentTimeline(info.timeline, { type: 'tool', toolId, at: Date.now() });
+  }
+
+  private stamp(info: SubagentInfo): void {
+    if (!info.providerId) {
+      const providerId = this.providerResolver();
+      if (providerId) info.providerId = providerId;
+    }
+  }
+
+  /** Applies telemetry that arrived before the card existed. */
+  private consumePendingLiveUpdate(info: SubagentInfo): void {
+    const update = this.pendingLiveUpdates.get(info.id);
+    if (!update) return;
+    this.pendingLiveUpdates.delete(info.id);
+    mergeLiveUpdate(info, update);
+  }
+
+  /** Redraws whichever card shows this subagent. */
+  private redraw(info: SubagentInfo): void {
+    const state = this.syncSubagents.get(info.id)
+      ?? this.lifecycleStates.get(info.id)
+      ?? this.asyncDomStates.get(info.id);
+    if (!state) return;
+    // Background cards were built with their own info object; point them at
+    // the canonical one before drawing.
+    state.info = info;
+    refreshSubagentCard(state);
   }
 
   // ============================================
@@ -158,20 +371,16 @@ export class SubagentManager {
     // Already rendered as sync → update label (no parentEl needed)
     const existingSyncState = this.syncSubagents.get(taskToolId);
     if (existingSyncState) {
-      this.updateSubagentLabel(existingSyncState.wrapperEl, existingSyncState.info, taskInput);
+      this.updateSubagentLabel(existingSyncState, existingSyncState.info, taskInput);
       return { action: 'label_updated' };
     }
 
     // Already rendered as async → update label (no parentEl needed)
     const existingAsyncState = this.asyncDomStates.get(taskToolId);
     if (existingAsyncState) {
-      this.updateSubagentLabel(existingAsyncState.wrapperEl, existingAsyncState.info, taskInput);
-      // Sync to canonical SubagentInfo so status transitions don't revert updates
-      const canonical = this.getByTaskId(taskToolId);
-      if (canonical && canonical !== existingAsyncState.info) {
-        if (taskInput.description) canonical.description = taskInput.description as string;
-        if (taskInput.prompt) canonical.prompt = taskInput.prompt as string;
-      }
+      // The canonical info is the one status transitions and the overview read.
+      const canonical = this.allSubagents.get(taskToolId) ?? existingAsyncState.info;
+      this.updateSubagentLabel(existingAsyncState, canonical, taskInput);
       return { action: 'label_updated' };
     }
 
@@ -338,6 +547,7 @@ export class SubagentManager {
     const subagentState = this.syncSubagents.get(parentToolUseId);
     if (!subagentState) return;
     addSubagentToolCall(subagentState, toolCall);
+    this.recordToolInTimeline(subagentState.info, toolCall.id);
     this.notifySwarm();
   }
 
@@ -542,6 +752,7 @@ export class SubagentManager {
       startedAt: Date.now(),
     };
 
+    this.stamp(info);
     this.activeAsyncSubagents.set(task.taskId, info);
     this.allSubagents.set(task.taskId, info);
     this.emitChange(info);
@@ -647,8 +858,35 @@ export class SubagentManager {
   }
 
   public resetStreamingState(): void {
+    this.settleUnfinishedTurnAgents();
     this.syncSubagents.clear();
     this.pendingTasks.clear();
+    this.pendingLiveUpdates.clear();
+  }
+
+  /**
+   * Foreground and provider lifecycle agents report through the turn's stream;
+   * once it ended (or was cancelled) nothing more arrives for them. Settle
+   * them so no card, overview row or saved chat keeps saying they run.
+   * Background agents are left alone: they keep running and report later.
+   */
+  private settleUnfinishedTurnAgents(): void {
+    const states = [...this.syncSubagents.values(), ...this.lifecycleStates.values()];
+    for (const state of states) {
+      const info = this.allSubagents.get(state.info.id) ?? state.info;
+      if (!isLiveSubagentPhase(resolveSubagentPhase(info))) continue;
+      info.status = 'error';
+      if (info.cancelState === 'requested') {
+        info.cancelState = 'cancelled';
+      } else {
+        info.asyncStatus = 'orphaned';
+        info.result = TURN_ENDED_RESULT;
+      }
+      info.completedAt = Date.now();
+      state.info = info;
+      refreshSubagentCard(state);
+      this.emitChange(info);
+    }
   }
 
   public orphanAllActive(): SubagentInfo[] {
@@ -683,6 +921,8 @@ export class SubagentManager {
     this.outputToolIdToAgentId.clear();
     this.asyncDomStates.clear();
     this.allSubagents.clear();
+    this.lifecycleStates.clear();
+    this.pendingLiveUpdates.clear();
     this.notifySwarm();
   }
 
@@ -693,7 +933,7 @@ export class SubagentManager {
   private markOrphaned(subagent: SubagentInfo): void {
     subagent.asyncStatus = 'orphaned';
     subagent.status = 'error';
-    subagent.result = 'Conversation ended before task completed';
+    subagent.result = SUBAGENT_ORPHANED_RESULT;
     subagent.completedAt = Date.now();
     this.updateAsyncDomState(subagent);
     this.emitChange(subagent);
@@ -720,8 +960,11 @@ export class SubagentManager {
   ): HandleTaskResult {
     const subagentState = createSubagentBlock(parentEl, taskToolId, taskInput);
     subagentState.info.startedAt = subagentState.info.startedAt ?? Date.now();
+    this.stamp(subagentState.info);
+    this.consumePendingLiveUpdate(subagentState.info);
     this.syncSubagents.set(taskToolId, subagentState);
     this.allSubagents.set(taskToolId, subagentState.info);
+    refreshSubagentCard(subagentState);
     this.notifySwarm();
     return { action: 'created_sync', subagentState };
   }
@@ -746,10 +989,14 @@ export class SubagentManager {
       startedAt: Date.now(),
     };
 
+    this.stamp(info);
+    this.consumePendingLiveUpdate(info);
     this.pendingAsyncSubagents.set(taskToolId, info);
     this.allSubagents.set(taskToolId, info);
 
     const domState = createAsyncSubagentBlock(parentEl, taskToolId, taskInput);
+    domState.info = info;
+    refreshSubagentCard(domState);
     this.asyncDomStates.set(taskToolId, domState);
     this.notifySwarm();
 
@@ -761,33 +1008,28 @@ export class SubagentManager {
   // ============================================
 
   private updateSubagentLabel(
-    wrapperEl: HTMLElement,
+    state: SubagentState,
     info: SubagentInfo,
     newInput: Record<string, unknown>
   ): void {
     if (!newInput || Object.keys(newInput).length === 0) return;
-    const description = (newInput.description as string) || '';
-    if (description) {
-      info.description = description;
-      const labelEl = wrapperEl.querySelector('.claudian-subagent-label');
-      if (labelEl) {
-        const truncated = description.length > 40 ? description.substring(0, 40) + '...' : description;
-        labelEl.setText(truncated);
-      }
+    const description = typeof newInput.description === 'string' ? newInput.description : '';
+    const prompt = typeof newInput.prompt === 'string' ? newInput.prompt : '';
+    if (description) info.description = description;
+    if (prompt) info.prompt = prompt;
+    if (typeof newInput.subagent_type === 'string' && newInput.subagent_type) {
+      info.agentType = newInput.subagent_type;
     }
-    const prompt = (newInput.prompt as string) || '';
-    if (prompt) {
-      info.prompt = prompt;
-      const promptEl = wrapperEl.querySelector('.claudian-subagent-prompt-text');
-      if (promptEl) {
-        promptEl.setText(prompt);
-      }
-    }
+    state.info = info;
+    setSubagentTask(state, { description, prompt });
   }
 
   private resolveTaskMode(taskInput: Record<string, unknown>): 'sync' | 'async' | null {
     if (!Object.prototype.hasOwnProperty.call(taskInput, 'run_in_background')) {
-      return null;
+      // Only Claude streams the Agent input in pieces and backgrounds agents on
+      // its own; every other provider sends the whole call at once.
+      const providerId = this.providerResolver();
+      return providerId && providerId !== 'claude' ? 'sync' : null;
     }
     if (taskInput.run_in_background === true) {
       return 'async';

@@ -5,6 +5,7 @@ import { buildProviderSwitchCarry } from '@/core/conversation/ConversationContex
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { InputController, type InputControllerDeps } from '@/features/chat/controllers/InputController';
 import { ChatState } from '@/features/chat/state/ChatState';
+import { profileDelimitedText } from '@/features/chat/ui/file-drop/delimitedTable';
 import { encodeClaudeTurn } from '@/providers/claude/prompt/ClaudeTurnEncoder';
 import { DesktopBridgeRuntime } from '@/providers/desktopBridge/DesktopBridgeRuntime';
 import { queryDesktopBridge } from '@/providers/desktopBridge/DesktopBridgeTransport';
@@ -1592,6 +1593,63 @@ describe('InputController - Message Queue', () => {
       // …while the chat transcript shows only what the user typed.
       expect(deps.state.messages[0].displayContent).toBe('Fasse das zusammen');
       expect(deps.state.messages[0].displayContent).not.toContain('@.claudian');
+    });
+
+    it('sends a staged table as a bounded reference block and persists only its summary', async () => {
+      deps = createSendableDeps();
+      const imageContextManager = deps.getImageContextManager()!;
+      const csv = ['Call Time,Call ID,From', ...Array.from({ length: 2277 }, (_, i) => `2026-09-22,row-${i},0951`)].join('\n');
+      (imageContextManager as any).getStagedAttachments = jest.fn().mockReturnValue([
+        {
+          name: 'call_reports.csv',
+          relPath: '.claudian/attachments/call_reports-1.csv',
+          size: csv.length,
+          table: profileDelimitedText(csv, 'csv'),
+        },
+      ]);
+
+      let textReachingProvider = '';
+      (deps as any).mockAgentService.query = jest.fn().mockImplementation((turn: any) => {
+        textReachingProvider = turn.request.text;
+        return createMockStream([{ type: 'done' }]);
+      });
+
+      inputEl = deps.getInputEl() as ReturnType<typeof createMockInputEl>;
+      inputEl.value = 'Werte die Anrufe aus';
+      controller = new InputController(deps);
+
+      await controller.sendMessage();
+
+      expect(textReachingProvider).toContain('<claudian_attachment kind="table" name="call_reports.csv" path=".claudian/attachments/call_reports-1.csv"');
+      expect(textReachingProvider).toContain('Rows: 2,277 data rows below 1 header row');
+      expect(textReachingProvider).toContain('row-4');
+      expect(textReachingProvider).not.toContain('row-5');
+      expect(textReachingProvider).not.toContain('@.claudian/attachments/call_reports-1.csv');
+      expect(deps.state.messages[0].displayContent).toBe('Werte die Anrufe aus');
+      expect(deps.state.messages[0].attachments).toEqual([{
+        name: 'call_reports.csv',
+        relPath: '.claudian/attachments/call_reports-1.csv',
+        size: csv.length,
+        table: { rows: 2277, columns: 3 },
+      }]);
+    });
+
+    it('tells the composer that desktop relays cannot read staged vault files', () => {
+      const setVaultFilesReadable = jest.fn();
+      const localDeps = createMockDeps();
+      (localDeps.getImageContextManager() as any).setVaultFilesReadable = setVaultFilesReadable;
+      let providerId = 'grok-bot';
+      localDeps.getTabProviderId = () => providerId;
+      localDeps.state.currentConversationId = null;
+
+      new InputController(localDeps);
+
+      const canRead = setVaultFilesReadable.mock.calls[0][0] as () => boolean;
+      expect(canRead()).toBe(false);
+      providerId = 'perplexity-chat';
+      expect(canRead()).toBe(false);
+      providerId = 'claude';
+      expect(canRead()).toBe(true);
     });
 
     it('allows attachment-only sends and renders a chip label as display content', async () => {

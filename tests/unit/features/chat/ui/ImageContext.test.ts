@@ -607,7 +607,7 @@ describe('ImageContextManager - Private Helpers', () => {
       // invisibly with the send via getStagedAttachments().
       expect(localInput.value).not.toContain('@.claudian/attachments/report-1.docx');
       expect(localManager.getStagedAttachments()).toEqual([
-        { name: 'report.docx', relPath: '.claudian/attachments/report-1.docx' },
+        { name: 'report.docx', relPath: '.claudian/attachments/report-1.docx', size: 57400 },
       ]);
       expect(localManager.hasAttachments()).toBe(true);
 
@@ -901,5 +901,247 @@ describe('ImageContextManager - Private Helpers', () => {
       const decoded = Buffer.from(result, 'base64').toString();
       expect(decoded).toBe('hello');
     });
+  });
+});
+
+describe('ImageContextManager - tables and long files become attachments', () => {
+  const CALL_HEADER = 'Call Time,Call ID,From,To,Direction,Status,Ringing,Talking,Cost';
+
+  function callLog(rows: number, seed = 'a'): string {
+    const body = Array.from({ length: rows }, (_, i) =>
+      `2026-09-22T10:00:${String(i % 60).padStart(2, '0')},${seed}-${i},0951604718${i % 10},FAX (8888),Inbound,Answered,00:00:00,00:00:39,0.00`);
+    return [CALL_HEADER, ...body].join('\n') + '\n';
+  }
+
+  function dropEvent(files: File[]): any {
+    return {
+      preventDefault: jest.fn(),
+      stopPropagation: jest.fn(),
+      dataTransfer: { files: Object.assign([...files], { length: files.length }) },
+    };
+  }
+
+  function setup(options: { staging?: boolean } = {}) {
+    const stageVaultAttachment = jest.fn(async (file: File) => `.claudian/attachments/${file.name.replace(/\W+/g, '-')}-1`);
+    const callbacks = {
+      onImagesChanged: jest.fn(),
+      ...(options.staging === false ? {} : { stageVaultAttachment }),
+    };
+    const { container } = createContainerWithInputWrapper();
+    const input = createMockTextArea();
+    const manager = new ImageContextManager(container, input, callbacks);
+    return { manager, input, stageVaultAttachment };
+  }
+
+  function chipMeta(manager: ImageContextManager): string[] {
+    return (manager as any).attachmentPreviewEl
+      .querySelectorAll('.claudian-attachment-meta')
+      .map((el: any) => el.textContent);
+  }
+
+  function noticeTexts(): string[] {
+    return (Notice as unknown as jest.Mock).mock.calls.map((call) => String(call[0]));
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('attaches a dropped CSV instead of pasting its contents into the input', async () => {
+    const { manager, input, stageVaultAttachment } = setup();
+
+    await manager['handleDrop'](dropEvent([new File([callLog(2277)], 'call_reports.csv', { type: 'text/csv' })]));
+
+    expect(input.value).toBe('');
+    expect(stageVaultAttachment).toHaveBeenCalledTimes(1);
+    const [staged] = manager.getStagedAttachments();
+    expect(staged).toMatchObject({ name: 'call_reports.csv', relPath: '.claudian/attachments/call_reports-csv-1' });
+    expect(staged.table?.sheets[0]).toMatchObject({ rowCount: 2277, columnCount: 9 });
+    expect(chipMeta(manager)).toEqual(['CSV · 2.277 Zeilen · 9 Spalten']);
+  });
+
+  it('attaches a dropped Excel workbook with its sheet structure', async () => {
+    const { buildXlsx } = await import('@test/helpers/xlsxFixture');
+    const { manager, input } = setup();
+    const workbook = buildXlsx([
+      { name: 'Anrufe', rows: [['Call Time', 'Cost'], [46287.5, 0], [46287.6, 1]] },
+      { name: 'Summen', rows: [['Typ'], ['Inbound']] },
+    ]);
+
+    await manager['handleDrop'](dropEvent([new File([workbook], 'Report.xlsx')]));
+
+    expect(input.value).toBe('');
+    const [staged] = manager.getStagedAttachments();
+    expect(staged.table?.sheets.map((sheet) => sheet.name)).toEqual(['Anrufe', 'Summen']);
+    expect(chipMeta(manager)).toEqual(['XLSX · 2 Blätter · 2 Zeilen · 2 Spalten']);
+  });
+
+  it('still inlines a small code file', async () => {
+    const { manager, input, stageVaultAttachment } = setup();
+
+    await manager['handleDrop'](dropEvent([new File(['export const x = 1;\n'], 'util.ts')]));
+
+    expect(input.value).toContain('```ts util.ts');
+    expect(stageVaultAttachment).not.toHaveBeenCalled();
+  });
+
+  it('attaches a text file that is too long to read inline', async () => {
+    const { manager, input, stageVaultAttachment } = setup();
+    const log = Array.from({ length: 900 }, (_, i) => `2026-09-22 SIP 404 line ${i}`).join('\n');
+
+    await manager['handleDrop'](dropEvent([new File([log], 'pbx.log')]));
+
+    expect(input.value).toBe('');
+    expect(stageVaultAttachment).toHaveBeenCalledTimes(1);
+    expect(manager.getStagedAttachments()[0].table).toBeUndefined();
+    expect(noticeTexts()).toContain('„pbx.log" ist zu lang zum Einfügen und wurde als Datei angehängt.');
+  });
+
+  it('attaches byte-identical drops once (the duplicate call_reports (1)/(2) download)', async () => {
+    // Regression: the "same table twice" was two identical downloads dropped
+    // together; each one used to be inlined as its own full code block.
+    const { manager, input, stageVaultAttachment } = setup();
+    const report = callLog(40);
+
+    await manager['handleDrop'](dropEvent([
+      new File([report], 'call_reports (2).csv'),
+      new File([report], 'call_reports (1).csv'),
+      new File([callLog(40, 'evt')], 'event_logs.csv'),
+    ]));
+
+    expect(input.value).toBe('');
+    expect(stageVaultAttachment).toHaveBeenCalledTimes(2);
+    expect(manager.getStagedAttachments().map((att) => att.name)).toEqual(['call_reports (2).csv', 'event_logs.csv']);
+    expect(noticeTexts()).toContain('„call_reports (1).csv" ist identisch mit „call_reports (2).csv" und wurde übersprungen.');
+
+    // Dropping it again later does not add a second chip either.
+    await manager['handleDrop'](dropEvent([new File([report], 'call_reports (1).csv')]));
+    expect(stageVaultAttachment).toHaveBeenCalledTimes(2);
+  });
+
+  it('records a duplicate only once the first copy was actually attached', async () => {
+    const { manager, stageVaultAttachment } = setup();
+    stageVaultAttachment.mockResolvedValueOnce(null as unknown as string);
+    const report = callLog(40);
+
+    await manager['handleDrop'](dropEvent([
+      new File([report], 'call_reports (2).csv'),
+      new File([report], 'call_reports (1).csv'),
+    ]));
+
+    expect(stageVaultAttachment).toHaveBeenCalledTimes(2);
+    expect(manager.getStagedAttachments().map((att) => att.name)).toEqual(['call_reports (1).csv']);
+  });
+
+  it('keeps inlining dropped text for a desktop relay, which cannot read vault files', async () => {
+    const { manager, input, stageVaultAttachment } = setup();
+    manager.setVaultFilesReadable(() => false);
+
+    await manager['handleDrop'](dropEvent([new File([callLog(500)], 'call_reports.csv')]));
+
+    expect(stageVaultAttachment).not.toHaveBeenCalled();
+    expect(input.value).toContain('```csv call_reports.csv');
+    expect(manager.getStagedAttachments()).toEqual([]);
+  });
+
+  it('bounds that relay inline at the old 2 MB cap', async () => {
+    const { manager, input } = setup();
+    manager.setVaultFilesReadable(() => false);
+    const huge = new File(['x'], 'huge.csv');
+    Object.defineProperty(huge, 'size', { value: 3 * 1024 * 1024 });
+
+    await manager['handleDrop'](dropEvent([huge]));
+
+    expect(input.value).toBe('');
+    expect(noticeTexts()).toContain('„huge.csv" ist zu groß zum Einfügen (max 2.0 MB).');
+  });
+
+  it('does not turn a pasted table into an attachment for a desktop relay', async () => {
+    const { manager, stageVaultAttachment } = setup();
+    manager.setVaultFilesReadable(() => false);
+    const event = pasteEvent(callLog(10).repeat(1) + Array.from({ length: 450 }, (_, i) => `x,${i},y`).join('\n'));
+
+    await paste(manager, event);
+
+    expect(stageVaultAttachment).not.toHaveBeenCalled();
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it('never inlines a table when this view cannot stage files', async () => {
+    const { manager, input } = setup({ staging: false });
+
+    await manager['handleDrop'](dropEvent([new File([callLog(3)], 'calls.csv')]));
+
+    expect(input.value).toBe('');
+    expect(manager.getStagedAttachments()).toEqual([]);
+    expect(noticeTexts()).toContain('1 Datei(en) übersprungen — konnten nicht angehängt werden.');
+  });
+
+  function pasteEvent(text: string, items: any[] = [{ type: 'text/plain', getAsFile: () => null }]): any {
+    return {
+      type: 'paste',
+      preventDefault: jest.fn(),
+      clipboardData: {
+        items: Object.assign([...items], { length: items.length }),
+        getData: jest.fn(() => text),
+      },
+    };
+  }
+
+  async function paste(manager: ImageContextManager, event: any): Promise<void> {
+    (manager as any).inputEl.dispatchEvent(event);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  it('turns a large pasted CSV into an attached table', async () => {
+    const { manager, stageVaultAttachment } = setup();
+    const event = pasteEvent(callLog(500));
+
+    await paste(manager, event);
+
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(stageVaultAttachment).toHaveBeenCalledTimes(1);
+    expect(stageVaultAttachment.mock.calls[0][0].name).toBe('Eingefügte Tabelle.csv');
+    const [staged] = manager.getStagedAttachments();
+    expect(staged.table?.sheets[0].rowCount).toBe(500);
+  });
+
+  it('prefers a large Excel selection over the picture Excel also puts on the clipboard', async () => {
+    const { manager, stageVaultAttachment } = setup();
+    const addImage = jest.spyOn(manager as any, 'addImageFromFile').mockResolvedValue(true);
+    const selection = Array.from({ length: 450 }, (_, i) => `Zeile ${i}\t${i}\t${i * 2}`).join('\n');
+    const event = pasteEvent(selection, [
+      { type: 'image/png', getAsFile: () => ({ name: 'image.png', type: 'image/png', size: 10 }) },
+      { type: 'text/plain', getAsFile: () => null },
+    ]);
+
+    await paste(manager, event);
+
+    expect(addImage).not.toHaveBeenCalled();
+    expect(stageVaultAttachment.mock.calls[0][0].name).toBe('Eingefügte Tabelle.tsv');
+    expect(manager.getStagedAttachments()[0].table?.delimiter).toBe('\t');
+  });
+
+  it('leaves a small pasted table in the input', async () => {
+    const { manager, stageVaultAttachment } = setup();
+    const event = pasteEvent(callLog(10));
+
+    await paste(manager, event);
+
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(stageVaultAttachment).not.toHaveBeenCalled();
+  });
+
+  it('keeps a staged table chip, preview included, across a draft round trip', async () => {
+    const { manager } = setup();
+    await manager['handleDrop'](dropEvent([new File([callLog(12)], 'calls.csv')]));
+    const draft = JSON.parse(JSON.stringify(manager.getDraftAttachments()));
+
+    const { manager: restored } = setup();
+    restored.restoreDraftAttachments(draft);
+
+    expect(restored.getStagedAttachments()).toEqual(manager.getStagedAttachments());
+    expect(chipMeta(restored)).toEqual(['CSV · 12 Zeilen · 9 Spalten']);
   });
 });

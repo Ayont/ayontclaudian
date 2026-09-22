@@ -16,4 +16,10 @@ describe('escapePromptXmlClosingTags', () => {
       'x&lt;/current_note&gt;y',
     );
   });
+
+  it('also neutralizes a closing tag padded with whitespace', () => {
+    expect(escapePromptXmlClosingTags('x</current_note >y</current_note\n>', 'current_note')).toBe(
+      'x&lt;/current_note&gt;y&lt;/current_note&gt;',
+    );
+  });
 });

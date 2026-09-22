@@ -26,7 +26,14 @@ import type {
   SessionUpdateResult,
   SubagentRuntimeState,
 } from '../../../core/runtime/types';
-import type { ChatMessage, Conversation, ForkSource, SlashCommand, StreamChunk } from '../../../core/types';
+import type {
+  ChatMessage,
+  Conversation,
+  ForkSource,
+  SlashCommand,
+  StreamChunk,
+  SubagentCancelTarget,
+} from '../../../core/types';
 import { normalizeWorkspaceMode } from '../../../core/workspace/workspaceMode';
 import type ClaudianPlugin from '../../../main';
 import { getVaultPath } from '../../../utils/path';
@@ -64,11 +71,13 @@ import type {
   ThreadResumeResult,
   ThreadRollbackResult,
   ThreadStartResult,
+  TurnInterruptParams,
   TurnStartedNotification,
   TurnStartResult,
   TurnSteerResult,
   UserInput,
 } from './codexAppServerTypes';
+import { CodexChildThreadRelay } from './CodexChildThreadRelay';
 import type { CodexLaunchSpec } from './codexLaunchTypes';
 import { CodexNotificationRouter } from './CodexNotificationRouter';
 import { CodexRpcTransport } from './CodexRpcTransport';
@@ -129,6 +138,9 @@ export class CodexChatRuntime implements ChatRuntime {
   // Chunk buffer: notifications push here, query() drains
   private chunkBuffer: StreamChunk[] = [];
   private chunkResolve: (() => void) | null = null;
+  // Set only while query() streams; child chunks outside a turn have no reader.
+  private activeChunkSink: ((chunk: StreamChunk) => void) | null = null;
+  private childRelay = new CodexChildThreadRelay((chunk) => this.activeChunkSink?.(chunk));
 
   private approvalCallback: ApprovalCallback | null = null;
   private approvalDismisser: (() => void) | null = null;
@@ -185,6 +197,7 @@ export class CodexChatRuntime implements ChatRuntime {
       this.loadedThreadId = null;
       this.currentThreadPath = null;
       this.pendingFork = null;
+      this.childRelay.setParentThread(null);
       return;
     }
 
@@ -196,6 +209,7 @@ export class CodexChatRuntime implements ChatRuntime {
       this.session.reset();
       this.loadedThreadId = null;
       this.currentThreadPath = null;
+      this.childRelay.setParentThread(null);
       return;
     }
 
@@ -206,10 +220,12 @@ export class CodexChatRuntime implements ChatRuntime {
       this.session.reset();
       this.loadedThreadId = null;
       this.currentThreadPath = null;
+      this.childRelay.setParentThread(null);
       return;
     }
 
     this.session.setThread(threadId, state.sessionFilePath);
+    this.childRelay.setParentThread(threadId);
   }
 
   async reloadMcpServers(): Promise<void> {
@@ -274,6 +290,7 @@ export class CodexChatRuntime implements ChatRuntime {
     this.notificationRouter = new CodexNotificationRouter(
       (chunk) => enqueueChunk(chunk),
       (update) => this.recordTurnMetadata(update),
+      { describeChildThread: (threadId) => this.childRelay.describeChild(threadId) },
     );
 
     this.wireTransportHandlers();
@@ -286,6 +303,7 @@ export class CodexChatRuntime implements ChatRuntime {
     }
 
     let keepaliveTimer: number | null = null;
+    this.activeChunkSink = enqueueChunk;
     try {
       // Thread lifecycle
       const existingThreadId = this.session.getThreadId();
@@ -415,6 +433,7 @@ export class CodexChatRuntime implements ChatRuntime {
       this.session.setThread(threadId, threadPath ?? this.currentThreadPath ?? undefined);
       if (threadPath) this.currentThreadPath = threadPath;
       this.currentQueryThreadId = threadId;
+      this.childRelay.setParentThread(threadId);
       if (completedPendingFork) {
         this.pendingFork = null;
       }
@@ -522,6 +541,7 @@ export class CodexChatRuntime implements ChatRuntime {
           this.session.setThread(threadId, threadPath ?? undefined);
           if (threadPath) this.currentThreadPath = threadPath;
           this.currentQueryThreadId = threadId;
+          this.childRelay.setParentThread(threadId);
 
           if (!historyReplayApplied) {
             const replayedTurn = withBoundedHistoryReplay(turn, _conversationHistory);
@@ -610,7 +630,11 @@ export class CodexChatRuntime implements ChatRuntime {
       if (keepaliveTimer !== null) {
         window.clearInterval(keepaliveTimer);
       }
+      if (this.activeChunkSink === enqueueChunk) {
+        this.activeChunkSink = null;
+      }
 
+      // The child relay is kept: background subagents can outlive this turn.
       this.notificationRouter?.endTurn();
 
       this.cleanupActiveInputBundles();
@@ -692,6 +716,28 @@ export class CodexChatRuntime implements ChatRuntime {
 
   resetSession(): void {
     this.teardownState();
+  }
+
+  canCancelSubagent(target: SubagentCancelTarget): boolean {
+    return Boolean(this.transport && this.childRelay.interruptTarget(target.id, target.agentId));
+  }
+
+  /** Interrupts only the child thread's running turn; the parent turn keeps going. */
+  async cancelSubagent(target: SubagentCancelTarget): Promise<boolean> {
+    const transport = this.transport;
+    const interrupt = this.childRelay.interruptTarget(target.id, target.agentId);
+    if (!transport || !interrupt) return false;
+
+    // Marked first: the interrupted turn/completed can arrive before the response.
+    this.childRelay.markCancelRequested(interrupt.threadId);
+    const params: TurnInterruptParams = { threadId: interrupt.threadId, turnId: interrupt.turnId };
+    try {
+      await transport.request('turn/interrupt', params);
+      return true;
+    } catch {
+      this.childRelay.clearCancelRequested(interrupt.threadId);
+      return false;
+    }
   }
 
   getSessionId(): string | null {
@@ -827,6 +873,7 @@ export class CodexChatRuntime implements ChatRuntime {
 
   private teardownState(): void {
     this.cleanupActiveInputBundles();
+    this.childRelay.setParentThread(null);
     this.session.reset();
     this.launchSpec = null;
     this.runtimeContext = null;
@@ -961,10 +1008,16 @@ export class CodexChatRuntime implements ChatRuntime {
           this.handleServerRequestResolved(params as ServerRequestResolvedNotification);
           return;
         }
-        if (!this.routeNotification(method, params)) {
+        // Before the foreign-thread rejection, so child traffic never touches
+        // the parent's turn state (currentTurnId, pendingTurnNotifications).
+        if (this.childRelay.consumeNotification(method, params)) {
           return;
         }
-        router.handleNotification(method, params);
+        if (this.routeNotification(method, params)) {
+          router.handleNotification(method, params);
+        }
+        // After the router, so a spawn's tool_use precedes its relayed children.
+        this.childRelay.observeParentNotification(method, params);
       });
     }
 
@@ -999,6 +1052,8 @@ export class CodexChatRuntime implements ChatRuntime {
     this.currentQueryThreadId = null;
     this.pendingTurnNotifications = [];
     this.loadedThreadId = null;
+    // Child threads die with the app-server process.
+    this.childRelay.reset();
   }
 
   private resolveExternalContextPaths(

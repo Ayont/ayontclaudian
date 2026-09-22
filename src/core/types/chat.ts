@@ -2,7 +2,7 @@ import type { ConversationSearchIndex } from '../conversation/conversationSearch
 import type { ProviderSessionSnapshot } from '../conversation/providerSessionHandoff';
 import type { SDKToolUseResult } from './diff';
 import type { ProviderId } from './provider';
-import type { SubagentMode, ToolCallInfo } from './tools';
+import type { SubagentLiveUpdate, SubagentMode, ToolCallInfo } from './tools';
 
 /** Fork origin reference: identifies the source session and checkpoint. */
 export interface ForkSource {
@@ -29,6 +29,15 @@ export interface ImageAttachment {
   source: 'file' | 'paste' | 'drop';
 }
 
+/** Shape of a staged table, enough for a card to say "2.277 Zeilen · 9 Spalten". */
+export interface MessageAttachmentTableSummary {
+  /** Data rows below the header of the first sheet. */
+  rows?: number;
+  columns?: number;
+  /** Only set for workbooks. */
+  sheets?: number;
+}
+
 /** Non-image file attachment (video, audio, PDF, doc, …) staged in the vault. */
 export interface MessageAttachment {
   name: string;
@@ -36,6 +45,10 @@ export interface MessageAttachment {
   relPath: string;
   /** Optional data-URI preview (e.g. first-page PDF thumbnail). */
   previewSrc?: string;
+  /** Bytes of the staged file. */
+  size?: number;
+  /** Set for spreadsheets and delimited tables; the rows themselves are never stored. */
+  table?: MessageAttachmentTableSummary;
 }
 
 export type OutputSurface =
@@ -271,7 +284,10 @@ export type StreamChunk =
     }
   | { type: 'async_subagent_result'; agentId: string; status: 'completed' | 'error'; result?: string }
   | { type: 'subagent_tool_use'; subagentId: string; id: string; name: string; input: Record<string, unknown> }
-  | { type: 'subagent_tool_result'; subagentId: string; id: string; content: string; isError?: boolean; toolUseResult?: SDKToolUseResult };
+  | { type: 'subagent_tool_result'; subagentId: string; id: string; content: string; isError?: boolean; toolUseResult?: SDKToolUseResult }
+  /** Text the subagent itself wrote; appended to its timeline, never to the chat. */
+  | { type: 'subagent_text'; subagentId: string; text: string }
+  | { type: 'subagent_update'; subagentId: string; update: SubagentLiveUpdate };
 
 /**
  * Context window usage information.

@@ -1,0 +1,449 @@
+/* Library list — search field, media rows (thumbnail or format badge), match
+   highlights, and the no-results state. Rendered by FilePreviewPanel and
+   library/libraryRow.ts inside the .claudian-preview-panel glass pane. */
+
+/* ── Search ──────────────────────────────────────────────────────────────
+   One field, one border. Obsidian styles text inputs with higher specificity
+   than a single class, which would draw a second ring inside this one. */
+.claudian-preview-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  height: 34px;
+  margin: 0 12px 12px;
+  padding: 0 4px 0 10px;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: var(--cl-radius-md);
+  background: var(--cl-wash);
+  transition:
+    border-color var(--cl-dur-fast) var(--cl-ease-out),
+    box-shadow var(--cl-dur-fast) var(--cl-ease-out);
+}
+
+.claudian-preview-search:focus-within {
+  border-color: var(--cl-accent-line);
+  box-shadow: var(--cl-focus-ring);
+}
+
+.claudian-preview-search-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.claudian-preview-search-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.claudian-preview-search input.claudian-preview-search-input,
+.claudian-preview-search input.claudian-preview-search-input:hover,
+.claudian-preview-search input.claudian-preview-search-input:focus,
+.claudian-preview-search input.claudian-preview-search-input:focus-visible {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+  font-size: 13px;
+  color: var(--text-normal);
+  text-overflow: ellipsis;
+}
+
+.claudian-preview-search input.claudian-preview-search-input::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.claudian-preview-search-count {
+  flex-shrink: 0;
+  font-size: var(--cl-text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.claudian-preview-search-count:empty {
+  display: none;
+}
+
+.claudian-preview-search button.claudian-preview-search-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--cl-radius-xs);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--cl-dur-fast) var(--cl-ease-out),
+    color var(--cl-dur-fast) var(--cl-ease-out);
+}
+
+.claudian-preview-search button.claudian-preview-search-clear:hover {
+  background: var(--cl-wash-strong);
+  color: var(--text-normal);
+}
+
+.claudian-preview-search button.claudian-preview-search-clear:focus-visible {
+  outline: 2px solid var(--cl-accent);
+  outline-offset: 0;
+}
+
+.claudian-preview-search-clear svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ── List ──────────────────────────────────────────────────────────────── */
+.claudian-preview-library {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+/* A row is a list item: one open button (media + text) beside its actions.
+   No chrome at rest, a wash on hover. Selectors outrank Obsidian's
+   `button:not(.clickable-icon)` chrome. The legacy single-button row (older
+   fixtures) shares the layout. */
+.claudian-preview-library .claudian-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 52px;
+  margin: 0;
+  padding: 0 4px 0 0;
+  border: 0;
+  border-radius: var(--cl-radius-md);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-normal);
+  /* Rows have a fixed height, so off-screen rows can skip rendering exactly;
+     `.claudian/` alone can hold hundreds of files. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 52px;
+  transition: background-color var(--cl-dur-fast) var(--cl-ease-out);
+}
+
+.claudian-preview-library button.claudian-preview-row {
+  height: auto;
+  padding: 6px;
+  gap: 10px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .claudian-preview-library .claudian-preview-row:hover {
+    background: var(--cl-wash-strong);
+  }
+}
+
+.claudian-preview-library .claudian-preview-row:active {
+  background: var(--cl-wash-strong);
+}
+
+.claudian-preview-row button.claudian-preview-row-open {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  margin: 0;
+  padding: 6px;
+  border: 0;
+  border-radius: var(--cl-radius-md);
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/* Inset so the list's scroll edge never clips the ring. */
+.claudian-preview-row button.claudian-preview-row-open:focus-visible,
+.claudian-preview-library button.claudian-preview-row:focus-visible {
+  outline: 2px solid var(--cl-accent);
+  outline-offset: -2px;
+}
+
+.claudian-preview-library .claudian-preview-row:focus-within {
+  background: var(--cl-wash);
+}
+
+/* Filtering hides rows; this must beat the row's own display. */
+.claudian-preview-library > .claudian-preview-row.claudian-hidden {
+  display: none;
+}
+
+/* ── Media: fixed box, badge underneath, thumbnail on top ────────────────
+   The box never changes size, so a thumbnail loading or failing never moves
+   the row. */
+.claudian-preview-row-media {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--cl-radius-sm);
+}
+
+.claudian-preview-library .claudian-preview-row-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: var(--cl-radius-sm);
+  background: var(--cl-wash-strong);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.claudian-preview-library .claudian-preview-row-icon svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+/* The shared badge glyphs cut their inner shapes by winding; some (Markdown)
+   wind both ways alike and would fill solid. */
+.claudian-preview-library .claudian-preview-row-icon svg path {
+  fill-rule: evenodd;
+}
+
+.claudian-preview-thumb {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 40px;
+  height: 40px;
+  border-radius: inherit;
+  object-fit: cover;
+  background: var(--cl-surface-raised);
+  opacity: 0;
+  transition: opacity 180ms var(--cl-ease-out);
+}
+
+.claudian-preview-row-media[data-thumb='loaded'] .claudian-preview-thumb {
+  opacity: 1;
+}
+
+/* A hairline over the picture keeps light images from bleeding into the pane. */
+.claudian-preview-row-media[data-thumb='loaded']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--cl-border-subtle);
+  pointer-events: none;
+}
+
+/* ── Text ──────────────────────────────────────────────────────────────── */
+.claudian-preview-library .claudian-preview-row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+
+.claudian-preview-library .claudian-preview-row-name {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.3;
+  color: var(--text-normal);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.claudian-preview-library .claudian-preview-row-folder {
+  overflow: hidden;
+  font-size: var(--cl-text-xs);
+  line-height: 1.3;
+  color: var(--text-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Weight carries the match too, so it never depends on the tint alone. */
+.claudian-preview-library mark.claudian-preview-mark {
+  margin: 0 -1px;
+  padding: 0 1px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--cl-accent) 26%, transparent);
+  color: var(--text-normal);
+  font-weight: 700;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* ── Row actions ─────────────────────────────────────────────────────────── */
+.claudian-preview-library .claudian-preview-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+  margin-left: auto;
+  transition: opacity var(--cl-dur-fast) var(--cl-ease-out);
+}
+
+.claudian-preview-library .claudian-preview-row-actions .claudian-preview-card-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  min-height: 26px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--cl-radius-xs);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--cl-dur-fast) var(--cl-ease-out),
+    color var(--cl-dur-fast) var(--cl-ease-out);
+}
+
+.claudian-preview-library .claudian-preview-row-actions .claudian-preview-card-btn:hover {
+  background: var(--cl-wash-strong);
+  color: var(--text-normal);
+}
+
+.claudian-preview-library .claudian-preview-row-actions .claudian-preview-card-btn:focus-visible {
+  outline: 2px solid var(--cl-accent);
+  outline-offset: -2px;
+  color: var(--text-normal);
+}
+
+.claudian-preview-library .claudian-preview-row-actions .claudian-preview-card-btn svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.8;
+}
+
+/* Narrow panes: the "…" menu already offers reveal and open-externally, so
+   the name gets the room instead. */
+@container claudian-chat (max-width: 400px) {
+  .claudian-preview-library .claudian-preview-row-actions .claudian-preview-card-btn:not(:last-child) {
+    display: none;
+  }
+}
+
+/* ── No results ──────────────────────────────────────────────────────────── */
+.claudian-preview-no-results {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: auto 0;
+  padding: 36px 20px;
+  text-align: center;
+}
+
+.claudian-preview-no-results-title {
+  max-width: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--cl-text-md);
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.claudian-preview-no-results-hint {
+  max-width: 30ch;
+  margin: 0 0 8px;
+  font-size: var(--cl-text-sm);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.claudian-preview-no-results button.claudian-preview-no-results-reset {
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: var(--cl-radius-xs);
+  background: var(--cl-wash-strong);
+  box-shadow: none;
+  color: var(--text-normal);
+  font-size: var(--cl-text-sm);
+  font-weight: 550;
+  cursor: pointer;
+  transition: border-color var(--cl-dur-fast) var(--cl-ease-out);
+}
+
+.claudian-preview-no-results button.claudian-preview-no-results-reset:hover {
+  border-color: var(--cl-border-strong);
+}
+
+.claudian-preview-no-results button.claudian-preview-no-results-reset:focus-visible {
+  outline: 2px solid var(--cl-accent);
+  outline-offset: 2px;
+}
+
+@media (pointer: coarse) {
+  .claudian-preview-search {
+    height: 44px;
+  }
+
+  .claudian-preview-search button.claudian-preview-search-clear {
+    width: 36px;
+    height: 36px;
+  }
+
+  .claudian-preview-library .claudian-preview-row {
+    min-height: 56px;
+    contain-intrinsic-size: auto 56px;
+  }
+
+  .claudian-preview-library .claudian-preview-row-actions .claudian-preview-card-btn {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  .claudian-preview-no-results button.claudian-preview-no-results-reset {
+    height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-preview-search,
+  .claudian-preview-library .claudian-preview-row,
+  .claudian-preview-thumb,
+  .claudian-preview-library .claudian-preview-row-actions,
+  .claudian-preview-library .claudian-preview-row-actions .claudian-preview-card-btn {
+    transition: none;
+  }
+}

@@ -1635,6 +1635,47 @@ describe('MessageRenderer', () => {
     expect(card.querySelector('iframe')).toBeNull();
   });
 
+  it('renderMessageAttachments shows a table as a compact card with its size, never its rows', () => {
+    const containerEl = createMockEl();
+    const { renderer } = createRenderer();
+    const dock = jest.fn();
+    renderer.setDockHandler(dock);
+
+    renderer.renderMessageAttachments(containerEl, [{
+      name: 'call_reports (1).csv',
+      relPath: '.claudian/attachments/call_reports-1-1.csv',
+      size: 515_220,
+      table: { rows: 2277, columns: 9 },
+    }]);
+
+    const card = containerEl.children[0].children[0];
+    expect(card.hasClass('claudian-message-attachment--sheet')).toBe(true);
+    expect(card.hasClass('claudian-message-attachment--compact')).toBe(true);
+    expect(card.querySelector('.claudian-message-attachment-peek')).toBeNull();
+    expect(card.querySelector('.claudian-message-attachment-name')?.textContent).toBe('call_reports (1).csv');
+    expect(card.querySelector('.claudian-message-attachment-meta')?.textContent).toBe('2.277 Zeilen · 9 Spalten');
+    expect(card.querySelector('.claudian-message-attachment-kind')?.textContent).toBe('Tabelle');
+    expect(card.getAttribute('aria-label')).toBe('call_reports (1).csv, 2.277 Zeilen · 9 Spalten andocken');
+
+    card.click();
+    expect(dock).toHaveBeenCalledWith({ kind: 'file', path: '.claudian/attachments/call_reports-1-1.csv', name: 'call_reports (1).csv' });
+  });
+
+  it('renderMessageAttachments falls back to the file size for a table without a summary', () => {
+    const containerEl = createMockEl();
+    const { renderer } = createRenderer();
+
+    renderer.renderMessageAttachments(containerEl, [
+      { name: 'alt.xls', relPath: '.claudian/attachments/alt-1.xls', size: 2048 },
+      { name: 'legacy.csv', relPath: '.claudian/attachments/legacy-1.csv' },
+    ]);
+
+    const [xls, legacy] = containerEl.children[0].children;
+    expect(xls.querySelector('.claudian-message-attachment-meta')?.textContent).toBe('2.0 KB');
+    expect(legacy.hasClass('claudian-message-attachment--compact')).toBe(true);
+    expect(legacy.querySelector('.claudian-message-attachment-meta')).toBeNull();
+  });
+
   it('setImageSrc sets data URI on image element', async () => {
     const { renderer } = createRenderer();
     const imgEl = createMockEl('img');

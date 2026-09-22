@@ -1,5 +1,5 @@
 import type { ProviderCapabilities, ProviderId } from '../providers/types';
-import type { ChatMessage, Conversation, SlashCommand, StreamChunk, ToolCallInfo } from '../types';
+import type { ChatMessage, Conversation, SlashCommand, StreamChunk, SubagentCancelTarget, ToolCallInfo } from '../types';
 import type {
   ApprovalCallback,
   AskUserQuestionCallback,
@@ -73,4 +73,13 @@ export interface ChatRuntime {
 
   loadSubagentToolCalls?(agentId: string): Promise<ToolCallInfo[]>;
   loadSubagentFinalResult?(agentId: string): Promise<string | null>;
+
+  /**
+   * Whether this runtime can stop exactly this subagent right now, without
+   * ending the turn. Providers without a per-subagent primitive omit both
+   * methods; the chat then offers stopping the whole answer instead.
+   */
+  canCancelSubagent?(target: SubagentCancelTarget): boolean;
+  /** Resolves true once the stop request was delivered to the provider. */
+  cancelSubagent?(target: SubagentCancelTarget): Promise<boolean>;
 }

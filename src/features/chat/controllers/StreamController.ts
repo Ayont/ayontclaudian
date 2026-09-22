@@ -31,6 +31,7 @@ import type {
   OutputSurface,
   StreamChunk,
   SubagentInfo,
+  SubagentLiveUpdate,
   ToolCallInfo,
 } from '../../../core/types';
 import type { SDKToolUseResult } from '../../../core/types/diff';
@@ -63,6 +64,7 @@ import { resolveSubagentLifecycleAdapter } from '../rendering/subagentLifecycleR
 import {
   createSubagentBlock,
   finalizeSubagentBlock,
+  setSubagentTask,
   type SubagentState,
 } from '../rendering/SubagentRenderer';
 import {
@@ -343,10 +345,19 @@ export class StreamController {
       case 'subagent_tool_result':
         this.deps.updateLiveActivity?.({
           primary: chunk.type === 'subagent_tool_use' ? chunk.name : 'Subagent-Tool-Ergebnis',
-          meta: `Subagent ${chunk.subagentId}`,
+          meta: this.describeSubagentForStatus(chunk.subagentId),
           phrase: 'agent swarm',
         });
         await this.handleSubagentChunk(chunk, msg);
+        break;
+
+      case 'subagent_text':
+        this.confirmPendingSubagent(chunk.subagentId, msg);
+        this.deps.subagentManager.appendText(chunk.subagentId, chunk.text);
+        break;
+
+      case 'subagent_update':
+        this.handleSubagentUpdate(chunk.subagentId, chunk.update, msg);
         break;
 
       case 'async_subagent_result':
@@ -724,7 +735,13 @@ export class StreamController {
         description: subagentInfo.description,
         prompt: subagentInfo.prompt,
       });
+      if (subagentInfo.agentType) subagentState.info.agentType = subagentInfo.agentType;
+      if (subagentInfo.model) subagentState.info.model = subagentInfo.model;
       this.lifecycleSubagentStates.set(chunk.id, subagentState);
+      // Registered so the swarm panel, the inspector and child events find it;
+      // kept on the spawn call so its transcript survives a reload.
+      this.deps.subagentManager.trackLifecycleSubagent(subagentState);
+      toolCall.subagent = subagentState.info;
     }
   }
 
@@ -771,18 +788,16 @@ export class StreamController {
       const subagentInfo = adapter.buildSubagentInfo(existingToolCall, msg.toolCalls ?? []);
       const subagentState = this.lifecycleSubagentStates.get(chunk.id);
       if (subagentState) {
-        subagentState.info.description = subagentInfo.description;
-        subagentState.info.prompt = subagentInfo.prompt;
-        subagentState.labelEl.setText(
-          subagentInfo.description.length > 40
-            ? subagentInfo.description.substring(0, 40) + '...'
-            : subagentInfo.description
-        );
+        if (subagentInfo.agentId) subagentState.info.agentId = subagentInfo.agentId;
+        if (subagentInfo.agentType) subagentState.info.agentType = subagentInfo.agentType;
+        if (subagentInfo.model) subagentState.info.model = subagentInfo.model;
+        setSubagentTask(subagentState, { description: subagentInfo.description, prompt: subagentInfo.prompt });
       }
 
       if (chunk.isError) {
         if (subagentState) {
-          finalizeSubagentBlock(subagentState, normalizedContent || 'Error', true);
+          finalizeSubagentBlock(subagentState, normalizedContent || 'Fehlgeschlagen.', true);
+          this.deps.subagentManager.settleLifecycleSubagent(chunk.id);
         }
       }
       return true;
@@ -803,13 +818,17 @@ export class StreamController {
         const subagentInfo = adapter.buildSubagentInfo(spawnToolCall, msg.toolCalls ?? []);
         subagentState.info.description = subagentInfo.description;
         subagentState.info.prompt = subagentInfo.prompt;
+        if (subagentInfo.cancelState) subagentState.info.cancelState = subagentInfo.cancelState;
 
         if (subagentInfo.status === 'completed' || subagentInfo.status === 'error') {
           finalizeSubagentBlock(
             subagentState,
-            subagentInfo.result || (subagentInfo.status === 'error' ? 'Error' : 'DONE'),
+            subagentInfo.result || (subagentInfo.status === 'error' ? 'Fehlgeschlagen.' : 'Fertig.'),
             subagentInfo.status === 'error'
           );
+          this.deps.subagentManager.settleLifecycleSubagent(spawnId);
+        } else {
+          setSubagentTask(subagentState, {});
         }
       }
       return true;
@@ -1476,6 +1495,36 @@ export class StreamController {
     }
   }
 
+  /** A child event confirms a buffered Agent call runs in the foreground. */
+  private confirmPendingSubagent(subagentId: string, msg: ChatMessage): void {
+    if (this.deps.subagentManager.hasPendingTask(subagentId)) {
+      this.renderPendingTaskViaManager(subagentId, msg);
+    }
+  }
+
+  private handleSubagentUpdate(subagentId: string, update: SubagentLiveUpdate, msg: ChatMessage): void {
+    const { subagentManager } = this.deps;
+    // Claude says at launch whether an agent runs in the background; the card
+    // no longer waits for the first child event to appear.
+    if (update.background !== undefined && subagentManager.hasPendingTask(subagentId)) {
+      subagentManager.resolvePendingMode(subagentId, update.background);
+      this.renderPendingTaskViaManager(subagentId, msg);
+    }
+    const info = subagentManager.applyLiveUpdate(subagentId, update);
+    if (info?.activity && update.activity) {
+      this.deps.updateLiveActivity?.({
+        primary: info.activity,
+        meta: this.describeSubagentForStatus(subagentId),
+        phrase: 'agent swarm',
+      });
+    }
+  }
+
+  private describeSubagentForStatus(subagentId: string): string {
+    const info = this.deps.subagentManager.getSubagentById(subagentId);
+    return info ? `Subagent · ${info.description}` : 'Subagent';
+  }
+
   private async handleSubagentChunk(
     chunk: Extract<StreamChunk, { type: 'subagent_tool_use' | 'subagent_tool_result' }>,
     msg: ChatMessage,
@@ -1483,16 +1532,7 @@ export class StreamController {
     const parentToolUseId = chunk.subagentId;
     const { subagentManager } = this.deps;
 
-    // If parent Agent call is still pending, child chunk confirms it's sync - render now
-    if (subagentManager.hasPendingTask(parentToolUseId)) {
-      this.renderPendingTaskViaManager(parentToolUseId, msg);
-    }
-
-    const subagentState = subagentManager.getSyncSubagent(parentToolUseId);
-
-    if (!subagentState) {
-      return;
-    }
+    this.confirmPendingSubagent(parentToolUseId, msg);
 
     switch (chunk.type) {
       case 'subagent_tool_use': {
@@ -1503,19 +1543,25 @@ export class StreamController {
           status: 'running',
           isExpanded: false,
         };
-        subagentManager.addSyncToolCall(parentToolUseId, toolCall);
-        this.showThinkingIndicator();
+        // Foreground, background and provider lifecycle agents all keep their
+        // child tools; before, only foreground agents did.
+        if (subagentManager.addChildToolCall(parentToolUseId, toolCall)) {
+          this.showThinkingIndicator();
+        }
         break;
       }
 
       case 'subagent_tool_result': {
-        const toolCall = subagentState.info.toolCalls.find((tc: ToolCallInfo) => tc.id === chunk.id);
-        if (toolCall) {
+        const existing = subagentManager.findChildToolCall(parentToolUseId, chunk.id);
+        if (existing) {
           const normalizedContent = this.normalizeToolResultContent(chunk.content);
           const isBlocked = isBlockedToolResult(normalizedContent, chunk.isError);
-          toolCall.status = isBlocked ? 'blocked' : (chunk.isError ? 'error' : 'completed');
-          toolCall.result = normalizedContent;
-          subagentManager.updateSyncToolResult(parentToolUseId, chunk.id, toolCall);
+          const toolCall: ToolCallInfo = {
+            ...existing,
+            status: isBlocked ? 'blocked' : (chunk.isError ? 'error' : 'completed'),
+            result: normalizedContent,
+          };
+          subagentManager.updateChildToolResult(parentToolUseId, chunk.id, toolCall);
         }
         break;
       }

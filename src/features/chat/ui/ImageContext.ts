@@ -1,16 +1,25 @@
-import { Notice, setIcon } from 'obsidian';
+import { Notice } from 'obsidian';
 import * as path from 'path';
 
 import type { ImageAttachment, ImageMediaType } from '../../../core/types';
 import { updateContextRowHasContent } from '../controllers/contextRowVisibility';
+import type { ComposerDraftAttachment } from '../services/ComposerDraftStore';
 import type { ImageStagingService } from '../services/ImageStagingService';
-import { attachmentPeekMode, attachmentTypeMeta, type FileDockTarget, formatFileSize } from './file-drop/attachmentMeta';
+import { renderStagedAttachmentChip, renderUploadingAttachmentChip, truncateFileName } from './file-drop/attachmentChipView';
+import { attachmentPeekMode, type FileDockTarget } from './file-drop/attachmentMeta';
+import { detectPastedTableDelimiter } from './file-drop/delimitedTable';
 import {
+  countTextLines,
+  exceedsInlineTextLimit,
   formatDroppedFileBlock,
   isTextLikeFile,
-  MAX_DROPPED_TEXT_SIZE,
+  MAX_INLINE_TEXT_LINES,
 } from './file-drop/droppedTextFile';
-import { createPdfPeekSrc, isRasterPeekSrc } from './file-drop/pdfPeek';
+import { fingerprintFile } from './file-drop/fileFingerprint';
+import { createPdfPeekSrc } from './file-drop/pdfPeek';
+import { readTableProfile } from './file-drop/readTableProfile';
+import type { ComposerAttachment } from './file-drop/stagedAttachment';
+import { normalizeTableProfile, tableFormatForFile, type TableProfile } from './file-drop/tableProfile';
 
 /** A non-image file staged into the vault and shown as a preview chip. */
 interface StagedAttachment {
@@ -19,11 +28,29 @@ interface StagedAttachment {
   relPath: string;
   size: number;
   previewSrc?: string;
+  /** Structure of a staged table; the agent gets a preview built from it. */
+  table?: TableProfile;
+  /** Content hash, so an identical second drop is not attached again. */
+  fingerprint?: string;
 }
 
+interface StageOptions {
+  /** Profiles the file while it is being staged (tables). */
+  describe?: (file: File) => Promise<TableProfile>;
+  fingerprint?: string | null;
+  /** Notice shown once the file is attached. */
+  stagedNotice?: string;
+}
+
+/** What happened to one incoming file; only `unsupported` is counted as skipped. */
+type IntakeOutcome = 'accepted' | 'unsupported' | 'handled';
+
 const MAX_IMAGE_SIZE = 25 * 1024 * 1024;
+const MAX_DESKTOP_INLINE_BYTES = 2 * 1024 * 1024;
 /** Paste text above this size as a vault-backed .txt attachment, not a huge prompt. */
 export const LARGE_PASTED_TEXT_THRESHOLD = 24 * 1024;
+/** Display name of a pasted table; the staged file name is sanitized from it. */
+const PASTED_TABLE_NAME = 'Eingefügte Tabelle';
 
 const IMAGE_EXTENSIONS: Record<string, ImageMediaType> = {
   '.jpg': 'image/jpeg',
@@ -73,6 +100,7 @@ export class ImageContextManager {
   /** Placeholder chips for in-flight file uploads, keyed by a temp id. */
   private pendingUploads: Map<string, string> = new Map();
   private enabled = true;
+  private vaultFilesReadable: () => boolean = () => true;
   private stagingService: ImageStagingService | null;
 
   constructor(
@@ -114,6 +142,10 @@ export class ImageContextManager {
     }
   }
 
+  setVaultFilesReadable(readable: () => boolean): void {
+    this.vaultFilesReadable = readable;
+  }
+
   getAttachedImages(): ImageAttachment[] {
     return Array.from(this.attachedImages.values());
   }
@@ -150,12 +182,13 @@ export class ImageContextManager {
 
   /**
    * Staged (non-image) file attachments for the next send. The send pipeline
-   * appends their `@relPath` references invisibly to the provider-bound prompt —
-   * they are deliberately NOT part of the visible input or chat transcript.
+   * appends their references (an `@relPath`, or a bounded table block)
+   * invisibly to the provider-bound prompt — they are deliberately NOT part of
+   * the visible input or chat transcript.
    */
-  getStagedAttachments(): { name: string; relPath: string; previewSrc?: string }[] {
+  getStagedAttachments(): ComposerAttachment[] {
     return Array.from(this.stagedAttachments.values())
-      .map(({ name, relPath, previewSrc }) => ({ name, relPath, previewSrc }));
+      .map(({ name, relPath, previewSrc, size, table }) => ({ name, relPath, previewSrc, size, table }));
   }
 
   hasImages(): boolean {
@@ -206,19 +239,26 @@ export class ImageContextManager {
   }
 
   /** Staged file chips as a draft stores them; the preview is rebuilt, not saved. */
-  getDraftAttachments(): { name: string; relPath: string; size: number }[] {
+  getDraftAttachments(): ComposerDraftAttachment[] {
     return Array.from(this.stagedAttachments.values())
-      .map(({ name, relPath, size }) => ({ name, relPath, size }));
+      .map(({ name, relPath, size, table }) => ({ name, relPath, size, ...(table ? { table } : {}) }));
   }
 
   /** Re-adds file chips from a saved draft. The files are already in the vault. */
-  restoreDraftAttachments(attachments: { name: string; relPath: string; size?: number }[]): void {
+  restoreDraftAttachments(attachments: ComposerDraftAttachment[]): void {
     const known = new Set(Array.from(this.stagedAttachments.values(), attachment => attachment.relPath));
     for (const attachment of attachments) {
       if (known.has(attachment.relPath)) continue;
       known.add(attachment.relPath);
       const id = this.generateId();
-      this.stagedAttachments.set(id, { id, name: attachment.name, relPath: attachment.relPath, size: attachment.size ?? 0 });
+      const table = normalizeTableProfile(attachment.table);
+      this.stagedAttachments.set(id, {
+        id,
+        name: attachment.name,
+        relPath: attachment.relPath,
+        size: attachment.size ?? 0,
+        ...(table ? { table } : {}),
+      });
     }
     this.updateAttachmentPreview();
     this.callbacks.onImagesChanged();
@@ -330,25 +370,16 @@ export class ImageContextManager {
     const files = e.dataTransfer?.files;
     if (!files) return;
 
+    // Content hashes already attached, so an identical second copy of a file
+    // (e.g. a repeated `call_reports (1).csv` download) is attached only once.
+    const seen = new Map<string, string>();
+    for (const attachment of this.stagedAttachments.values()) {
+      if (attachment.fingerprint) seen.set(attachment.fingerprint, attachment.name);
+    }
+
     let unsupported = 0;
     for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      if (this.isImageFile(file)) {
-        await this.addImageFromFile(file, 'drop');
-      } else if (isTextLikeFile(file.name, file.type)) {
-        await this.insertDroppedTextFile(file);
-      } else if (this.isPacketTracerFile(file) && this.callbacks.stagePacketTracerAttachment) {
-        const ok = await this.stageFileAttachment(file, this.callbacks.stagePacketTracerAttachment);
-        if (!ok) unsupported++;
-      } else if (this.callbacks.stageVaultAttachment) {
-        // PDF / doc / binary: stage into the vault as a chip. The @path
-        // reference is appended invisibly at send time so ANY provider's agent
-        // can read it (all run with the vault as workspace).
-        const ok = await this.stageFileAttachment(file);
-        if (!ok) unsupported++;
-      } else {
-        unsupported++;
-      }
+      if (await this.acceptDroppedFile(files[i], seen) === 'unsupported') unsupported++;
     }
 
     if (unsupported > 0) {
@@ -356,6 +387,90 @@ export class ImageContextManager {
         `${unsupported} Datei(en) übersprungen — konnten nicht angehängt werden.`,
       );
     }
+  }
+
+  private async acceptDroppedFile(file: File, seen: Map<string, string>): Promise<IntakeOutcome> {
+    if (this.isImageFile(file)) {
+      await this.addImageFromFile(file, 'drop');
+      return 'accepted';
+    }
+    const isTable = tableFormatForFile(file.name) !== null;
+    if (isTable || isTextLikeFile(file.name, file.type)) {
+      return this.acceptTextOrTable(file, isTable, seen);
+    }
+    if (this.isPacketTracerFile(file) && this.callbacks.stagePacketTracerAttachment) {
+      return await this.stageFileAttachment(file, this.callbacks.stagePacketTracerAttachment) ? 'accepted' : 'unsupported';
+    }
+    if (this.callbacks.stageVaultAttachment) {
+      // PDF / doc / binary: stage into the vault as a chip. The @path
+      // reference is appended invisibly at send time so ANY provider's agent
+      // can read it (all run with the vault as workspace).
+      return await this.stageFileAttachment(file) ? 'accepted' : 'unsupported';
+    }
+    return 'unsupported';
+  }
+
+  /**
+   * Tables always become attachments; other text is inlined only while it is
+   * small enough to read in a chat bubble (see `exceedsInlineTextLimit`).
+   */
+  private async acceptTextOrTable(file: File, isTable: boolean, seen: Map<string, string>): Promise<IntakeOutcome> {
+    const fingerprint = await fingerprintFile(file);
+    const original = fingerprint ? seen.get(fingerprint) : undefined;
+    if (original !== undefined) {
+      new Notice(`„${file.name}" ist identisch mit „${original}" und wurde übersprungen.`);
+      return 'handled';
+    }
+    if (!this.vaultFilesReadable()) {
+      if (file.size > MAX_DESKTOP_INLINE_BYTES) {
+        new Notice(`„${file.name}" ist zu groß zum Einfügen (max 2.0 MB).`);
+        return 'handled';
+      }
+      try {
+        this.insertIntoInput(formatDroppedFileBlock(file.name, await file.text()));
+        return 'accepted';
+      } catch {
+        new Notice(`„${file.name}" konnte nicht gelesen werden.`);
+        return 'handled';
+      }
+    }
+
+    if (isTable) {
+      const outcome = await this.stageAsAttachment(file, { fingerprint, describe: readTableProfile });
+      if (outcome === 'accepted' && fingerprint) seen.set(fingerprint, file.name);
+      return outcome;
+    }
+    const tooLong = { fingerprint, stagedNotice: `„${file.name}" ist zu lang zum Einfügen und wurde als Datei angehängt.` };
+    if (exceedsInlineTextLimit(file.size)) {
+      const outcome = await this.stageAsAttachment(file, tooLong);
+      if (outcome === 'accepted' && fingerprint) seen.set(fingerprint, file.name);
+      return outcome;
+    }
+
+    let content: string;
+    try {
+      content = await file.text();
+    } catch {
+      new Notice(`„${file.name}" konnte nicht gelesen werden.`);
+      return 'handled';
+    }
+    if (exceedsInlineTextLimit(file.size, content)) {
+      const outcome = await this.stageAsAttachment(file, tooLong);
+      if (outcome === 'accepted' && fingerprint) seen.set(fingerprint, file.name);
+      return outcome;
+    }
+
+    this.insertIntoInput(formatDroppedFileBlock(file.name, content));
+    if (fingerprint) seen.set(fingerprint, file.name);
+    new Notice(`„${file.name}" als Text eingefügt.`);
+    return 'accepted';
+  }
+
+  /** Stages through the vault; without staging a large file is refused, never inlined. */
+  private async stageAsAttachment(file: File, options: StageOptions): Promise<IntakeOutcome> {
+    const stage = this.callbacks.stageVaultAttachment;
+    if (!stage) return 'unsupported';
+    return await this.stageFileAttachment(file, stage, options) ? 'accepted' : 'unsupported';
   }
 
   /**
@@ -368,6 +483,7 @@ export class ImageContextManager {
   private async stageFileAttachment(
     file: File,
     stageAttachment: (file: File) => Promise<string | null> = this.callbacks.stageVaultAttachment ?? (async () => null),
+    options: StageOptions = {},
   ): Promise<boolean> {
 
     // Show an immediate "uploading" chip so the staging is visible. The
@@ -379,12 +495,10 @@ export class ImageContextManager {
     this.updateAttachmentPreview();
     this.callbacks.onImagesChanged();
 
-    let relPath: string | null;
-    try {
-      relPath = await stageAttachment(file);
-    } catch {
-      relPath = null;
-    }
+    const [relPath, table] = await Promise.all([
+      stageAttachment(file).catch(() => null),
+      options.describe ? options.describe(file).catch(() => undefined) : Promise.resolve(undefined),
+    ]);
 
     this.pendingUploads.delete(pendingId);
 
@@ -406,11 +520,13 @@ export class ImageContextManager {
       relPath,
       size: file.size,
       previewSrc: previewSrc ?? undefined,
+      ...(table ? { table } : {}),
+      ...(options.fingerprint ? { fingerprint: options.fingerprint } : {}),
     });
     this.updateAttachmentPreview();
     this.callbacks.onImagesChanged();
     this.callbacks.onAttachmentStaged?.({ kind: 'file', path: relPath, name: file.name });
-    new Notice(`„${file.name}" angehängt.`);
+    new Notice(options.stagedNotice ?? `„${file.name}" angehängt.`);
     return true;
   }
 
@@ -426,36 +542,24 @@ export class ImageContextManager {
     el.focus();
   }
 
-  /**
-   * Inlines a dropped text-like file into the chat input as a fenced code block.
-   * Backwards compatible: the message stays a plain string. Inserted at the
-   * caret (or appended) so the user can keep typing around it.
-   */
-  private async insertDroppedTextFile(file: File): Promise<void> {
-    if (file.size > MAX_DROPPED_TEXT_SIZE) {
-      new Notice(
-        `„${file.name}" ist zu groß zum Einfügen (max ${this.formatSize(MAX_DROPPED_TEXT_SIZE)}).`,
-      );
-      return;
-    }
-
-    let content: string;
-    try {
-      content = await file.text();
-    } catch {
-      new Notice(`„${file.name}" konnte nicht gelesen werden.`);
-      return;
-    }
-
-    this.insertIntoInput(formatDroppedFileBlock(file.name, content));
-    new Notice(`„${file.name}" als Text eingefügt.`);
-  }
-
   private setupPasteHandler() {
     this.inputEl.addEventListener('paste', (e) => {
       void (async (): Promise<void> => {
       const items = e.clipboardData?.items;
       if (!items) return;
+
+      // Read before the image check: Excel also puts a rendered picture of the
+      // selection on the clipboard, which is useless for a 2,000-row table.
+      const clipboard = e.clipboardData;
+      const pastedText = typeof clipboard?.getData === 'function'
+        ? clipboard.getData('text/plain')
+        : '';
+      const pastedTable = pastedText && this.vaultFilesReadable() ? this.largePastedTableFormat(pastedText) : null;
+      if (pastedTable) {
+        e.preventDefault?.();
+        await this.attachPastedTable(pastedText, pastedTable);
+        return;
+      }
 
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
@@ -473,15 +577,35 @@ export class ImageContextManager {
       // Claude Desktop's attachment behavior: write a .txt file to the vault,
       // show a chip, and mention its path rather than flooding the textarea and
       // the provider context with tens of thousands of characters.
-      const clipboard = e.clipboardData;
-      const pastedText = typeof clipboard?.getData === 'function'
-        ? clipboard.getData('text/plain')
-        : '';
       if (pastedText && new Blob([pastedText]).size > LARGE_PASTED_TEXT_THRESHOLD) {
         e.preventDefault?.();
         await this.attachLargePastedText(pastedText);
       }
       })();
+    });
+  }
+
+  /** `csv`/`tsv` for clipboard text that is a table too large to paste inline. */
+  private largePastedTableFormat(text: string): 'csv' | 'tsv' | null {
+    const isLarge = new Blob([text]).size > LARGE_PASTED_TEXT_THRESHOLD || countTextLines(text) > MAX_INLINE_TEXT_LINES;
+    if (!isLarge) return null;
+    const delimiter = detectPastedTableDelimiter(text);
+    if (!delimiter) return null;
+    return delimiter === '\t' ? 'tsv' : 'csv';
+  }
+
+  private async attachPastedTable(content: string, format: 'csv' | 'tsv'): Promise<void> {
+    if (!this.callbacks.stageVaultAttachment) {
+      new Notice('Große Tabelle kann in dieser Ansicht nicht als Datei angehängt werden.');
+      return;
+    }
+    const file = new File([content], `${PASTED_TABLE_NAME}.${format}`, {
+      type: format === 'tsv' ? 'text/tab-separated-values' : 'text/csv',
+    });
+    await this.stageFileAttachment(file, this.callbacks.stageVaultAttachment, {
+      describe: readTableProfile,
+      fingerprint: await fingerprintFile(file),
+      stagedNotice: 'Eingefügte Tabelle als Datei angehängt.',
     });
   }
 
@@ -682,92 +806,16 @@ export class ImageContextManager {
     this.attachmentPreviewEl.removeClass('claudian-hidden');
 
     // In-flight uploads first (spinner chips).
-    for (const [pendingId, name] of this.pendingUploads) {
-      this.renderUploadingChip(pendingId, name);
+    for (const name of this.pendingUploads.values()) {
+      renderUploadingAttachmentChip(this.attachmentPreviewEl, name);
     }
     for (const [id, att] of this.stagedAttachments) {
-      this.renderAttachmentChip(id, att);
+      renderStagedAttachmentChip(this.attachmentPreviewEl, att, {
+        resourcePath: att.previewSrc ?? this.callbacks.getResourcePath?.(att.relPath) ?? null,
+        onRemove: () => this.removeStagedAttachment(id),
+      });
     }
     this.syncContextRowVisibility();
-  }
-
-  /** A placeholder chip with a spinner shown while a file is being staged. */
-  private renderUploadingChip(_pendingId: string, name: string): void {
-    const meta = attachmentTypeMeta(name);
-    const chip = this.attachmentPreviewEl.createDiv({
-      cls: `claudian-attachment-chip claudian-attachment-chip--${meta.typeClass} claudian-attachment-chip--uploading`,
-    });
-    const iconWrap = chip.createDiv({ cls: 'claudian-attachment-icon' });
-    iconWrap.createDiv({ cls: 'claudian-attachment-spinner' });
-
-    const infoEl = chip.createDiv({ cls: 'claudian-attachment-info' });
-    const nameEl = infoEl.createSpan({ cls: 'claudian-attachment-name' });
-    nameEl.setText(this.truncateName(name, 22));
-    nameEl.setAttribute('title', name);
-    infoEl.createSpan({ cls: 'claudian-attachment-meta', text: 'Lädt hoch…' });
-  }
-
-  /** A finished, removable chip for a staged non-image file. */
-  private renderAttachmentChip(id: string, att: StagedAttachment): void {
-    const meta = attachmentTypeMeta(att.name);
-    const peek = attachmentPeekMode(att.name);
-    const chip = this.attachmentPreviewEl.createDiv({
-      cls: `claudian-attachment-chip claudian-attachment-chip--${meta.typeClass} claudian-attachment-chip--peek`,
-    });
-
-    const resourcePath = att.previewSrc ?? this.callbacks.getResourcePath?.(att.relPath) ?? null;
-    if (peek === 'iframe' && resourcePath && isRasterPeekSrc(resourcePath)) {
-      const peekEl = chip.createDiv({ cls: 'claudian-attachment-peek' });
-      peekEl.createEl('img', {
-        cls: 'claudian-attachment-peek-image',
-        attr: { src: resourcePath, alt: att.name },
-      });
-    } else if (peek === 'iframe' && resourcePath) {
-      const peekEl = chip.createDiv({ cls: 'claudian-attachment-peek' });
-      const frame = peekEl.createEl('iframe', {
-        cls: 'claudian-attachment-peek-pdf',
-        attr: {
-          src: resourcePath,
-          tabindex: '-1',
-          title: att.name,
-        },
-      });
-      frame.addClass('claudian-attachment-peek-pdf');
-    } else if (peek === 'thumb' && resourcePath) {
-      const peekEl = chip.createDiv({ cls: 'claudian-attachment-peek' });
-      peekEl.createEl('img', {
-        cls: 'claudian-attachment-peek-image',
-        attr: { src: resourcePath, alt: att.name },
-      });
-    } else {
-      const peekEl = chip.createDiv({ cls: 'claudian-attachment-peek claudian-attachment-peek--paper' });
-      peekEl.createDiv({ cls: 'claudian-attachment-peek-sheet' });
-      const face = peekEl.createDiv({ cls: 'claudian-attachment-peek-face' });
-      setIcon(face.createSpan(), meta.icon);
-    }
-
-    const row = chip.createDiv({ cls: 'claudian-attachment-row' });
-    const iconWrap = row.createDiv({ cls: 'claudian-attachment-icon' });
-    setIcon(iconWrap, meta.icon);
-
-    const infoEl = row.createDiv({ cls: 'claudian-attachment-info' });
-    const nameEl = infoEl.createSpan({ cls: 'claudian-attachment-name' });
-    nameEl.setText(this.truncateName(att.name, 22));
-    nameEl.setAttribute('title', att.name);
-    infoEl.createSpan({
-      cls: 'claudian-attachment-meta',
-      text: `${meta.typeClass.toUpperCase()} · ${formatFileSize(att.size)}`,
-    });
-
-    const removeEl = chip.createEl('button', {
-      cls: 'claudian-attachment-remove',
-      attr: { type: 'button', 'aria-label': `${att.name} entfernen` },
-    });
-    removeEl.setText('×');
-    removeEl.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.removeStagedAttachment(id);
-    });
   }
 
   /** Removes a staged attachment chip and its `@path` mention from the input. */
@@ -852,11 +900,7 @@ export class ImageContextManager {
   }
 
   private truncateName(name: string, maxLen: number): string {
-    if (name.length <= maxLen) return name;
-    const ext = path.extname(name);
-    const base = name.slice(0, name.length - ext.length);
-    const truncatedBase = base.slice(0, maxLen - ext.length - 3);
-    return `${truncatedBase}...${ext}`;
+    return truncateFileName(name, maxLen);
   }
 
   private formatSize(bytes: number): string {

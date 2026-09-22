@@ -1,0 +1,904 @@
+/* Subagent inspector: a workspace tab that follows one subagent live.
+   Rendered by src/features/chat/subagents/SubagentInspectorPanel.ts. It lives
+   outside .claudian-container, so it reads tokens declared on body and takes
+   its provenance color from --inspector-provider. */
+
+.claudian-inspector {
+  --inspector-provider: var(--cl-accent);
+  --inspector-live: var(--inspector-provider);
+  --inspector-outcome: var(--text-muted);
+  --inspector-rail: var(--cl-border-subtle);
+
+  container: inspector / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: 100%;
+  padding: 24px clamp(16px, 4vw, 40px) 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.claudian-inspector[data-phase="stopping"] { --inspector-live: var(--cl-warning); }
+.claudian-inspector[data-phase="completed"] { --inspector-outcome: var(--cl-success); }
+.claudian-inspector[data-phase="failed"] { --inspector-outcome: var(--cl-danger); }
+.claudian-inspector[data-phase="orphaned"] { --inspector-outcome: var(--cl-warning); }
+.claudian-inspector[data-phase="cancelled"] { --inspector-outcome: var(--text-faint); }
+
+.claudian-inspector > * {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 1080px;
+  margin-inline: auto;
+}
+
+.claudian-inspector ::selection {
+  background: color-mix(in srgb, var(--inspector-provider) 30%, transparent);
+}
+
+/* ── Hero ────────────────────────────────────────────────────────────── */
+.claudian-inspector-hero {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "glyph heading side"
+    "glyph actions actions";
+  align-items: center;
+  column-gap: 16px;
+  row-gap: 12px;
+}
+
+.claudian-inspector-glyph {
+  grid-area: glyph;
+  position: relative;
+  display: flex;
+  align-self: start;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  color: var(--inspector-outcome);
+  background: color-mix(in srgb, var(--inspector-outcome) 14%, transparent);
+}
+
+.claudian-inspector-glyph svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.25;
+}
+
+.claudian-inspector-glyph[data-phase="running"],
+.claudian-inspector-glyph[data-phase="starting"],
+.claudian-inspector-glyph[data-phase="stopping"] {
+  background: color-mix(in srgb, var(--inspector-live) 10%, transparent);
+}
+
+.claudian-inspector-ring {
+  width: 24px;
+  height: 24px;
+  border: 2.5px solid color-mix(in srgb, var(--inspector-live) 22%, transparent);
+  border-top-color: var(--inspector-live);
+  border-radius: 50%;
+  animation: cl-subagent-spin 0.9s linear infinite;
+}
+
+.claudian-inspector-glyph[data-phase="stopping"] .claudian-inspector-ring {
+  animation-duration: 1.8s;
+}
+
+.claudian-inspector-glyph.is-settling svg {
+  animation: cl-subagent-settle 460ms var(--cl-ease-out) both;
+}
+
+.claudian-inspector-glyph.is-settling::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 2px var(--inspector-outcome);
+  opacity: 0;
+  animation: cl-subagent-ripple 700ms var(--cl-ease-out);
+  pointer-events: none;
+}
+
+.claudian-inspector-heading {
+  grid-area: heading;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.claudian-inspector-title {
+  margin: 0;
+  font-size: clamp(18px, 1.2rem + 0.6vw, 24px);
+  font-weight: 680;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--text-normal);
+  text-wrap: balance;
+}
+
+.claudian-inspector-provenance {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.claudian-inspector-provider {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.claudian-inspector-provider-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--inspector-provider);
+}
+
+.claudian-inspector-provenance-parts {
+  min-width: 0;
+}
+
+.claudian-inspector-context {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.claudian-inspector-context-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.claudian-inspector-context-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.claudian-inspector-context-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claudian-inspector-side {
+  grid-area: side;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  align-self: start;
+}
+
+.claudian-inspector-phase {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--inspector-outcome) 12%, transparent);
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--inspector-outcome);
+}
+
+.claudian-inspector-phase[data-phase="running"],
+.claudian-inspector-phase[data-phase="starting"],
+.claudian-inspector-phase[data-phase="stopping"] {
+  background: color-mix(in srgb, var(--inspector-live) 12%, transparent);
+  color: var(--inspector-live);
+}
+
+.claudian-inspector-phase-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.claudian-inspector-phase[data-phase="running"] .claudian-inspector-phase-dot,
+.claudian-inspector-phase[data-phase="starting"] .claudian-inspector-phase-dot {
+  animation: cl-subagent-step-live 1.4s ease-in-out infinite;
+}
+
+.claudian-inspector-elapsed {
+  font-family: var(--cl-font-mono);
+  font-size: 20px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--text-normal);
+}
+
+.claudian-inspector-actions {
+  grid-area: actions;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.claudian-inspector button.claudian-inspector-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  margin: 0;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--cl-wash-strong);
+  box-shadow: inset 0 0 0 1px var(--cl-border-subtle);
+  color: var(--text-normal);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--cl-dur-fast) var(--cl-ease),
+    color var(--cl-dur-fast) var(--cl-ease),
+    transform var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-inspector button.claudian-inspector-button:hover {
+  background: color-mix(in srgb, var(--text-normal) 9%, transparent);
+}
+
+.claudian-inspector button.claudian-inspector-button:active {
+  transform: scale(0.97);
+}
+
+.claudian-inspector button.claudian-inspector-button:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+
+.claudian-inspector button.claudian-inspector-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+}
+
+.claudian-inspector-button-icon {
+  display: inline-flex;
+}
+
+.claudian-inspector-button-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.claudian-inspector-stop .claudian-inspector-button-icon svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+.claudian-inspector button.claudian-inspector-stop:not(:disabled):hover {
+  color: var(--cl-danger);
+  background: color-mix(in srgb, var(--cl-danger) 12%, transparent);
+}
+
+.claudian-inspector button.claudian-inspector-stop.is-armed {
+  color: var(--text-on-accent, #fff);
+  background: var(--cl-danger);
+  box-shadow: none;
+  animation: cl-subagent-arm var(--cl-dur) var(--cl-ease-out);
+}
+
+/* ── Live activity ───────────────────────────────────────────────────── */
+.claudian-inspector-activity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--cl-glass-sheen), var(--cl-glass-body);
+  -webkit-backdrop-filter: var(--cl-glass-filter-soft);
+  backdrop-filter: var(--cl-glass-filter-soft);
+  box-shadow:
+    var(--cl-glass-edge),
+    inset 0 0 0 1px color-mix(in srgb, var(--inspector-live) 24%, transparent),
+    var(--cl-glass-shadow);
+  font-size: 13px;
+  color: var(--text-normal);
+}
+
+.claudian-inspector-activity-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--inspector-live);
+}
+
+.claudian-inspector-activity-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.claudian-inspector-activity-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Counters ────────────────────────────────────────────────────────── */
+.claudian-inspector-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--cl-border-subtle);
+}
+
+.claudian-inspector-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  background: var(--background-primary);
+}
+
+.claudian-inspector-stat-label {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.claudian-inspector-stat-value {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 620;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--text-normal);
+}
+
+/* ── Body: transcript and aside ──────────────────────────────────────── */
+.claudian-inspector-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  align-items: start;
+  gap: 24px;
+  padding-bottom: 12px;
+}
+
+.claudian-inspector-timeline {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0 0 0 22px;
+  list-style: none;
+}
+
+/* The rail the entries hang on. */
+.claudian-inspector-timeline::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  inset-inline-start: 5px;
+  width: 1px;
+  background: var(--inspector-rail);
+}
+
+.claudian-inspector-entry {
+  position: relative;
+  min-width: 0;
+}
+
+.claudian-inspector-entry::before {
+  content: "";
+  position: absolute;
+  top: 7px;
+  inset-inline-start: -21px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--background-primary);
+  box-shadow: inset 0 0 0 2px var(--text-faint);
+}
+
+.claudian-inspector-entry.is-prompt::before {
+  box-shadow: inset 0 0 0 2px var(--inspector-provider);
+}
+
+.claudian-inspector-entry.is-text::before {
+  width: 5px;
+  height: 5px;
+  top: 9px;
+  inset-inline-start: -19px;
+  background: var(--text-faint);
+  box-shadow: none;
+}
+
+.claudian-inspector-entry.is-tool[data-status="running"]::before {
+  background: var(--inspector-live);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--inspector-live) 25%, transparent);
+  animation: cl-subagent-step-live 1.4s ease-in-out infinite;
+}
+
+.claudian-inspector-entry.is-tool[data-status="completed"]::before {
+  box-shadow: inset 0 0 0 2px var(--cl-success);
+}
+
+.claudian-inspector-entry.is-tool[data-status="error"]::before,
+.claudian-inspector-entry.is-tool[data-status="blocked"]::before {
+  box-shadow: inset 0 0 0 2px var(--cl-danger);
+}
+
+.claudian-inspector-entry.is-result::before {
+  background: var(--inspector-outcome);
+  box-shadow: none;
+}
+
+/* Only entries that arrive while watching animate in. */
+.claudian-inspector-entry.is-new {
+  animation: cl-inspector-entry var(--cl-dur) var(--cl-ease-out) both;
+}
+
+@keyframes cl-inspector-entry {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.claudian-inspector-entry-title {
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text-muted);
+}
+
+.claudian-inspector-entry-text {
+  max-width: 75ch;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-normal);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.claudian-inspector-entry.is-prompt .claudian-inspector-entry-text {
+  max-height: 280px;
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--cl-ink-soft);
+  font-size: 13px;
+}
+
+/* Tool rows: native disclosure, output rendered on first open. */
+.claudian-inspector-tool {
+  border-radius: 10px;
+}
+
+.claudian-inspector-tool-summary {
+  display: grid;
+  grid-template-columns: 16px auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  cursor: pointer;
+  list-style: none;
+  transition: background var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-inspector-tool-summary::-webkit-details-marker {
+  display: none;
+}
+
+.claudian-inspector-tool-summary:hover,
+.claudian-inspector-tool[open] > .claudian-inspector-tool-summary {
+  background: var(--cl-wash-strong);
+}
+
+.claudian-inspector-tool-summary:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
+}
+
+.claudian-inspector-tool-icon {
+  display: inline-flex;
+  color: var(--text-faint);
+}
+
+.claudian-inspector-tool-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.claudian-inspector-tool-name {
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.claudian-inspector-tool-target {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--cl-font-mono);
+  font-size: 11.5px;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claudian-inspector-tool-status {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+.claudian-inspector-entry[data-status="running"] .claudian-inspector-tool-status {
+  color: var(--inspector-live);
+}
+
+.claudian-inspector-entry[data-status="error"] .claudian-inspector-tool-status,
+.claudian-inspector-entry[data-status="blocked"] .claudian-inspector-tool-status {
+  color: var(--cl-danger);
+}
+
+.claudian-inspector-tool-body {
+  max-height: 360px;
+  overflow: auto;
+  margin: 4px 0 6px 34px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--cl-ink-soft);
+  font-size: 12px;
+}
+
+.claudian-inspector-tool-pending {
+  color: var(--text-faint);
+}
+
+.claudian-inspector-entry.is-result {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--cl-glass-sheen), var(--cl-glass-body);
+  box-shadow:
+    var(--cl-glass-edge),
+    inset 0 0 0 1px color-mix(in srgb, var(--inspector-outcome) 28%, transparent),
+    var(--cl-glass-shadow);
+}
+
+.claudian-inspector-entry.is-result .claudian-inspector-entry-title {
+  color: var(--inspector-outcome);
+}
+
+.claudian-inspector-result-body {
+  max-width: 75ch;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.claudian-inspector-result-body > :first-child {
+  margin-top: 0;
+}
+
+.claudian-inspector-result-body > :last-child {
+  margin-bottom: 0;
+}
+
+/* The live tail: three dots that breathe while the agent works. */
+.claudian-inspector-live-tail {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 0 22px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.claudian-inspector-live-dots {
+  position: relative;
+  width: 6px;
+  height: 6px;
+  margin-inline: 10px;
+  border-radius: 50%;
+  background: var(--inspector-live);
+  animation: cl-inspector-dot 1.2s ease-in-out infinite 0.15s;
+}
+
+.claudian-inspector-live-dots::before,
+.claudian-inspector-live-dots::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--inspector-live);
+  animation: cl-inspector-dot 1.2s ease-in-out infinite;
+}
+
+.claudian-inspector-live-dots::before {
+  inset-inline-start: -10px;
+}
+
+.claudian-inspector-live-dots::after {
+  inset-inline-start: 10px;
+  animation-delay: 0.3s;
+}
+
+@keyframes cl-inspector-dot {
+  0%, 100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+/* ── Aside ───────────────────────────────────────────────────────────── */
+.claudian-inspector-aside {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.claudian-inspector-aside-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.claudian-inspector-aside-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text-muted);
+}
+
+.claudian-inspector-files {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.claudian-inspector button.claudian-inspector-file {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  grid-template-areas:
+    "icon name"
+    "icon path";
+  column-gap: 8px;
+  width: 100%;
+  height: auto;
+  margin: 0;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+  text-align: start;
+  cursor: pointer;
+}
+
+.claudian-inspector button.claudian-inspector-file:hover {
+  background: var(--cl-wash-strong);
+}
+
+.claudian-inspector button.claudian-inspector-file:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
+}
+
+.claudian-inspector-file-icon {
+  grid-area: icon;
+  display: inline-flex;
+  margin-top: 2px;
+  color: var(--text-faint);
+}
+
+.claudian-inspector-file-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.claudian-inspector-file-name {
+  grid-area: name;
+  overflow: hidden;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-normal);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claudian-inspector-file-path {
+  grid-area: path;
+  overflow: hidden;
+  font-size: 11px;
+  color: var(--text-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claudian-inspector-trail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.claudian-inspector-trail:empty::after {
+  content: "Noch keine Werkzeuge";
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.claudian-inspector-trail-step {
+  width: 12px;
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--cl-success) 60%, transparent);
+  transform-origin: left center;
+  animation: cl-subagent-step var(--cl-dur) var(--cl-ease-out) both;
+}
+
+.claudian-inspector-trail-step[data-status="running"] {
+  background: var(--inspector-live);
+  animation:
+    cl-subagent-step var(--cl-dur) var(--cl-ease-out) both,
+    cl-subagent-step-live 1.4s ease-in-out infinite;
+}
+
+.claudian-inspector-trail-step[data-status="error"] {
+  background: var(--cl-danger);
+}
+
+/* ── Footer and empty state ──────────────────────────────────────────── */
+.claudian-inspector-footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+  padding: 10px 0 14px;
+  background: linear-gradient(to bottom, transparent, var(--background-primary) 40%);
+}
+
+.claudian-inspector-follow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--cl-wash-strong);
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.claudian-inspector.is-following .claudian-inspector-follow {
+  color: var(--text-normal);
+}
+
+.claudian-inspector-follow input {
+  margin: 0;
+  accent-color: var(--inspector-provider);
+}
+
+.claudian-inspector-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: auto;
+  padding: 48px 16px;
+  text-align: center;
+}
+
+.claudian-inspector-empty-title {
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--text-normal);
+}
+
+.claudian-inspector-empty-hint {
+  max-width: 44ch;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* ── Narrow panes ────────────────────────────────────────────────────── */
+@container inspector (max-width: 760px) {
+  .claudian-inspector-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Files and the tool trail sit side by side above the transcript, so the
+     live end of the transcript stays at the bottom of the tab. */
+  .claudian-inspector-aside {
+    position: static;
+    order: -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 12px 28px;
+  }
+
+  .claudian-inspector-aside-section {
+    flex: 1 1 220px;
+    min-width: 0;
+  }
+
+  .claudian-inspector-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container inspector (max-width: 420px) {
+  .claudian-inspector-hero {
+    grid-template-columns: 36px minmax(0, 1fr);
+    grid-template-areas:
+      "glyph heading"
+      "side side"
+      "actions actions";
+  }
+
+  .claudian-inspector-glyph {
+    width: 36px;
+    height: 36px;
+  }
+
+  .claudian-inspector-side {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+@media (pointer: coarse) {
+  .claudian-inspector button.claudian-inspector-button {
+    height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-inspector-ring,
+  .claudian-inspector-glyph.is-settling svg,
+  .claudian-inspector-glyph.is-settling::after,
+  .claudian-inspector-phase-dot,
+  .claudian-inspector-entry.is-new,
+  .claudian-inspector-entry.is-tool[data-status="running"]::before,
+  .claudian-inspector-live-dots,
+  .claudian-inspector-live-dots::before,
+  .claudian-inspector-live-dots::after,
+  .claudian-inspector-trail-step,
+  .claudian-inspector-trail-step[data-status="running"],
+  .claudian-inspector button.claudian-inspector-stop.is-armed {
+    animation: none;
+  }
+}

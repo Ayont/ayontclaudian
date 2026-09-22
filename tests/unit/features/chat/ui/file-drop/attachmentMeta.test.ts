@@ -10,6 +10,7 @@ describe('attachmentTypeMeta', () => {
     expect(attachmentTypeMeta('brief.pdf').kind).toBe('pdf');
     expect(attachmentTypeMeta('vertrag.docx').kind).toBe('doc');
     expect(attachmentTypeMeta('budget.xlsx').kind).toBe('sheet');
+    expect(attachmentTypeMeta('export.tsv').kind).toBe('sheet');
     expect(attachmentTypeMeta('pitch.pptx').kind).toBe('slides');
     expect(attachmentTypeMeta('clip.mp4').kind).toBe('video');
     expect(attachmentTypeMeta('stimme.m4a').kind).toBe('audio');
@@ -27,6 +28,7 @@ describe('attachmentPeekMode', () => {
     expect(attachmentPeekMode('stimme.mp3')).toBe('media');
     expect(attachmentPeekMode('foto.png')).toBe('thumb');
     expect(attachmentPeekMode('data.csv')).toBe('table');
+    expect(attachmentPeekMode('data.tsv')).toBe('table');
     expect(attachmentPeekMode('notes.md')).toBe('page');
     expect(attachmentPeekMode('app.ts')).toBe('code');
     expect(attachmentPeekMode('vertrag.docx')).toBe('paper');

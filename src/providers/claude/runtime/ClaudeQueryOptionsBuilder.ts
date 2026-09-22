@@ -303,6 +303,10 @@ export class QueryOptionsBuilder {
         PATH: ctx.enhancedPath,
       },
       includePartialMessages: true,
+      // The subagent inspector renders the subagent's own transcript and a
+      // present-tense activity line; the SDK sends neither by default.
+      forwardSubagentText: true,
+      agentProgressSummaries: true,
     };
 
     QueryOptionsBuilder.applyExtraArgs(options, claudeSettings);

@@ -166,6 +166,31 @@ and re-renders only the live edge.
 - `MessageRenderer` rehydrates assistant documents into the per-tab document library without writing to the vault. Only an explicit save action creates `.claudian/documents` files.
 - Re-rendering identical content must remain idempotent; do not rebuild the full Markdown subtree or re-discover the same document on every frame.
 
+## Subagents
+
+One model, three surfaces. `SubagentManager` (per tab) is the only owner of
+`SubagentInfo`; the inline card (`SubagentRenderer`), the swarm panel and the
+inspector tab (`subagents/SubagentInspectorView`, a workspace leaf) all read it
+through `subagents/subagentPresentation.ts`, so they never disagree about a
+subagent's phase (`starting · running · stopping · completed · failed ·
+cancelled · orphaned`).
+
+- Providers report live facts as `subagent_update` (task id, type, model,
+  activity line, counters, `cancelled`) and the subagent's own writing as
+  `subagent_text`; child tools stay `subagent_tool_*`. Claude sends all of it
+  (`forwardSubagentText`, `agentProgressSummaries`); Codex relays child threads
+  (`CodexChildThreadRelay`); flat providers only give the Agent/Task call.
+- Stopping goes through `SubagentActionController` for every surface. It stops
+  exactly one subagent when the runtime implements `canCancelSubagent` /
+  `cancelSubagent` (Claude `stopTask`, Codex `turn/interrupt` on the child
+  thread), and otherwise says it will stop the whole answer. Two clicks, always.
+- Card actions are delegated from the messages container via
+  `data-subagent-action`; never nest a button inside the card's header.
+- Cards restored from history never tick or offer Stop: no process is behind
+  them. The inspector falls back to the saved conversation the same way.
+- Codex lifecycle agents register with `trackLifecycleSubagent`; their spawn
+  result arrives at once and must never go through the sync finalize path.
+
 ## Gotchas
 
 - `ClaudianView.onClose()` must abort active tabs and dispose runtimes

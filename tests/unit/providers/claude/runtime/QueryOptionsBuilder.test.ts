@@ -328,6 +328,33 @@ describe('QueryOptionsBuilder', () => {
   });
 
   describe('buildPersistentQueryOptions', () => {
+    // The subagent inspector shows what a subagent writes and does; without
+    // these the SDK sends only its tool calls and the raw progress line.
+    it('asks for subagent text and progress summaries', () => {
+      const ctx = {
+        ...createMockContext(),
+        abortController: new AbortController(),
+        hooks: {},
+      };
+      const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
+
+      expect(options.forwardSubagentText).toBe(true);
+      expect(options.agentProgressSummaries).toBe(true);
+    });
+
+    // Without the declaration, Stop keeps killing background agents as before;
+    // single agents are stopped through stopTask, which works either way.
+    it('keeps the whole-turn Stop semantics for background agents', () => {
+      const ctx = {
+        ...createMockContext(),
+        abortController: new AbortController(),
+        hooks: {},
+      };
+      const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
+
+      expect(options.perTaskStopAffordance).toBeUndefined();
+    });
+
     it('sets yolo mode options correctly', () => {
       const ctx = {
         ...createMockContext(),

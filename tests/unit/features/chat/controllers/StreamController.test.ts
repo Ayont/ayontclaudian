@@ -38,6 +38,7 @@ jest.mock('@/features/chat/rendering/SubagentRenderer', () => ({
     labelEl: { setText: jest.fn() },
   }),
   finalizeSubagentBlock: jest.fn(),
+  setSubagentTask: jest.fn(),
 }));
 
 jest.mock('@/features/chat/rendering/ThinkingBlockRenderer', () => ({
@@ -170,6 +171,15 @@ function createMockDeps(): StreamControllerDeps {
       getSyncSubagent: jest.fn().mockReturnValue(undefined),
       addSyncToolCall: jest.fn(),
       updateSyncToolResult: jest.fn(),
+      addChildToolCall: jest.fn().mockReturnValue(false),
+      findChildToolCall: jest.fn().mockReturnValue(undefined),
+      updateChildToolResult: jest.fn().mockReturnValue(false),
+      appendText: jest.fn(),
+      applyLiveUpdate: jest.fn().mockReturnValue(undefined),
+      resolvePendingMode: jest.fn(),
+      getSubagentById: jest.fn().mockReturnValue(undefined),
+      trackLifecycleSubagent: jest.fn(),
+      settleLifecycleSubagent: jest.fn(),
       finalizeSyncSubagent: jest.fn().mockReturnValue(null),
       resetStreamingState: jest.fn(),
       resetSpawnedCount: jest.fn(),
@@ -1528,16 +1538,14 @@ describe('StreamController - Text Content', () => {
       deps.state.currentContentEl = createMockEl();
 
       const toolCall = { id: 'read-1', name: 'Read', input: {}, status: 'running' };
-      (deps.subagentManager.getSyncSubagent as jest.Mock).mockReturnValueOnce({
-        info: { id: 'task-1', description: 'test', status: 'running', toolCalls: [toolCall] },
-      });
+      (deps.subagentManager.findChildToolCall as jest.Mock).mockReturnValueOnce(toolCall);
 
       await controller.handleStreamChunk(
         { type: 'subagent_tool_result', id: 'read-1', subagentId: 'task-1', content: 'file content' },
         msg
       );
 
-      expect(deps.subagentManager.updateSyncToolResult).toHaveBeenCalledWith(
+      expect(deps.subagentManager.updateChildToolResult).toHaveBeenCalledWith(
         'task-1',
         'read-1',
         expect.objectContaining({ status: 'completed', result: 'file content' })
@@ -1557,10 +1565,52 @@ describe('StreamController - Text Content', () => {
         msg
       );
 
-      expect(deps.subagentManager.addSyncToolCall).toHaveBeenCalledWith(
+      expect(deps.subagentManager.addChildToolCall).toHaveBeenCalledWith(
         'task-1',
         expect.objectContaining({ id: 'grep-1', name: 'Grep', status: 'running' })
       );
+    });
+
+    it('sends what a subagent writes to its own timeline, not to the answer', async () => {
+      const msg = createTestMessage();
+      deps.state.currentContentEl = createMockEl();
+
+      await controller.handleStreamChunk(
+        { type: 'subagent_text', subagentId: 'task-1', text: 'Ich prüfe die Regeln.' },
+        msg
+      );
+
+      expect(deps.subagentManager.appendText).toHaveBeenCalledWith('task-1', 'Ich prüfe die Regeln.');
+      expect(msg.content).toBe('');
+    });
+
+    it('applies live telemetry to the subagent', async () => {
+      const msg = createTestMessage();
+      deps.state.currentContentEl = createMockEl();
+
+      await controller.handleStreamChunk(
+        { type: 'subagent_update', subagentId: 'task-1', update: { taskId: 't-1', activity: 'Liest die Konfiguration' } },
+        msg
+      );
+
+      expect(deps.subagentManager.applyLiveUpdate).toHaveBeenCalledWith('task-1', { taskId: 't-1', activity: 'Liest die Konfiguration' });
+    });
+
+    // Claude reports at launch whether an agent runs in the background, so the
+    // card no longer waits for the agent's first tool call.
+    it('draws a buffered Agent call as soon as the launch says foreground', async () => {
+      const msg = createTestMessage();
+      deps.state.currentContentEl = createMockEl();
+      (deps.subagentManager.hasPendingTask as jest.Mock).mockReturnValue(true);
+
+      await controller.handleStreamChunk(
+        { type: 'subagent_update', subagentId: 'task-1', update: { taskId: 't-1', background: false } },
+        msg
+      );
+
+      expect(deps.subagentManager.resolvePendingMode).toHaveBeenCalledWith('task-1', false);
+      expect(deps.subagentManager.renderPendingTask).toHaveBeenCalledWith('task-1', deps.state.currentContentEl);
+      (deps.subagentManager.hasPendingTask as jest.Mock).mockReturnValue(false);
     });
 
     it('should skip subagent chunk when no sync subagent found', async () => {

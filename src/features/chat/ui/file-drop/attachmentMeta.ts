@@ -38,7 +38,7 @@ const VIDEO_EXTS = ['mp4', 'webm', 'mov', 'mkv', 'avi', 'm4v', 'mpg', 'mpeg'];
 const AUDIO_EXTS = ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac', 'opus'];
 const PDF_EXTS = ['pdf'];
 const DOC_EXTS = ['doc', 'docx', 'odt', 'rtf', 'pages'];
-const SHEET_EXTS = ['xls', 'xlsx', 'ods', 'csv', 'numbers'];
+const SHEET_EXTS = ['xls', 'xlsx', 'ods', 'csv', 'tsv', 'numbers'];
 const SLIDE_EXTS = ['ppt', 'pptx', 'odp', 'key'];
 const CODE_EXTS = ['ts', 'tsx', 'js', 'jsx', 'py', 'rs', 'go', 'java', 'rb', 'php', 'c', 'cpp', 'h', 'sh', 'yml', 'yaml', 'json', 'xml', 'html', 'css', 'sql'];
 const ARCHIVE_EXTS = ['zip', 'tar', 'gz', 'rar', '7z', 'bz2'];
@@ -74,7 +74,7 @@ export function attachmentPeekMode(name: string): AttachmentPeekMode {
   if (kind === 'pdf') return 'iframe';
   if (kind === 'video' || kind === 'audio') return 'media';
   if (kind === 'image') return 'thumb';
-  if (kind === 'sheet' && ext === 'csv') return 'table';
+  if (kind === 'sheet' && (ext === 'csv' || ext === 'tsv')) return 'table';
   if (kind === 'md') return 'page';
   if (kind === 'code') return 'code';
   return 'paper';

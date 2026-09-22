@@ -391,6 +391,7 @@ jest.mock('@/features/chat/services/SubagentManager', () => ({
     onSwarmChange: jest.fn().mockReturnValue(() => {}),
     getAllSubagents: jest.fn().mockReturnValue([]),
     getSubagentById: jest.fn(),
+    setProviderResolver: jest.fn(),
   })),
 }));
 

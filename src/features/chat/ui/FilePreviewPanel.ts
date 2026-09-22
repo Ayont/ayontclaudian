@@ -12,10 +12,19 @@ import { getFileManagerName, openInDefaultApp, revealInSystemFileManager, showFi
 import {
   attachmentTypeMeta,
 } from './file-drop/attachmentMeta';
-import { renderFileFormatBadge } from './file-drop/fileFormatIcons';
+import { createPdfPeekSrcFromBytes } from './file-drop/pdfPeek';
+import { LibrarySearchIndex } from './library/libraryIndex';
+import { describeLibraryItem, type LibraryItem } from './library/libraryItem';
+import { createLibraryRow, type LibraryRowView } from './library/libraryRow';
+import { LibraryThumbnailLoader, planLibraryThumbnail } from './library/libraryThumbnails';
 
 const EMPTY_COPY = 'Erstellte Dokumente und Uploads erscheinen hier.';
+const NO_RESULTS_HINT = 'Tipp: Nach Typ suchen, etwa „pdf“, „bild“ oder „tabelle“.';
 const FULLSCREEN_MEDIA_QUERY = '(max-width: 768px)';
+// Focusing the field on touch devices would pop the keyboard over the list.
+const FINE_POINTER_QUERY = '(hover: hover) and (pointer: fine)';
+// Reading a huge PDF into memory for a 40px peek is not worth it.
+const PDF_PEEK_MAX_BYTES = 25 * 1024 * 1024;
 let nextPanelId = 1;
 
 function isChatImageUpload(upload: LibraryUpload): boolean {
@@ -23,23 +32,11 @@ function isChatImageUpload(upload: LibraryUpload): boolean {
   return attachmentTypeMeta(upload.name).kind === 'image';
 }
 
-
-
 export interface LibraryUpload {
   name: string;
   relPath: string;
   previewSrc?: string;
 }
-
-type LibraryItem =
-  | { id: string; type: 'upload'; name: string; relPath: string; previewSrc?: string }
-  | {
-    id: string;
-    type: 'live';
-    liveDocument: LiveDocument;
-    theme: LiveDocumentTheme;
-    vaultPath?: string;
-  };
 
 /** Persistent, non-destructive library of generated documents and uploads. */
 export class FilePreviewPanel {
@@ -49,6 +46,17 @@ export class FilePreviewPanel {
   private titleEl: HTMLElement | null = null;
   private countEl: HTMLElement | null = null;
   private contentEl: HTMLElement | null = null;
+  private searchEl: HTMLElement | null = null;
+  private searchInput: HTMLInputElement | null = null;
+  private searchClearBtn: HTMLButtonElement | null = null;
+  private searchCountEl: HTMLElement | null = null;
+  private listEl: HTMLElement | null = null;
+  private showingEmpty: boolean | null = null;
+  private noResultsEl: HTMLElement | null = null;
+  private noResultsTitleEl: HTMLElement | null = null;
+  private thumbnails: LibraryThumbnailLoader | null = null;
+  private query = '';
+  private visibleRows: LibraryRowView[] = [];
   private isOpen = false;
   private isFullscreen = false;
   private destroyed = false;
@@ -57,6 +65,8 @@ export class FilePreviewPanel {
   private refreshPromise: Promise<void> | null = null;
   private readonly host = new Component();
   private readonly items: LibraryItem[] = [];
+  private readonly rowViews = new WeakMap<LibraryItem, LibraryRowView>();
+  private readonly searchIndex = new LibrarySearchIndex<LibraryItem>(describeLibraryItem);
   private readonly panelId = `claudian-document-library-${nextPanelId++}`;
 
   constructor(
@@ -99,10 +109,66 @@ export class FilePreviewPanel {
     setIcon(this.closeBtn, 'x');
     this.closeBtn.addEventListener('click', () => this.close());
 
+    this.renderSearch(this.panelEl);
     this.contentEl = this.panelEl.createDiv({ cls: 'claudian-preview-content' });
+    this.renderContentSkeleton(this.contentEl);
+    this.thumbnails = new LibraryThumbnailLoader({
+      win: this.containerEl.ownerDocument?.defaultView ?? null,
+      root: this.contentEl,
+      loadPdfPeek: (path) => this.loadPdfPeek(path),
+    });
     this.configureFullscreenMode();
     this.renderLibrary();
     void this.refreshVaultDocuments();
+  }
+
+  private renderSearch(parent: HTMLElement): void {
+    this.searchEl = parent.createDiv({ cls: 'claudian-preview-search claudian-hidden' });
+    this.searchEl.setAttribute('role', 'search');
+    const searchIcon = this.searchEl.createSpan({ cls: 'claudian-preview-search-icon' });
+    searchIcon.setAttribute('aria-hidden', 'true');
+    setIcon(searchIcon, 'search');
+    this.searchInput = this.searchEl.createEl('input', {
+      cls: 'claudian-preview-search-input',
+      attr: {
+        type: 'text',
+        name: 'library-search',
+        'aria-label': 'Bibliothek durchsuchen',
+        placeholder: 'Name, Ordner oder Typ …',
+        'aria-controls': `${this.panelId}-list`,
+        autocomplete: 'off',
+        spellcheck: 'false',
+        enterkeyhint: 'search',
+      },
+    }) as HTMLInputElement;
+    this.searchCountEl = this.searchEl.createSpan({ cls: 'claudian-preview-search-count' });
+    this.searchCountEl.setAttribute('aria-live', 'polite');
+    this.searchClearBtn = this.searchEl.createEl('button', {
+      cls: 'claudian-preview-search-clear clickable-icon claudian-hidden',
+      attr: { type: 'button', 'aria-label': 'Suche leeren' },
+    }) as HTMLButtonElement;
+    setIcon(this.searchClearBtn, 'x');
+    this.searchClearBtn.addEventListener('click', () => this.clearSearch());
+    this.searchInput.addEventListener('input', this.handleSearchInput);
+    this.searchInput.addEventListener('keydown', this.handleSearchKeydown);
+  }
+
+  private renderContentSkeleton(parent: HTMLElement): void {
+    this.listEl = parent.createDiv({ cls: 'claudian-preview-library' });
+    this.listEl.setAttribute('id', `${this.panelId}-list`);
+    this.listEl.setAttribute('role', 'list');
+    this.listEl.setAttribute('aria-label', 'Bibliothekseinträge');
+    this.listEl.addEventListener('keydown', this.handleListKeydown);
+
+    this.noResultsEl = parent.createDiv({ cls: 'claudian-preview-no-results claudian-hidden' });
+    this.noResultsTitleEl = this.noResultsEl.createEl('p', { cls: 'claudian-preview-no-results-title' });
+    this.noResultsEl.createEl('p', { cls: 'claudian-preview-no-results-hint', text: NO_RESULTS_HINT });
+    const reset = this.noResultsEl.createEl('button', {
+      cls: 'claudian-preview-no-results-reset',
+      attr: { type: 'button' },
+      text: 'Suche zurücksetzen',
+    });
+    reset.addEventListener('click', () => this.clearSearch());
   }
 
   toggle(): void {
@@ -133,7 +199,17 @@ export class FilePreviewPanel {
     this.updatePanelSemantics();
     this.renderLibrary();
     void this.refreshVaultDocuments();
-    if (opening) this.closeBtn?.focus();
+    if (opening) this.focusOnOpen();
+  }
+
+  private focusOnOpen(): void {
+    const win = this.containerEl.ownerDocument?.defaultView;
+    const finePointer = typeof win?.matchMedia === 'function' && win.matchMedia(FINE_POINTER_QUERY).matches;
+    if (finePointer && this.items.length > 0 && this.searchInput) {
+      this.searchInput.focus({ preventScroll: true });
+      return;
+    }
+    this.closeBtn?.focus();
   }
 
   close(restoreFocus = true): void {
@@ -161,7 +237,8 @@ export class FilePreviewPanel {
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
-      this.close();
+      if (this.query) this.clearSearch();
+      else this.close();
       return;
     }
     if (event.key !== 'Tab' || !this.isOpen || !this.isFullscreen || !this.panelEl) return;
@@ -354,110 +431,150 @@ export class FilePreviewPanel {
   }
 
   private renderLibrary(): void {
-    if (!this.contentEl || this.destroyed) return;
-    this.contentEl.empty();
+    if (!this.contentEl || !this.listEl || this.destroyed) return;
+    const total = this.items.length;
     this.titleEl?.setText('Bibliothek');
     if (this.countEl) {
-      this.countEl.setText(String(this.items.length));
-      this.countEl.toggleClass('claudian-hidden', this.items.length === 0);
+      this.countEl.setText(String(total));
+      this.countEl.toggleClass('claudian-hidden', total === 0);
     }
+    this.searchEl?.toggleClass('claudian-hidden', total === 0);
+    this.syncEmptyState(total === 0);
+    this.syncRowOrder();
+    this.applyFilter();
+  }
 
-    if (this.items.length === 0) {
+  /** Swaps the empty copy and the list only when the state flips, so a focused row survives. */
+  private syncEmptyState(showEmpty: boolean): void {
+    if (!this.contentEl || !this.listEl || !this.noResultsEl || this.showingEmpty === showEmpty) return;
+    this.showingEmpty = showEmpty;
+    this.contentEl.empty();
+    if (showEmpty) {
       this.contentEl.createEl('p', { cls: 'claudian-preview-empty', text: EMPTY_COPY });
       return;
     }
-
-    const library = this.contentEl.createDiv({ cls: 'claudian-preview-library' });
-    for (const item of this.items) this.renderCard(library, item);
+    this.contentEl.appendChild(this.listEl);
+    this.contentEl.appendChild(this.noResultsEl);
   }
 
-  private renderCard(parent: HTMLElement, item: LibraryItem): void {
-    const isLive = item.type === 'live';
-    const isVault = item.type === 'live' && Boolean(item.vaultPath);
-    const name = isLive ? item.liveDocument.title : item.name;
-    const path = isLive
-      ? (item.vaultPath || `.claudian/documents/${item.liveDocument.title}.md`)
-      : item.relPath;
-    const meta = isLive
-      ? { kind: 'document', icon: 'file-text' }
-      : attachmentTypeMeta(item.name);
-
-    const liveClasses = isLive ? ` claudian-preview-card--live${isVault ? ' claudian-preview-card--vault' : ''}` : '';
-
-    const row = parent.createEl('button', {
-      cls: `claudian-preview-card claudian-preview-row claudian-preview-row--${meta.kind}${liveClasses}`,
-      attr: {
-        type: 'button',
-        'aria-label': `${name} öffnen`,
-        'data-library-id': item.id,
-      },
-    });
-
-    const iconContainer = row.createSpan({ cls: 'claudian-preview-row-icon' });
-    renderFileFormatBadge(iconContainer, name);
-
-    const textDetails = row.createDiv({ cls: 'claudian-preview-row-text' });
-    textDetails.createSpan({ cls: 'claudian-preview-card-name claudian-preview-row-name', text: name });
-
-    const folder = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
-    if (folder) {
-      textDetails.createSpan({ cls: 'claudian-preview-row-folder', text: folder });
+  /** Rows are built once per item; re-rendering only reorders when needed. */
+  private syncRowOrder(): void {
+    const listEl = this.listEl;
+    if (!listEl) return;
+    const rows = this.items.map((item) => this.rowFor(item).el);
+    const current = Array.from(listEl.children);
+    if (current.length === rows.length && rows.every((row, index) => current[index] === row)) return;
+    // Re-appending moves the focused row, which drops focus; restore it.
+    const focused = this.containerEl.ownerDocument?.activeElement as HTMLElement | null;
+    listEl.empty();
+    for (const row of rows) listEl.appendChild(row);
+    if (focused && focused !== this.containerEl.ownerDocument?.activeElement && listEl.contains(focused)) {
+      focused.focus({ preventScroll: true });
     }
-
-    const actions = row.createDiv({ cls: 'claudian-preview-card-actions claudian-preview-row-actions' });
-    const fileMgrName = getFileManagerName();
-
-    const revealBtn = actions.createEl('button', {
-      cls: 'claudian-preview-card-btn clickable-icon',
-      attr: {
-        type: 'button',
-        'aria-label': `In ${fileMgrName} anzeigen`,
-        title: `In ${fileMgrName} anzeigen`,
-      },
-    });
-    setIcon(revealBtn, 'folder');
-    revealBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      void revealInSystemFileManager(this.plugin.app, path);
-    });
-
-    const extBtn = actions.createEl('button', {
-      cls: 'claudian-preview-card-btn clickable-icon',
-      attr: {
-        type: 'button',
-        'aria-label': 'In Standard-App öffnen',
-        title: 'In Standard-App öffnen',
-      },
-    });
-    setIcon(extBtn, 'external-link');
-    extBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      void openInDefaultApp(this.plugin.app, path);
-    });
-
-    const moreBtn = actions.createEl('button', {
-      cls: 'claudian-preview-card-btn clickable-icon',
-      attr: {
-        type: 'button',
-        'aria-label': 'Weitere Aktionen',
-        title: 'Weitere Aktionen',
-      },
-    });
-    setIcon(moreBtn, 'more-horizontal');
-    moreBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      showFileContextMenu(this.plugin.app, e, path);
-    });
-
-    row.addEventListener('click', () => void this.openItem(item));
-    row.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      showFileContextMenu(this.plugin.app, e, path);
-    });
   }
 
-    private async openItem(item: LibraryItem): Promise<void> {
+  private rowFor(item: LibraryItem): LibraryRowView {
+    const cached = this.rowViews.get(item);
+    if (cached) return cached;
+    const details = describeLibraryItem(item);
+    const view = createLibraryRow(this.listEl!, {
+      itemId: item.id,
+      details,
+      isLive: item.type === 'live',
+      isVault: item.type === 'live' && Boolean(item.vaultPath),
+      plan: planLibraryThumbnail(item, (relPath) => this.resolveResourcePath(relPath)),
+      fileManagerName: getFileManagerName(),
+      actions: {
+        open: () => void this.openItem(item),
+        reveal: () => void revealInSystemFileManager(this.plugin.app, details.path),
+        openExternal: () => void openInDefaultApp(this.plugin.app, details.path),
+        showMenu: (event) => showFileContextMenu(this.plugin.app, event, details.path),
+      },
+    });
+    this.rowViews.set(item, view);
+    return view;
+  }
+
+  private applyFilter(): void {
+    const result = this.searchIndex.search(this.items, this.query);
+    const matches = new Map(result.matches.map((match) => [match.item, match]));
+    this.visibleRows = [];
+    for (const item of this.items) {
+      const view = this.rowFor(item);
+      const match = matches.get(item);
+      view.el.toggleClass('claudian-hidden', !match);
+      if (!match) continue;
+      view.setHighlight(match.nameRanges, match.folderRanges);
+      this.visibleRows.push(view);
+      // Closed panels and filtered-out rows never fetch or generate a thumbnail.
+      if (this.isOpen) this.thumbnails?.request(view.thumbnail);
+    }
+    this.syncSearchStatus(this.visibleRows.length, result.total);
+  }
+
+  private syncSearchStatus(visible: number, total: number): void {
+    const searching = this.query.trim().length > 0;
+    this.searchCountEl?.setText(searching ? `${visible} von ${total}` : '');
+    this.searchClearBtn?.toggleClass('claudian-hidden', this.query.length === 0);
+    const noResults = searching && visible === 0 && total > 0;
+    this.noResultsEl?.toggleClass('claudian-hidden', !noResults);
+    this.listEl?.toggleClass('claudian-hidden', noResults || total === 0);
+    if (noResults) this.noResultsTitleEl?.setText(`Keine Treffer für „${this.query.trim()}“`);
+  }
+
+  private setQuery(value: string): void {
+    if (value === this.query) return;
+    this.query = value;
+    this.applyFilter();
+  }
+
+  private clearSearch(): void {
+    if (this.searchInput) this.searchInput.value = '';
+    this.setQuery('');
+    this.searchInput?.focus();
+  }
+
+  private readonly handleSearchInput = (): void => {
+    this.setQuery(this.searchInput?.value ?? '');
+  };
+
+  private readonly handleSearchKeydown = (event: KeyboardEvent): void => {
+    const first = this.visibleRows[0];
+    if (!first) return;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      first.openEl.focus();
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      first.openEl.click();
+    }
+  };
+
+  private readonly handleListKeydown = (event: KeyboardEvent): void => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    const target = event.target as HTMLElement | null;
+    const rowEl = target?.closest?.('.claudian-preview-row') ?? null;
+    const index = this.visibleRows.findIndex((view) => view.el === rowEl);
+    if (index < 0) return;
+    event.preventDefault();
+    const next = index + (event.key === 'ArrowDown' ? 1 : -1);
+    if (next < 0) {
+      this.searchInput?.focus();
+      return;
+    }
+    this.visibleRows[Math.min(next, this.visibleRows.length - 1)].openEl.focus();
+  };
+
+  private async loadPdfPeek(path: string): Promise<string | null> {
+    const vault = this.plugin.app.vault;
+    const file = vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile) || typeof vault.readBinary !== 'function') return null;
+    if ((file.stat?.size ?? 0) > PDF_PEEK_MAX_BYTES) return null;
+    const bytes = await vault.readBinary(file);
+    return createPdfPeekSrcFromBytes(new Uint8Array(bytes));
+  }
+
+  private async openItem(item: LibraryItem): Promise<void> {
     try {
       if (item.type === 'live' && !item.vaultPath) {
         await openLiveDocumentPreview(this.plugin.app, this.host, item.liveDocument, item.theme);
@@ -494,6 +611,11 @@ export class FilePreviewPanel {
     this.close(false);
     this.releaseFullscreenMode();
     this.panelEl?.removeEventListener('keydown', this.handlePanelKeydown);
+    this.searchInput?.removeEventListener('input', this.handleSearchInput);
+    this.searchInput?.removeEventListener('keydown', this.handleSearchKeydown);
+    this.listEl?.removeEventListener('keydown', this.handleListKeydown);
+    this.thumbnails?.destroy();
+    this.thumbnails = null;
     this.host.unload();
     this.panelEl?.remove();
     this.toggleBtn?.remove();
@@ -503,5 +625,13 @@ export class FilePreviewPanel {
     this.contentEl = null;
     this.titleEl = null;
     this.countEl = null;
+    this.searchEl = null;
+    this.searchInput = null;
+    this.searchClearBtn = null;
+    this.searchCountEl = null;
+    this.listEl = null;
+    this.noResultsEl = null;
+    this.noResultsTitleEl = null;
+    this.visibleRows = [];
   }
 }

@@ -316,3 +316,112 @@ describe('FilePreviewPanel', () => {
     );
   });
 });
+
+describe('FilePreviewPanel search', () => {
+  function mountWithUploads() {
+    const mounted = mountPanel();
+    mounted.panel.rememberUpload({ name: 'Notiz.md', relPath: 'Inbox/Notiz.md' });
+    mounted.panel.rememberUpload({ name: 'Budget 2026.xlsx', relPath: 'Finanzen/Budget 2026.xlsx' });
+    mounted.panel.rememberUpload({ name: 'Vertrag.pdf', relPath: 'Kunden/CERTUSS/Vertrag.pdf' });
+    mounted.panel.open();
+    const input = mounted.container.querySelector('.claudian-preview-search-input')!;
+    const type = (value: string) => {
+      input.value = value;
+      input.dispatchEvent({ type: 'input', target: input });
+    };
+    const visibleNames = () => mounted.container.querySelectorAll('.claudian-preview-row')
+      .filter((row: any) => !row.hasClass('claudian-hidden'))
+      .map((row: any) => row.getAttribute('data-library-id'));
+    return { ...mounted, input, type, visibleNames };
+  }
+
+  it('offers a labelled search field once the library has items', () => {
+    const { container, panel } = mountPanel();
+    const search = container.querySelector('.claudian-preview-search')!;
+    expect(search.hasClass('claudian-hidden')).toBe(true);
+
+    panel.rememberUpload({ name: 'Vertrag.pdf', relPath: 'Kunden/Vertrag.pdf' });
+
+    expect(search.hasClass('claudian-hidden')).toBe(false);
+    const input = container.querySelector('.claudian-preview-search-input')!;
+    expect(input.getAttribute('aria-label')).toBe('Bibliothek durchsuchen');
+    expect(input.getAttribute('type')).toBe('text');
+  });
+
+  it('filters by name, folder and German type words and reports "X von N"', () => {
+    const { container, type, visibleNames } = mountWithUploads();
+
+    type('tabelle');
+    expect(visibleNames()).toEqual(['upload:Finanzen/Budget 2026.xlsx']);
+    expect(container.querySelector('.claudian-preview-search-count')!.textContent).toBe('1 von 3');
+
+    type('certuss');
+    expect(visibleNames()).toEqual(['upload:Kunden/CERTUSS/Vertrag.pdf']);
+
+    type('');
+    expect(visibleNames()).toHaveLength(3);
+    expect(container.querySelector('.claudian-preview-search-count')!.textContent).toBe('');
+  });
+
+  it('shows a German empty state whose reset action restores every row', () => {
+    const { container, type, visibleNames } = mountWithUploads();
+
+    type('rechnung');
+
+    const noResults = container.querySelector('.claudian-preview-no-results')!;
+    expect(noResults.hasClass('claudian-hidden')).toBe(false);
+    expect(container.querySelector('.claudian-preview-no-results-title')!.textContent).toBe('Keine Treffer für „rechnung“');
+    container.querySelector('.claudian-preview-no-results-reset')!.click();
+
+    expect(noResults.hasClass('claudian-hidden')).toBe(true);
+    expect(visibleNames()).toHaveLength(3);
+  });
+
+  it('clears an active search on Escape before Escape closes the panel', () => {
+    const { container, input, type } = mountWithUploads();
+    const panelEl = container.querySelector('.claudian-preview-panel')!;
+    const escape = () => panelEl.dispatchEvent({
+      type: 'keydown',
+      key: 'Escape',
+      target: input,
+      preventDefault: jest.fn(),
+      stopPropagation: jest.fn(),
+    });
+
+    type('pdf');
+    escape();
+    expect(input.value).toBe('');
+    expect(container.hasClass('claudian-preview-open')).toBe(true);
+
+    escape();
+    expect(container.hasClass('claudian-preview-open')).toBe(false);
+  });
+
+  it('moves through visible results with the arrow keys and opens with Enter', () => {
+    const { container, input, type } = mountWithUploads();
+    type('a');
+    const rows = container.querySelectorAll('.claudian-preview-row')
+      .filter((row: any) => !row.hasClass('claudian-hidden'))
+      .map((row: any) => row.querySelector('.claudian-preview-row-open'));
+    const firstFocus = jest.spyOn(rows[0], 'focus');
+    const secondFocus = jest.spyOn(rows[1], 'focus');
+    const inputFocus = jest.spyOn(input, 'focus');
+    const key = (target: any, name: string) => {
+      const event = { type: 'keydown', key: name, target, preventDefault: jest.fn(), stopPropagation: jest.fn() };
+      target.dispatchEvent(event);
+      container.querySelector('.claudian-preview-library')!.dispatchEvent(event);
+      return event;
+    };
+
+    expect(key(input, 'ArrowDown').preventDefault).toHaveBeenCalled();
+    expect(firstFocus).toHaveBeenCalled();
+    key(rows[0], 'ArrowDown');
+    expect(secondFocus).toHaveBeenCalled();
+    key(rows[0], 'ArrowUp');
+    expect(inputFocus).toHaveBeenCalled();
+
+    const openSpy = jest.spyOn(rows[0], 'click');
+    key(input, 'Enter');
+    expect(openSpy).toHaveBeenCalled();
+  });
+});

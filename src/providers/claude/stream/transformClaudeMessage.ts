@@ -1,6 +1,6 @@
 import type { SDKMessage, SDKResultError } from '@anthropic-ai/claude-agent-sdk';
 
-import type { SDKToolUseResult, StreamChunk, UsageInfo } from '../../../core/types';
+import type { SDKToolUseResult, StreamChunk, SubagentLiveUpdate, UsageInfo } from '../../../core/types';
 import { isBlockedMessage } from '../sdk/messages';
 import { extractToolResultContent } from '../sdk/toolResultContent';
 import type { TransformEvent } from '../sdk/types';
@@ -112,6 +112,48 @@ function transformTaskResult(message: SDKMessage): StreamChunk | null {
       },
     }),
   };
+}
+
+/**
+ * Task telemetry for an Agent subagent, keyed by its Agent tool call. Bash
+ * commands a subagent runs report as their own `local_bash` tasks; those are
+ * not subagents and must not reach a card.
+ */
+function transformAgentTaskTelemetry(message: SDKMessage): StreamChunk | null {
+  if (message.type !== 'system') return null;
+  const record = message as unknown as Record<string, unknown>;
+  const toolUseId = typeof record.tool_use_id === 'string' ? record.tool_use_id : '';
+  if (!toolUseId) return null;
+
+  if (message.subtype === 'task_started') {
+    if (record.task_type !== 'local_agent') return null;
+    const update: SubagentLiveUpdate = { taskId: message.task_id };
+    if (typeof record.subagent_type === 'string' && record.subagent_type) {
+      update.agentType = record.subagent_type;
+    }
+    if (typeof record.is_backgrounded === 'boolean') update.background = record.is_backgrounded;
+    return { type: 'subagent_update', subagentId: toolUseId, update };
+  }
+
+  if (message.subtype === 'task_progress') {
+    // Progress carries no task_type; a Bash task's tool id matches no card, so
+    // the chat layer ignores it.
+    const summary = typeof record.summary === 'string' ? record.summary.trim() : '';
+    const update: SubagentLiveUpdate = {
+      activity: summary || message.description,
+      ...(message.last_tool_name && { lastToolName: message.last_tool_name }),
+      totalTokens: message.usage.total_tokens,
+      toolUses: message.usage.tool_uses,
+      durationMs: message.usage.duration_ms,
+    };
+    return { type: 'subagent_update', subagentId: toolUseId, update };
+  }
+
+  // A stop with a reason (e.g. worker_restart) was not the user's.
+  if (message.subtype === 'task_notification' && record.status === 'stopped' && !record.reason) {
+    return { type: 'subagent_update', subagentId: toolUseId, update: { cancelled: true } };
+  }
+  return null;
 }
 
 export interface TransformOptions {
@@ -612,10 +654,17 @@ export function* transformSDKMessage(
       } else if (message.subtype === 'task_started') {
         const started = transformTaskStarted(message);
         if (started) yield started;
+        const telemetry = transformAgentTaskTelemetry(message);
+        if (telemetry) yield telemetry;
       } else if (message.subtype === 'task_progress') {
         const progress = transformTaskProgress(message);
         if (progress) yield progress;
+        const telemetry = transformAgentTaskTelemetry(message);
+        if (telemetry) yield telemetry;
       } else if (message.subtype === 'task_notification') {
+        // Mark the card cancelled before the generic result would call it failed.
+        const telemetry = transformAgentTaskTelemetry(message);
+        if (telemetry) yield telemetry;
         const result = transformTaskResult(message);
         if (result) yield result;
         const notification = transformTaskNotification(message);
@@ -636,6 +685,11 @@ export function* transformSDKMessage(
         yield { type: 'error', content: message.error };
       }
 
+      const childModel = parentToolUseId !== null ? message.message?.model : undefined;
+      if (parentToolUseId !== null && typeof childModel === 'string' && childModel) {
+        yield { type: 'subagent_update', subagentId: parentToolUseId, update: { model: childModel } };
+      }
+
       if (message.message?.content && Array.isArray(message.message.content)) {
         for (const block of message.message.content) {
           if (block.type === 'thinking' && block.thinking) {
@@ -643,9 +697,12 @@ export function* transformSDKMessage(
               yield { type: 'thinking', content: block.thinking };
             }
           } else if (block.type === 'text' && block.text && block.text.trim() !== '(no content)') {
-            if (parentToolUseId === null) {
-              yield { type: 'text', content: block.text };
-            }
+            // Subagent text arrives only with forwardSubagentText; it belongs in
+            // the subagent's own timeline, never in the parent answer.
+            yield parentToolUseId === null
+              ? { type: 'text', content: block.text }
+              // Each block is whole; keep consecutive blocks apart in the timeline.
+              : { type: 'subagent_text', subagentId: parentToolUseId, text: `${block.text}\n\n` };
           } else if (block.type === 'tool_use') {
             yield emitToolUse(parentToolUseId, {
               id: block.id || `tool-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,

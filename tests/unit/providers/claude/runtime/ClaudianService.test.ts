@@ -1056,6 +1056,51 @@ describe('ClaudianService', () => {
     });
   });
 
+  // Verified live against Claude Code 2.1.280: stopTask(task_id) stops that
+  // one agent (and the commands it runs); the parent turn continues.
+  describe('Stopping a single subagent', () => {
+    it('stops a subagent through its task id without interrupting the turn', async () => {
+      const stopTask = jest.fn().mockResolvedValue(undefined);
+      const interrupt = jest.fn().mockResolvedValue(undefined);
+      (service as any).persistentQuery = { stopTask, interrupt };
+      (service as any).shuttingDown = false;
+
+      expect(service.canCancelSubagent({ id: 'toolu_agent', taskId: 'a53054abb0493d657' })).toBe(true);
+      await expect(service.cancelSubagent({ id: 'toolu_agent', taskId: 'a53054abb0493d657' })).resolves.toBe(true);
+
+      expect(stopTask).toHaveBeenCalledWith('a53054abb0493d657');
+      expect(interrupt).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the agent id of a background subagent', async () => {
+      const stopTask = jest.fn().mockResolvedValue(undefined);
+      (service as any).persistentQuery = { stopTask };
+
+      await service.cancelSubagent({ id: 'toolu_bg', agentId: 'agent-7', mode: 'async' });
+
+      expect(stopTask).toHaveBeenCalledWith('agent-7');
+    });
+
+    it('cannot target a subagent before the SDK announced its task', () => {
+      (service as any).persistentQuery = { stopTask: jest.fn() };
+
+      expect(service.canCancelSubagent({ id: 'toolu_agent' })).toBe(false);
+    });
+
+    it('cannot stop anything without a live persistent query', async () => {
+      (service as any).persistentQuery = null;
+
+      expect(service.canCancelSubagent({ id: 'toolu_agent', taskId: 't' })).toBe(false);
+      await expect(service.cancelSubagent({ id: 'toolu_agent', taskId: 't' })).resolves.toBe(false);
+    });
+
+    it('reports a rejected stop instead of throwing', async () => {
+      (service as any).persistentQuery = { stopTask: jest.fn().mockRejectedValue(new Error('unknown task')) };
+
+      await expect(service.cancelSubagent({ id: 'toolu_agent', taskId: 'gone' })).resolves.toBe(false);
+    });
+  });
+
   describe('createApprovalCallback - allowed tools restriction', () => {
     const canUseToolOptions = {
       signal: new AbortController().signal,

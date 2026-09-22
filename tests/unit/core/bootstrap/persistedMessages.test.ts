@@ -1,7 +1,10 @@
 import {
+  MAX_PERSISTED_SUBAGENT_TEXT_CHARS,
+  MAX_PERSISTED_SUBAGENT_TIMELINE_ENTRIES,
   MAX_PERSISTED_TOOL_RESULT_CHARS,
   toPersistedMessage,
   toPersistedMessages,
+  toPersistedSubagent,
   TRUNCATION_NOTICE,
 } from '@/core/bootstrap/persistedMessages';
 import type { ChatMessage } from '@/core/types';
@@ -105,5 +108,51 @@ describe('toPersistedMessage', () => {
     const after = JSON.stringify(toPersistedMessages(messages)).length;
 
     expect(after).toBeLessThan(before / 20);
+  });
+});
+
+describe('toPersistedSubagent', () => {
+  it('keeps the live facts the inspector shows after a restart', () => {
+    const persisted = toPersistedSubagent({
+      id: 'toolu_1',
+      description: 'Firewall prüfen',
+      status: 'error',
+      toolCalls: [],
+      isExpanded: false,
+      agentType: 'Explore',
+      model: 'claude-haiku-4-5',
+      providerId: 'claude',
+      cancelState: 'cancelled',
+      totalTokens: 15853,
+      timeline: [{ type: 'text', text: 'Ich prüfe die Regeln.', at: 1 }],
+    });
+
+    expect(persisted).toMatchObject({
+      agentType: 'Explore',
+      model: 'claude-haiku-4-5',
+      providerId: 'claude',
+      cancelState: 'cancelled',
+      totalTokens: 15853,
+      timeline: [{ type: 'text', text: 'Ich prüfe die Regeln.', at: 1 }],
+    });
+  });
+
+  // The session file is read on every start; a chatty subagent must not bloat it.
+  it('bounds the persisted transcript and keeps its newest part', () => {
+    const timeline = Array.from({ length: 300 }, (_, index) => (
+      index % 2 === 0
+        ? { type: 'text' as const, text: `${index}:${'x'.repeat(5_000)}`, at: index }
+        : { type: 'tool' as const, toolId: `t${index}`, at: index }
+    ));
+
+    const persisted = toPersistedSubagent({
+      id: 'toolu_1', description: 'Viel Text', status: 'completed', toolCalls: [], isExpanded: false, timeline,
+    });
+
+    const kept = persisted.timeline ?? [];
+    expect(kept.length).toBeLessThanOrEqual(MAX_PERSISTED_SUBAGENT_TIMELINE_ENTRIES);
+    expect(kept.at(-1)).toEqual({ type: 'tool', toolId: 't299', at: 299 });
+    const textChars = kept.reduce((sum, entry) => sum + (entry.type === 'text' ? entry.text.length : 0), 0);
+    expect(textChars).toBeLessThanOrEqual(MAX_PERSISTED_SUBAGENT_TEXT_CHARS);
   });
 });

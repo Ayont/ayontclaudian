@@ -43,6 +43,9 @@ jest.mock('@/features/chat/rendering/SubagentRenderer', () => ({
   updateAsyncSubagentRunning: jest.fn(),
   finalizeAsyncSubagent: jest.fn(),
   markAsyncSubagentOrphaned: jest.fn(),
+  refreshSubagentCard: jest.fn(),
+  setSubagentTask: jest.fn(),
+  SUBAGENT_ORPHANED_RESULT: 'Der Chat endete, bevor der Subagent fertig war.',
 }));
 
 const createManager = () => {
@@ -259,7 +262,7 @@ describe('SubagentManager', () => {
       expect(orphaned).toHaveLength(2);
       orphaned.forEach((subagent) => {
         expect(subagent.asyncStatus).toBe('orphaned');
-        expect(subagent.result).toContain('Conversation ended');
+        expect(subagent.result).toContain('Der Chat endete');
       });
       expect(manager.getByTaskId('pending-task')).toBeUndefined();
       expect(manager.getByTaskId('running-task')).toBeUndefined();

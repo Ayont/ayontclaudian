@@ -2,6 +2,7 @@ import * as path from 'path';
 
 import { CLAUDIAN_STORAGE_PATH } from '../../../core/bootstrap/StoragePaths';
 import { readJsonFile, SerialJsonFileWriter } from '../../../core/storage/atomicJsonFile';
+import { normalizeTableProfile, type TableProfile } from '../ui/file-drop/tableProfile';
 
 export const COMPOSER_DRAFTS_PATH = `${CLAUDIAN_STORAGE_PATH}/composer-drafts.json`;
 
@@ -20,6 +21,8 @@ export interface ComposerDraftAttachment {
   name: string;
   relPath: string;
   size?: number;
+  /** Bounded structure of a staged table, so its agent preview survives a restart. */
+  table?: TableProfile;
 }
 
 /** Everything in a composer that has not been sent yet. */
@@ -60,10 +63,12 @@ function normalizeAttachments(value: unknown): ComposerDraftAttachment[] {
     if (!isRecord(entry) || typeof entry.name !== 'string' || typeof entry.relPath !== 'string' || !entry.relPath) {
       continue;
     }
+    const table = normalizeTableProfile(entry.table);
     attachments.push({
       name: entry.name,
       relPath: entry.relPath,
       ...(typeof entry.size === 'number' && Number.isFinite(entry.size) ? { size: entry.size } : {}),
+      ...(table ? { table } : {}),
     });
     if (attachments.length >= MAX_DRAFT_ATTACHMENTS) break;
   }

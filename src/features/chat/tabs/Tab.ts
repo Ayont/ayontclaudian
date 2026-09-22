@@ -51,6 +51,7 @@ import { findRewindContext } from '../rewind';
 import { BangBashService } from '../services/BangBashService';
 import { SubagentManager } from '../services/SubagentManager';
 import { ChatState } from '../state/ChatState';
+import { SubagentActionController } from '../subagents/SubagentActionController';
 import { BangBashModeManager as BangBashModeManagerClass } from '../ui/BangBashModeManager';
 import { ChatSearchController } from '../ui/ChatSearch';
 import { CommitBar } from '../ui/CommitBar';
@@ -893,6 +894,10 @@ export function createTab(options: TabCreateOptions): TabData {
     manager: subagentManager,
     mountEl: dom.messagesEl.parentElement ?? dom.messagesEl,
     getMessagesEl: () => dom.messagesEl,
+    // Resolved lazily: the action controller exists once `tab` does.
+    onInspect: (subagentId) => tab.services.subagentActions?.handleAction(dom.messagesEl, 'inspect', subagentId),
+    onStop: (subagentId) => tab.services.subagentActions?.stop(subagentId),
+    getStopScope: (subagentId) => tab.services.subagentActions?.resolveStopScope(subagentId) ?? 'none',
   });
 
   const isBound = !!conversation?.id;
@@ -961,6 +966,26 @@ export function createTab(options: TabCreateOptions): TabData {
   // Now that `tab` exists, let the live status bar report the active
   // provider + model while a turn is streaming.
   getRunContextLabel = () => buildRunContextLabel(tab, plugin);
+
+  // Subagents carry the provider that ran them; cards, the swarm panel and the
+  // inspector tab stop and open them through one controller.
+  subagentManager.setProviderResolver(() => tab.providerId);
+  const subagentActions = new SubagentActionController({
+    getManager: () => tab.services.subagentManager,
+    getRuntime: () => tab.service,
+    isStreaming: () => tab.state.isStreaming,
+    cancelTurn: () => tab.controllers.inputController?.cancelStreaming(),
+    openInspector: (subagentId) => {
+      void plugin.openSubagentInspector({
+        subagentId,
+        conversationId: tab.conversationId ?? tab.state.currentConversationId ?? null,
+      });
+    },
+    providerLabel: () => ProviderRegistry.getProviderRegistrationSafe(tab.providerId)?.displayName ?? tab.providerId,
+    notify: (message) => new Notice(message),
+  });
+  tab.services.subagentActions = subagentActions;
+  subagentActions.attach(dom.messagesEl);
 
   return tab;
 }
@@ -2682,6 +2707,8 @@ export async function destroyTab(tab: TabData): Promise<void> {
   try { tab.ui.streamStatusBar?.destroy?.(); } catch { /* ignore */ }
   tab.ui.modelSelector = null;
 
+  try { tab.services.subagentActions?.dispose(); } catch { /* ignore */ }
+  tab.services.subagentActions = null;
   try { tab.services.subagentManager?.orphanAllActive?.(); } catch { /* ignore */ }
   try { tab.services.subagentManager?.clear?.(); } catch { /* ignore */ }
 

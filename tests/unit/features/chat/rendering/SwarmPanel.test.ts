@@ -116,7 +116,7 @@ describe('SwarmPanel', () => {
   it('shows an async mode badge', () => {
     build([makeAgent({ id: 'a', mode: 'async', asyncStatus: 'running' })]);
     const badge = mountEl.querySelector('.claudian-swarm-agent-mode');
-    expect(badge.textContent).toBe('async');
+    expect(badge.textContent).toBe('Hintergrund');
   });
 
   it('shows a duration for finished agents', () => {
@@ -177,7 +177,7 @@ describe('SwarmPanel', () => {
 
     build([makeAgent({ id: 'agent-7', description: 'Worker' })], messagesEl);
 
-    mountEl.querySelector('.claudian-swarm-agent').click();
+    mountEl.querySelector('.claudian-swarm-agent-open').click();
 
     expect(scrollSpy).toHaveBeenCalled();
     expect(target.hasClass('claudian-swarm-flash')).toBe(true);
@@ -218,5 +218,69 @@ describe('SwarmPanel', () => {
     pendingFrame!(0);
 
     expect(setIntervalSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('SwarmPanel actions', () => {
+  let mountEl: any;
+
+  beforeEach(() => {
+    mountEl = createMockEl('div');
+    jest.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback): number => {
+      cb(0);
+      return 0;
+    });
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    jest.useRealTimers();
+  });
+
+  function build(agents: SubagentInfo[], extra: Record<string, unknown> = {}) {
+    const fake = fakeManager(() => agents);
+    return new SwarmPanel({
+      manager: fake.manager as never,
+      mountEl,
+      getMessagesEl: () => createMockEl('div'),
+      ...extra,
+    } as never);
+  }
+
+  it('opens a row in the inspector tab', () => {
+    const onInspect = jest.fn();
+    build([makeAgent({ id: 'a' })], { onInspect });
+
+    mountEl.querySelector('.claudian-swarm-agent-open').click();
+
+    expect(onInspect).toHaveBeenCalledWith('a');
+  });
+
+  it('stops a running agent after the confirming second click', () => {
+    jest.useFakeTimers();
+    const onStop = jest.fn();
+    build([makeAgent({ id: 'a', startedAt: 1 })], { onStop, getStopScope: () => 'agent' });
+
+    mountEl.querySelector('.claudian-swarm-agent-stop').click();
+    expect(onStop).not.toHaveBeenCalled();
+    expect(mountEl.querySelector('.claudian-swarm-agent-stop-label').textContent).toBe('Stoppen?');
+
+    mountEl.querySelector('.claudian-swarm-agent-stop').click();
+    expect(onStop).toHaveBeenCalledWith('a');
+  });
+
+  it('offers no stop for finished agents or when nothing can stop them', () => {
+    build([
+      makeAgent({ id: 'done', status: 'completed' }),
+      makeAgent({ id: 'running' }),
+    ], { onStop: jest.fn(), getStopScope: (id: string) => (id === 'running' ? 'none' : 'agent') });
+
+    expect(mountEl.querySelectorAll('.claudian-swarm-agent-stop')).toHaveLength(0);
+  });
+
+  it('labels a stopped agent as stopped, not failed', () => {
+    build([makeAgent({ id: 'a', status: 'error', cancelState: 'cancelled' })]);
+
+    expect(mountEl.querySelector('.claudian-swarm-agent').hasClass('status-cancelled')).toBe(true);
   });
 });

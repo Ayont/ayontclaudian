@@ -1,6 +1,14 @@
 import type { ChatTurnMetadata } from '../../../core/runtime/types';
 import type { StreamChunk, UsageInfo } from '../../../core/types';
 import {
+  buildCodexCollabToolInput,
+  buildCodexCollabToolResult,
+  buildCodexSubAgentActivityToolCall,
+  isCodexCollabToolCallError,
+  normalizeCodexCollabToolName,
+  TOOL_CODEX_SUBAGENT_ACTIVITY,
+} from '../normalization/codexCollabNormalization';
+import {
   isCodexToolOutputError,
   normalizeCodexToolInput,
   normalizeCodexToolName,
@@ -24,6 +32,7 @@ import type {
   PlanDeltaNotification,
   ReasoningSummaryTextDeltaNotification,
   ReasoningTextDeltaNotification,
+  SubAgentActivityItem,
   TokenUsageUpdatedNotification,
   TurnCompletedNotification,
   TurnPlanUpdatedNotification,
@@ -35,18 +44,24 @@ import type {
 type ChunkEmitter = (chunk: StreamChunk) => void;
 type TurnMetadataListener = (update: Partial<ChatTurnMetadata>) => void;
 
+/** What the child-thread relay knows about a subagent thread. */
+export interface CodexChildThreadSummary {
+  subagentId?: string;
+  finalText?: string;
+}
+
+export interface CodexNotificationRouterOptions {
+  /**
+   * Multi-agent v2 completions name only the child thread; the relay knows the
+   * spawn it belongs to and what the child last said.
+   */
+  describeChildThread?: (threadId: string) => CodexChildThreadSummary | undefined;
+}
+
 interface RawToolResult {
   content: string;
   isError: boolean;
 }
-
-const COLLAB_AGENT_TOOL_MAP: Record<string, string> = {
-  spawnAgent: 'spawn_agent',
-  wait: 'wait',
-  sendInput: 'send_input',
-  resumeAgent: 'resume_agent',
-  closeAgent: 'close_agent',
-};
 
 // Open set on the wire (app-server 0.155.1 knows one); unknown reasons show as sent.
 const MODEL_REROUTE_REASONS: Record<string, string> = {
@@ -71,10 +86,15 @@ export class CodexNotificationRouter {
   private suppressedRawCallIds = new Set<string>();
   private fileChangeInputsById = new Map<string, Record<string, unknown>>();
   private latestUsage: { sessionId: string; usage: UsageInfo } | null = null;
+  // Not reset by beginTurn/endTurn; links learnt by an earlier router come
+  // from options.describeChildThread instead.
+  private spawnToolIdsByChildThread = new Map<string, string>();
+  private settledSubAgentActivityIds = new Set<string>();
 
   constructor(
     private readonly emit: ChunkEmitter,
     private readonly onTurnMetadata?: TurnMetadataListener,
+    private readonly options: CodexNotificationRouterOptions = {},
   ) {}
 
   private resetAssistantTextTracking(): void {
@@ -267,6 +287,10 @@ export class CodexNotificationRouter {
         this.emitToolUseFromCollabAgent(item);
         break;
 
+      case 'subAgentActivity':
+        this.handleSubAgentActivity(item);
+        break;
+
       case 'mcpToolCall':
         this.emitToolUseFromMcp(item);
         break;
@@ -311,6 +335,15 @@ export class CodexNotificationRouter {
 
       case 'collabAgentToolCall':
         this.emitToolResultFromCollabAgent(item);
+        break;
+
+      case 'subAgentActivity':
+        this.handleSubAgentActivity(item);
+        // A `started` activity shares its id with the spawn_agent call, so the
+        // raw spawn output may be waiting on it.
+        if (rawResult) {
+          this.emit({ type: 'tool_result', id: item.id, ...rawResult });
+        }
         break;
 
       case 'mcpToolCall':
@@ -651,27 +684,53 @@ export class CodexNotificationRouter {
   // -- collabAgentToolCall ----------------------------------------------------
 
   private emitToolUseFromCollabAgent(item: CollabAgentToolCallItem): void {
-    const toolName = COLLAB_AGENT_TOOL_MAP[item.tool] ?? item.tool;
     this.resetAssistantSegmentText();
     this.emit({
       type: 'tool_use',
       id: item.id,
-      name: toolName,
-      input: item.arguments ?? {},
+      name: normalizeCodexCollabToolName(item.tool),
+      input: buildCodexCollabToolInput(item),
     });
   }
 
   private emitToolResultFromCollabAgent(item: CollabAgentToolCallItem): void {
-    const resultText = item.result && typeof item.result === 'object'
-      ? JSON.stringify(item.result)
-      : item.status === 'completed' ? 'Completed' : item.status ?? 'Done';
-
     this.emit({
       type: 'tool_result',
       id: item.id,
-      content: resultText,
-      isError: item.status === 'failed' || item.status === 'error',
+      content: buildCodexCollabToolResult(item),
+      isError: isCodexCollabToolCallError(item),
     });
+  }
+
+  // -- subAgentActivity (multi-agent v2) ---------------------------------------
+
+  private handleSubAgentActivity(item: SubAgentActivityItem): void {
+    if (typeof item.agentThreadId !== 'string' || !item.agentThreadId) {
+      return;
+    }
+
+    if (item.kind === 'started') {
+      this.spawnToolIdsByChildThread.set(item.agentThreadId, item.id);
+      return;
+    }
+
+    if (item.kind !== 'completed' && item.kind !== 'interrupted') {
+      return;
+    }
+    if (this.settledSubAgentActivityIds.has(item.id)) {
+      return;
+    }
+    this.settledSubAgentActivityIds.add(item.id);
+
+    const child = this.options.describeChildThread?.(item.agentThreadId);
+    const { input, content } = buildCodexSubAgentActivityToolCall(item, {
+      spawnToolId: this.spawnToolIdsByChildThread.get(item.agentThreadId) ?? child?.subagentId,
+      finalText: child?.finalText,
+    });
+
+    this.resetAssistantSegmentText();
+    this.emit({ type: 'tool_use', id: item.id, name: TOOL_CODEX_SUBAGENT_ACTIVITY, input });
+    this.emit({ type: 'tool_result', id: item.id, content, isError: false });
   }
 
   // -- mcpToolCall ------------------------------------------------------------

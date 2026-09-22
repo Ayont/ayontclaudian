@@ -7,11 +7,16 @@
  * at runtime when constructing a conformant value.
  */
 import type {
+  CollabAgentToolCallItem,
   CommandApprovalRequest,
   CommandExecutionApprovalResponse,
   FileChangeApprovalResponse,
   PermissionsApprovalRequest,
   PermissionsApprovalResponse,
+  SubAgentActivityItem,
+  Thread,
+  ThreadItem,
+  TurnInterruptParams,
   TurnSteerParams,
   TurnSteerResult,
   UserInputRequest,
@@ -332,5 +337,59 @@ describe('schema drift guards', () => {
     };
     expect(response).toHaveProperty('permissions');
     expect(response).not.toHaveProperty('decision');
+  });
+});
+
+describe('multi-agent items (app-server v2 schema, codex-cli 0.156.0)', () => {
+  it('CollabAgentToolCallItem carries sender, receivers, agent states and optional prompt/model', () => {
+    const item: CollabAgentToolCallItem = {
+      type: 'collabAgentToolCall',
+      id: 'call_1',
+      tool: 'spawnAgent',
+      status: 'completed',
+      senderThreadId: 'thread-parent',
+      receiverThreadIds: ['thread-child'],
+      agentsStates: { 'thread-child': { status: 'pendingInit', message: null } },
+      prompt: 'Review the parser',
+      model: 'gpt-6-luna',
+      reasoningEffort: 'high',
+    };
+    assertType<ThreadItem>(item);
+    expect(item.receiverThreadIds[0]).toBe('thread-child');
+  });
+
+  it('SubAgentActivityItem links an activity to the agent thread', () => {
+    const item: SubAgentActivityItem = {
+      type: 'subAgentActivity',
+      id: 'call_spawn',
+      kind: 'started',
+      agentThreadId: 'thread-child',
+      agentPath: '/root/writing_style',
+    };
+    assertType<ThreadItem>(item);
+    expect(item.kind).toBe('started');
+  });
+
+  it('Thread exposes the spawning parent through parentThreadId and a thread_spawn source', () => {
+    const source: Thread['source'] = {
+      subAgent: {
+        thread_spawn: {
+          parent_thread_id: 'thread-parent',
+          depth: 1,
+          agent_nickname: 'Laplace',
+          agent_role: null,
+          agent_path: '/root/writing_style',
+        },
+      },
+    };
+    const parentThreadId: Thread['parentThreadId'] = 'thread-parent';
+    assertType<Thread['source']>('appServer');
+    expect(source).toHaveProperty('subAgent');
+    expect(parentThreadId).toBe('thread-parent');
+  });
+
+  it('TurnInterruptParams requires both thread and turn ids', () => {
+    const params: TurnInterruptParams = { threadId: 'thread-child', turnId: 'turn-child' };
+    expect(params).toEqual({ threadId: 'thread-child', turnId: 'turn-child' });
   });
 });

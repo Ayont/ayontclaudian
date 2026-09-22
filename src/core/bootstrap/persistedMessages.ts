@@ -1,4 +1,4 @@
-import type { ChatMessage, SubagentInfo, ToolCallInfo } from '../types';
+import type { ChatMessage, SubagentInfo, SubagentTimelineEntry, ToolCallInfo } from '../types';
 
 /**
  * Cap for a single persisted tool result.
@@ -32,6 +32,34 @@ export function truncateResult(result: string, maxChars: number = MAX_PERSISTED_
   return result.slice(0, maxChars) + TRUNCATION_NOTICE;
 }
 
+/** Timeline entries kept per subagent on disk (the newest ones). */
+export const MAX_PERSISTED_SUBAGENT_TIMELINE_ENTRIES = 120;
+/** Text the persisted timeline may carry in total; older text goes first. */
+export const MAX_PERSISTED_SUBAGENT_TEXT_CHARS = 24_000;
+const MAX_PERSISTED_TIMELINE_TEXT_ENTRY_CHARS = 2_000;
+
+/**
+ * Keeps the newest part of a subagent's transcript within a fixed budget, so
+ * the inspector can show it after a restart without bloating the session file.
+ */
+function toPersistedTimeline(timeline: readonly SubagentTimelineEntry[]): SubagentTimelineEntry[] {
+  const kept: SubagentTimelineEntry[] = [];
+  let textBudget = MAX_PERSISTED_SUBAGENT_TEXT_CHARS;
+  for (let i = timeline.length - 1; i >= 0 && kept.length < MAX_PERSISTED_SUBAGENT_TIMELINE_ENTRIES; i--) {
+    const entry = timeline[i];
+    if (entry.type === 'tool') {
+      kept.push(entry);
+      continue;
+    }
+    if (textBudget <= 0) continue;
+    const limit = Math.min(MAX_PERSISTED_TIMELINE_TEXT_ENTRY_CHARS, textBudget);
+    const text = entry.text.length > limit ? `…${entry.text.slice(entry.text.length - limit + 1)}` : entry.text;
+    textBudget -= text.length;
+    kept.push({ ...entry, text });
+  }
+  return kept.reverse();
+}
+
 /**
  * Compacts a subagent's result and nested tool calls down to what is worth persisting.
  */
@@ -56,6 +84,7 @@ export function toPersistedSubagent(subagent: SubagentInfo): SubagentInfo {
     result,
     prompt,
     ...(toolCalls ? { toolCalls } : {}),
+    ...(subagent.timeline ? { timeline: toPersistedTimeline(subagent.timeline) } : {}),
   };
 }
 

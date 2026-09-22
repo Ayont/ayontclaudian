@@ -592,6 +592,51 @@
   border-radius: 100px;
 }
 
+/* Tables: a compact card with their size instead of a picture of the grid. */
+body.theme-light .claudian-message-attachment--sheet {
+  /* #4ade80 is unreadable as pill text on a light surface. */
+  --att-accent: #15803d;
+}
+
+.claudian-message-attachment--compact {
+  max-width: 320px;
+}
+
+.claudian-message-attachment--compact .claudian-message-attachment-info {
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.claudian-message-attachment--compact .claudian-message-attachment-icon {
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--att-accent) 14%, transparent);
+}
+
+.claudian-message-attachment--compact .claudian-message-attachment-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.claudian-message-attachment-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.claudian-message-attachment-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--cl-text-xs, 11px);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
 @keyframes claudian-att-card-in {
   from {
     opacity: 0;

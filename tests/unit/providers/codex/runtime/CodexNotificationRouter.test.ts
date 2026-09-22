@@ -1336,3 +1336,206 @@ describe('CodexNotificationRouter', () => {
     });
   });
 });
+
+describe('CodexNotificationRouter - app-server v2 subagents', () => {
+  let chunks: StreamChunk[];
+
+  function createRouter(
+    describeChildThread?: (threadId: string) => { subagentId?: string; finalText?: string } | undefined,
+  ): CodexNotificationRouter {
+    return new CodexNotificationRouter((chunk) => chunks.push(chunk), undefined, { describeChildThread });
+  }
+
+  function collab(overrides: Record<string, unknown>): Record<string, unknown> {
+    return {
+      type: 'collabAgentToolCall',
+      id: 'call_spawn',
+      tool: 'spawnAgent',
+      status: 'inProgress',
+      senderThreadId: 't1',
+      receiverThreadIds: [],
+      agentsStates: {},
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    chunks = [];
+  });
+
+  it.each([
+    ['spawnAgent', 'spawn_agent'],
+    ['sendInput', 'send_input'],
+    ['resumeAgent', 'resume_agent'],
+    ['wait', 'wait'],
+    ['closeAgent', 'close_agent'],
+    ['sendMessage', 'send_message'],
+    ['followupTask', 'followup_task'],
+    ['interruptAgent', 'interrupt_agent'],
+    ['listAgents', 'list_agents'],
+  ])('names the %s collab tool %s', (tool, name) => {
+    createRouter().handleNotification('item/started', { item: collab({ tool }), threadId: 't1', turnId: 'turn1' });
+    expect(chunks[0]).toMatchObject({ type: 'tool_use', name });
+  });
+
+  it('puts the v2 prompt and model into the spawn tool input', () => {
+    createRouter().handleNotification('item/started', {
+      item: collab({ prompt: 'Review the parser', model: 'gpt-6-sol', reasoningEffort: 'high' }),
+      threadId: 't1',
+      turnId: 'turn1',
+    });
+
+    expect(chunks).toEqual([{
+      type: 'tool_use',
+      id: 'call_spawn',
+      name: 'spawn_agent',
+      input: { prompt: 'Review the parser', model: 'gpt-6-sol', reasoning_effort: 'high' },
+    }]);
+  });
+
+  it('reports the spawned child thread in the spawn tool result', () => {
+    createRouter().handleNotification('item/completed', {
+      item: collab({
+        status: 'completed',
+        receiverThreadIds: ['thread-child'],
+        agentsStates: { 'thread-child': { status: 'pendingInit', message: null } },
+      }),
+      threadId: 't1',
+      turnId: 'turn1',
+    });
+
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]).toMatchObject({ type: 'tool_result', id: 'call_spawn', isError: false });
+    expect(JSON.parse((chunks[0] as { content: string }).content)).toEqual({
+      agent_id: 'thread-child',
+      receiver_thread_ids: ['thread-child'],
+      agents_states: { 'thread-child': { status: 'pendingInit' } },
+    });
+  });
+
+  it('carries the child final message in a wait result', () => {
+    createRouter().handleNotification('item/completed', {
+      item: collab({
+        id: 'call_wait',
+        tool: 'wait',
+        status: 'completed',
+        receiverThreadIds: ['thread-child'],
+        agentsStates: { 'thread-child': { status: 'completed', message: 'All tests pass.' } },
+      }),
+      threadId: 't1',
+      turnId: 'turn1',
+    });
+
+    expect(JSON.parse((chunks[0] as { content: string }).content).agents_states).toEqual({
+      'thread-child': { status: 'completed', message: 'All tests pass.' },
+    });
+  });
+
+  it('marks failed collab calls as errors', () => {
+    createRouter().handleNotification('item/completed', {
+      item: collab({ status: 'failed' }),
+      threadId: 't1',
+      turnId: 'turn1',
+    });
+
+    expect(chunks[0]).toMatchObject({ type: 'tool_result', isError: true });
+  });
+
+  it('keeps legacy arguments and result objects', () => {
+    const router = createRouter();
+    router.handleNotification('item/started', {
+      item: { type: 'collabAgentToolCall', id: 'c1', tool: 'spawnAgent', status: 'inProgress', arguments: { message: 'Do it' } },
+      threadId: 't1',
+      turnId: 'turn1',
+    });
+    router.handleNotification('item/completed', {
+      item: { type: 'collabAgentToolCall', id: 'c1', tool: 'spawnAgent', status: 'completed', result: { agent_id: 'a1' } },
+      threadId: 't1',
+      turnId: 'turn1',
+    });
+
+    expect(chunks).toEqual([
+      { type: 'tool_use', id: 'c1', name: 'spawn_agent', input: { message: 'Do it' } },
+      { type: 'tool_result', id: 'c1', content: '{"agent_id":"a1"}', isError: false },
+    ]);
+  });
+
+  describe('subAgentActivity (multi-agent v2)', () => {
+    function activity(kind: string, id: string, agentThreadId = 'thread-child'): Record<string, unknown> {
+      return {
+        item: { type: 'subAgentActivity', id, kind, agentThreadId, agentPath: '/root/writing_style' },
+        threadId: 't1',
+        turnId: 'turn1',
+      };
+    }
+
+    it('turns a completion into a hidden lifecycle call linked to its spawn', () => {
+      const router = createRouter(() => ({ finalText: 'Final answer' }));
+      router.handleNotification('item/completed', activity('started', 'call_spawn'));
+      router.handleNotification('item/completed', activity('completed', 'subagent-completed-1'));
+
+      expect(chunks).toHaveLength(2);
+      expect(chunks[0]).toEqual({
+        type: 'tool_use',
+        id: 'subagent-completed-1',
+        name: 'subagent_activity',
+        input: {
+          targets: ['thread-child'],
+          agent_path: '/root/writing_style',
+          kind: 'completed',
+          spawn_tool_id: 'call_spawn',
+        },
+      });
+      expect(chunks[1]).toMatchObject({ type: 'tool_result', id: 'subagent-completed-1', isError: false });
+      expect(JSON.parse((chunks[1] as { content: string }).content)).toEqual({
+        agents_states: { 'thread-child': { status: 'completed', message: 'Final answer' } },
+      });
+    });
+
+    it('falls back to the child relay for the spawn link across router instances', () => {
+      createRouter(() => ({ subagentId: 'call_old_spawn' }))
+        .handleNotification('item/completed', activity('interrupted', 'act-1'));
+
+      expect(chunks[0]).toMatchObject({
+        type: 'tool_use',
+        input: expect.objectContaining({ spawn_tool_id: 'call_old_spawn', kind: 'interrupted' }),
+      });
+    });
+
+    it('emits each completion once even when both item events arrive', () => {
+      const router = createRouter();
+      router.handleNotification('item/started', activity('completed', 'act-1'));
+      router.handleNotification('item/completed', activity('completed', 'act-1'));
+
+      expect(chunks.filter(chunk => chunk.type === 'tool_use')).toHaveLength(1);
+    });
+
+    it('does not emit anything for started or interacted activity', () => {
+      const router = createRouter();
+      router.handleNotification('item/completed', activity('started', 'call_spawn'));
+      router.handleNotification('item/completed', activity('interacted', 'call_send'));
+
+      expect(chunks).toEqual([]);
+    });
+
+    it('still delivers the raw spawn output that shares the started activity id', () => {
+      const router = createRouter();
+      router.handleNotification('rawResponseItem/completed', {
+        threadId: 't1',
+        turnId: 'turn1',
+        item: { type: 'function_call', name: 'spawn_agent', call_id: 'call_spawn', arguments: '{"task_name":"writing_style"}' },
+      });
+      router.handleNotification('rawResponseItem/completed', {
+        threadId: 't1',
+        turnId: 'turn1',
+        item: { type: 'function_call_output', call_id: 'call_spawn', output: '{"task_name":"/root/writing_style"}' },
+      });
+      router.handleNotification('item/completed', activity('started', 'call_spawn'));
+
+      expect(chunks).toEqual([
+        { type: 'tool_use', id: 'call_spawn', name: 'spawn_agent', input: { task_name: 'writing_style' } },
+        { type: 'tool_result', id: 'call_spawn', content: '{"task_name":"/root/writing_style"}', isError: false },
+      ]);
+    });
+  });
+});

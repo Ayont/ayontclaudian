@@ -25,7 +25,9 @@ export const ATTACHED_FILE_PATTERN = /^Attached files?:\s*@?\S.*(?:\n|$)/gim;
 // prompt. These tags are transport metadata, never user-authored chat text.
 const INTERNAL_IMAGE_TAG_PATTERN = /<image\b(?=[^>]*\bname=\[Image\s+#\d+\])(?=[^>]*\bpath=(?:"[^"]*"|'[^']*'))[^>]*>(?:\s*<\/image>)?\s*/gi;
 
-const SYSTEM_ENVELOPE_NAMES = 'standing_goal|claudian_output_contract|claudian_system_preamble|conversation_context|goal_loop_work_so_far|goal_loop|recommended_plugins|available_plugins|plugins_info|installed_plugins|environment_details';
+// `claudian_attachment` is the attached-table reference (file-drop/tableReference):
+// it names a vault file for the agent and must never show up as chat text.
+const SYSTEM_ENVELOPE_NAMES = 'standing_goal|claudian_output_contract|claudian_system_preamble|claudian_attachment|conversation_context|goal_loop_work_so_far|goal_loop|recommended_plugins|available_plugins|plugins_info|installed_plugins|environment_details';
 const ALL_CONTEXT_NAMES = `${SYSTEM_ENVELOPE_NAMES}|vault_context|memory_context|graph_context`;
 
 const VAULT_CONTEXT_PATTERN = new RegExp(

@@ -110,6 +110,39 @@ describe('ComposerDraftStore', () => {
     });
   });
 
+  it('keeps the structure of a staged table across a reload', async () => {
+    const table = {
+      format: 'csv' as const,
+      delimiter: ',' as const,
+      sheets: [{ rowCount: 2277, columnCount: 9, header: ['Call Time', 'Call ID'], rows: [['2026-09-22', 'x']] }],
+    };
+    const store = new ComposerDraftStore(file);
+    store.set(conversationDraftKey('conv-1'), {
+      text: '',
+      attachments: [{ name: 'call_reports.csv', relPath: '.claudian/attachments/c.csv', size: 515_220, table }],
+      imageIds: [],
+    });
+    await store.flush();
+
+    const reloaded = new ComposerDraftStore(file);
+    await reloaded.load();
+
+    expect(reloaded.get(conversationDraftKey('conv-1'))?.attachments).toEqual([
+      { name: 'call_reports.csv', relPath: '.claudian/attachments/c.csv', size: 515_220, table },
+    ]);
+  });
+
+  it('drops a malformed table profile but keeps the attachment', async () => {
+    await fs.writeFile(file, JSON.stringify({
+      version: 1,
+      drafts: { 'conversation:ok': { text: '', attachments: [{ name: 'a.csv', relPath: 'b.csv', table: { format: 'exe', sheets: 3 } }], imageIds: [] } },
+    }));
+    const store = new ComposerDraftStore(file);
+    await store.load();
+
+    expect(store.get('conversation:ok')?.attachments).toEqual([{ name: 'a.csv', relPath: 'b.csv' }]);
+  });
+
   it('writes on its own after the debounce, without an explicit flush', async () => {
     const store = new ComposerDraftStore(file, { debounceMs: 10 });
     store.set(tabDraftKey('tab-1'), withText('später'));

@@ -14,6 +14,7 @@ import type { MessageRenderer } from '../rendering/MessageRenderer';
 import type { SwarmPanel } from '../rendering/SwarmPanel';
 import type { SubagentManager } from '../services/SubagentManager';
 import type { ChatState } from '../state/ChatState';
+import type { SubagentActionController } from '../subagents/SubagentActionController';
 import type { BangBashModeManager } from '../ui/BangBashModeManager';
 import type { ChatSearchController } from '../ui/ChatSearch';
 import type { ComposerSendButtonHandle } from '../ui/ComposerSendButton';
@@ -110,6 +111,8 @@ export interface TabControllers {
  */
 export interface TabServices {
   subagentManager: SubagentManager;
+  /** Stop and inspect for this tab's subagents (cards, swarm panel, inspector). */
+  subagentActions?: SubagentActionController | null;
   instructionRefineService: InstructionRefineService | null;
   titleGenerationService: TitleGenerationService | null;
 }
