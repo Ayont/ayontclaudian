@@ -317,7 +317,10 @@ export class QueryOptionsBuilder {
     model: string
   ): void {
     const effortLevel = resolveEffortLevel(model, settings.effortLevel);
-    options.thinking = { type: 'adaptive' };
+    // The SDK default display is 'omitted': on Opus 5 / 5.5, Sonnet 5 and Fable
+    // every thinking block then arrives empty. Summaries are what Claude Code
+    // shows in a terminal; thinking is billed the same either way.
+    options.thinking = { type: 'adaptive', display: 'summarized' };
     // `ultracode` is a session setting (xhigh effort + standing dynamic-workflow
     // orchestration), not an API effort value — send `xhigh` and enable the
     // `ultracode` flag so Claude Code stands up workflows for substantive tasks.

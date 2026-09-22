@@ -69,6 +69,7 @@ export class ClaudianView extends ItemView {
   private historyButtonEl: HTMLButtonElement | null = null;
   private updateDock: UpdateDock | null = null;
   private unsubscribeUpdates: (() => void) | null = null;
+  private unsubscribeDrafts: (() => void) | null = null;
 
   // Header elements
   private historyDropdown: HTMLElement | null = null;
@@ -448,6 +449,8 @@ export class ClaudianView extends ItemView {
     this.tabBar = null;
     this.unsubscribeUpdates?.();
     this.unsubscribeUpdates = null;
+    this.unsubscribeDrafts?.();
+    this.unsubscribeDrafts = null;
     this.updateDock = null;
     this.scope = null;
   }
@@ -841,6 +844,14 @@ export class ClaudianView extends ItemView {
     this.unsubscribeUpdates = this.plugin.onUpdateSessionChange((state) => {
       this.updateDock?.setState(state);
     });
+    // Pencil on tabs and history rows follows the drafts. The store only fires
+    // when a chat gains or loses its draft, not on every keystroke.
+    this.unsubscribeDrafts = this.plugin.composerDrafts?.subscribe(() => {
+      this.updateTabBar();
+      if (this.historyDropdown?.hasClass('visible')) {
+        this.updateHistoryDropdown();
+      }
+    }) ?? null;
   }
 
   /** Applies the user's chat theme (or clears it to follow the host/provider). */

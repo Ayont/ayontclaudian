@@ -1,6 +1,7 @@
 import { setIcon } from 'obsidian';
 
 import { ProviderRegistry } from '../../../core/providers/ProviderRegistry';
+import { setDraftIcon } from '../../../shared/draftIcon';
 import { createProviderIconSvg } from '../../../shared/icons';
 import type { TabBarItem, TabId } from './types';
 
@@ -69,7 +70,11 @@ export class TabBar {
 
     // Tooltip with full title (aria-label only; adding title too causes double tooltip)
     const streamingSuffix = item.isStreaming ? ' (arbeitet…)' : '';
-    badgeEl.setAttribute('aria-label', `${item.title}${streamingSuffix}`);
+    const draftSuffix = item.hasDraft ? ' (Entwurf)' : '';
+    badgeEl.setAttribute('aria-label', `${item.title}${streamingSuffix}${draftSuffix}`);
+    if (item.hasDraft) {
+      badgeEl.addClass('claudian-tab-badge--draft');
+    }
     badgeEl.setAttribute('data-provider', item.providerId);
     if (item.isActive) {
       badgeEl.setAttribute('aria-current', 'page');
@@ -89,6 +94,12 @@ export class TabBar {
         ownerDocument: this.containerEl.ownerDocument,
       });
       providerBadge.appendChild(iconSvg);
+    }
+
+    // Unsent draft in this chat, as the pencil in T3 Code's thread list.
+    if (item.hasDraft) {
+      const draftEl = badgeEl.createSpan({ cls: 'claudian-tab-draft-indicator', attr: { 'aria-hidden': 'true' } });
+      setDraftIcon(draftEl);
     }
 
     // Visible pulsing live beacon when agent is actively generating/working in this tab

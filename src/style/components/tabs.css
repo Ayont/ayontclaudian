@@ -121,6 +121,25 @@ body.theme-light .claudian-tab-badge:hover {
   opacity: 1;
 }
 
+/* Unsent draft in this tab's chat: amber pencil ahead of the provider icon. */
+.claudian-tab-draft-indicator {
+  order: -2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  color: var(--cl-draft);
+  pointer-events: none;
+}
+
+.claudian-tab-draft-indicator svg {
+  width: 11px;
+  height: 11px;
+  stroke-width: 2.25;
+}
+
 .claudian-tab-provider-icon {
   width: 11px;
   height: 11px;

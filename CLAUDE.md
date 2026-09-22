@@ -163,6 +163,14 @@ Each of these has cost a real debugging session. They are not theoretical.
    duplicate pending bubble from replay and append the prepared turn exactly
    once; returning history alone silently drops those contracts.
 
+10. **State that must survive a quit never goes through `saveData`.** Obsidian
+    rewrites `data.json` in place, and two shutdown paths (view `onClose` and
+    plugin `onunload`) used to rewrite it concurrently while the app exited. A
+    cut-off write left it empty and the next start came up with one blank tab —
+    every open chat "gone". Tab layout and drafts now use
+    `core/storage/atomicJsonFile` (serialized, deduplicated, temp file + rename)
+    and are saved while the user works, so there is nothing left to write at quit.
+
 ## Commands
 
 ```bash
@@ -194,6 +202,8 @@ first release: **`origin` is a different fork.** Releases go to the `ayont` remo
 | Path | Contents |
 |------|----------|
 | `.claudian/claudian-settings.json` | Shared app settings + per-provider config |
+| `.claudian/tab-state.json` | Open-tab layout (atomic temp-file + rename writes) |
+| `.claudian/composer-drafts.json` | Unsent composer drafts per chat (text, file chips, staged image ids) |
 | `.claudian/sessions/*.meta.json` | Provider-neutral session metadata |
 | `.claudian/usage.json` | Token usage, budgets, rate-limit window events |
 | `.claude/settings.json` | Claude Code-compatible project settings and permissions |

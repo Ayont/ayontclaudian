@@ -3,8 +3,10 @@ import {
   CODEX_GPT_6_ASTRA_MODEL,
   CODEX_GPT_6_LUNA_MODEL,
   CODEX_GPT_6_SOL_MODEL,
+  CODEX_GPT_55_MODEL,
   CODEX_GPT_56_LUNA_MODEL,
   CODEX_GPT_56_SOL_MODEL,
+  CODEX_GPT_56_TERRA_MODEL,
   DEFAULT_CODEX_MODELS,
   DEFAULT_CODEX_PRIMARY_MODEL,
   FAST_TIER_CODEX_DESCRIPTION,
@@ -108,5 +110,25 @@ describe('Codex GPT-6 Sol and Luna', () => {
   it('names the GPT-6 family in the Fast-tier hint', () => {
     expect(FAST_TIER_CODEX_DESCRIPTION).toMatch(/GPT-6/);
     expect(FAST_TIER_CODEX_DESCRIPTION).not.toMatch(/GPT-6 Astra und/);
+  });
+});
+
+// codex-cli 0.155.1 catalog: every served model has context_window 272000 at
+// 95% effective. The old 1,050,000 for GPT-5.6 and 200,000 for GPT-5.5 were
+// never in the catalog; gpt-5.4-mini is no longer served at all.
+describe('Codex catalog windows and retired models', () => {
+  it('gives GPT-5.6 and GPT-5.5 the catalog window, not 1.05M or 200K', () => {
+    for (const model of [CODEX_GPT_56_SOL_MODEL, CODEX_GPT_56_TERRA_MODEL, CODEX_GPT_56_LUNA_MODEL, CODEX_GPT_55_MODEL]) {
+      expect(getCodexModelContextWindow(model)).toBe(258_400);
+    }
+  });
+
+  it('keeps the conservative default for models it does not know', () => {
+    expect(getCodexModelContextWindow('gpt-9-unknown')).toBe(200_000);
+  });
+
+  it('no longer offers GPT-5.4 Mini, and moves an old Mini choice to the default', () => {
+    expect(DEFAULT_CODEX_MODELS.map(model => model.value)).not.toContain('gpt-5.4-mini');
+    expect(resolveCodexModelSelection({}, 'gpt-5.4-mini')).toBe(DEFAULT_CODEX_PRIMARY_MODEL);
   });
 });

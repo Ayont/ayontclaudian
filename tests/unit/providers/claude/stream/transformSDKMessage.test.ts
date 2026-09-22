@@ -54,6 +54,43 @@ describe('transformSDKMessage', () => {
       ]);
     });
 
+    it('turns a refusal fallback into a visible notice', () => {
+      const message = msg({
+        type: 'system',
+        subtype: 'model_refusal_fallback',
+        trigger: 'refusal',
+        direction: 'retry',
+        scope: 'session',
+        original_model: 'claude-opus-5-5',
+        fallback_model: 'claude-opus-5',
+        api_refusal_category: 'cyber',
+        request_id: null,
+        content: 'raw',
+      } as never);
+
+      const results = [...transformSDKMessage(message)];
+
+      expect(results).toEqual([
+        expect.objectContaining({ type: 'notice', level: 'warning', content: expect.stringContaining('Opus 5 antwortet stattdessen') }),
+      ]);
+    });
+
+    it('turns a refusal without fallback into a visible notice', () => {
+      const message = msg({
+        type: 'system',
+        subtype: 'model_refusal_no_fallback',
+        original_model: 'claude-opus-5-5',
+        request_id: null,
+        content: 'raw',
+      } as never);
+
+      const results = [...transformSDKMessage(message)];
+
+      expect(results).toEqual([
+        expect.objectContaining({ type: 'notice', content: expect.stringContaining('Kein Ausweichmodell') }),
+      ]);
+    });
+
     it('captures agents from init message', () => {
       const message = msg({
         type: 'system',

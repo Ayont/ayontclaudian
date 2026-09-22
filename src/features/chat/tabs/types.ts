@@ -35,6 +35,7 @@ import type { InstructionModeManager } from '../ui/InstructionModeManager';
 import type { NavigationSidebar } from '../ui/NavigationSidebar';
 import type { StatusPanel } from '../ui/StatusPanel';
 import type { StreamStatusBar } from '../ui/StreamStatusBar';
+import type { ComposerDraftAutosave } from './composerDraftAutosave';
 
 /**
  * Default number of tabs allowed.
@@ -230,6 +231,9 @@ export interface TabData {
   /** Conversation ID bound to this tab (null for new/empty tabs). */
   conversationId: string | null;
 
+  /** Saves this tab's unsent composer into the draft store while typing. */
+  draftAutosave?: ComposerDraftAutosave | null;
+
   /**
    * One-shot, framed conversation-context snapshot to prepend to the NEXT turn only.
    * Set when a bound conversation is switched to a different provider, so the
@@ -330,4 +334,6 @@ export interface TabBarItem {
   isStreaming: boolean;
   needsAttention: boolean;
   canClose: boolean;
+  /** The tab's chat holds an unsent draft (pencil, as in T3 Code). */
+  hasDraft: boolean;
 }

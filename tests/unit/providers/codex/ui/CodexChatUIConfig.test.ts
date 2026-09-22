@@ -7,7 +7,6 @@ import {
   CODEX_GPT_56_SOL_MODEL,
   CODEX_GPT_56_TERRA_MODEL,
   CODEX_SPARK_MODEL,
-  DEFAULT_CODEX_MINI_MODEL,
   DEFAULT_CODEX_PRIMARY_MODEL,
 } from '@/providers/codex/types/models';
 import { codexChatUIConfig } from '@/providers/codex/ui/CodexChatUIConfig';
@@ -16,7 +15,7 @@ describe('CodexChatUIConfig', () => {
   describe('getModelOptions', () => {
     it('should return default models when no env vars', () => {
       const options = codexChatUIConfig.getModelOptions({});
-      expect(options).toHaveLength(8);
+      expect(options).toHaveLength(7);
       expect(DEFAULT_CODEX_PRIMARY_MODEL).toBe(CODEX_GPT_6_SOL_MODEL);
       expect(options.map(o => o.value)).toEqual([
         DEFAULT_CODEX_PRIMARY_MODEL,
@@ -26,7 +25,6 @@ describe('CodexChatUIConfig', () => {
         CODEX_GPT_56_TERRA_MODEL,
         CODEX_GPT_56_LUNA_MODEL,
         CODEX_GPT_55_MODEL,
-        DEFAULT_CODEX_MINI_MODEL,
       ]);
     });
 
@@ -58,27 +56,22 @@ describe('CodexChatUIConfig', () => {
         {
           value: CODEX_GPT_56_SOL_MODEL,
           label: 'GPT-5.6 Sol',
-          description: 'Vorheriges Sol-Modell für komplexes Coding',
+          description: 'Vorheriges Sol-Modell für komplexes Coding · Nachfolger: GPT-6 Sol',
         },
         {
           value: CODEX_GPT_56_TERRA_MODEL,
           label: 'GPT-5.6 Terra',
-          description: 'Ausgewogenes GPT-5.6-Modell für den Alltag',
+          description: 'Ausgewogenes GPT-5.6-Modell für den Alltag · Nachfolger: GPT-6 Sol',
         },
         {
           value: CODEX_GPT_56_LUNA_MODEL,
           label: 'GPT-5.6 Luna',
-          description: 'Vorheriges Luna-Modell, schnell und günstig',
+          description: 'Vorheriges Luna-Modell, schnell und günstig · Nachfolger: GPT-6 Luna',
         },
         {
           value: CODEX_GPT_55_MODEL,
           label: 'GPT-5.5',
-          description: 'Älteres Frontier-Modell',
-        },
-        {
-          value: DEFAULT_CODEX_MINI_MODEL,
-          label: 'GPT-5.4 Mini',
-          description: 'Schnelles älteres Mini-Modell',
+          description: 'Älteres Frontier-Modell · Nachfolger: GPT-5.6 Sol',
         },
         {
           value: 'gpt-5.6-preview',
@@ -99,7 +92,7 @@ describe('CodexChatUIConfig', () => {
       });
       expect(options[0].value).toBe('my-custom-model');
       expect(options[0].description).toBe('Custom (env)');
-      expect(options.length).toBe(9);
+      expect(options.length).toBe(8);
     });
 
     it('deduplicates env and settings-defined custom models', () => {
@@ -121,7 +114,6 @@ describe('CodexChatUIConfig', () => {
         CODEX_GPT_56_TERRA_MODEL,
         CODEX_GPT_56_LUNA_MODEL,
         CODEX_GPT_55_MODEL,
-        DEFAULT_CODEX_MINI_MODEL,
         'second-custom-model',
       ]);
     });
@@ -130,7 +122,7 @@ describe('CodexChatUIConfig', () => {
       const options = codexChatUIConfig.getModelOptions({
         environmentVariables: `OPENAI_MODEL=${DEFAULT_CODEX_PRIMARY_MODEL}`,
       });
-      expect(options.length).toBe(8);
+      expect(options.length).toBe(7);
     });
   });
 
@@ -192,14 +184,15 @@ describe('CodexChatUIConfig', () => {
       expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_6_LUNA_MODEL)).toBe(258_400);
     });
 
-    it('should return 1.05M for GPT-5.6 models', () => {
-      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_56_SOL_MODEL)).toBe(1_050_000);
-      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_56_TERRA_MODEL)).toBe(1_050_000);
-      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_56_LUNA_MODEL)).toBe(1_050_000);
+    it('uses the catalog window for GPT-5.6 and GPT-5.5 as well', () => {
+      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_56_SOL_MODEL)).toBe(258_400);
+      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_56_TERRA_MODEL)).toBe(258_400);
+      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_56_LUNA_MODEL)).toBe(258_400);
+      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_55_MODEL)).toBe(258_400);
     });
 
-    it('should return 200000 for legacy models', () => {
-      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_55_MODEL)).toBe(200_000);
+    it('should return 200000 for unknown models', () => {
+      expect(codexChatUIConfig.getContextWindowSize('gpt-9-unknown')).toBe(200_000);
     });
 
     // Regression: the signature omitted the `customLimits` argument that every
@@ -216,9 +209,9 @@ describe('CodexChatUIConfig', () => {
     });
 
     it('ignores invalid custom limits and falls back to the built-in value', () => {
-      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_55_MODEL, { [CODEX_GPT_55_MODEL]: 0 })).toBe(200_000);
-      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_55_MODEL, { [CODEX_GPT_55_MODEL]: -5 })).toBe(200_000);
-      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_55_MODEL, { other: 999 })).toBe(200_000);
+      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_55_MODEL, { [CODEX_GPT_55_MODEL]: 0 })).toBe(258_400);
+      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_55_MODEL, { [CODEX_GPT_55_MODEL]: -5 })).toBe(258_400);
+      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_55_MODEL, { other: 999 })).toBe(258_400);
     });
   });
 
@@ -267,7 +260,8 @@ describe('CodexChatUIConfig', () => {
   describe('isDefaultModel', () => {
     it('should return true for built-in models', () => {
       expect(codexChatUIConfig.isDefaultModel(DEFAULT_CODEX_PRIMARY_MODEL)).toBe(true);
-      expect(codexChatUIConfig.isDefaultModel(DEFAULT_CODEX_MINI_MODEL)).toBe(true);
+      expect(codexChatUIConfig.isDefaultModel(CODEX_GPT_55_MODEL)).toBe(true);
+      expect(codexChatUIConfig.isDefaultModel('gpt-5.4-mini')).toBe(false);
     });
 
     it('should return false for custom models', () => {

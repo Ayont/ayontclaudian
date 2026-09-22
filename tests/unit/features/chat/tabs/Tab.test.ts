@@ -1298,7 +1298,8 @@ describe('Tab - Event Wiring', () => {
 
       wireTabInputEvents(tab, options.plugin);
 
-      expect(tab.dom.eventCleanups.length).toBe(4); // keydown, input, focus, scroll
+      // keydown, input, draft autosave (input + blur), focus, scroll
+      expect(tab.dom.eventCleanups.length).toBe(5);
     });
   });
 });

@@ -23,6 +23,7 @@ function createTabBarItem(overrides: Partial<TabBarItem> = {}): TabBarItem {
     isStreaming: false,
     needsAttention: false,
     canClose: true,
+    hasDraft: false,
     ...overrides,
   };
 }
@@ -155,6 +156,29 @@ describe('TabBar', () => {
       const badge = containerEl._children[0];
       expect(badge._children.some((c: any) => c._classList?.has('claudian-tab-streaming-indicator'))).toBe(true);
       expect(badge.getAttribute('aria-label')).toBe('Analysis (arbeitet…)');
+    });
+
+    it('marks a tab whose chat holds an unsent draft with a pencil', () => {
+      const containerEl = createMockEl();
+      const tabBar = new TabBar(containerEl, createMockCallbacks());
+
+      tabBar.update([createTabBarItem({ id: 'draft-tab', hasDraft: true, title: 'Angebot CERTUSS' })]);
+
+      const badge = containerEl._children[0];
+      expect(badge._children.some((c: any) => c._classList?.has('claudian-tab-draft-indicator'))).toBe(true);
+      expect(badge._classList.has('claudian-tab-badge--draft')).toBe(true);
+      expect(badge.getAttribute('aria-label')).toBe('Angebot CERTUSS (Entwurf)');
+    });
+
+    it('shows no pencil when the chat has no draft', () => {
+      const containerEl = createMockEl();
+      const tabBar = new TabBar(containerEl, createMockCallbacks());
+
+      tabBar.update([createTabBarItem({ id: 'plain-tab', title: 'Leer' })]);
+
+      const badge = containerEl._children[0];
+      expect(badge._children.some((c: any) => c._classList?.has('claudian-tab-draft-indicator'))).toBe(false);
+      expect(badge.getAttribute('aria-label')).toBe('Leer');
     });
   });
 

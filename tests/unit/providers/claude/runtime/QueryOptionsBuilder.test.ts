@@ -445,7 +445,11 @@ describe('QueryOptionsBuilder', () => {
       expect(options.canUseTool).toBe(canUseTool);
     });
 
-    it('sets adaptive thinking with effort for Claude models', () => {
+    // Regression: with the SDK default `display: 'omitted'`, every thinking block
+    // from Opus 5 / 5.5, Sonnet 5 and Fable arrived empty in Claudian (1,177 of
+    // 1,177 Opus 5 blocks in the vault's transcripts), while Claude Code in a
+    // terminal shows them. The chat asks for summaries so the fold has content.
+    it('sets adaptive thinking with summarized display and effort for Claude models', () => {
       const ctx = {
         ...createMockContext({
           settings: createMockSettings({ model: 'sonnet', effortLevel: 'max' }),
@@ -455,7 +459,7 @@ describe('QueryOptionsBuilder', () => {
       };
       const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
 
-      expect(options.thinking).toEqual({ type: 'adaptive' });
+      expect(options.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
       expect(options.effort).toBe('max');
       expect(options.maxThinkingTokens).toBeUndefined();
     });
@@ -493,7 +497,7 @@ describe('QueryOptionsBuilder', () => {
       };
       const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
 
-      expect(options.thinking).toEqual({ type: 'adaptive' });
+      expect(options.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
       expect(options.effort).toBe('high');
     });
 
@@ -507,7 +511,7 @@ describe('QueryOptionsBuilder', () => {
       };
       const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
 
-      expect(options.thinking).toEqual({ type: 'adaptive' });
+      expect(options.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
       expect(options.effort).toBe('medium');
       expect(options.maxThinkingTokens).toBeUndefined();
     });

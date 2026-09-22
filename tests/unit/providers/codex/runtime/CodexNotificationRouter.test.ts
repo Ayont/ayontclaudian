@@ -162,6 +162,44 @@ describe('CodexNotificationRouter', () => {
     });
   });
 
+  // app-server 0.155.1: `model/rerouted` { threadId, turnId, fromModel, toModel, reason }.
+  // Without a notice the picker still names the chosen model while another one answers.
+  describe('model reroute', () => {
+    it('says which model answers instead and why', () => {
+      router.handleNotification('model/rerouted', {
+        threadId: 't',
+        turnId: 'turn',
+        fromModel: 'gpt-6-sol',
+        toModel: 'gpt-5.6-sol',
+        reason: 'highRiskCyberActivity',
+      });
+
+      expect(chunks).toEqual([{
+        type: 'notice',
+        level: 'warning',
+        content: 'Codex hat diese Antwort von GPT-6 Sol auf GPT-5.6 Sol umgeleitet (Grund: mögliche riskante Cybersicherheits-Aktivität).',
+      }]);
+    });
+
+    it('shows an unknown reason as it arrives', () => {
+      router.handleNotification('model/rerouted', {
+        threadId: 't',
+        turnId: 'turn',
+        fromModel: 'gpt-6-astra',
+        toModel: 'gpt-6-luna',
+        reason: 'capacity',
+      });
+
+      expect(chunks[0]).toMatchObject({ type: 'notice', content: expect.stringContaining('(Grund: capacity)') });
+    });
+
+    it('ignores a malformed reroute', () => {
+      router.handleNotification('model/rerouted', { threadId: 't' });
+
+      expect(chunks).toEqual([]);
+    });
+  });
+
   describe('reasoning', () => {
     it('does not emit a chunk when a reasoning item starts (deltas carry content)', () => {
       router.handleNotification('item/started', {

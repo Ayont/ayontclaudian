@@ -70,6 +70,7 @@ import { autoResizeTextarea } from '../ui/textareaResize';
 import { VoiceInput } from '../ui/VoiceInput';
 import { buildWorkspaceQuickPromptRow } from '../ui/WorkspaceModeToggle';
 import { recalculateUsageForModel } from '../utils/usageInfo';
+import { attachComposerDraftAutosave, restoreComposerDraft } from './composerDraftTab';
 import { getTabProviderId } from './providerResolution';
 import type { TabData, TabDOMElements, TabId, TabProviderContext } from './types';
 import { generateTabId } from './types';
@@ -1161,6 +1162,7 @@ function initializeContextManagers(tab: TabData, plugin: ClaudianPlugin): void {
     dom.inputEl,
     {
       onImagesChanged: () => {
+        tab.draftAutosave?.schedule();
         tab.controllers.selectionController?.updateContextRowVisibility();
         tab.controllers.browserSelectionController?.updateContextRowVisibility();
         tab.controllers.canvasSelectionController?.updateContextRowVisibility();
@@ -2142,6 +2144,8 @@ export function initializeTabControllers(
       getAgentService: () => tab.service, // Use tab's service instead of plugin's
       dismissPendingInlinePrompts: () => tab.controllers.inputController?.dismissPendingApproval(),
       ensureServiceForConversation: async (conversation) => {
+        // Runs before the switch clears the composer: keep what was typed.
+        tab.draftAutosave?.flushPending();
         const nextProviderId = getTabProviderId(tab, plugin, conversation);
         const providerChanged = tab.providerId !== nextProviderId;
         tab.providerId = nextProviderId;
@@ -2199,8 +2203,14 @@ export function initializeTabControllers(
         applyProviderUIGating(tab, plugin);
         syncSlashCommandDropdownForProvider(tab, plugin, getProviderCatalogConfig);
       },
-      onConversationLoaded: () => ui.slashCommandDropdown?.resetSdkSkillsCache(),
-      onConversationSwitched: () => ui.slashCommandDropdown?.resetSdkSkillsCache(),
+      onConversationLoaded: () => {
+        ui.slashCommandDropdown?.resetSdkSkillsCache();
+        void restoreComposerDraft(tab, plugin);
+      },
+      onConversationSwitched: () => {
+        ui.slashCommandDropdown?.resetSdkSkillsCache();
+        void restoreComposerDraft(tab, plugin);
+      },
     }
   );
 
@@ -2230,6 +2240,7 @@ export function initializeTabControllers(
     resetInputHeight: () => {
       autoResizeTextarea(dom.inputEl);
     },
+    onComposerConsumed: () => tab.draftAutosave?.discard(),
     getAuxiliaryModel: () => tab.service?.getAuxiliaryModel?.()
       ?? (tab.autoModelActive ? (tab.routedModel ?? null) : tab.draftModel)
       ?? null,
@@ -2507,6 +2518,18 @@ export function wireTabInputEvents(tab: TabData, plugin: ClaudianPlugin): void {
   dom.inputEl.addEventListener('input', inputHandler);
   dom.eventCleanups.push(() => dom.inputEl.removeEventListener('input', inputHandler));
 
+  // Unsent composer contents are saved per chat while typing (T3-style drafts).
+  attachComposerDraftAutosave(tab, plugin);
+  const draftInputHandler = () => tab.draftAutosave?.schedule();
+  // Leaving the field (e.g. a click into the history) must not lose the last keys.
+  const draftBlurHandler = () => tab.draftAutosave?.flushPending();
+  dom.inputEl.addEventListener('input', draftInputHandler);
+  dom.inputEl.addEventListener('blur', draftBlurHandler);
+  dom.eventCleanups.push(() => {
+    dom.inputEl.removeEventListener('input', draftInputHandler);
+    dom.inputEl.removeEventListener('blur', draftBlurHandler);
+  });
+
   // Sidebar focus handler — show selection highlight when focus enters the tab from outside
   const focusHandler = (e: FocusEvent) => {
     if (e.relatedTarget && dom.contentEl.contains(e.relatedTarget as Node)) return;
@@ -2594,6 +2617,9 @@ export function deactivateTab(tab: TabData): void {
  */
 export async function destroyTab(tab: TabData): Promise<void> {
   tab.lifecycleState = 'closing';
+  tab.draftAutosave?.flushPending();
+  tab.draftAutosave?.dispose();
+  tab.draftAutosave = null;
 
   if (tab.state.isStreaming) {
     tab.state.cancelRequested = true;

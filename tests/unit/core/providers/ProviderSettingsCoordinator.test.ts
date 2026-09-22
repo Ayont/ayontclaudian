@@ -378,19 +378,21 @@ describe('ProviderSettingsCoordinator', () => {
     });
 
     it('preserves saved service tier when the projected model hides the toggle', () => {
+      // Every served Codex model offers Fast, so a custom model stands in for one without it.
       const settings: Record<string, unknown> = {
         settingsProvider: 'codex',
         providerConfigs: {
           codex: {
             enabled: true,
             environmentVariables: '',
+            customModels: 'my-custom-codex',
           },
         },
-        model: 'gpt-5.4-mini',
+        model: 'my-custom-codex',
         effortLevel: 'medium',
         serviceTier: 'default',
         thinkingBudget: 'off',
-        savedProviderModel: { codex: 'gpt-5.4-mini' },
+        savedProviderModel: { codex: 'my-custom-codex' },
         savedProviderEffort: { codex: 'medium' },
         savedProviderServiceTier: { codex: 'fast' },
         savedProviderThinkingBudget: { codex: 'off' },
@@ -398,7 +400,7 @@ describe('ProviderSettingsCoordinator', () => {
 
       ProviderSettingsCoordinator.projectProviderState(settings, 'codex');
 
-      expect(settings.model).toBe('gpt-5.4-mini');
+      expect(settings.model).toBe('my-custom-codex');
       expect(settings.serviceTier).toBe('fast');
     });
 

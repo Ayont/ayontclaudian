@@ -952,6 +952,7 @@ export class CodexChatRuntime implements ChatRuntime {
       'item/fileChange/patchUpdated',
       'rawResponseItem/completed',
       'event_msg',
+      'model/rerouted',
     ];
 
     for (const method of methods) {

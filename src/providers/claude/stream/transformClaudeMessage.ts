@@ -5,6 +5,7 @@ import { isBlockedMessage } from '../sdk/messages';
 import { extractToolResultContent } from '../sdk/toolResultContent';
 import type { TransformEvent } from '../sdk/types';
 import { getContextWindowSize, isDefaultClaudeModel, isLegacyClaudeAlias } from '../types/models';
+import { describeRefusalFallback } from './refusalFallback';
 import { createTransformStreamState, type TransformStreamState } from './toolInputStreamState';
 
 type ToolUseFields = { id: string; name: string; input: Record<string, unknown> };
@@ -621,6 +622,9 @@ export function* transformSDKMessage(
         if (notification) {
           yield notification;
         }
+      } else if (message.subtype === 'model_refusal_fallback' || message.subtype === 'model_refusal_no_fallback') {
+        const notice = describeRefusalFallback(message);
+        if (notice) yield notice;
       }
       break;
 

@@ -7,6 +7,7 @@ import type { ChatRewindMode } from '../../../core/runtime/types';
 import type { Conversation, ConversationMeta } from '../../../core/types';
 import { t } from '../../../i18n/i18n';
 import type ClaudianPlugin from '../../../main';
+import { setDraftIcon } from '../../../shared/draftIcon';
 import { createProviderIconSvg } from '../../../shared/icons';
 import { confirm } from '../../../shared/modals/ConfirmModal';
 import { extractUserDisplayContent } from '../../../utils/context';
@@ -757,6 +758,14 @@ export class ConversationController {
       content.disabled = isCurrent;
 
       const headerRow = content.createDiv({ cls: 'claudian-history-item-header-row' });
+      if (this.deps.plugin.composerDrafts?.hasConversationDraft(conv.id)) {
+        item.addClass('has-draft');
+        const draftEl = headerRow.createSpan({
+          cls: 'claudian-history-item-draft',
+          attr: { 'aria-label': 'Ungesendeter Entwurf', title: 'Ungesendeter Entwurf' },
+        });
+        setDraftIcon(draftEl);
+      }
       const titleEl = headerRow.createSpan({ cls: 'claudian-history-item-title', text: conv.title });
       titleEl.setAttribute('title', conv.title);
 

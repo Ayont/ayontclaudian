@@ -1,6 +1,7 @@
 import { createMockEl } from '@test/helpers/mockElement';
 
 import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceRegistry';
+import { ComposerDraftStore, conversationDraftKey, tabDraftKey } from '@/features/chat/services/ComposerDraftStore';
 import { TabManager } from '@/features/chat/tabs/TabManager';
 import {
   DEFAULT_MAX_TABS,
@@ -2955,5 +2956,88 @@ describe('TabManager - buildForkTitle', () => {
 
     const updateCall = mockUpdateConversation.mock.calls[0][1];
     expect(updateCall.title).toBe('Fork: My Chat (#1) 4');
+  });
+});
+
+describe('TabManager composer drafts', () => {
+  function createDraftManager(tabFactory?: (n: number) => any) {
+    const composerDrafts = new ComposerDraftStore(null);
+    const plugin = createMockPlugin({ composerDrafts });
+    const manager = createManager({ plugin, tabFactory });
+    return { manager, composerDrafts };
+  }
+
+  it('moves a draft that an older build kept in the tab layout into the draft store', async () => {
+    const { manager, composerDrafts } = createDraftManager(
+      (n) => createMockTabData({ id: `restored-${n}`, conversationId: 'conv-1' }),
+    );
+
+    await manager.restoreState({
+      openTabs: [{ tabId: 'restored-1', conversationId: 'conv-1', draft: 'alte Frage' }],
+      activeTabId: 'restored-1',
+    });
+
+    expect(composerDrafts.get(conversationDraftKey('conv-1'))?.text).toBe('alte Frage');
+  });
+
+  it('never replaces a newer draft with the one from the old tab layout', async () => {
+    const { manager, composerDrafts } = createDraftManager(
+      (n) => createMockTabData({ id: `restored-${n}`, conversationId: 'conv-1' }),
+    );
+    composerDrafts.set(conversationDraftKey('conv-1'), { text: 'neuer Stand', attachments: [], imageIds: [] });
+
+    await manager.restoreState({
+      openTabs: [{ tabId: 'restored-1', conversationId: 'conv-1', draft: 'alte Frage' }],
+      activeTabId: 'restored-1',
+    });
+
+    expect(composerDrafts.get(conversationDraftKey('conv-1'))?.text).toBe('neuer Stand');
+  });
+
+  it('keeps drafts out of the tab layout', async () => {
+    const { manager, composerDrafts } = createDraftManager();
+    const tab = await manager.createTab();
+    composerDrafts.set(tabDraftKey(tab!.id), { text: 'Entwurf', attachments: [], imageIds: [] });
+
+    expect(manager.getPersistedState().openTabs[0]).not.toHaveProperty('draft');
+  });
+
+  it('flags tabs whose chat holds a draft for the pencil', async () => {
+    const { manager, composerDrafts } = createDraftManager();
+    const first = await manager.createTab();
+    await manager.createTab();
+    composerDrafts.set(tabDraftKey(first!.id), { text: 'Entwurf', attachments: [], imageIds: [] });
+
+    expect(manager.getTabBarItems().map(item => item.hasDraft)).toEqual([true, false]);
+  });
+
+  it('carries a blank tab\'s draft over when its first conversation is created', async () => {
+    const { manager, composerDrafts } = createDraftManager();
+    const tab = await manager.createTab();
+    composerDrafts.set(tabDraftKey(tab!.id), { text: 'noch nicht gesendet', attachments: [], imageIds: [] });
+    const { onConversationIdChanged } = mockCreateTab.mock.calls[0][0];
+
+    onConversationIdChanged('conv-7');
+
+    expect(composerDrafts.get(tabDraftKey(tab!.id))).toBeNull();
+    expect(composerDrafts.get(conversationDraftKey('conv-7'))?.text).toBe('noch nicht gesendet');
+  });
+
+  it('drops a blank tab\'s draft on close but keeps a conversation\'s draft', async () => {
+    const { manager, composerDrafts } = createDraftManager((n) => createMockTabData({
+      id: `tab-${n}`,
+      conversationId: n === 2 ? 'conv-2' : null,
+    }));
+    const blank = await manager.createTab();
+    const bound = await manager.createTab();
+    await manager.createTab();
+    composerDrafts.set(tabDraftKey(blank!.id), { text: 'weg', attachments: [], imageIds: [] });
+    composerDrafts.set(conversationDraftKey('conv-2'), { text: 'bleibt', attachments: [], imageIds: [] });
+
+    await manager.closeTab(blank!.id, true);
+    await manager.closeTab(bound!.id, true);
+
+    expect(composerDrafts.get(tabDraftKey(blank!.id))).toBeNull();
+    expect(composerDrafts.get(conversationDraftKey('conv-2'))?.text).toBe('bleibt');
   });
 });

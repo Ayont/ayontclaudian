@@ -7,6 +7,7 @@ import {
   normalizeCodexToolResult,
   parseCodexArguments,
 } from '../normalization/codexToolNormalization';
+import { formatCodexModelLabel } from '../types/models';
 import type {
   AgentMessageDeltaNotification,
   AgentMessageItem,
@@ -45,6 +46,11 @@ const COLLAB_AGENT_TOOL_MAP: Record<string, string> = {
   sendInput: 'send_input',
   resumeAgent: 'resume_agent',
   closeAgent: 'close_agent',
+};
+
+// Open set on the wire (app-server 0.155.1 knows one); unknown reasons show as sent.
+const MODEL_REROUTE_REASONS: Record<string, string> = {
+  highRiskCyberActivity: 'mögliche riskante Cybersicherheits-Aktivität',
 };
 
 export class CodexNotificationRouter {
@@ -194,6 +200,9 @@ export class CodexNotificationRouter {
         break;
       case 'error':
         this.onError(params as ErrorNotification);
+        break;
+      case 'model/rerouted':
+        this.onModelRerouted(params);
         break;
       default:
         break;
@@ -818,6 +827,23 @@ export class CodexNotificationRouter {
 
     this.flushPendingRawToolOutputs();
     this.emit({ type: 'done' });
+  }
+
+  /**
+   * The server answered with a different model than the one picked (so far only
+   * for `highRiskCyberActivity`). Say so; the picker still names the chosen one.
+   */
+  private onModelRerouted(params: unknown): void {
+    const { fromModel, toModel, reason } = (params ?? {}) as Record<string, unknown>;
+    if (typeof fromModel !== 'string' || typeof toModel !== 'string') return;
+    const reasonLabel = typeof reason === 'string'
+      ? (MODEL_REROUTE_REASONS[reason] ?? reason)
+      : null;
+    this.emit({
+      type: 'notice',
+      level: 'warning',
+      content: `Codex hat diese Antwort von ${formatCodexModelLabel(fromModel)} auf ${formatCodexModelLabel(toModel)} umgeleitet${reasonLabel ? ` (Grund: ${reasonLabel})` : ''}.`,
+    });
   }
 
   private onError(params: ErrorNotification): void {

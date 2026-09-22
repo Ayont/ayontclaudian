@@ -205,6 +205,39 @@ export class ImageContextManager {
     void this.stagingService.reassignConversation(ids, conversationId).catch(() => {});
   }
 
+  /** Staged file chips as a draft stores them; the preview is rebuilt, not saved. */
+  getDraftAttachments(): { name: string; relPath: string; size: number }[] {
+    return Array.from(this.stagedAttachments.values())
+      .map(({ name, relPath, size }) => ({ name, relPath, size }));
+  }
+
+  /** Re-adds file chips from a saved draft. The files are already in the vault. */
+  restoreDraftAttachments(attachments: { name: string; relPath: string; size?: number }[]): void {
+    const known = new Set(Array.from(this.stagedAttachments.values(), attachment => attachment.relPath));
+    for (const attachment of attachments) {
+      if (known.has(attachment.relPath)) continue;
+      known.add(attachment.relPath);
+      const id = this.generateId();
+      this.stagedAttachments.set(id, { id, name: attachment.name, relPath: attachment.relPath, size: attachment.size ?? 0 });
+    }
+    this.updateAttachmentPreview();
+    this.callbacks.onImagesChanged();
+  }
+
+  /**
+   * Re-adds draft images whose bytes are still staged. Merges by id, so a second
+   * restore of the same draft cannot duplicate them; staging is not rewritten.
+   */
+  addRestoredImages(images: ImageAttachment[]): void {
+    for (const image of images) {
+      if (!this.attachedImages.has(image.id)) {
+        this.attachedImages.set(image.id, image);
+      }
+    }
+    this.updateImagePreview();
+    this.callbacks.onImagesChanged();
+  }
+
   /** Sets images directly (used for queued messages). */
   setImages(images: ImageAttachment[]) {
     this.attachedImages.clear();

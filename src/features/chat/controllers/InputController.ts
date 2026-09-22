@@ -164,6 +164,8 @@ export interface InputControllerDeps {
    * A retry can then deliver the same transcript.
    */
   restorePendingContextBootstrap?: (carry: string) => void | Promise<void>;
+  /** The composer was sent (or queued): its saved draft is no longer a draft. */
+  onComposerConsumed?: () => void;
   /** Reads the tab's active standing goal (provider-agnostic), if any. */
   getActiveGoal?: () => string | null;
   /** Sets (or clears, on null) the tab's standing goal. */
@@ -403,8 +405,7 @@ export class InputController {
     const commandChain = parseBuiltInCommandChain(content);
     if (commandChain) {
       if (shouldUseInput) {
-        inputEl.value = '';
-        this.deps.resetInputHeight();
+        this.consumeComposerInput(inputEl);
       }
       for (const item of commandChain) {
         await this.executeBuiltInCommand(item.command, item.args);
@@ -421,8 +422,7 @@ export class InputController {
       && !content.startsWith('/')
       && !hasImages
     ) {
-      inputEl.value = '';
-      this.deps.resetInputHeight();
+      this.consumeComposerInput(inputEl);
       await this.runInlineTeamMission(content);
       return;
     }
@@ -431,8 +431,7 @@ export class InputController {
     const builtInCmd = detectBuiltInCommand(content);
     if (builtInCmd) {
       if (shouldUseInput) {
-        inputEl.value = '';
-        this.deps.resetInputHeight();
+        this.consumeComposerInput(inputEl);
       }
       await this.executeBuiltInCommand(builtInCmd.command, builtInCmd.args);
       return;
@@ -517,8 +516,7 @@ export class InputController {
       );
 
       if (shouldUseInput) {
-        inputEl.value = '';
-        this.deps.resetInputHeight();
+        this.consumeComposerInput(inputEl);
       }
       if (shouldUseInput) {
         imageContextManager?.clearImages();
@@ -529,8 +527,7 @@ export class InputController {
     }
 
     if (shouldUseInput) {
-      inputEl.value = '';
-      this.deps.resetInputHeight();
+      this.consumeComposerInput(inputEl);
     }
     state.isStreaming = true;
     // Hand off from the synchronous re-entry guard to the streaming guard:
@@ -3356,6 +3353,13 @@ export class InputController {
       this.activeResumeDropdown.destroy();
       this.activeResumeDropdown = null;
     }
+  }
+
+  /** Clears the composer after a send and drops its saved draft. */
+  private consumeComposerInput(inputEl: HTMLTextAreaElement): void {
+    inputEl.value = '';
+    this.deps.resetInputHeight();
+    this.deps.onComposerConsumed?.();
   }
 
   /**

@@ -14,6 +14,8 @@ import { t } from '../../../i18n/i18n';
 import type ClaudianPlugin from '../../../main';
 import { chooseForkTarget } from '../../../shared/modals/ForkTargetModal';
 import { revealWorkspaceLeaf } from '../../../utils/obsidianCompat';
+import { tabDraftKey } from '../services/ComposerDraftStore';
+import { composerDraftKeyForTab, restoreComposerDraft } from './composerDraftTab';
 import { getTabProviderId } from './providerResolution';
 import {
   activateTab,
@@ -206,8 +208,16 @@ export class TabManager implements TabManagerInterface {
         this.callbacks.onTabAttentionChanged?.(tab.id, needsAttention);
       },
       onConversationIdChanged: (conversationId) => {
+        // The chat is re-keyed before its composer is cleared: save what was
+        // typed under the old key first.
+        tab.draftAutosave?.flushPending();
+        const previousConversationId = tab.conversationId;
         // Sync tab.conversationId when conversation is lazily created
         tab.conversationId = conversationId;
+        if (!previousConversationId && conversationId) {
+          // A blank tab just became a conversation; its draft goes with it.
+          this.plugin.composerDrafts?.move(tabDraftKey(tab.id), composerDraftKeyForTab(tab));
+        }
         this.callbacks.onTabConversationChanged?.(tab.id, conversationId);
       },
     });
@@ -305,6 +315,7 @@ export class TabManager implements TabManagerInterface {
       } else if (!tab.conversationId && tab.state.messages.length === 0) {
         // New tab with no conversation - initialize welcome greeting
         tab.controllers.conversationController?.initializeWelcome();
+        void restoreComposerDraft(tab, this.plugin);
       }
 
       this.callbacks.onTabSwitched?.(previousTabId, tabId);
@@ -335,6 +346,12 @@ export class TabManager implements TabManagerInterface {
     // don't close it - it's already a blank draft container.
     if (this.tabs.size === 1 && !tab.conversationId && tab.state.messages.length === 0) {
       return false;
+    }
+
+    tab.draftAutosave?.flushPending();
+    if (!tab.conversationId) {
+      // A blank tab's draft has no chat to come back to once the tab is gone.
+      this.plugin.composerDrafts?.delete(tabDraftKey(tab.id));
     }
 
     // Save conversation before closing (non-blocking for tab destruction)
@@ -438,6 +455,7 @@ export class TabManager implements TabManagerInterface {
         isStreaming: tab.state.isStreaming,
         needsAttention: tab.state.needsAttention,
         canClose: this.tabs.size > 1 || !tab.state.isStreaming,
+        hasDraft: this.plugin.composerDrafts?.has(composerDraftKeyForTab(tab)) ?? false,
       });
     }
 
@@ -652,15 +670,11 @@ export class TabManager implements TabManagerInterface {
     const openTabs: PersistedTabState[] = [];
 
     for (const tab of this.tabs.values()) {
-      // Unsent composer draft survives restarts (capped — a draft beyond this
-      // size is almost certainly a paste that lives elsewhere anyway).
-      // Optional chaining: a tab mid-construction may not have its DOM yet.
-      const draft = (tab.dom?.inputEl?.value ?? '').slice(0, 20_000);
+      // Unsent composer contents live in plugin.composerDrafts, keyed by chat.
       openTabs.push({
         ...(tab.lifecycleState === 'blank' && tab.draftModel
           ? { draftModel: tab.draftModel }
           : {}),
-        ...(draft.trim() ? { draft } : {}),
         tabId: tab.id,
         conversationId: tab.conversationId,
       });
@@ -689,11 +703,14 @@ export class TabManager implements TabManagerInterface {
             deferHydration: true,
             ...(typeof tabState.draftModel === 'string' ? { draftModel: tabState.draftModel } : {}),
           });
-          // Restore the unsent composer draft; the input event resizes the
-          // textarea and hides the quick-prompt chips.
-          if (created && typeof tabState.draft === 'string' && tabState.draft.trim()) {
-            created.dom.inputEl.value = tabState.draft;
-            created.dom.inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+          // Builds before the draft store kept the draft in the tab layout.
+          // Move it over; the composer fills when the tab is first shown.
+          const drafts = this.plugin.composerDrafts;
+          if (created && drafts && typeof tabState.draft === 'string' && tabState.draft.trim()) {
+            const key = composerDraftKeyForTab(created);
+            if (!drafts.has(key)) {
+              drafts.set(key, { text: tabState.draft, attachments: [], imageIds: [] });
+            }
           }
         } catch {
           // Continue restoring other tabs
@@ -1051,7 +1068,15 @@ export class TabManager implements TabManagerInterface {
   // ============================================
 
   /** Destroys all tabs and cleans up resources. */
+  /** Saves every tab's pending composer draft, e.g. before the plugin unloads. */
+  flushComposerDrafts(): void {
+    for (const tab of this.tabs.values()) {
+      tab.draftAutosave?.flushPending();
+    }
+  }
+
   async destroy(): Promise<void> {
+    this.flushComposerDrafts();
     // Save all conversations in parallel (independent per-tab)
     await Promise.all(
       Array.from(this.tabs.values()).map(

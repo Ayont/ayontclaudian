@@ -124,6 +124,9 @@ body,
   --cl-speed-soft: rgba(240, 195, 90, 0.16);
   --cl-speed-line: rgba(240, 195, 90, 0.5);
 
+  /* Unsent draft pencil on tabs and history rows (as in T3 Code). */
+  --cl-draft: #e8b64c;
+
   /* ── Liquid-glass material ─────────────────────────────────────────────
      Web approximation of Apple's translucent materials (there is no official
      CSS package; this is backdrop-filter + layered rims + a specular sweep).
@@ -198,6 +201,7 @@ body,
 /* Light theme: crisp hairline borders with soft shade and calm surfaces. */
 body.theme-light,
 body.theme-light .claudian-container {
+  --cl-draft: #a8770a;
   --cl-glass-sat: 1.04;
   --cl-glass-body: color-mix(in srgb, var(--cl-surface-base) 94%, transparent);
   --cl-glass-body-strong: color-mix(in srgb, var(--cl-surface-base) 98%, transparent);

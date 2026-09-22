@@ -162,6 +162,7 @@ import {
 import { resolveAppShotSettings } from './features/chat/services/appShotCapture';
 import { takeAppShot } from './features/chat/services/AppShotController';
 import { registerAppShotGlobalHotkey, unregisterAppShotGlobalHotkey } from './features/chat/services/AppShotHotkeys';
+import { composerDraftsFilePath, ComposerDraftStore, conversationDraftKey } from './features/chat/services/ComposerDraftStore';
 import { ImageStagingService } from './features/chat/services/ImageStagingService';
 import { PacketTracerService } from './features/chat/services/PacketTracerService';
 import type { TabData } from './features/chat/tabs/types';
@@ -343,6 +344,8 @@ export default class ClaudianPlugin extends Plugin {
   missionStateStorage!: IMissionStateStorage;
   visionService!: VisionService;
   imageStagingService!: ImageStagingService;
+  /** Unsent composer contents per chat, surviving restarts and closed tabs. */
+  composerDrafts!: ComposerDraftStore;
   packetTracerService!: PacketTracerService;
   runTimelineStore!: RunTimelineStore;
   promptTemplateService!: PromptTemplateService;
@@ -374,6 +377,11 @@ export default class ClaudianPlugin extends Plugin {
     this.imageStagingService = new ImageStagingService(this.app.vault);
     void this.imageStagingService.cleanup(7).catch(() => {
       // Best-effort cleanup on startup.
+    });
+    // Loaded before any view is registered, so restored tabs find their drafts.
+    this.composerDrafts = new ComposerDraftStore(composerDraftsFilePath(getVaultPath(this.app)));
+    await this.composerDrafts.load().catch(() => {
+      // A missing or unreadable draft file just means no drafts.
     });
     this.packetTracerService = new PacketTracerService(this.app.vault);
     this.runTimelineStore = new RunTimelineStore(this.storage.getAdapter());
@@ -2289,10 +2297,12 @@ export default class ClaudianPlugin extends Plugin {
     for (const view of this.getAllViews()) {
       const tabManager = view.getTabManager();
       if (tabManager) {
+        tabManager.flushComposerDrafts();
         const state = tabManager.getPersistedState();
         await this.persistTabManagerState(state);
       }
     }
+    await this.composerDrafts?.flush();
   }
 
   private async persistOpenConversations(): Promise<void> {
@@ -3041,6 +3051,8 @@ export default class ClaudianPlugin extends Plugin {
       .deleteConversationSession(conversation, getVaultPath(this.app));
 
     await this.storage.sessions.deleteMetadata(id);
+    // A deleted chat's unsent draft has nowhere to come back to.
+    this.composerDrafts?.delete(conversationDraftKey(id));
 
     for (const view of this.getAllViews()) {
       const tabManager = view.getTabManager();

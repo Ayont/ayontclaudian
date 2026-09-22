@@ -349,6 +349,20 @@
   min-width: 0;
 }
 
+/* Unsent draft: the amber pencil T3 Code shows on threads with a draft. */
+.claudian-history-item-draft {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--cl-draft);
+}
+
+.claudian-history-item-draft svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.25;
+}
+
 .claudian-history-item-title {
   display: block;
   font-size: 13px;

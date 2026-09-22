@@ -1415,7 +1415,7 @@ describe('CodexChatRuntime', () => {
     });
 
     it('sends model on thread/resume', async () => {
-      const plugin = createMockPlugin({ model: 'gpt-5.4-mini' });
+      const plugin = createMockPlugin({ model: 'gpt-5.6-luna' });
       const rt = new CodexChatRuntime(plugin);
 
       rt.syncConversationState({
@@ -1430,7 +1430,7 @@ describe('CodexChatRuntime', () => {
 
       const resumeCall = findCall('thread/resume');
       expect(resumeCall).toBeDefined();
-      expect(resumeCall[1].model).toBe('gpt-5.4-mini');
+      expect(resumeCall[1].model).toBe('gpt-5.6-luna');
 
       rt.cleanup();
     });
