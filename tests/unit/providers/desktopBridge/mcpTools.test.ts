@@ -7,6 +7,11 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import type { McpConsent } from '../../../../src/providers/desktopBridge/mcpTools';
 import { DesktopMcpSession } from '../../../../src/providers/desktopBridge/mcpTools';
 
+// A 15 ms budget used to cover connect + listTools as well; under full-suite load
+// discovery alone overran it and the test failed before reaching the invoke.
+const SLOW_SESSION_TIMEOUT_MS = 250;
+const SLOW_TOOL_MS = 1000;
+
 async function fixture(approve: (request: Readonly<McpConsent>) => Promise<boolean> = async () => true, slow = false) {
   const server = new Server({ name: 'fixture', version: '1' }, { capabilities: { tools: {} } });
   let calls = 0;
@@ -14,14 +19,16 @@ async function fixture(approve: (request: Readonly<McpConsent>) => Promise<boole
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [{ name: 'echo', inputSchema: schema }] }));
   server.setRequestHandler(CallToolRequestSchema, async req => {
     calls++;
-    if (slow) await new Promise(resolve => setTimeout(resolve, 50));
+    // The session budget bounds connect and discovery too, so only the tool call
+    // may be slow: it has to outlast the budget while discovery stays well inside it.
+    if (slow) await new Promise(resolve => setTimeout(resolve, SLOW_TOOL_MS));
     return { content: [{ type: 'text', text: String(req.params?.arguments?.text) }], isError: req.params?.arguments?.text === 'error' };
   });
   const [a, b] = InMemoryTransport.createLinkedPair();
   await server.connect(b);
   const close = jest.spyOn(a, 'close');
   const factory = jest.fn(() => a);
-  const session = new DesktopMcpSession({ enabled: true, servers: [{ name: 'fixture', config: { command: '/not-started', env: { PRIVATE_TOKEN: 'synthetic-secret' } }, enabled: true, contextSaving: false }], selectedNames: [], stillAllowed: () => allowed, approve, transportFactory: factory, timeoutMs: slow ? 15 : 1000 });
+  const session = new DesktopMcpSession({ enabled: true, servers: [{ name: 'fixture', config: { command: '/not-started', env: { PRIVATE_TOKEN: 'synthetic-secret' } }, enabled: true, contextSaving: false }], selectedNames: [], stillAllowed: () => allowed, approve, transportFactory: factory, timeoutMs: slow ? SLOW_SESSION_TIMEOUT_MS : 1000 });
   const [entry] = await session.catalog();
   return { server, session, entry, factory, close, calls: () => calls, revoke: () => { allowed = false; }, cleanup: async () => { await session.dispose(); await server.close(); } };
 }

@@ -1,5 +1,7 @@
 import {
   CODEX_GPT_6_ASTRA_MODEL,
+  CODEX_GPT_6_LUNA_MODEL,
+  CODEX_GPT_6_SOL_MODEL,
   CODEX_GPT_55_MODEL,
   CODEX_GPT_56_LUNA_MODEL,
   CODEX_GPT_56_SOL_MODEL,
@@ -14,10 +16,13 @@ describe('CodexChatUIConfig', () => {
   describe('getModelOptions', () => {
     it('should return default models when no env vars', () => {
       const options = codexChatUIConfig.getModelOptions({});
-      expect(options).toHaveLength(6);
+      expect(options).toHaveLength(8);
+      expect(DEFAULT_CODEX_PRIMARY_MODEL).toBe(CODEX_GPT_6_SOL_MODEL);
       expect(options.map(o => o.value)).toEqual([
         DEFAULT_CODEX_PRIMARY_MODEL,
         CODEX_GPT_6_ASTRA_MODEL,
+        CODEX_GPT_6_LUNA_MODEL,
+        CODEX_GPT_56_SOL_MODEL,
         CODEX_GPT_56_TERRA_MODEL,
         CODEX_GPT_56_LUNA_MODEL,
         CODEX_GPT_55_MODEL,
@@ -36,9 +41,9 @@ describe('CodexChatUIConfig', () => {
 
       expect(options).toEqual([
         {
-          value: CODEX_GPT_56_SOL_MODEL,
-          label: 'GPT-5.6 Sol',
-          description: 'Flagship GPT-5.6 model for complex coding',
+          value: CODEX_GPT_6_SOL_MODEL,
+          label: 'GPT-6 Sol',
+          description: 'Neues Sol: Alltagsmodell für komplexe Aufgaben und Coding, schont die Nutzungslimits',
         },
         {
           value: CODEX_GPT_6_ASTRA_MODEL,
@@ -46,24 +51,34 @@ describe('CodexChatUIConfig', () => {
           description: 'Leistungsfähigstes OpenAI-Modell für komplexe, anspruchsvolle Aufgaben',
         },
         {
+          value: CODEX_GPT_6_LUNA_MODEL,
+          label: 'GPT-6 Luna',
+          description: 'Neue Luna: sehr effizient für alles ohne Frontier-Anspruch',
+        },
+        {
+          value: CODEX_GPT_56_SOL_MODEL,
+          label: 'GPT-5.6 Sol',
+          description: 'Vorheriges Sol-Modell für komplexes Coding',
+        },
+        {
           value: CODEX_GPT_56_TERRA_MODEL,
           label: 'GPT-5.6 Terra',
-          description: 'Balanced GPT-5.6 model for everyday work',
+          description: 'Ausgewogenes GPT-5.6-Modell für den Alltag',
         },
         {
           value: CODEX_GPT_56_LUNA_MODEL,
           label: 'GPT-5.6 Luna',
-          description: 'Fast and cost-efficient GPT-5.6 model',
+          description: 'Vorheriges Luna-Modell, schnell und günstig',
         },
         {
           value: CODEX_GPT_55_MODEL,
           label: 'GPT-5.5',
-          description: 'Previous frontier model',
+          description: 'Älteres Frontier-Modell',
         },
         {
           value: DEFAULT_CODEX_MINI_MODEL,
           label: 'GPT-5.4 Mini',
-          description: 'Fast legacy mini model',
+          description: 'Schnelles älteres Mini-Modell',
         },
         {
           value: 'gpt-5.6-preview',
@@ -84,7 +99,7 @@ describe('CodexChatUIConfig', () => {
       });
       expect(options[0].value).toBe('my-custom-model');
       expect(options[0].description).toBe('Custom (env)');
-      expect(options.length).toBe(7);
+      expect(options.length).toBe(9);
     });
 
     it('deduplicates env and settings-defined custom models', () => {
@@ -101,6 +116,8 @@ describe('CodexChatUIConfig', () => {
         'my-custom-model',
         DEFAULT_CODEX_PRIMARY_MODEL,
         CODEX_GPT_6_ASTRA_MODEL,
+        CODEX_GPT_6_LUNA_MODEL,
+        CODEX_GPT_56_SOL_MODEL,
         CODEX_GPT_56_TERRA_MODEL,
         CODEX_GPT_56_LUNA_MODEL,
         CODEX_GPT_55_MODEL,
@@ -113,7 +130,7 @@ describe('CodexChatUIConfig', () => {
       const options = codexChatUIConfig.getModelOptions({
         environmentVariables: `OPENAI_MODEL=${DEFAULT_CODEX_PRIMARY_MODEL}`,
       });
-      expect(options.length).toBe(6);
+      expect(options.length).toBe(8);
     });
   });
 
@@ -131,8 +148,18 @@ describe('CodexChatUIConfig', () => {
     });
 
     it('adds max and ultra effort levels for GPT-5.6 Sol/Terra', () => {
-      const options = codexChatUIConfig.getReasoningOptions(DEFAULT_CODEX_PRIMARY_MODEL, {});
+      const options = codexChatUIConfig.getReasoningOptions(CODEX_GPT_56_SOL_MODEL, {});
       expect(options.map(o => o.value)).toEqual(['low', 'medium', 'high', 'xhigh', 'max', 'ultra']);
+    });
+
+    it('offers all six levels for GPT-6 Sol, as the Codex catalog lists them', () => {
+      expect(codexChatUIConfig.getReasoningOptions(CODEX_GPT_6_SOL_MODEL, {}).map(o => o.value))
+        .toEqual(['low', 'medium', 'high', 'xhigh', 'max', 'ultra']);
+    });
+
+    it('offers max but not ultra for GPT-6 Luna, as the Codex catalog lists it', () => {
+      expect(codexChatUIConfig.getReasoningOptions(CODEX_GPT_6_LUNA_MODEL, {}).map(o => o.value))
+        .toEqual(['low', 'medium', 'high', 'xhigh', 'max']);
     });
 
     it('adds max but not ultra for GPT-5.6 Luna', () => {
@@ -160,8 +187,13 @@ describe('CodexChatUIConfig', () => {
       })).toBe(828_400);
     });
 
+    it('uses the effective Codex default context for GPT-6 Sol and Luna', () => {
+      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_6_SOL_MODEL)).toBe(258_400);
+      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_6_LUNA_MODEL)).toBe(258_400);
+    });
+
     it('should return 1.05M for GPT-5.6 models', () => {
-      expect(codexChatUIConfig.getContextWindowSize(DEFAULT_CODEX_PRIMARY_MODEL)).toBe(1_050_000);
+      expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_56_SOL_MODEL)).toBe(1_050_000);
       expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_56_TERRA_MODEL)).toBe(1_050_000);
       expect(codexChatUIConfig.getContextWindowSize(CODEX_GPT_56_LUNA_MODEL)).toBe(1_050_000);
     });
@@ -277,6 +309,13 @@ describe('CodexChatUIConfig', () => {
     it('should return empty set when no OPENAI_MODEL', () => {
       const ids = codexChatUIConfig.getCustomModelIds({});
       expect(ids.size).toBe(0);
+    });
+  });
+
+  describe('getServiceTierToggle', () => {
+    it('offers Fast on GPT-6 Sol and Luna', () => {
+      expect(codexChatUIConfig.getServiceTierToggle?.({ model: CODEX_GPT_6_SOL_MODEL })).not.toBeNull();
+      expect(codexChatUIConfig.getServiceTierToggle?.({ model: CODEX_GPT_6_LUNA_MODEL })).not.toBeNull();
     });
   });
 
