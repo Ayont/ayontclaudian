@@ -75,7 +75,7 @@ const ROUTER_MODEL_MIGRATIONS: Record<string, string> = {
   'claude-haiku-4-5': 'claude-sonnet-5',
   'claude-sonnet-4-5': 'claude-sonnet-5',
   'sonnet': 'claude-sonnet-5',
-  'opus': 'claude-opus-5',
+  'opus': 'claude-opus-5-5',
   'fable': 'claude-fable-5-1',
   'gemini-3.5-flash': 'gemini-3.8-flash',
   'gemini-3.5-flash-low': 'gemini-3.8-flash-low',

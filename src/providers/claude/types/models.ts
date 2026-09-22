@@ -6,19 +6,22 @@
 export type ClaudeModel = string;
 
 /**
- * Built-in Claude catalog: five pinned models, no floating aliases, no Haiku.
+ * Built-in Claude catalog: six pinned models, no floating aliases, no Haiku.
  *
  * Every id, label and context window below was read out of the installed Claude
- * Code binary's model table (2.1.258, `{id, display_name, context:{window,
- * native_1m}, capabilities}`), not inferred. All five are `window: 1e6,
- * native_1m: true`. The CLI's alias map today is `fable -> claude-fable-5-1`,
- * `opus -> claude-opus-5`, `sonnet -> claude-sonnet-5`; we pin the ids so a
- * silent alias move can never change which model a user is talking to.
+ * Code binary's model table (2.1.280, `{id, display_name, context:{window,
+ * native_1m}, capabilities, default_effort}`), not inferred. All six are
+ * `window: 1e6, native_1m: true`. The CLI's alias map today is
+ * `fable -> claude-fable-5-1`, `opus -> claude-opus-5-5`, `sonnet -> claude-sonnet-5`;
+ * we pin the ids so a silent alias move can never change which model a user is
+ * talking to.
  *
- * `[1m]` spellings: Fable 5.1 and Opus 5 are offered as a plain/[1m] pair that the
- * single "Opus 1M" toggle governs (see filterVisibleModelOptions). The CLI honours
- * the suffix on both (`supports_1m_suffix` on Opus; Fable normalises it). Fable 5,
- * Opus 4.8 and Sonnet 5 are listed once; their window is 1M regardless.
+ * `[1m]` spellings: Fable 5.1, Opus 5.5 and Opus 5 are offered as plain/[1m] pairs
+ * that the single "Opus 1M" toggle governs (see filterVisibleModelOptions). The CLI
+ * honours the suffix on all three (`supports_1m_suffix` on Opus; Fable normalises
+ * it). Opus 5 keeps its pair after 5.5 took the flagship slot so a persisted
+ * `claude-opus-5[1m]` still resolves to a catalog row. Fable 5, Opus 4.8 and
+ * Sonnet 5 are listed once; their window is 1M regardless.
  *
  * Order = picker order. Fable 5.1 first because it is the flagship the user asked
  * for; it is NOT the settings default (see DEFAULT_CLAUDE_PROVIDER_SETTINGS), so a
@@ -28,9 +31,11 @@ export const DEFAULT_CLAUDE_MODELS: { value: ClaudeModel; label: string; descrip
   { value: 'claude-fable-5-1', label: 'Fable 5.1', description: 'Mythos-Klasse, neuestes Flaggschiff (1M Kontext)' },
   { value: 'claude-fable-5-1[1m]', label: 'Fable 5.1 1M', description: 'Mythos-Klasse, neuestes Flaggschiff (1M-Kontext explizit)' },
   { value: 'claude-fable-5', label: 'Fable 5', description: 'Mythos-Klasse, vorheriges Flaggschiff (1M Kontext)' },
-  { value: 'claude-opus-5', label: 'Opus 5', description: 'Stärkstes Opus, Fast-Modus verfügbar (1M Kontext)' },
-  { value: 'claude-opus-5[1m]', label: 'Opus 5 1M', description: 'Stärkstes Opus, Fast-Modus verfügbar (1M-Kontext explizit)' },
-  { value: 'claude-opus-4-8', label: 'Opus 4.8', description: 'Vorheriges Opus, Fast-Modus verfügbar (1M Kontext)' },
+  { value: 'claude-opus-5-5', label: 'Opus 5.5', description: 'Stärkstes Opus, günstiger als Opus 5, Fast-Modus verfügbar (1M Kontext)' },
+  { value: 'claude-opus-5-5[1m]', label: 'Opus 5.5 1M', description: 'Stärkstes Opus, günstiger als Opus 5, Fast-Modus verfügbar (1M-Kontext explizit)' },
+  { value: 'claude-opus-5', label: 'Opus 5', description: 'Vorheriges Opus, Fast-Modus verfügbar (1M Kontext)' },
+  { value: 'claude-opus-5[1m]', label: 'Opus 5 1M', description: 'Vorheriges Opus, Fast-Modus verfügbar (1M-Kontext explizit)' },
+  { value: 'claude-opus-4-8', label: 'Opus 4.8', description: 'Älteres Opus, Fast-Modus verfügbar (1M Kontext)' },
   { value: 'claude-sonnet-5', label: 'Sonnet 5', description: 'Ausgewogen und schnell (1M Kontext)' },
 ];
 
@@ -57,21 +62,30 @@ export const EFFORT_LEVELS: { value: EffortLevel; label: string; description: st
 /** Effort levels that are session-only (not persisted) — surfaced in the UI. */
 export const SESSION_ONLY_EFFORT_LEVELS = new Set<EffortLevel>(['max', 'ultracode']);
 
-/** Default effort level per model tier. */
+/**
+ * Default effort level per model tier.
+ *
+ * Mirrors each CLI table row's `default_effort` (2.1.280). Opus 5.5 is the one
+ * model whose native default is `medium`; matching it means picking Opus 5.5 here
+ * behaves like `/model` in Claude Code instead of silently spending one level more.
+ */
 export const DEFAULT_EFFORT_LEVEL: Record<string, EffortLevel> = {
   'claude-fable-5-1': 'high',
   'claude-fable-5-1[1m]': 'high',
   'claude-fable-5': 'high',
+  'claude-opus-5-5': 'medium',
+  'claude-opus-5-5[1m]': 'medium',
   'claude-opus-5': 'high',
   'claude-opus-5[1m]': 'high',
   'claude-opus-4-8': 'high',
   'claude-sonnet-5': 'high',
   // Legacy aliases still accepted from persisted settings / custom-model lists.
+  // Each follows the model its alias resolves to today.
   'haiku': 'high',
   'sonnet': 'high',
   'sonnet[1m]': 'high',
-  'opus': 'high',
-  'opus[1m]': 'high',
+  'opus': 'medium',
+  'opus[1m]': 'medium',
   'fable': 'high',
   'fable[1m]': 'high',
 };
@@ -111,12 +125,13 @@ function isFableFamilyModel(model: string): boolean {
  * Whether `model` ships with a 1M context window **by default** — no `[1m]` opt-in
  * needed.
  *
- * Source: the installed Claude Code binary's model table (2.1.258), field
+ * Source: the installed Claude Code binary's model table (2.1.280), field
  * `context.window` / `context.native_1m`:
  *
  *   claude-fable-5-1   1_000_000  native_1m   (alias target of `fable`)
  *   claude-fable-5     1_000_000  native_1m
- *   claude-opus-5      1_000_000  native_1m   (alias target of `opus`)
+ *   claude-opus-5-5    1_000_000  native_1m   (alias target of `opus`)
+ *   claude-opus-5      1_000_000  native_1m
  *   claude-opus-4-8    1_000_000  native_1m
  *   claude-opus-4-7    1_000_000  native_1m
  *   claude-sonnet-5    1_000_000  native_1m   (alias target of `sonnet`)
@@ -170,11 +185,13 @@ export function isDefaultClaudeModel(model: string): boolean {
 /**
  * Whether Claude Code can serve this model through fast mode (`/fast`).
  *
- * Read from the CLI 2.1.258 model table: the `fast_mode` capability is present
- * on claude-opus-5 and claude-opus-4-8 only. Fable 5 / 5.1 and Sonnet 5 do NOT
- * carry it (the CLI's own fallback check is `includes("opus-4-8") ||
- * includes("opus-5")`). The floating `opus` alias resolves to Opus 5 today and
- * stays in the allow-list; the CLI ignores `fastMode` on unsupported models.
+ * Read from the CLI 2.1.280 model table: the `fast_mode` capability is present
+ * on claude-opus-5-5, claude-opus-5 and claude-opus-4-8 only. Fable 5 / 5.1 and
+ * Sonnet 5 do NOT carry it (the CLI's own fallback check is `includes("opus-4-8")
+ * || includes("opus-5")`, which the `claude-opus-5` pattern below shares, so it
+ * also covers `claude-opus-5-5`). The floating `opus` alias resolves to Opus 5.5
+ * today and stays in the allow-list; the CLI ignores `fastMode` on unsupported
+ * models.
  */
 export function supportsClaudeFastMode(model: string): boolean {
   const normalized = normalizeModelId(model);
@@ -187,7 +204,7 @@ export function isClaudeFastModeEnabled(model: string, serviceTier: unknown): bo
 }
 
 export const CLAUDE_FAST_MODE_DESCRIPTION =
-  'Opus bis zu 2,5× schneller. Gleiche Qualität, höhere Token-Kosten. Nur Opus 5 und Opus 4.8.';
+  'Opus bis zu 2,5× schneller. Gleiche Qualität, höhere Token-Kosten. Nur Opus 5.5, Opus 5 und Opus 4.8.';
 
 /**
  * Whether the model supports the `xhigh` effort level.
@@ -303,7 +320,7 @@ function baseModelId(model: string): string {
  * such as `claude-opus-5` ride the same `enableOpus1M` setting as the floating
  * `opus` alias, instead of needing a hand-maintained list per release. Fable rides
  * the Opus toggle too: the UI exposes ONE "1M-Kontext" switch for the flagship
- * tier, and Fable 5.1 / Opus 5 are the two models offered as a plain/[1m] pair.
+ * tier, and Fable 5.1 / Opus 5.5 / Opus 5 are the models offered as a plain/[1m] pair.
  */
 function oneMToggleForBase(
   base: string,
@@ -365,14 +382,15 @@ export function filterVisibleModelOptions<T extends { value: string }>(
 /**
  * Persisted values from builds that offered floating aliases (`haiku`, `sonnet`,
  * `opus`, `fable`, plus their `[1m]` spellings) map onto the pinned catalog id the
- * CLI resolves them to today (2.1.258 alias table). Haiku is no longer offered;
- * it lands on Sonnet 5, the closest fast tier. Without this, every existing
- * install would fall through to index 0 (Fable 5.1) and silently burn credits.
+ * CLI resolves them to today (2.1.280 alias table, which moved `opus` to Opus 5.5).
+ * Haiku is no longer offered; it lands on Sonnet 5, the closest fast tier. Without
+ * this, every existing install would fall through to index 0 (Fable 5.1) and
+ * silently burn credits.
  */
 const LEGACY_ALIAS_TO_CATALOG_ID: Record<string, string> = {
   'haiku': 'claude-sonnet-5',
   'sonnet': 'claude-sonnet-5',
-  'opus': 'claude-opus-5',
+  'opus': 'claude-opus-5-5',
   'fable': 'claude-fable-5-1',
 };
 

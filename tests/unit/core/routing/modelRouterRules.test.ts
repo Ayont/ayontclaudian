@@ -43,6 +43,20 @@ describe('modelRouterRules', () => {
     expect(route).toMatchObject({ task: 'planning', model: 'claude-sonnet-5' });
   });
 
+  it('migrates a saved `opus` rule to the model the CLI alias resolves to today', () => {
+    // Claude Code 2.1.280 alias table: opus -> claude-opus-5-5.
+    const route = chooseModelRoute({
+      prompt: 'plan the quarterly architecture',
+      rules: normalizeRouterRules([{ task: 'planning', model: 'opus' }]),
+      availableModels: [
+        { value: 'claude-opus-5-5', label: 'Opus 5.5' },
+        { value: 'claude-opus-5', label: 'Opus 5' },
+      ] as any,
+      fallbackModel: 'fallback',
+    });
+    expect(route).toMatchObject({ task: 'planning', model: 'claude-opus-5-5' });
+  });
+
   it('falls back when rule model is unavailable', () => {
     const route = chooseModelRoute({
       prompt: 'fix bug',

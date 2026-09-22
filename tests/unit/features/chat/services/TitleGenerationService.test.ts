@@ -103,8 +103,8 @@ describe('TitleGenerationService', () => {
       await service.generateTitle('conv-123', 'test', callback);
 
       const options = getLastOptions();
-      // `opus` is a legacy alias; the catalog pins it to Opus 5.
-      expect(options?.model).toBe('claude-opus-5');
+      // `opus` is a legacy alias; the catalog pins it to its CLI target, Opus 5.5.
+      expect(options?.model).toBe('claude-opus-5-5');
     });
 
     it('should prioritize setting over env var', async () => {

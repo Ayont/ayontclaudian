@@ -14,6 +14,7 @@ describe('claudeChatUIConfig', () => {
       expect(options.map(option => option.value)).toEqual([
         'claude-fable-5-1',
         'claude-fable-5',
+        'claude-opus-5-5',
         'claude-opus-5',
         'claude-opus-4-8',
         'claude-sonnet-5',
@@ -48,6 +49,7 @@ describe('claudeChatUIConfig', () => {
       expect(options.map(option => option.value)).toEqual([
         'claude-fable-5-1',
         'claude-fable-5',
+        'claude-opus-5-5',
         'claude-opus-5',
         'claude-opus-4-8',
         'claude-sonnet-5',
@@ -188,6 +190,42 @@ describe('claudeChatUIConfig', () => {
 
       expect(settings.effortLevel).toBe('xhigh');
     });
+
+    // Claude Code's own table sets default_effort "medium" for claude-opus-5-5,
+    // one level below every other catalog model.
+    it('starts Opus 5.5 at its native medium effort', () => {
+      for (const model of ['claude-opus-5-5', 'claude-opus-5-5[1m]']) {
+        const settings: Record<string, unknown> = { effortLevel: 'high', providerConfigs: {} };
+
+        claudeChatUIConfig.applyModelDefaults(model, settings);
+
+        expect(settings.effortLevel).toBe('medium');
+        expect(claudeChatUIConfig.getDefaultReasoningValue(model, settings)).toBe('medium');
+      }
+    });
+
+    it('keeps high as the starting effort for Opus 5', () => {
+      const settings: Record<string, unknown> = { effortLevel: 'low', providerConfigs: {} };
+
+      claudeChatUIConfig.applyModelDefaults('claude-opus-5', settings);
+
+      expect(settings.effortLevel).toBe('high');
+    });
+  });
+
+  describe('getReasoningOptions for Opus 5.5', () => {
+    it('offers the full effort range including xhigh, max and ultracode', () => {
+      const values = claudeChatUIConfig.getReasoningOptions('claude-opus-5-5', {}).map(option => option.value);
+
+      expect(values).toEqual(['low', 'medium', 'high', 'xhigh', 'max', 'ultracode']);
+    });
+  });
+
+  describe('getContextWindowSize for Opus 5.5', () => {
+    it('reports the 1M window the CLI reads back from modelUsage', () => {
+      expect(claudeChatUIConfig.getContextWindowSize('claude-opus-5-5')).toBe(1_000_000);
+      expect(claudeChatUIConfig.getContextWindowSize('claude-opus-5-5[1m]')).toBe(1_000_000);
+    });
   });
 
   describe('getServiceTierToggle', () => {
@@ -201,6 +239,11 @@ describe('claudeChatUIConfig', () => {
         activeLabel: 'Speed',
         description: expect.stringMatching(/2,5[x×]|2\.5x/),
       });
+    });
+
+    it('exposes the Speed toggle on Opus 5.5 in both spellings', () => {
+      expect(claudeChatUIConfig.getServiceTierToggle?.({ model: 'claude-opus-5-5' })).not.toBeNull();
+      expect(claudeChatUIConfig.getServiceTierToggle?.({ model: 'claude-opus-5-5[1m]' })).not.toBeNull();
     });
 
     it('hides the Speed toggle on Haiku, Sonnet, Fable, and Opus 4.7', () => {

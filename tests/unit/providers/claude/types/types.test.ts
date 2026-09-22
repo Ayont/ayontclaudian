@@ -12,6 +12,7 @@ import {
 import type { ClaudianSettings } from '@/core/types/settings';
 import { getClaudeProviderSettings } from '@/providers/claude/settings';
 import {
+  CLAUDE_FAST_MODE_DESCRIPTION,
   CONTEXT_WINDOW_1M,
   CONTEXT_WINDOW_STANDARD,
   DEFAULT_CLAUDE_MODELS,
@@ -20,6 +21,7 @@ import {
   getContextWindowSize,
   isClaudeFastModeEnabled,
   isDefaultClaudeModel,
+  isEffortLevelSupported,
   isUltracodeEffort,
   normalizeEffortLevel,
   normalizeVisibleModelVariant,
@@ -577,7 +579,7 @@ describe('types.ts', () => {
     });
 
     it('should report 1M for the bare `sonnet` and `opus` aliases', () => {
-      // Claude Code 2.1.258 alias map: sonnet -> claude-sonnet-5, opus -> claude-opus-5,
+      // Claude Code 2.1.280 alias map: sonnet -> claude-sonnet-5, opus -> claude-opus-5-5,
       // both `window:1e6, native_1m:true` in the CLI's model catalog.
       expect(getContextWindowSize('sonnet')).toBe(CONTEXT_WINDOW_1M);
       expect(getContextWindowSize('opus')).toBe(CONTEXT_WINDOW_1M);
@@ -680,6 +682,13 @@ describe('types.ts', () => {
         expect(getContextWindowSize('claude-sonnet-5')).toBe(CONTEXT_WINDOW_1M);
       });
 
+      it('should return 1M for Opus 5.5 in both spellings', () => {
+        // CLI 2.1.280 catalog: claude-opus-5-5 `window:1e6, native_1m, supports_1m_suffix`;
+        // a live turn reads back modelUsage['claude-opus-5-5'].contextWindow = 1000000.
+        expect(getContextWindowSize('claude-opus-5-5')).toBe(CONTEXT_WINDOW_1M);
+        expect(getContextWindowSize('claude-opus-5-5[1m]')).toBe(CONTEXT_WINDOW_1M);
+      });
+
       it('should report 200K for pinned ids that default to 200K', () => {
         // Opus 4.6 and older: window:200000, supports_1m_beta only.
         expect(getContextWindowSize('claude-opus-4-6')).toBe(CONTEXT_WINDOW_STANDARD);
@@ -699,25 +708,29 @@ describe('types.ts', () => {
       });
 
       it('reports 1M for both spellings of the floating `opus` alias', () => {
-        // The alias resolves to claude-opus-5 today, which is 1M either way.
+        // The alias resolves to claude-opus-5-5 today, which is 1M either way.
         expect(getContextWindowSize('opus')).toBe(CONTEXT_WINDOW_1M);
         expect(getContextWindowSize('opus[1m]')).toBe(CONTEXT_WINDOW_1M);
       });
     });
 
     describe('filterVisibleModelOptions', () => {
-      // The catalog is exactly five models: Fable 5.1, Fable 5, Opus 5, Opus 4.8,
-      // Sonnet 5 — all pinned ids. No floating aliases, no Haiku. The only 1M
-      // toggle in the UI (`enableOpus1M`) governs the [1m] spelling of the two
-      // models that are offered as a plain/[1m] pair: Fable 5.1 and Opus 5.
-      it('lists the five pinned models with 200K spellings when the toggle is off', () => {
+      // The catalog is exactly six models: Fable 5.1, Fable 5, Opus 5.5, Opus 5,
+      // Opus 4.8, Sonnet 5 — all pinned ids. No floating aliases, no Haiku. The only
+      // 1M toggle in the UI (`enableOpus1M`) governs the [1m] spelling of the three
+      // models offered as a plain/[1m] pair: Fable 5.1, Opus 5.5 and Opus 5.
+      it('lists the six pinned models with plain spellings when the toggle is off', () => {
         const models = filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, false, false).map((model) => model.value);
-        expect(models).toEqual(['claude-fable-5-1', 'claude-fable-5', 'claude-opus-5', 'claude-opus-4-8', 'claude-sonnet-5']);
+        expect(models).toEqual([
+          'claude-fable-5-1', 'claude-fable-5', 'claude-opus-5-5', 'claude-opus-5', 'claude-opus-4-8', 'claude-sonnet-5',
+        ]);
       });
 
-      it('swaps Fable 5.1 and Opus 5 to their [1m] spelling when enableOpus1M is on', () => {
+      it('swaps Fable 5.1, Opus 5.5 and Opus 5 to their [1m] spelling when enableOpus1M is on', () => {
         const models = filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, true, false).map((model) => model.value);
-        expect(models).toEqual(['claude-fable-5-1[1m]', 'claude-fable-5', 'claude-opus-5[1m]', 'claude-opus-4-8', 'claude-sonnet-5']);
+        expect(models).toEqual([
+          'claude-fable-5-1[1m]', 'claude-fable-5', 'claude-opus-5-5[1m]', 'claude-opus-5[1m]', 'claude-opus-4-8', 'claude-sonnet-5',
+        ]);
       });
 
       it('ignores the legacy Sonnet toggle: Sonnet 5 has one spelling only', () => {
@@ -732,21 +745,27 @@ describe('types.ts', () => {
           expect(models).not.toContain('opus');
           expect(models).not.toContain('sonnet');
           expect(models).not.toContain('fable');
-          expect(models).toHaveLength(5);
+          expect(models).toHaveLength(6);
         }
       });
 
       it('keeps exactly one spelling of every toggle pair visible under either setting', () => {
+        // Compare the base id exactly: `claude-opus-5` is a prefix of `claude-opus-5-5`.
+        const spellingsOf = (models: string[], base: string) => models.filter((v) => v.replace('[1m]', '') === base);
         for (const enableOpus1M of [false, true]) {
           const models = filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, enableOpus1M, false).map((m) => m.value);
-          expect(models.filter((v) => v.startsWith('claude-opus-5'))).toEqual([enableOpus1M ? 'claude-opus-5[1m]' : 'claude-opus-5']);
-          expect(models.filter((v) => v.startsWith('claude-fable-5-1'))).toEqual([enableOpus1M ? 'claude-fable-5-1[1m]' : 'claude-fable-5-1']);
+          for (const base of ['claude-opus-5-5', 'claude-opus-5', 'claude-fable-5-1']) {
+            expect(spellingsOf(models, base)).toEqual([enableOpus1M ? `${base}[1m]` : base]);
+          }
         }
       });
     });
 
     describe('normalizeVisibleModelVariant', () => {
-      it('normalizes the two toggle pairs to the visible spelling', () => {
+      it('normalizes the three toggle pairs to the visible spelling', () => {
+        expect(normalizeVisibleModelVariant('claude-opus-5-5', true, false)).toBe('claude-opus-5-5[1m]');
+        expect(normalizeVisibleModelVariant('claude-opus-5-5[1m]', false, false)).toBe('claude-opus-5-5');
+        expect(normalizeVisibleModelVariant('CLAUDE-OPUS-5-5[1M]', false, false)).toBe('claude-opus-5-5');
         expect(normalizeVisibleModelVariant('claude-opus-5', true, false)).toBe('claude-opus-5[1m]');
         expect(normalizeVisibleModelVariant('claude-opus-5[1m]', false, false)).toBe('claude-opus-5');
         expect(normalizeVisibleModelVariant('CLAUDE-OPUS-5[1M]', false, false)).toBe('claude-opus-5');
@@ -760,11 +779,12 @@ describe('types.ts', () => {
         expect(normalizeVisibleModelVariant('claude-sonnet-5', true, true)).toBe('claude-sonnet-5');
       });
 
-      it('migrates persisted floating aliases onto the pinned catalog ids (CLI 2.1.258 alias table)', () => {
-        // Existing installs must land on the model the alias meant, never on index 0.
-        expect(normalizeVisibleModelVariant('opus', false, false)).toBe('claude-opus-5');
-        expect(normalizeVisibleModelVariant('opus', true, false)).toBe('claude-opus-5[1m]');
-        expect(normalizeVisibleModelVariant('opus[1m]', false, false)).toBe('claude-opus-5');
+      it('migrates persisted floating aliases onto the pinned catalog ids (CLI 2.1.280 alias table)', () => {
+        // Existing installs must land on the model the alias means, never on index 0.
+        // 2.1.280 moved `opus` from claude-opus-5 to claude-opus-5-5.
+        expect(normalizeVisibleModelVariant('opus', false, false)).toBe('claude-opus-5-5');
+        expect(normalizeVisibleModelVariant('opus', true, false)).toBe('claude-opus-5-5[1m]');
+        expect(normalizeVisibleModelVariant('opus[1m]', false, false)).toBe('claude-opus-5-5');
         expect(normalizeVisibleModelVariant('fable', false, false)).toBe('claude-fable-5-1');
         expect(normalizeVisibleModelVariant('fable[1m]', true, false)).toBe('claude-fable-5-1[1m]');
         expect(normalizeVisibleModelVariant('sonnet', false, true)).toBe('claude-sonnet-5');
@@ -780,34 +800,52 @@ describe('types.ts', () => {
     });
   });
 
-  // Catalog verified against the installed Claude Code 2.1.258 binary: its model
+  // Catalog verified against the installed Claude Code 2.1.280 binary: its model
   // table lists claude-fable-5-1 (alias target of `fable`), claude-fable-5,
-  // claude-opus-5 (alias target of `opus`), claude-opus-4-8 and claude-sonnet-5
-  // (alias target of `sonnet`), all with window:1e6 / native_1m.
+  // claude-opus-5-5 (alias target of `opus`), claude-opus-5, claude-opus-4-8 and
+  // claude-sonnet-5 (alias target of `sonnet`), all with window:1e6 / native_1m.
   describe('DEFAULT_CLAUDE_MODELS catalog', () => {
-    it('offers exactly Fable 5.1, Fable 5, Opus 5, Opus 4.8 and Sonnet 5', () => {
+    it('offers exactly Fable 5.1, Fable 5, Opus 5.5, Opus 5, Opus 4.8 and Sonnet 5', () => {
       const values = DEFAULT_CLAUDE_MODELS.map(m => m.value);
       expect(values).toEqual([
         'claude-fable-5-1', 'claude-fable-5-1[1m]',
         'claude-fable-5',
+        'claude-opus-5-5', 'claude-opus-5-5[1m]',
         'claude-opus-5', 'claude-opus-5[1m]',
         'claude-opus-4-8',
         'claude-sonnet-5',
       ]);
     });
 
+    it('labels Opus 5.5 with the CLI display name', () => {
+      const labels = Object.fromEntries(DEFAULT_CLAUDE_MODELS.map(m => [m.value, m.label]));
+      expect(labels['claude-opus-5-5']).toBe('Opus 5.5');
+      expect(labels['claude-opus-5-5[1m]']).toBe('Opus 5.5 1M');
+    });
+
     it('recognizes the pinned ids as default (non-custom) models', () => {
       expect(isDefaultClaudeModel('claude-fable-5-1')).toBe(true);
+      expect(isDefaultClaudeModel('claude-opus-5-5')).toBe(true);
+      expect(isDefaultClaudeModel('claude-opus-5-5[1m]')).toBe(true);
       expect(isDefaultClaudeModel('claude-opus-5')).toBe(true);
       expect(isDefaultClaudeModel('claude-opus-4-8')).toBe(true);
       expect(isDefaultClaudeModel('CLAUDE-OPUS-5')).toBe(true);
       expect(isDefaultClaudeModel('haiku')).toBe(false);
     });
 
-    it('gives every catalog id a default effort level of high', () => {
+    // Mirrors the CLI table's `default_effort`: medium on claude-opus-5-5, high on
+    // every other catalog row. The API default for Opus 5.5 is medium as well.
+    it('gives Opus 5.5 its native medium default and every other catalog id high', () => {
       for (const { value } of DEFAULT_CLAUDE_MODELS) {
-        expect(DEFAULT_EFFORT_LEVEL[value]).toBe('high');
+        const expected = value.startsWith('claude-opus-5-5') ? 'medium' : 'high';
+        expect(DEFAULT_EFFORT_LEVEL[value]).toBe(expected);
       }
+    });
+
+    it('defaults the floating `opus` alias to its current target, Opus 5.5', () => {
+      expect(DEFAULT_EFFORT_LEVEL['opus']).toBe('medium');
+      expect(DEFAULT_EFFORT_LEVEL['opus[1m]']).toBe('medium');
+      expect(normalizeEffortLevel('opus', 'bogus')).toBe('medium');
     });
   });
 
@@ -819,6 +857,11 @@ describe('types.ts', () => {
       expect(supportsXHighEffort('claude-opus-4-7')).toBe(true);
       expect(supportsXHighEffort('claude-opus-4-8')).toBe(true);
       expect(supportsXHighEffort('claude-opus-5')).toBe(true);
+      // CLI 2.1.280: claude-opus-5-5 carries `xhigh_effort` and `max_effort`.
+      expect(supportsXHighEffort('claude-opus-5-5')).toBe(true);
+      expect(supportsXHighEffort('claude-opus-5-5[1m]')).toBe(true);
+      expect(isEffortLevelSupported('claude-opus-5-5', 'max')).toBe(true);
+      expect(isEffortLevelSupported('claude-opus-5-5', 'ultracode')).toBe(true);
     });
 
     it('returns true for Fable (Mythos-class flagship, xhigh-capable)', () => {
@@ -849,10 +892,13 @@ describe('types.ts', () => {
   });
 
   describe('supportsClaudeFastMode', () => {
-    it('returns true for the floating opus alias and Opus 5 / 4.8 ids', () => {
+    it('returns true for the floating opus alias and Opus 5.5 / 5 / 4.8 ids', () => {
       expect(supportsClaudeFastMode('opus')).toBe(true);
       expect(supportsClaudeFastMode('opus[1m]')).toBe(true);
       expect(supportsClaudeFastMode('OPUS')).toBe(true);
+      // CLI 2.1.280: `fast_mode` is in claude-opus-5-5's capabilities.
+      expect(supportsClaudeFastMode('claude-opus-5-5')).toBe(true);
+      expect(supportsClaudeFastMode('claude-opus-5-5[1m]')).toBe(true);
       expect(supportsClaudeFastMode('claude-opus-5')).toBe(true);
       expect(supportsClaudeFastMode('claude-opus-5[1m]')).toBe(true);
       expect(supportsClaudeFastMode('claude-opus-4-8')).toBe(true);
@@ -870,8 +916,17 @@ describe('types.ts', () => {
     });
   });
 
+  describe('CLAUDE_FAST_MODE_DESCRIPTION', () => {
+    it('names every model that carries fast mode', () => {
+      expect(CLAUDE_FAST_MODE_DESCRIPTION).toContain('Opus 5.5');
+      expect(CLAUDE_FAST_MODE_DESCRIPTION).toContain('Opus 5 ');
+      expect(CLAUDE_FAST_MODE_DESCRIPTION).toContain('Opus 4.8');
+    });
+  });
+
   describe('isClaudeFastModeEnabled', () => {
     it('requires both a supported Opus model and the fast service tier', () => {
+      expect(isClaudeFastModeEnabled('claude-opus-5-5', 'fast')).toBe(true);
       expect(isClaudeFastModeEnabled('opus', 'fast')).toBe(true);
       expect(isClaudeFastModeEnabled('claude-opus-4-8', 'fast')).toBe(true);
       expect(isClaudeFastModeEnabled('opus', 'default')).toBe(false);

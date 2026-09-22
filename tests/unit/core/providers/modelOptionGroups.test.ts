@@ -110,4 +110,13 @@ describe('groupModelOptions', () => {
     expect(grouped[0].badge).toBe("Coming Soon");
     expect(grouped[0].comingSoon).toBe(true);
   });
+
+  it('keeps Opus 5.5 and Opus 5 as separate rows despite the shared prefix', () => {
+    const grouped = groupModelOptions([
+      { value: 'claude-opus-5-5', label: 'Opus 5.5', providerId: 'claude' },
+      { value: 'claude-opus-5', label: 'Opus 5', providerId: 'claude' },
+    ]);
+
+    expect(grouped.map((group) => group.primaryValue)).toEqual(['claude-opus-5-5', 'claude-opus-5']);
+  });
 });
