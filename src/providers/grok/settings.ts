@@ -1,4 +1,5 @@
 import { getProviderConfig, setProviderConfig } from '../../core/providers/providerConfig';
+import { normalizeGrokReasoningEffort } from './types/models';
 import type { HostnameCliPaths } from '../../core/types/settings';
 import { getHostnameKey } from '../../utils/env';
 
@@ -22,10 +23,22 @@ export interface PersistedGrokProviderSettings {
   environmentVariables: string;
   /** Newline-separated extra model ids merged into the model dropdown. */
   customModels: string;
-  /** Default `--thinking` (true) vs `--no-thinking` (false) for new turns. */
+  /**
+   * Legacy on/off mirror. The live control is `settings.effortLevel`
+   * (`low` | `medium` | `high` | `xhigh`). `false` still means "Niedrig"
+   * when no effort has been chosen yet.
+   */
   thinkingDefault: boolean;
   /** Builtin agent preset passed via `--agent`. */
   agent: GrokAgent;
+  /**
+   * Name of the Grok bot this provider runs as (`--agent <NAME>`), empty for
+   * the CLI's own default agent. Stored by name because that is the CLI's
+   * identifier and what `grok inspect --json` reports; always validate it
+   * against the catalog before launching, since an unknown name is accepted
+   * and then silently ignored.
+   */
+  botName: string;
   /** Optional custom agent spec file passed via `--agent-file`. */
   agentFile: string;
   /** Optional MCP servers config file passed via `--mcp-config-file`. */
@@ -43,6 +56,7 @@ export const DEFAULT_GROK_PROVIDER_SETTINGS: Readonly<PersistedGrokProviderSetti
   thinkingDefault: true,
   agent: 'default',
   agentFile: '',
+  botName: '',
   mcpConfigFile: '',
   permissionMode: 'normal',
 });
@@ -91,6 +105,7 @@ export function getGrokProviderSettings(
     customModels: asString(config.customModels, DEFAULT_GROK_PROVIDER_SETTINGS.customModels),
     thinkingDefault: config.thinkingDefault !== false,
     agent: normalizeAgent(config.agent),
+    botName: asString(config.botName, DEFAULT_GROK_PROVIDER_SETTINGS.botName).trim(),
     agentFile: asString(config.agentFile, DEFAULT_GROK_PROVIDER_SETTINGS.agentFile).trim(),
     mcpConfigFile: asString(config.mcpConfigFile, DEFAULT_GROK_PROVIDER_SETTINGS.mcpConfigFile).trim(),
     permissionMode: normalizePermissionMode(config.permissionMode),
@@ -106,6 +121,7 @@ export function updateGrokProviderSettings(
   const next: PersistedGrokProviderSettings = {
     ...current,
     ...updates,
+    botName: asString(updates.botName, current.botName).trim(),
     cliPathsByHost: updates.cliPathsByHost
       ? normalizeHostnameCliPaths(updates.cliPathsByHost)
       : current.cliPathsByHost,
@@ -134,6 +150,22 @@ export function getConfiguredGrokCliPath(settings: PersistedGrokProviderSettings
  * present to keep the chatUIConfig contract uniform with the other providers.
  */
 export function applyGrokModelDefaults(
-  _model: string,
-  _settings: Record<string, unknown>,
-): void {}
+  model: string,
+  settings: Record<string, unknown>,
+): void {
+  const live = typeof settings.effortLevel === 'string' ? settings.effortLevel : '';
+  if (!live.trim()) {
+    return;
+  }
+  const normalized = normalizeGrokReasoningEffort(live, model);
+  if (normalized) {
+    if (normalized !== live) {
+      settings.effortLevel = normalized;
+    }
+    return;
+  }
+  const fallback = getGrokProviderSettings(settings).thinkingDefault
+    ? 'high'
+    : 'low';
+  settings.effortLevel = normalizeGrokReasoningEffort(fallback, model) ?? 'high';
+}

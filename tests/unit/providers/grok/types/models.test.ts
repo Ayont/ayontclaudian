@@ -3,7 +3,11 @@ import {
   DEFAULT_GROK_MODELS,
   DEFAULT_GROK_PRIMARY_MODEL,
   formatGrokModelLabel,
+  getGrokReasoningEfforts,
+  GROK_47_FAST_MODEL,
+  GROK_LONG_CONTEXT_TOKEN_THRESHOLD,
   KNOWN_GROK_MODEL_CONTEXT_WINDOWS,
+  normalizeGrokReasoningEffort,
 } from '@/providers/grok/types/models';
 
 describe('Grok model catalog', () => {
@@ -17,13 +21,17 @@ describe('Grok model catalog', () => {
   ];
 
   it('uses the model id `grok models` actually reports as the default', () => {
-    expect(DEFAULT_GROK_PRIMARY_MODEL).toBe('grok-4.6');
+    expect(DEFAULT_GROK_PRIMARY_MODEL).toBe('grok-4.7');
   });
 
-  it('keeps the still-served previous generation selectable', () => {
-    // `grok models` lists grok-4.5 alongside the 4.6 default, and `grok -m
-    // grok-4.5` answers, so dropping it would remove a working choice.
-    expect(DEFAULT_GROK_MODELS.map(m => m.value)).toContain('grok-4.5');
+  it('offers Grok 4.7 Fast and the still-served previous generations', () => {
+    // `grok models` (CLI 1.0.40) lists grok-4.7-build-fast, grok-4.6 and
+    // grok-4.5 next to the 4.7 default. Dropping any of them removes a model
+    // the CLI still accepts.
+    const values = DEFAULT_GROK_MODELS.map(m => m.value);
+    expect(values).toContain(GROK_47_FAST_MODEL);
+    expect(values).toContain('grok-4.6');
+    expect(values).toContain('grok-4.5');
   });
 
   it('lists the default first and no retired ids', () => {
@@ -34,9 +42,20 @@ describe('Grok model catalog', () => {
     }
   });
 
-  it('publishes the served models\' real context windows', () => {
+  it('publishes the served models\' real 500K context windows', () => {
+    expect(KNOWN_GROK_MODEL_CONTEXT_WINDOWS['grok-4.7']).toBe(500_000);
+    expect(KNOWN_GROK_MODEL_CONTEXT_WINDOWS[GROK_47_FAST_MODEL]).toBe(500_000);
     expect(KNOWN_GROK_MODEL_CONTEXT_WINDOWS['grok-4.6']).toBe(500_000);
     expect(KNOWN_GROK_MODEL_CONTEXT_WINDOWS['grok-4.5']).toBe(500_000);
+    expect(GROK_LONG_CONTEXT_TOKEN_THRESHOLD).toBe(200_000);
+  });
+
+  it('offers xhigh on 4.7 and Fast, and drops it on 4.5', () => {
+    expect(getGrokReasoningEfforts('grok-4.7')).toEqual(['xhigh', 'high', 'medium', 'low']);
+    expect(getGrokReasoningEfforts(GROK_47_FAST_MODEL)).toEqual(['xhigh', 'high', 'medium', 'low']);
+    expect(getGrokReasoningEfforts('grok-4.5')).toEqual(['high', 'medium', 'low']);
+    expect(normalizeGrokReasoningEffort('xhigh', 'grok-4.5')).toBeNull();
+    expect(normalizeGrokReasoningEffort('XHigh', 'grok-4.7')).toBe('xhigh');
   });
 
   it('keeps a 256K fallback window for unknown custom ids', () => {

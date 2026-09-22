@@ -1,5 +1,6 @@
 import type { ChatMessage, StreamChunk } from '../../../core/types';
 import { type GrokStreamEvent, parseGrokStream } from './streamEvents';
+import { grokEventHasUsage } from './usage';
 
 /**
  * Maps Grok `streaming-json` delta events onto the plugin's stream + message
@@ -15,11 +16,15 @@ export interface GrokStreamState {
   sessionId: string | null;
   /** Stop reason captured from the terminal `end` event. */
   stopReason: string | null;
+  /** Latest `usage` or `end` object that carried a spend ledger. `end` wins. */
+  usageRaw: Record<string, unknown> | null;
+  /** Message from a stream `error` event, when the CLI reported one. */
+  streamError: string | null;
 }
 
 /** Fresh streaming state for a new query loop. */
 export function createGrokStreamState(): GrokStreamState {
-  return { sessionId: null, stopReason: null };
+  return { sessionId: null, stopReason: null, usageRaw: null, streamError: null };
 }
 
 /**
@@ -37,6 +42,11 @@ export function mapGrokEventToChunks(
       return event.data ? [{ type: 'text', content: event.data }] : [];
     case 'thought':
       return event.data ? [{ type: 'thinking', content: event.data }] : [];
+    case 'usage':
+      if (grokEventHasUsage(event.raw)) {
+        state.usageRaw = event.raw;
+      }
+      return [];
     case 'end':
       if (event.sessionId && event.sessionId.trim()) {
         state.sessionId = event.sessionId.trim();
@@ -44,7 +54,17 @@ export function mapGrokEventToChunks(
       if (event.stopReason) {
         state.stopReason = event.stopReason;
       }
+      if (grokEventHasUsage(event.raw)) {
+        state.usageRaw = event.raw;
+      }
       return [];
+    case 'error': {
+      const message = typeof event.raw.message === 'string' && event.raw.message.trim()
+        ? event.raw.message.trim()
+        : 'Grok hat einen Fehler gemeldet.';
+      state.streamError = message;
+      return [{ type: 'error', content: message }];
+    }
     default:
       return [];
   }

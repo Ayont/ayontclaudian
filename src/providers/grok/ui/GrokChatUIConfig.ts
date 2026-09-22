@@ -12,16 +12,11 @@ import {
   DEFAULT_GROK_CONTEXT_WINDOW,
   DEFAULT_GROK_MODEL_SET,
   DEFAULT_GROK_PRIMARY_MODEL,
+  getGrokReasoningEfforts,
+  GROK_DEFAULT_REASONING_EFFORT,
+  grokReasoningOption,
+  normalizeGrokReasoningEffort,
 } from '../types/models';
-
-/** Thinking on/off, modeled as a two-option `'effort'` reasoning control. */
-const GROK_THINKING_VALUE = 'thinking';
-const GROK_NO_THINKING_VALUE = 'no-thinking';
-
-const GROK_REASONING_OPTIONS: ProviderReasoningOption[] = [
-  { value: GROK_THINKING_VALUE, label: 'Thinking' },
-  { value: GROK_NO_THINKING_VALUE, label: 'No thinking' },
-];
 
 const GROK_PERMISSION_MODE_TOGGLE: ProviderPermissionModeToggleConfig = {
   inactiveValue: 'normal',
@@ -56,18 +51,23 @@ export const grokChatUIConfig: ProviderChatUIConfig = {
   },
 
   isAdaptiveReasoningModel(): boolean {
-    // Thinking is a binary toggle exposed as a two-option effort control.
     return true;
   },
 
-  getReasoningOptions(): ProviderReasoningOption[] {
-    return [...GROK_REASONING_OPTIONS];
+  getReasoningOptions(model: string): ProviderReasoningOption[] {
+    return getGrokReasoningEfforts(model).map((effort) => grokReasoningOption(effort));
   },
 
-  getDefaultReasoningValue(_model: string, settings: Record<string, unknown>): string {
-    return getGrokProviderSettings(settings).thinkingDefault
-      ? GROK_THINKING_VALUE
-      : GROK_NO_THINKING_VALUE;
+  getDefaultReasoningValue(model: string, settings: Record<string, unknown>): string {
+    const live = typeof settings.effortLevel === 'string' ? settings.effortLevel : '';
+    const normalized = normalizeGrokReasoningEffort(live, model);
+    if (normalized) {
+      return normalized;
+    }
+    const legacy = getGrokProviderSettings(settings).thinkingDefault
+      ? GROK_DEFAULT_REASONING_EFFORT
+      : 'low';
+    return normalizeGrokReasoningEffort(legacy, model) ?? GROK_DEFAULT_REASONING_EFFORT;
   },
 
   getContextWindowSize(
@@ -89,12 +89,15 @@ export const grokChatUIConfig: ProviderChatUIConfig = {
     }
   },
 
-  applyReasoningSelection(_model: string, value: string, settings: unknown): void {
+  applyReasoningSelection(model: string, value: string, settings: unknown): void {
     const bag = asSettingsBag(settings);
     if (!bag) {
       return;
     }
-    updateGrokProviderSettings(bag, { thinkingDefault: value !== GROK_NO_THINKING_VALUE });
+    const effort = normalizeGrokReasoningEffort(value, model) ?? GROK_DEFAULT_REASONING_EFFORT;
+    bag.effortLevel = effort;
+    // Coarse legacy mirror: only "Niedrig" maps back to the old off switch.
+    updateGrokProviderSettings(bag, { thinkingDefault: effort !== 'low' });
   },
 
   normalizeModelVariant(model: string, settings: Record<string, unknown>): string {

@@ -212,11 +212,14 @@ describe('built-in catalog', () => {
   // Regression: the catalog shipped `grok-composer-2.5-fast`, `grok-build` and
   // `grok-code-fast-1`. Grok CLI 1.0.0 rejects all three
   // ("Invalid params: unknown model id"), so every built-in selection failed to
-  // start a turn. `grok models` reports exactly one served model: grok-4.5.
+  // start a turn. CLI 1.0.40 serves grok-4.7, grok-4.7-build-fast, grok-4.6
+  // and grok-4.5.
   const RETIRED_MODEL_IDS = ['grok-composer-2.5-fast', 'grok-build', 'grok-code-fast-1'];
 
-  it('offers grok-4.6 as the primary model', () => {
-    expect(DEFAULT_GROK_PRIMARY_MODEL).toBe('grok-4.6');
+  it('offers grok-4.7 as the primary model and Fast beside it', () => {
+    expect(DEFAULT_GROK_PRIMARY_MODEL).toBe('grok-4.7');
+    expect(getGrokModelOptions(settingsWith({})).map((option) => option.value).slice(0, 2))
+      .toEqual(['grok-4.7', 'grok-4.7-build-fast']);
   });
 
   it('no longer ships model ids the CLI rejects', () => {
@@ -236,9 +239,11 @@ describe('built-in catalog', () => {
 });
 
 describe('getGrokModelContextWindow', () => {
-  it('reports the real 500K window for grok-4.5', () => {
-    // xAI publishes a 500,000-token context window for grok-4.5; the generic
-    // fallback (256K) under-reported it by half.
+  it('reports the real 500K window for Grok 4.7 and Fast', () => {
+    // The CLI model cache and the xAI docs both publish 500,000 tokens.
+    // The generic fallback (256K) would under-report the meter by half.
+    expect(getGrokModelContextWindow('grok-4.7')).toBe(500_000);
+    expect(getGrokModelContextWindow('grok-4.7-build-fast')).toBe(500_000);
     expect(getGrokModelContextWindow(DEFAULT_GROK_PRIMARY_MODEL)).toBe(500_000);
   });
 

@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 
-import { Setting } from 'obsidian';
+import { type DropdownComponent, Setting } from 'obsidian';
 
 import type { ProviderSettingsTabRenderer } from '../../../core/providers/types';
 import { renderEnvironmentSettingsSection } from '../../../features/settings/ui/EnvironmentSettingsSection';
@@ -23,10 +23,10 @@ function validateFilePath(value: string): string | null {
   }
   const expandedPath = expandHomePath(trimmed);
   if (!fs.existsSync(expandedPath)) {
-    return 'Path does not exist';
+    return 'Der Pfad existiert nicht.';
   }
   if (!fs.statSync(expandedPath).isFile()) {
-    return 'Path must point to a file';
+    return 'Der Pfad muss auf eine Datei zeigen.';
   }
   return null;
 }
@@ -44,7 +44,7 @@ export const grokSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     new Setting(container)
       .setName('Grok aktivieren')
-      .setDesc('Grok (`grok --print --output-format stream-json`) als Provider starten.')
+      .setDesc('Grok (`grok -p` mit `--output-format streaming-json`) als Provider starten.')
       .addToggle((toggle) =>
         toggle.setValue(settings.enabled).onChange(async (value) => {
           updateGrokProviderSettings(settingsBag, { enabled: value });
@@ -150,18 +150,8 @@ export const grokSettingsTabRenderer: ProviderSettingsTabRenderer = {
     new Setting(container).setName('Verhalten').setHeading();
 
     new Setting(container)
-      .setName('Standardmäßig denken')
-      .setDesc('Neue Unterhaltungen mit aktivem `--thinking` starten. Pro Unterhaltung in der Chat-Leiste umschaltbar.')
-      .addToggle((toggle) =>
-        toggle.setValue(settings.thinkingDefault).onChange(async (value) => {
-          updateGrokProviderSettings(settingsBag, { thinkingDefault: value });
-          await context.plugin.saveSettings();
-        }),
-      );
-
-    new Setting(container)
       .setName('Berechtigungen überspringen (YOLO)')
-      .setDesc('`--yolo` mitgeben, damit Grok alle Aktionen selbst freigibt. Der Print-Modus gibt pro Aufruf ohnehin frei — dies ist die ausdrückliche YOLO-Variante.')
+      .setDesc('`--always-approve` übergeben, damit Grok Werkzeugaktionen ohne Rückfrage ausführt. Nur für vertrauenswürdige Aufgaben aktivieren.')
       .addToggle((toggle) =>
         toggle.setValue(settings.permissionMode === 'yolo').onChange(async (value) => {
           updateGrokProviderSettings(settingsBag, { permissionMode: value ? 'yolo' : 'normal' });
@@ -173,82 +163,107 @@ export const grokSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     new Setting(container).setName('Agent').setHeading();
 
+    const catalog = workspace?.agentCatalog;
+    let botBusy = false;
+    let botDropdown: DropdownComponent;
+    const botStatus = new Setting(container).setName('Bot-Status');
+    const updateBotOptions = () => {
+      const selected = getGrokProviderSettings(settingsBag).botName;
+      botDropdown.selectEl.empty();
+      botDropdown.addOption('', 'CLI-Standard');
+      for (const agent of catalog?.getAgents() ?? []) {
+        botDropdown.addOption(agent.name, agent.name);
+      }
+      if (selected && !catalog?.getAgents().some(agent => agent.name === selected)) {
+        botDropdown.addOption(selected, `${selected} (nicht verfügbar)`);
+      }
+      botDropdown.setValue(selected);
+      if (!catalog) {
+        botStatus.setDesc('Grok-Arbeitsbereich nicht verfügbar. Einstellungen erneut öffnen, sobald der Provider geladen ist. Die gespeicherte Bot-Auswahl bleibt erhalten.');
+        return;
+      }
+      if (catalog?.getLastError()) {
+        botStatus.setDesc('Bot-Aktualisierung fehlgeschlagen. CLI-Pfad und Grok-Konfiguration prüfen und erneut aktualisieren. Die gespeicherte Auswahl bleibt erhalten; angezeigte Bots sind möglicherweise veraltet.');
+        return;
+      }
+      const environment = catalog?.getEnvironment();
+      const selectionStatus = selected && !catalog?.hasAgent(selected)
+        ? `Der gespeicherte Bot „${selected}“ ist nicht verfügbar. Bitte aktualisieren oder bewusst einen anderen Bot wählen. `
+        : selected ? `Ausgewählt: ${selected}. ` : 'CLI-Standard ausgewählt. ';
+      botStatus.setDesc(selectionStatus + (environment
+        ? `${environment.agents.length} Bots gefunden. Projekt ${environment.projectTrusted ? 'vertraut' : 'nicht vertraut'}; Vertrauen bei Bedarf in der Grok-CLI prüfen.`
+        : 'Bot-Katalog noch nicht geladen. Bitte aktualisieren.'));
+    };
     new Setting(container)
-      .setName('Agenten-Preset')
-      .setDesc('Eingebaute Agenten-Spezifikation, die via `--agent` übergeben wird.')
+      .setName('Grok-Bot')
+      .setDesc('Entdeckter Bot für neue Grok-Sitzungen (`--agent`). CLI-Standard verwendet die native Standardkonfiguration.')
       .addDropdown((dropdown) => {
-        dropdown
-          .addOption('default', 'Default')
-          .setValue(settings.agent)
-          .onChange(async (value) => {
-            updateGrokProviderSettings(settingsBag, { agent: value === 'okabe' ? 'okabe' : 'default' });
+        botDropdown = dropdown;
+        updateBotOptions();
+        dropdown.onChange(async (value) => {
+          if (botBusy) return;
+          if (value && (!catalog?.isLoaded() || catalog.getLastError() || !catalog.hasAgent(value))) {
+            updateBotOptions();
+            botStatus.setDesc('Bot-Auswahl nicht bestätigt. Bitte zuerst die Bots erfolgreich aktualisieren. Die gespeicherte Auswahl bleibt erhalten.');
+            return;
+          }
+          const previous = getGrokProviderSettings(settingsBag).botName;
+          botBusy = true;
+          dropdown.setDisabled(true);
+          try {
+            updateGrokProviderSettings(settingsBag, { botName: value });
             await context.plugin.saveSettings();
-          });
+            updateBotOptions();
+          } catch {
+            updateGrokProviderSettings(settingsBag, { botName: previous });
+            updateBotOptions();
+            botStatus.setDesc('Bot-Auswahl konnte nicht gespeichert werden. Die vorherige Auswahl wurde wiederhergestellt. Bitte erneut versuchen.');
+          } finally {
+            botBusy = false;
+            dropdown.setDisabled(false);
+          }
+        });
       });
-
-    let agentFileInputEl: HTMLInputElement | null = null;
-    const agentFileValidationEl = container.createDiv({
-      cls: 'claudian-setting-validation claudian-setting-validation-error claudian-hidden',
-    });
+    new Setting(container)
+      .setName('Bots aktualisieren')
+      .setDesc('Liest die für diesen Vault verfügbaren Bots mit `grok inspect --json`. Erstellt keine Bots und sendet keine Modellanfrage.')
+      .addButton(button => {
+        const refreshBots = async () => {
+          if (botBusy || !catalog) return;
+          botBusy = true;
+          button.setDisabled(true);
+          botDropdown.setDisabled(true);
+          botStatus.setDesc('Bots werden geladen …');
+          try {
+            await catalog.refresh();
+            updateBotOptions();
+          } catch {
+            botStatus.setDesc('Bot-Aktualisierung fehlgeschlagen. CLI-Pfad und Grok-Konfiguration prüfen und erneut versuchen.');
+          } finally {
+            botBusy = false;
+            button.setDisabled(false);
+            botDropdown.setDisabled(false);
+          }
+        };
+        button.setButtonText('Aktualisieren').setDisabled(!catalog).onClick(refreshBots);
+        if (catalog && !catalog.isLoaded()) void refreshBots();
+      });
 
     new Setting(container)
-      .setName('Eigene Agenten-Datei')
-      .setDesc('Optionaler Pfad zu einer eigenen Agenten-Spezifikation, die via `--agent-file` übergeben wird.')
-      .addText((text) => {
-        text
-          .setPlaceholder('/Users/you/.grok/agents/custom.toml')
-          .setValue(settings.agentFile)
-          .onChange(async (value) => {
-            const error = validateFilePath(value);
-            agentFileValidationEl.toggleClass('claudian-hidden', !error);
-            agentFileInputEl?.toggleClass('claudian-input-error', Boolean(error));
-            if (error) {
-              agentFileValidationEl.setText(error);
-              return;
-            }
-            updateGrokProviderSettings(settingsBag, { agentFile: value });
-            await context.plugin.saveSettings();
-          });
-        agentFileInputEl = text.inputEl;
-      });
-
-    // --- MCP ---
-
-    new Setting(container).setName(t('settings.mcpServers.name')).setHeading();
-
-    let mcpInputEl: HTMLInputElement | null = null;
-    const mcpValidationEl = container.createDiv({
-      cls: 'claudian-setting-validation claudian-setting-validation-error claudian-hidden',
-    });
+      .setName('Eigene Bots')
+      .setDesc('Bots werden aus der nativen Grok-Konfiguration entdeckt. Nur Bots, die `grok inspect --json` für diesen Vault meldet, sind hier auswählbar. Nach externen Änderungen die Liste aktualisieren. Alte Agenten-Datei-Einstellungen werden nicht verwendet.');
 
     new Setting(container)
-      .setName('MCP-Konfigurationsdatei')
-      .setDesc('Optionaler Pfad zu einer MCP-Server-Konfiguration, die via `--mcp-config-file` übergeben wird.')
-      .addText((text) => {
-        text
-          .setPlaceholder('/Users/you/.grok/mcp.json')
-          .setValue(settings.mcpConfigFile)
-          .onChange(async (value) => {
-            const error = validateFilePath(value);
-            mcpValidationEl.toggleClass('claudian-hidden', !error);
-            mcpInputEl?.toggleClass('claudian-input-error', Boolean(error));
-            if (error) {
-              mcpValidationEl.setText(error);
-              return;
-            }
-            updateGrokProviderSettings(settingsBag, { mcpConfigFile: value });
-            await context.plugin.saveSettings();
-          });
-        mcpInputEl = text.inputEl;
-      });
+      .setName(t('settings.mcpServers.name'))
+      .setDesc('MCP-Server mit `grok mcp` in der Grok-CLI verwalten. Eine separate MCP-Datei wird vom Plugin nicht übergeben.');
 
     // --- Environment ---
 
     renderEnvironmentSettingsSection({
       container,
-      desc: 'Extra environment variables passed only to Grok (`GROK_*`, `MOONSHOT_*`).',
+      desc: 'Zusätzliche Umgebungsvariablen nur für Grok (`GROK_*`, `MOONSHOT_*`). Nach Änderungen die Bot-Liste aktualisieren.',
       heading: t('settings.environment'),
-      name: 'Grok environment variables',
+      name: 'Grok-Umgebungsvariablen',
       placeholder: 'GROK_MODEL=grok-k2\nMOONSHOT_API_KEY=...',
       plugin: context.plugin,
       scope: `provider:${GROK_PROVIDER_ID}`,

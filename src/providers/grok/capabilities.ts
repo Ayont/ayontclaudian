@@ -7,10 +7,8 @@ import type { ProviderCapabilities } from '../../core/providers/types';
  * (`--print --output-format stream-json`), native session resume
  * (`--session` / `--continue`), real model selection (`-m`), plan mode
  * (`--plan`), MCP bridging (`--mcp-config-file`), and vision-capable models
- * (config caps `image_in`). Thinking is a binary `--thinking` / `--no-thinking`
- * control; the shared `reasoningControl` enum only allows
- * `'effort' | 'token-budget' | 'none'`, so the on/off toggle is modeled as an
- * `'effort'` control exposing exactly two options (see `GrokChatUIConfig`).
+ * (config caps `image_in`). Reasoning effort is `--reasoning-effort`
+ * (`low` | `medium` | `high` | `xhigh`); the shared control is `'effort'`.
  */
 export const GROK_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({
   providerId: 'grok',

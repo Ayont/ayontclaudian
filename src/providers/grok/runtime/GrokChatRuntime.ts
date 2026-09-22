@@ -32,6 +32,7 @@ import type {
   SlashCommand,
   StreamChunk,
   ToolCallInfo,
+  UsageInfo,
 } from '../../../core/types';
 import type ClaudianPlugin from '../../../main';
 import { getEnhancedPath } from '../../../utils/env';
@@ -41,6 +42,7 @@ import {
   terminateSpawnedProcess,
   type WindowsCmdShimSpawnSpec,
 } from '../../../utils/windowsCmdShim';
+import { resolveGrokBotName } from '../agents/resolveGrokBotName';
 import { GROK_PROVIDER_CAPABILITIES } from '../capabilities';
 import { getGrokModelContextWindow, resolveGrokModelSelection } from '../modelOptions';
 import { parseGrokStreamLine } from '../normalization/streamEvents';
@@ -49,7 +51,12 @@ import {
   type GrokStreamState,
   mapGrokEventToChunks,
 } from '../normalization/streamMapping';
+import { buildGrokUsageInfo, isGrokContextLimitStop, readGrokReportedUsage } from '../normalization/usage';
 import { getGrokProviderSettings, GROK_PROVIDER_ID } from '../settings';
+import {
+  GROK_DEFAULT_REASONING_EFFORT,
+  normalizeGrokReasoningEffort,
+} from '../types/models';
 import { buildPersistedGrokState, getGrokState, type GrokProviderState } from '../types';
 import { buildGrokLaunchSpec } from './GrokLaunchSpec';
 import { buildGrokRuntimeEnv } from './GrokRuntimeEnvironment';
@@ -58,19 +65,34 @@ import { buildGrokRuntimeEnv } from './GrokRuntimeEnvironment';
 const SESSION_HINT_PATTERN = /grok(?:-cli)?\s+-r\s+([^\s]+)/i;
 const SESSION_HINT_PATTERN_ALT = /resume this session:\s*grok(?:-cli)?\s+-r\s+([^\s]+)/i;
 
+function resolveGrokTurnEffort(settingsBag: Record<string, unknown>, model: string): string {
+  const live = typeof settingsBag.effortLevel === 'string' ? settingsBag.effortLevel : '';
+  const fromLive = normalizeGrokReasoningEffort(live, model);
+  if (fromLive) {
+    return fromLive;
+  }
+  const legacy = getGrokProviderSettings(settingsBag).thinkingDefault
+    ? GROK_DEFAULT_REASONING_EFFORT
+    : 'low';
+  return normalizeGrokReasoningEffort(legacy, model) ?? GROK_DEFAULT_REASONING_EFFORT;
+}
+
 /**
  * Single-turn subprocess runtime for the Grok (`grok`) CLI.
  *
- * Each turn spawns `grok --print --output-format stream-json …` and parses
- * the stdout JSON lines LIVE (one complete chat message per line) into
- * `StreamChunk`s. Conversation continuity uses native resume: the session id is
- * recovered from the stderr resume hint after the first run and replayed via
- * `--session <id>`. Unlike antigravity there is no transcript-file tail.
+ * Each turn spawns `grok --output-format streaming-json -m <model>
+ * --reasoning-effort <effort> …` and parses the stdout JSON lines live into
+ * `StreamChunk`s. The context meter prefers the CLI's `usage` / `end`
+ * ledger (and `modelUsage.contextWindow`) and falls back to a character
+ * estimate only when that ledger is missing. Conversation continuity uses
+ * native resume: the session id comes from the terminal `end` event and is
+ * replayed via `-r <id>`.
  */
 export class GrokChatRuntime implements ChatRuntime {
   readonly providerId = GROK_PROVIDER_ID;
 
   private sessionId: string | null = null;
+  private sessionBotName: string | null = null;
   private sessionInvalidated = false;
   /** Set while re-running a turn after clearing a dead session (see query()). */
   private isResumeRetry = false;
@@ -79,6 +101,7 @@ export class GrokChatRuntime implements ChatRuntime {
   private readonly readyListeners = new Set<(ready: boolean) => void>();
   private activeProcess: ChildProcessWithoutNullStreams | null = null;
   private cancelled = false;
+  private stopActiveProcess: (() => void) | null = null;
 
   constructor(private readonly plugin: ClaudianPlugin) {}
 
@@ -108,6 +131,7 @@ export class GrokChatRuntime implements ChatRuntime {
   syncConversationState(conversation: ChatRuntimeConversationState | null): void {
     if (!conversation) {
       this.sessionId = null;
+      this.sessionBotName = null;
       this.sessionInvalidated = false;
       return;
     }
@@ -116,6 +140,8 @@ export class GrokChatRuntime implements ChatRuntime {
     // conversation.sessionId (would be another provider's id after a switch →
     // "no rollout / session not found"). No own session → start fresh.
     this.sessionId = state.sessionId ?? null;
+    const botName = conversation.providerState?.botName;
+    this.sessionBotName = typeof botName === 'string' ? botName.trim() || null : null;
     this.sessionInvalidated = false;
   }
 
@@ -145,7 +171,7 @@ export class GrokChatRuntime implements ChatRuntime {
     // See VibeChatRuntime: a single fresh re-run after a dead-session recovery.
     const isRetry = this.isResumeRetry;
     this.isResumeRetry = false;
-    const hadSession = this.sessionId !== null;
+    let hadSession = this.sessionId !== null;
 
     const settingsBag = this.plugin.settings as unknown as Record<string, unknown>;
     const settings = getGrokProviderSettings(settingsBag);
@@ -205,7 +231,26 @@ export class GrokChatRuntime implements ChatRuntime {
       env.GROK_ACTIVE_MODEL = model;
     }
 
+    let agentName: string | null;
+    try {
+      agentName = await resolveGrokBotName(settings.botName);
+      if (settings.botName.trim() && !agentName) {
+        throw new Error('Der ausgewählte Grok-Bot konnte nicht bestätigt werden. Bitte die Bot-Auswahl aktualisieren.');
+      }
+    } catch (error) {
+      yield { type: 'error', content: error instanceof Error ? error.message : 'Grok-Bot konnte nicht geladen werden.' };
+      yield { type: 'done' };
+      return;
+    }
+
+    if (this.sessionId && this.sessionBotName !== agentName) {
+      this.resetSession();
+      hadSession = false;
+    }
+    this.sessionBotName = agentName;
+
     const launchSpec = buildGrokLaunchSpec({
+      agentName,
       command,
       cwd,
       env,
@@ -213,6 +258,7 @@ export class GrokChatRuntime implements ChatRuntime {
       model,
       permissionMode: settings.permissionMode,
       prompt: promptText,
+      reasoningEffort: resolveGrokTurnEffort(settingsBag, model),
       // Resume only via an explicit session id once this conversation owns one;
       // never auto-continue the most recent grok session (context bleed).
       sessionId: this.sessionId,
@@ -220,6 +266,11 @@ export class GrokChatRuntime implements ChatRuntime {
 
     if (!isRetry) {
       yield { type: 'user_message_start', content: turn.request.text };
+    }
+
+    if (this.cancelled) {
+      yield { type: 'done' };
+      return;
     }
 
     let proc: ChildProcessWithoutNullStreams;
@@ -246,9 +297,7 @@ export class GrokChatRuntime implements ChatRuntime {
     }
 
     this.activeProcess = proc;
-    // Close stdin so a non-TTY child process can't block on the open pipe;
-    // `grok` print mode never reads stdin.
-    proc.stdin.end();
+
     const streamState = createGrokStreamState();
     let stdoutBuffer = '';
     let stderr = '';
@@ -281,17 +330,21 @@ export class GrokChatRuntime implements ChatRuntime {
       signal();
     };
 
-    proc.stdout.on('data', (chunk: Buffer | string) => {
+    const onStdout = (chunk: Buffer | string): void => {
+      if (finished || this.cancelled) return;
       stdoutBuffer += typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
       drainCompleteLines();
-    });
-    proc.stderr.on('data', (chunk: Buffer | string) => {
+    };
+    const onStderr = (chunk: Buffer | string): void => {
       stderr += typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
-    });
+    };
+    proc.stdout.on('data', onStdout);
+    proc.stderr.on('data', onStderr);
 
     const onExit = (info: { code: number | null; error?: Error }): void => {
+      if (finished) return;
       // Flush any trailing partial line that arrived without a newline.
-      if (stdoutBuffer.trim()) {
+      if (!this.cancelled && stdoutBuffer.trim()) {
         this.consumeLine(stdoutBuffer, streamState, pendingChunks, () => toolResultIndex++);
         stdoutBuffer = '';
       }
@@ -299,28 +352,55 @@ export class GrokChatRuntime implements ChatRuntime {
       finished = true;
       signal();
     };
-    proc.on('error', (error) => onExit({ code: null, error }));
-    proc.on('close', (code) => onExit({ code }));
+    let closed = false;
+    let stopping = false;
+    let killTimer: ReturnType<typeof setTimeout> | undefined;
+    const stopProcess = (): void => {
+      signal();
+      if (closed || stopping) return;
+      stopping = true;
+      terminateSpawnedProcess(proc, 'SIGTERM', spawn, resolvedSpawnSpec);
+      // This watchdog owns a Node child, not a popout window.
+      // eslint-disable-next-line obsidianmd/prefer-window-timers
+      killTimer = setTimeout(() => {
+        if (!closed) terminateSpawnedProcess(proc, 'SIGKILL', spawn, resolvedSpawnSpec);
+      }, 2000);
+      killTimer.unref?.();
+    };
+    this.stopActiveProcess = stopProcess;
+    proc.once('error', (error) => onExit({ code: null, error }));
+    proc.once('close', (code) => {
+      closed = true;
+      // eslint-disable-next-line obsidianmd/prefer-window-timers
+      if (killTimer) clearTimeout(killTimer);
+      onExit({ code });
+    });
 
     let responseText = '';
     try {
+      proc.stdin.end();
       // Drain all available chunks, then sleep until the next 'data'/'close'
       // wakes us. Single-threaded model guarantees no lost wakeup: chunks are
       // fully drained before `wake` is installed, and `close` always fires.
-      while (true) {
-        while (pendingChunks.length > 0) {
+      while (!this.cancelled) {
+        while (pendingChunks.length > 0 && !this.cancelled) {
           const chunk = pendingChunks.shift() as StreamChunk;
           if ((chunk.type === 'text' || chunk.type === 'thinking') && typeof chunk.content === 'string') {
             responseText += chunk.content;
           }
           yield chunk;
         }
-        if (finished) {
+        if (finished || this.cancelled) {
           break;
         }
         await new Promise<void>((resolve) => {
           wake = resolve;
         });
+      }
+
+      if (this.cancelled) {
+        yield { type: 'done' };
+        return;
       }
 
       this.recoverSessionId(stderr);
@@ -338,6 +418,11 @@ export class GrokChatRuntime implements ChatRuntime {
         this.resetSession();
         this.isResumeRetry = true;
         yield { type: 'notice', content: staleSessionRetryNotice('Grok'), level: 'info' };
+        if (this.cancelled) {
+          this.isResumeRetry = false;
+          yield { type: 'done' };
+          return;
+        }
         if (this.activeProcess === proc) {
           this.activeProcess = null;
         }
@@ -351,37 +436,62 @@ export class GrokChatRuntime implements ChatRuntime {
         return;
       }
 
-      if (exitInfo.code !== 0 && exitInfo.code !== null) {
-        yield {
-          type: 'error',
-          content: this.formatError(`grok exited with code ${exitInfo.code}`, stderr),
-        };
+      if (exitInfo.code !== 0) {
+        if (!streamState.streamError) {
+          yield {
+            type: 'error',
+            content: this.formatError(`grok exited with code ${exitInfo.code}`, stderr),
+          };
+        }
+        yield { type: 'done' };
+        return;
+      }
+
+      if (!responseText.trim()) {
+        if (!streamState.streamError) {
+          const contextWindow = getGrokModelContextWindow(model);
+          yield {
+            type: 'error',
+            content: this.formatError(
+              isGrokContextLimitStop(streamState.stopReason)
+                ? `context window full (${contextWindow} tokens)`
+                : 'Grok hat keine Antwort geliefert.',
+              stderr,
+            ),
+          };
+        }
         yield { type: 'done' };
         return;
       }
 
       this.currentTurnMetadata.wasSent = true;
-      // Estimated context-window feedback: grok reports no token usage, so
-      // approximate from the conversation history + this turn's prompt/response.
-      const contextTokens = estimateTokensForTexts([
-        ...(isRetry
-          ? []
-          : (conversationHistory ?? []).map((message) => message.content ?? '')),
-        promptText,
-        responseText,
-      ]);
+      if (isGrokContextLimitStop(streamState.stopReason)) {
+        const contextWindow = getGrokModelContextWindow(model);
+        yield {
+          type: 'notice',
+          level: 'warning',
+          content: `Kontextfenster voll (${contextWindow.toLocaleString('de-DE')} Tokens). Grok hat die Antwort am Limit beendet.`,
+        };
+      }
       yield {
         type: 'usage',
-        usage: buildEstimatedUsageInfo({
-          contextTokens,
-          contextWindow: getGrokModelContextWindow(model),
-          model: model || undefined,
-          reportType: 'final',
+        usage: this.buildTurnUsage({
+          conversationHistory,
+          isRetry,
+          model,
+          promptText,
+          responseText,
+          usageRaw: streamState.usageRaw,
         }),
         sessionId: this.sessionId,
       };
       yield { type: 'done' };
     } finally {
+      finished = true;
+      proc.stdout.off('data', onStdout);
+      proc.stderr.off('data', onStderr);
+      stopProcess();
+      if (this.stopActiveProcess === stopProcess) this.stopActiveProcess = null;
       if (this.activeProcess === proc) {
         this.activeProcess = null;
       }
@@ -390,10 +500,7 @@ export class GrokChatRuntime implements ChatRuntime {
 
   cancel(): void {
     this.cancelled = true;
-    const proc = this.activeProcess;
-    if (proc && proc.exitCode === null) {
-      terminateSpawnedProcess(proc, 'SIGTERM', spawn, null);
-    }
+    this.stopActiveProcess?.();
   }
 
   async softSteer(_turn: PreparedChatTurn): Promise<boolean> {
@@ -404,6 +511,7 @@ export class GrokChatRuntime implements ChatRuntime {
   resetSession(): void {
     this.sessionInvalidated = true;
     this.sessionId = null;
+    this.sessionBotName = null;
   }
 
   getSessionId(): string | null {
@@ -466,7 +574,9 @@ export class GrokChatRuntime implements ChatRuntime {
     };
     return {
       updates: {
-        providerState: buildPersistedGrokState(state),
+        providerState: this.sessionId
+          ? { ...buildPersistedGrokState(state), botName: this.sessionBotName }
+          : undefined,
         sessionId: this.sessionId,
       },
     };
@@ -511,6 +621,44 @@ export class GrokChatRuntime implements ChatRuntime {
     for (const chunk of chunks) {
       sink.push(chunk);
     }
+  }
+
+  /**
+   * Prefer the CLI's own ledger (`usage` / `end.modelUsage`). Fall back to a
+   * character estimate only when that ledger is missing or all-zero.
+   */
+  private buildTurnUsage(params: {
+    conversationHistory: ChatMessage[] | undefined;
+    isRetry: boolean;
+    model: string;
+    promptText: string;
+    responseText: string;
+    usageRaw: Record<string, unknown> | null;
+  }): UsageInfo {
+    const reported = params.usageRaw
+      ? readGrokReportedUsage(params.usageRaw, params.model)
+      : null;
+    if (reported) {
+      return buildGrokUsageInfo({
+        reported,
+        fallbackContextWindow: getGrokModelContextWindow(params.model),
+        model: params.model || undefined,
+      });
+    }
+
+    const contextTokens = estimateTokensForTexts([
+      ...(params.isRetry
+        ? []
+        : (params.conversationHistory ?? []).map((message) => message.content ?? '')),
+      params.promptText,
+      params.responseText,
+    ]);
+    return buildEstimatedUsageInfo({
+      contextTokens,
+      contextWindow: getGrokModelContextWindow(params.model),
+      model: params.model || undefined,
+      reportType: 'final',
+    });
   }
 
   private recoverSessionId(stderr: string): void {

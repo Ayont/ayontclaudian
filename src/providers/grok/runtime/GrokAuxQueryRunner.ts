@@ -22,8 +22,8 @@ import { buildGrokRuntimeEnv } from './GrokRuntimeEnvironment';
  *
  * Each call spawns a stateless `grok --print --output-format stream-json`
  * (no `--session` resume, so the auxiliary turn never pollutes a chat session),
- * forces `--no-thinking` for speed, prepends the task-specific system prompt to
- * the user prompt, and resolves the final assistant text from the stream.
+ * forces `--reasoning-effort low` for speed, prepends the task-specific system
+ * prompt to the user prompt, and resolves the final assistant text from the stream.
  * Mirrors the `AuxQueryRunner` contract used by `AntigravityAuxQueryRunner`.
  */
 export class GrokAuxQueryRunner implements AuxQueryRunner {
@@ -69,6 +69,7 @@ export class GrokAuxQueryRunner implements AuxQueryRunner {
       model,
       permissionMode: 'normal',
       prompt: fullPrompt,
+      reasoningEffort: 'low',
     });
 
     const resolvedSpawnSpec = resolveWindowsCmdShimSpawnSpec(launchSpec);

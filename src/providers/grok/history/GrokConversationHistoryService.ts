@@ -82,6 +82,11 @@ export class GrokConversationHistoryService implements ProviderConversationHisto
   }
 
   buildPersistedProviderState(conversation: Conversation): Record<string, unknown> | undefined {
-    return buildPersistedGrokState(getGrokState(conversation.providerState));
+    const state = buildPersistedGrokState(getGrokState(conversation.providerState));
+    const botName = conversation.providerState?.botName;
+    if (state && (typeof botName === 'string' || botName === null)) {
+      state.botName = typeof botName === 'string' ? botName.trim() || null : null;
+    }
+    return state;
   }
 }

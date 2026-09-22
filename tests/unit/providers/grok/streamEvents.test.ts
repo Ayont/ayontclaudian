@@ -46,6 +46,27 @@ describe('mapGrokEventToChunks', () => {
     expect(mapGrokEventToChunks({ type: 'end', sessionId: 's1', stopReason: 'EndTurn', raw: {} }, state)).toEqual([]);
     expect(state.sessionId).toBe('s1');
   });
+
+  it('keeps the end ledger and surfaces a rate-limit error', () => {
+    const state = createGrokStreamState();
+    const usage = { input_tokens: 12, output_tokens: 3, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };
+    expect(mapGrokEventToChunks({
+      type: 'usage',
+      raw: { type: 'usage', usage },
+    }, state)).toEqual([]);
+    expect(mapGrokEventToChunks({
+      type: 'end',
+      sessionId: 's2',
+      stopReason: 'end_turn',
+      raw: { type: 'end', usage, modelUsage: { 'grok-4.7': { contextWindow: 500000 } } },
+    }, state)).toEqual([]);
+    expect(state.usageRaw).toMatchObject({ modelUsage: { 'grok-4.7': { contextWindow: 500000 } } });
+    expect(mapGrokEventToChunks({
+      type: 'error',
+      raw: { type: 'error', message: 'rate_limit: slow down' },
+    }, state)).toEqual([{ type: 'error', content: 'rate_limit: slow down' }]);
+    expect(state.streamError).toBe('rate_limit: slow down');
+  });
 });
 
 describe('extractSessionId', () => {

@@ -6,12 +6,20 @@ import type {
   ProviderWorkspaceServices,
 } from '../../../core/providers/types';
 import type { VaultFileAdapter } from '../../../core/storage/VaultFileAdapter';
+import type ClaudianPlugin from '../../../main';
+import { getVaultPath } from '../../../utils/path';
 import { SkillStorage } from '../../claude/storage/SkillStorage';
 import { SlashCommandStorage } from '../../claude/storage/SlashCommandStorage';
+import { GrokAgentCatalog } from '../agents/GrokAgentCatalog';
+import { createGrokInspectRunner } from '../agents/grokInspectRunner';
 import { GrokCliResolver } from '../runtime/GrokCliResolver';
+import { buildGrokRuntimeEnv } from '../runtime/GrokRuntimeEnvironment';
 import { grokSettingsTabRenderer } from '../ui/GrokSettingsTab';
 
-export type GrokWorkspaceServices = ProviderWorkspaceServices;
+export interface GrokWorkspaceServices extends ProviderWorkspaceServices {
+  /** Grok bots discovered for this vault, plus the connection report. */
+  agentCatalog: GrokAgentCatalog;
+}
 
 /**
  * Brings the runtime up at tab open so the CLI cold start is off the
@@ -20,11 +28,32 @@ export type GrokWorkspaceServices = ProviderWorkspaceServices;
 export const grokTabWarmupPolicy = createPersistentRuntimeWarmupPolicy('grok');
 
 export async function createGrokWorkspaceServices(
+  plugin: ClaudianPlugin,
   adapter: VaultFileAdapter,
 ): Promise<GrokWorkspaceServices> {
+  const cliResolver = new GrokCliResolver();
+  const settings = () => plugin.settings as unknown as Record<string, unknown>;
+
+  const agentCatalog = new GrokAgentCatalog({
+    runInspect: createGrokInspectRunner({
+      resolveCommand: () => cliResolver.resolveFromSettings(settings()),
+      // Grok reports per working directory, and the vault IS the working
+      // directory — inspecting anywhere else would list the wrong bots.
+      resolveCwd: () => getVaultPath(plugin.app) ?? '',
+      resolveEnv: (command) => buildGrokRuntimeEnv(settings(), command),
+    }),
+  });
+
+  // Discovery must not delay onload: a cold inspect takes ~2 s, and the
+  // catalog is only needed once a Grok tab is actually used.
+  void agentCatalog.refresh();
+
   return {
     tabWarmupPolicy: grokTabWarmupPolicy,
-    cliResolver: new GrokCliResolver(),
+    agentCatalog,
+    agentMentionProvider: agentCatalog,
+    refreshAgentMentions: () => agentCatalog.refresh(),
+    cliResolver,
     settingsTabRenderer: grokSettingsTabRenderer,
     // Surfaces the shared vault commands/skills (.claude/commands, .claude/skills)
     // in the dropdown; GrokChatRuntime expands a chosen entry client-side.
@@ -37,7 +66,7 @@ export async function createGrokWorkspaceServices(
 }
 
 export const grokWorkspaceRegistration: ProviderWorkspaceRegistration<GrokWorkspaceServices> = {
-  initialize: async ({ vaultAdapter }) => createGrokWorkspaceServices(vaultAdapter),
+  initialize: async ({ plugin, vaultAdapter }) => createGrokWorkspaceServices(plugin, vaultAdapter),
 };
 
 export function maybeGetGrokWorkspaceServices(): GrokWorkspaceServices | null {
