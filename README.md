@@ -11,7 +11,7 @@
 
 ![ayontclaudian hero banner](assets/ayontclaudian-hero.png)
 
-*Claude Code · OpenAI Codex · Antigravity · Kimi · Mistral Vibe · Grok · Opencode · Hermes · Cline · Freebuff · Pi · DSH*
+*Claude Code · OpenAI Codex · Antigravity · Kimi · Mistral Vibe · Grok · Opencode · Hermes · Cline · Pi · DSH*
 </div>
 
 ---
@@ -20,7 +20,7 @@
 
 Every coding agent ships its own terminal UI, its own session store, its own idea of project context. ayontclaudian embeds the real CLIs as chat runtimes **inside Obsidian** — so the agent reads and edits your notes, searches your vault, runs shell commands and git workflows where your work actually lives. Switch providers or models mid-conversation without losing a single message.
 
-- 🔌 **Provider-native, not simulated** — each adaptor drives the official CLI or SDK (Claude Agent SDK, `codex app-server` JSON-RPC, ACP for Opencode/Hermes, HTTP+SSE for Freebuff). Real streaming, real tool calls, real session resumes.
+- 🔌 **Provider-native, not simulated** — each adaptor drives the official CLI or SDK (Claude Agent SDK, `codex app-server` JSON-RPC, ACP for Opencode/Hermes). Real streaming, real tool calls, real session resumes.
 - 🧭 **Mid-chat provider switching** — fork a conversation to Codex when Claude gets stuck; history stays visible, state stays per-provider.
 - 📊 **Usage and cost center** — token spend per provider/model with subscription-aware pricing that never invents a rate.
 - ⏳ **Rate-limit chips in the status bar** — live windows like `5h: 34% · Reset 1h 30m`, read straight from the provider's own reporting (Codex) plus local rolling-window tracking for everyone else.
@@ -44,11 +44,11 @@ Every coding agent ships its own terminal UI, its own session store, its own ide
 | **Opencode** | ACP | Shared Agent-Client-Protocol transport |
 | **Hermes** | ACP | Model catalog plus modes from session/new, SQLite state history |
 | **Cline** | `--print` | Home of the `/goal` verification loop |
-| **Freebuff** | HTTP + SSE | Local desktop orchestrator, launch-id auth, live SSE bus |
 | **Pi** | `--print` | Minimal, fast |
 | **DSH** | `--print` | Reads model selection from DeepSeek Harness config |
+| **Grok (App)** · **Perplexity** | Desktop relay | Experimental: drives the installed desktop app's own chat window. No API key, no automatic vault recall, off by default |
 
-> Adding provider #13 is mechanical — see the provider docs in this repo.
+> Adding the next provider is mechanical — see the provider docs in this repo.
 
 ## Install
 

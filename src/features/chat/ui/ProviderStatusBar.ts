@@ -25,9 +25,11 @@ const PROVIDER_COLOR: Record<string, string> = {
   antigravity: '#4286F4',
   vibe: '#FF7A00',
   grok: '#E8E8E8',
+  'grok-bot': '#A0A0A0',
+  'perplexity-chat': '#20A7A7',
   cline: '#00C9A7',
   dsh: '#4D6BFE',
-  freebuff: '#E8A33D',
+
   hermes: '#8B5CF6',
   omp: '#F164AF',
 };

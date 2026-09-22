@@ -94,6 +94,14 @@ export function buildActivityLabels(
     }
   }
 
+  // A local tool_use is a proposal, not evidence of execution or consent.
+  if (toolsCount > 0 && thoughtsCount === 0 && distinctToolNames.length > 0
+    && distinctToolNames.every(name => /^Local (list|read|write|exec|run|output)$/.test(name))) {
+    title = isDe
+      ? `${toolsCount} lokale Werkzeuganfrage${toolsCount === 1 ? '' : 'n'}`
+      : `${toolsCount} local tool request${toolsCount === 1 ? '' : 's'}`;
+  }
+
   const parts: string[] = [];
   const toolsLabel = isDe ? (isWorkMode ? 'Recherche-Tools' : 'Werkzeuge') : 'tools';
   const thoughtsLabel = isDe ? (isWorkMode ? 'Analysen' : 'Überlegungen') : 'thoughts';

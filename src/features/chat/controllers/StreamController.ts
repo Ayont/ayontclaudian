@@ -221,7 +221,7 @@ export class StreamController {
 
   async handleStreamChunk(chunk: StreamChunk, msg: ChatMessage): Promise<void> {
     // Reasoning leaked into the text channel as <think>…</think> (OpenAI-
-    // compatible gateways behind Kimi / dsh / Freebuff / vibe / pi) is routed to
+    // compatible gateways behind Kimi / dsh / vibe / pi) is routed to
     // the thinking block. Delta-safe: split tags are held until they resolve.
     if (chunk.type === 'text') {
       const parts = this.inlineThinkScrubber.feed(chunk.content);
@@ -1284,6 +1284,7 @@ export class StreamController {
     await this.flushPendingThinkingRender();
 
     const thinkingState = state.currentThinkingState;
+    await renderer.finalizeStreamingContent(thinkingState.contentEl, thinkingState.content);
     if (this.getStreamingRenderOptions(thinkingState.content)) {
       await renderer.renderContent(thinkingState.contentEl, thinkingState.content);
     }
@@ -1346,9 +1347,9 @@ export class StreamController {
       if (thinkingState) {
         const options = this.getStreamingRenderOptions(content);
         if (options) {
-          await renderer.renderContent(thinkingState.contentEl, content, options);
+          await renderer.renderStreamingContent(thinkingState.contentEl, content, options);
         } else {
-          await renderer.renderContent(thinkingState.contentEl, content);
+          await renderer.renderStreamingContent(thinkingState.contentEl, content);
         }
         this.scrollToBottom();
         this.thinkingRenderCostMs = StreamController.blendRenderCost(
@@ -1729,8 +1730,10 @@ export class StreamController {
 
   private updateSubagentInMessages(subagent: SubagentInfo): void {
     const { state } = this.deps;
-    for (let i = state.messages.length - 1; i >= 0; i--) {
-      const msg = state.messages[i];
+    // The getter defensively copies history; take one snapshot for the scan.
+    const messages = state.messages;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
       if (msg.role !== 'assistant') continue;
       if (this.linkTaskToolCallToSubagent(msg, subagent)) {
         return;

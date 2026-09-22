@@ -41,6 +41,8 @@ export interface CliInstallSpec {
 const NPM = (pkg: string): CliInstallMethod => ({ label: 'npm', command: `npm install -g ${pkg}` });
 
 export const CLI_INSTALL_CATALOG: Record<string, CliInstallSpec> = {
+  'grok-bot': { id: 'grok-bot', displayName: 'Grok Bot (Desktop, experimentell)', binary: '', docsUrl: 'https://cursor.com/download/bot', methods: { darwin: [{ label: 'In der App verwalten', command: '' }] } },
+  'perplexity-chat': { id: 'perplexity-chat', displayName: 'Perplexity Chat (Desktop, experimentell)', binary: '', docsUrl: 'https://www.perplexity.ai', methods: { darwin: [{ label: 'In der App verwalten', command: '' }] } },
   // Mistral Vibe — uv-based Python tool; mac/Linux also have an installer script.
   vibe: {
     id: 'vibe',
@@ -64,7 +66,7 @@ export const CLI_INSTALL_CATALOG: Record<string, CliInstallSpec> = {
   // xAI Grok CLI — installer script (mac/Linux) / PowerShell (Windows).
   grok: {
     id: 'grok',
-    displayName: 'Grok (xAI)',
+    displayName: 'Grok Build (CLI)',
     binary: 'grok',
     docsUrl: 'https://docs.x.ai/build/overview',
     methods: {
@@ -84,14 +86,7 @@ export const CLI_INSTALL_CATALOG: Record<string, CliInstallSpec> = {
     methods: { default: [NPM('@deepseek-ai/dsh')] },
   },
 
-  // Freebuff — the CLI is the login vehicle; turns run in the desktop app.
-  freebuff: {
-    id: 'freebuff',
-    displayName: 'Freebuff',
-    binary: 'freebuff',
-    docsUrl: 'https://freebuff.com',
-    methods: { default: [NPM('freebuff')] },
-  },
+
 
   // Hermes Agent (Nous Research) — official installer script / PowerShell.
   hermes: {

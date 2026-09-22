@@ -9,7 +9,6 @@ import { claudeTabWarmupPolicy } from '@/providers/claude/app/ClaudeWorkspaceSer
 import { clineTabWarmupPolicy } from '@/providers/cline/app/ClineWorkspaceServices';
 import { codexTabWarmupPolicy } from '@/providers/codex/app/CodexWorkspaceServices';
 import { dshTabWarmupPolicy } from '@/providers/dsh/app/DshWorkspaceServices';
-import { freebuffTabWarmupPolicy } from '@/providers/freebuff/app/FreebuffWorkspaceServices';
 import { grokTabWarmupPolicy } from '@/providers/grok/app/GrokWorkspaceServices';
 import { kimiTabWarmupPolicy } from '@/providers/kimi/app/KimiWorkspaceServices';
 import { vibeTabWarmupPolicy } from '@/providers/vibe/app/VibeWorkspaceServices';
@@ -87,7 +86,6 @@ describe('persistent-runtime providers', () => {
     ['cline', clineTabWarmupPolicy],
     ['codex', codexTabWarmupPolicy],
     ['dsh', dshTabWarmupPolicy],
-    ['freebuff', freebuffTabWarmupPolicy],
     ['grok', grokTabWarmupPolicy],
     ['kimi', kimiTabWarmupPolicy],
     ['vibe', vibeTabWarmupPolicy],

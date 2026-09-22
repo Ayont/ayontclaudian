@@ -10,6 +10,7 @@
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 import * as path from 'node:path';
 
+import { desktopAppPath } from '../../providers/desktopBridge/helper';
 import { getEnhancedPath } from '../../utils/env';
 import { resolveWindowsCmdShimSpawnSpec } from '../../utils/windowsCmdShim';
 import { resolveProviderCliPath } from '../install/cliDetection';
@@ -200,6 +201,13 @@ export async function checkProviderHealth(
   settings: Record<string, unknown>,
   options: ProviderHealthCheckOptions = {},
 ): Promise<ProviderHealthCheckResult> {
+  // A desktop app directory is not an executable CLI. This is only a fresh
+  // prerequisite check; the shipped helper verifies AX access at send time.
+  if (providerId === 'grok-bot' || providerId === 'perplexity-chat') {
+    const enabled = ProviderRegistry.isEnabled(providerId, settings);
+    const command = desktopAppPath(providerId);
+    return { ok: enabled && !!command, providerId, command, detail: !enabled ? 'Desktop-Relay deaktiviert' : !command ? 'macOS-App oder Swift fehlt' : 'App und Swift vorhanden; Anmeldung und Bedienungshilfen erst beim Senden geprüft' };
+  }
   if (!options.force) {
     const cached = getCachedResult(providerId);
     if (cached) {

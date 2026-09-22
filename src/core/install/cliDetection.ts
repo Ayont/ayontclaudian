@@ -1,3 +1,4 @@
+import { desktopAppPath } from '../../providers/desktopBridge/helper';
 import { findCliBinaryPath } from '../../utils/cliBinaryLocator';
 import { ProviderWorkspaceRegistry } from '../providers/ProviderWorkspaceRegistry';
 import { getCliInstallSpec } from './cliInstallCatalog';
@@ -8,6 +9,7 @@ import { getCliInstallSpec } from './cliInstallCatalog';
  * providers. `additionalPath` lets a configured cliPath dir be considered too.
  */
 export function isCliInstalled(providerId: string, additionalPath?: string): boolean {
+  if (providerId === 'grok-bot' || providerId === 'perplexity-chat') return desktopAppPath(providerId) !== null;
   const spec = getCliInstallSpec(providerId);
   if (!spec) {
     return false;

@@ -1,6 +1,7 @@
 import '@/providers';
 
 import { createMockEl } from '@test/helpers/mockElement';
+import { MarkdownRenderer } from 'obsidian';
 
 import { ProviderSettingsCoordinator } from '@/core/providers/ProviderSettingsCoordinator';
 import {
@@ -18,6 +19,7 @@ import {
   StreamController,
   type StreamControllerDeps,
 } from '@/features/chat/controllers/StreamController';
+import { MessageRenderer } from '@/features/chat/rendering/MessageRenderer';
 import { ChatState } from '@/features/chat/state/ChatState';
 import { DEFAULT_CODEX_PRIMARY_MODEL } from '@/providers/codex/types/models';
 
@@ -1629,6 +1631,36 @@ describe('StreamController - Text Content', () => {
   });
 
   describe('onAsyncSubagentStateChange', () => {
+    it.each([0, 499, -1])('copies history only once when the matching task is at %i', (matchIndex) => {
+      const messages = Array.from({ length: 500 }, (_, index): ChatMessage => ({
+        ...createTestMessage(),
+        id: `message-${index}`,
+        toolCalls: [{
+          id: index === matchIndex ? 'target-task' : `task-${index}`,
+          name: TOOL_TASK,
+          input: {},
+          status: 'running',
+        }],
+      }));
+      deps.state.messages = messages;
+      const reads = jest.spyOn(deps.state, 'messages', 'get');
+      const subagent = {
+        id: 'target-task', description: 'test', status: 'completed' as const,
+        result: 'done', toolCalls: [], isExpanded: false,
+      };
+
+      controller.onAsyncSubagentStateChange(subagent);
+
+      expect(reads).toHaveBeenCalledTimes(1);
+      expect(messages.map(message => message.toolCalls![0].status)).toEqual(
+        messages.map((_, index) => index === matchIndex ? 'completed' : 'running'),
+      );
+      expect(messages[matchIndex]?.toolCalls![0].subagent).toEqual(
+        matchIndex >= 0 ? subagent : undefined,
+      );
+      reads.mockRestore();
+    });
+
     it('should update subagent in messages', () => {
       const subagent = { id: 'task-1', description: 'test', status: 'completed', result: 'done', toolCalls: [] } as any;
       deps.state.messages = [{
@@ -1673,6 +1705,37 @@ describe('StreamController - Text Content', () => {
   });
 
   describe('Thinking block finalization', () => {
+    it('bounds Markdown work across ten long thinking frames and finalizes canonical content', async () => {
+      deps.renderer = new MessageRenderer(
+        deps.plugin,
+        { registerDomEvent: jest.fn(), register: jest.fn() } as any,
+        deps.getMessagesEl(),
+      );
+      const contentEl = createMockEl();
+      deps.state.currentThinkingState = {
+        content: '', contentEl, wrapperEl: createMockEl(), labelEl: createMockEl(),
+        startTime: Date.now(), timerInterval: null, isExpanded: true,
+      };
+      const msg = createTestMessage();
+      const paragraph = `${'Ein abgeschlossener Absatz mit genug Text. '.repeat(60)}\n\n`;
+      for (let frame = 0; frame < 10; frame++) {
+        await controller.handleStreamChunk({ type: 'thinking', content: paragraph }, msg);
+        await jest.advanceTimersByTimeAsync(500);
+      }
+      await controller.finalizeCurrentThinkingBlock(msg);
+
+      const calls = (MarkdownRenderer.render as jest.Mock).mock.calls;
+      const renderedChars = calls.reduce((sum, call) => sum + String(call[1]).length, 0);
+      const fullContent = paragraph.repeat(10);
+      expect(calls[calls.length - 1][1]).toBe(fullContent);
+      expect(calls[calls.length - 1][2]).toBe(contentEl);
+      expect(msg.contentBlocks).toContainEqual(expect.objectContaining({
+        type: 'thinking', content: fullContent,
+      }));
+      // Includes the final whole-content render, not just the cheap live frames.
+      expect(renderedChars).toBeLessThan(paragraph.length * 55 / 2);
+    });
+
     it('should finalize thinking block and add to contentBlocks', async () => {
       const msg = createTestMessage();
       deps.state.currentContentEl = createMockEl();

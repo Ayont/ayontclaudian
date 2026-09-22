@@ -60,6 +60,9 @@ export class ProviderRegistry {
   static createChatRuntime(options: CreateChatRuntimeOptions): ChatRuntime {
     const providerId = options.providerId ?? DEFAULT_CHAT_PROVIDER_ID;
     const registration = this.getProviderRegistration(providerId);
+    // Consumer chat owns its system instructions and has no vault/tool contract.
+    // Preserve the complete user turn without the coding-agent preamble or loops.
+    if (providerId === 'grok-bot' || providerId === 'perplexity-chat') return registration.createRuntime(options);
     const runtime = withProviderPromptDelivery(registration.createRuntime(options), {
       plugin: options.plugin,
       // Production capabilities declare this explicitly. The fallback keeps
@@ -327,6 +330,12 @@ class RoutedTitleGenerationService implements TitleGenerationService {
     userMessage: string,
     callback: TitleGenerationCallback,
   ): Promise<void> {
+    const conversationProvider = this.plugin.getConversationSync?.(conversationId)?.providerId;
+    // Consumer UI relays must never trigger hidden title calls, including the default Claude route.
+    if (conversationProvider === 'grok-bot' || conversationProvider === 'perplexity-chat') {
+      await callback(conversationId, { success: true, title: userMessage.replace(/\s+/g, ' ').slice(0, 60) || 'Desktop-Chat' });
+      return;
+    }
     const providerId = ProviderRegistry.resolveTitleGenerationProviderId(
       this.plugin.settings as unknown as Record<string, unknown>,
     );

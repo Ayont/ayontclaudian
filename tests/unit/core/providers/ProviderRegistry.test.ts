@@ -13,6 +13,25 @@ import type {
 import { DEFAULT_CODEX_PRIMARY_MODEL } from '@/providers/codex/types/models';
 
 describe('ProviderRegistry', () => {
+  it.each(['grok-bot', 'perplexity-chat'])('does not prepend coding-agent instructions to consumer chat %s', async providerId => {
+    const registration = ProviderRegistry.getProviderRegistration(providerId);
+    const base = registration.createRuntime({ plugin: { settings: {} } as any });
+    const query = jest.spyOn(base, 'query').mockImplementation(async function* () { yield { type: 'done' }; });
+    jest.spyOn(registration, 'createRuntime').mockReturnValue(base);
+    const runtime = ProviderRegistry.createChatRuntime({ plugin: { settings: {} } as any, providerId });
+    const turn = runtime.prepareTurn({ text: 'Keep all user text.\nSecond line.' });
+    for await (const chunk of runtime.query(turn)) { expect(chunk.type).toBe('done'); }
+    expect(query.mock.calls[0][0].prompt).toBe(turn.prompt);
+  });
+  it.each(['grok-bot', 'perplexity-chat'])('keeps default titles local for %s conversations', async providerId => {
+    const plugin = { settings: {}, getConversationSync: () => ({ providerId }) } as any;
+    const service = ProviderRegistry.createTitleGenerationService(plugin);
+    const create = jest.spyOn(ProviderRegistry, 'createTitleGenerationService');
+    const callback = jest.fn();
+    await service.generateTitle('desktop', 'hello\nworld', callback);
+    expect(callback).toHaveBeenCalledWith('desktop', { success: true, title: 'hello world' });
+    expect(create).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     ProviderWorkspaceRegistry.clear();
     ProviderWorkspaceRegistry.setServices('claude', {
@@ -120,7 +139,6 @@ describe('ProviderRegistry', () => {
       vibe: 'session-preamble',
       grok: 'session-preamble',
       dsh: 'stateless-turn',
-      freebuff: 'session-preamble',
       hermes: 'native-system',
     } as const;
 
@@ -327,7 +345,7 @@ describe('ProviderRegistry', () => {
 
     it('resolves model to the owning provider', () => {
       expect(ProviderRegistry.resolveProviderForModel('gpt-5.6-sol')).toBe('codex');
-      expect(ProviderRegistry.resolveProviderForModel('deepseek/deepseek-v4-flash')).toBe('freebuff');
+      expect(ProviderRegistry.resolveProviderForModel('grok-4.7')).toBe('grok');
     });
   });
 });

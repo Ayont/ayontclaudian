@@ -1,0 +1,40 @@
+import { McpServerManager } from '../../../../src/core/mcp/McpServerManager';
+import { ProviderRegistry } from '../../../../src/core/providers/ProviderRegistry';
+import { ProviderWorkspaceRegistry } from '../../../../src/core/providers/ProviderWorkspaceRegistry';
+import type ClaudianPlugin from '../../../../src/main';
+import { queryDesktopBridge } from '../../../../src/providers/desktopBridge/DesktopBridgeTransport';
+import { desktopRegistration } from '../../../../src/providers/desktopBridge/registration';
+import { updateDesktopSettings } from '../../../../src/providers/desktopBridge/settings';
+jest.mock('../../../../src/providers/desktopBridge/helper', () => ({ prepareHelper: () => '/fixture', desktopAppPath: () => '/fixture.app' }));
+jest.mock('../../../../src/providers/desktopBridge/DesktopBridgeTransport', () => ({ queryDesktopBridge: jest.fn(), desktopBridgeProviders: [{ id: 'grok-bot', displayName: 'Grok' }, { id: 'perplexity-chat', displayName: 'Perplexity' }] }));
+describe.each(['grok-bot', 'perplexity-chat'] as const)('registered MCP %s', id => {
+  beforeEach(() => { jest.clearAllMocks(); ProviderWorkspaceRegistry.clear(); });
+  it.each(['mcp_tool', 'local_tool', 'vault_tool', 'context_tool'])('is default off and rejects %s-shaped replies, never reporting a successful final answer', async family => {
+    const plugin = { settings: {}, saveSettings: jest.fn().mockResolvedValue(undefined) } as unknown as ClaudianPlugin;
+    updateDesktopSettings(plugin.settings, id, { enabled: true, anchor: 'fixture' });
+    ProviderRegistry.register(id, desktopRegistration(id));
+    const runtime = ProviderRegistry.createChatRuntime({ plugin, providerId: id });
+    expect(runtime.getCapabilities().supportsMcpTools).toBe(false);
+    jest.mocked(queryDesktopBridge).mockResolvedValue(JSON.stringify({ [family]: 'invoke', nonce: 'stale' }));
+    const chunks = [];
+    for await (const chunk of runtime.query(runtime.prepareTurn({ text: 'fixture' }))) chunks.push(chunk);
+    expect(chunks).toContainEqual(expect.objectContaining({ type: 'error' }));
+    expect(chunks).not.toContainEqual(expect.objectContaining({ type: 'done' }));
+  });
+  it('requires catalog approval before any native send', async () => {
+    const plugin = { settings: {}, saveSettings: jest.fn().mockResolvedValue(undefined) } as unknown as ClaudianPlugin;
+    updateDesktopSettings(plugin.settings, id, { enabled: true, desktopMcp: true, anchor: 'fixture', toolRoot: process.cwd() });
+    const manager = new McpServerManager({ load: async () => [{ name: 'fixture', enabled: true, contextSaving: true, config: { type: 'http', url: 'https://fixture.invalid/mcp' } }] });
+    await manager.loadServers();
+    ProviderWorkspaceRegistry.setServices(id, { mcpServerManager: manager });
+    ProviderRegistry.register(id, desktopRegistration(id));
+    const runtime = ProviderRegistry.createChatRuntime({ plugin, providerId: id });
+    expect(runtime.getCapabilities().supportsMcpTools).toBe(true);
+    const approve = jest.fn().mockResolvedValue('deny'); runtime.setApprovalCallback(approve);
+    const chunks = [];
+    for await (const chunk of runtime.query(runtime.prepareTurn({ text: 'fixture', enabledMcpServers: new Set(['fixture']) }))) chunks.push(chunk);
+    expect(approve).toHaveBeenCalled();
+    expect(queryDesktopBridge).not.toHaveBeenCalled();
+    expect(chunks).toContainEqual(expect.objectContaining({ type: 'error' }));
+  });
+});

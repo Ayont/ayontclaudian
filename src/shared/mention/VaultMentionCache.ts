@@ -19,7 +19,8 @@ export class VaultFileCache {
     if (this.isInitialized) return;
 
     window.setTimeout(() => {
-      this.tryRefreshFiles();
+      // A foreground read may have populated the cache while this was queued.
+      this.getFiles();
     }, 0);
   }
 
@@ -69,7 +70,8 @@ export class VaultFolderCache {
     if (this.isInitialized) return;
 
     window.setTimeout(() => {
-      this.tryRefreshFolders();
+      // Still refresh if a vault event invalidated an earlier foreground read.
+      this.getFolders();
     }, 0);
   }
 

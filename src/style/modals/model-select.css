@@ -414,11 +414,15 @@
 .claudian-model-select-option[data-provider="antigravity"] { --model-accent: var(--claudian-brand-antigravity); }
 .claudian-model-select-option[data-provider="vibe"] { --model-accent: var(--claudian-brand-vibe); }
 .claudian-model-select-option[data-provider="grok"] { --model-accent: var(--claudian-brand-grok); }
+
+.claudian-model-select-option[data-provider="grok-bot"] { --model-accent: var(--claudian-brand-grok-bot); }
+
+.claudian-model-select-option[data-provider="perplexity-chat"] { --model-accent: var(--claudian-brand-perplexity-chat); }
 .claudian-model-select-option[data-provider="cline"] { --model-accent: var(--claudian-brand-cline); }
 .claudian-model-select-option[data-provider="hermes"] { --model-accent: var(--claudian-brand-hermes); }
 .claudian-model-select-option[data-provider="omp"] { --model-accent: var(--claudian-brand-omp); }
 .claudian-model-select-option[data-provider="dsh"] { --model-accent: var(--claudian-brand-dsh); }
-.claudian-model-select-option[data-provider="freebuff"] { --model-accent: var(--claudian-brand-freebuff); }
+
 
 /* Auto model option: distinct brand color */
 .claudian-model-select-option.is-auto {

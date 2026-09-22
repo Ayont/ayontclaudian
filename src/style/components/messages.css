@@ -980,6 +980,16 @@ body.theme-light .claudian-response-provider-pill {
   border-color: color-mix(in srgb, var(--claudian-brand-grok, #e8e8e8) 35%, transparent);
 }
 
+.claudian-response-provider-pill.claudian-provider-grok-bot {
+  color: var(--claudian-brand-grok-bot, #e8e8e8);
+  border-color: color-mix(in srgb, var(--claudian-brand-grok-bot, #e8e8e8) 35%, transparent);
+}
+
+.claudian-response-provider-pill.claudian-provider-perplexity-chat {
+  color: var(--claudian-brand-perplexity-chat, #e8e8e8);
+  border-color: color-mix(in srgb, var(--claudian-brand-perplexity-chat, #e8e8e8) 35%, transparent);
+}
+
 .claudian-response-telemetry,
 .claudian-response-actions {
   display: inline-flex;

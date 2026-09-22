@@ -165,6 +165,7 @@ const copyToObsidian = {
 const context = await esbuild.context({
   entryPoints: ['src/main.ts'],
   bundle: true,
+  define: { __DESKTOP_BRIDGE_SOURCE__: JSON.stringify(readFileSync('scripts/desktop-bridge.swift', 'utf8')) },
   plugins: [patchSdkImportMeta, patchRendererUnsafeUnref, copyToObsidian],
   external: [
     'obsidian',

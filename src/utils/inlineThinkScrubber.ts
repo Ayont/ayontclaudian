@@ -2,7 +2,7 @@
  * Delta-safe scrubber for reasoning that leaks into the text channel as
  * `<think>…</think>` (also `<thinking>`, `<reasoning>`).
  *
- * OpenAI-compatible gateways (Kimi, DeepSeek dsh, Freebuff, Mistral vibe, pi
+ * OpenAI-compatible gateways (Kimi, DeepSeek dsh, Mistral vibe, pi
  * with MiniMax/Qwen/DeepSeek-R1) sometimes forward the model's reasoning tags
  * inside `content` instead of `reasoning_content`. Rendered as markdown they
  * either show up as raw tags or, worse, an HTML-ish `<think>` swallows the rest

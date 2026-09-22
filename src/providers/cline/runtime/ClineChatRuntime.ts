@@ -265,6 +265,7 @@ export class ClineChatRuntime implements ChatRuntime {
       history: conversationHistory,
       prompt: promptText,
       sessionId: resumeId,
+      contextWindowTokens: getClineModelContextWindow(model),
     });
 
     const launchSpec = buildClineLaunchSpec({

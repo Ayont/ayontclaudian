@@ -1,8 +1,7 @@
-import { buildConversationContextBootstrap } from '@/core/conversation/ConversationContextBootstrap';
+import { buildConversationContextBootstrap, buildProviderSwitchCarry } from '@/core/conversation/ConversationContextBootstrap';
 import type { ChatMessage } from '@/core/types';
 import {
   buildClineTurnPrompt,
-  CLINE_CONTEXT_BOOTSTRAP_CHAR_CAP,
   stripClineConversationContext,
 } from '@/providers/cline/runtime/ClineTurnPrompt';
 
@@ -25,7 +24,62 @@ describe('buildClineTurnPrompt', () => {
     expect(prompt).toContain('<conversation_context>');
     expect(prompt).toContain('Wir bauen den Scheduler');
     expect(prompt.trim().endsWith('weiter')).toBe(true);
-    expect(prompt.length).toBeLessThan(CLINE_CONTEXT_BOOTSTRAP_CHAR_CAP + 80);
+  });
+
+  it('keeps a fitting switch carry when the first Cline turn has no history', () => {
+    const userConstraint = 'KEEP-THE-PORTAL-REVERSIBLE';
+    const assistantDecision = 'MIGRATE-SHAREPOINT-FIRST';
+    const filePath = `vault/${'p'.repeat(144)}`;
+    const outcome = 'o'.repeat(2000);
+    const goal = 'Portal migration stays reversible';
+    const carry = buildProviderSwitchCarry({
+      messages: [
+        { id: 'u', role: 'user', content: userConstraint, timestamp: 1 },
+        {
+          id: 'a',
+          role: 'assistant',
+          content: assistantDecision,
+          timestamp: 2,
+          toolCalls: [{
+            id: 'tool-write',
+            name: 'Write',
+            input: { file_path: filePath },
+            status: 'completed',
+            result: outcome,
+          }],
+        },
+      ],
+      contextWindowTokens: 1_048_576,
+      goal,
+    });
+    const prompt = buildClineTurnPrompt({
+      history: [],
+      prompt: `${carry}\n\ncontinue on Cline`,
+      sessionId: null,
+    });
+
+    expect(filePath).toHaveLength(150);
+    expect(prompt).toContain(userConstraint);
+    expect(prompt).toContain(assistantDecision);
+    expect(prompt).toContain(filePath);
+    expect(prompt).toContain(outcome);
+    expect(prompt).toContain(goal);
+    expect(prompt).toContain('continue on Cline');
+    expect(prompt).not.toContain('[earlier turns omitted]');
+  });
+
+  it('rebuilds more than 48000 characters when the Cline window can hold them', () => {
+    const body = `CLINE-FITS-${'c'.repeat(50_000)}`;
+    const prompt = buildClineTurnPrompt({
+      history: [msg('user', body, 'u-long')],
+      prompt: 'next',
+      sessionId: null,
+      contextWindowTokens: 262_144,
+    });
+    expect(prompt.length).toBeGreaterThan(48_000);
+    expect(prompt).toContain(body);
+    expect(prompt).not.toContain('[earlier turns omitted]');
+    expect(prompt.trim().endsWith('next')).toBe(true);
   });
 
   it('does not inject when a native Cline session already carries history', () => {

@@ -1,8 +1,8 @@
 import {
   buildConversationContextBootstrap,
+  buildProviderSwitchCarry,
   computeBootstrapCharCap,
   CONTEXT_BOOTSTRAP_CHAR_CAP,
-  CONTEXT_BOOTSTRAP_CHAR_CAP_MAX,
 } from '@/core/conversation/ConversationContextBootstrap';
 import type { ChatMessage } from '@/core/types';
 
@@ -14,21 +14,11 @@ describe('computeBootstrapCharCap', () => {
     expect(computeBootstrapCharCap(Number.NaN)).toBe(CONTEXT_BOOTSTRAP_CHAR_CAP);
   });
 
-  it('keeps the floor for small windows', () => {
-    // 32k tokens → 32000*4*0.03 = 3840 < floor → floor.
-    expect(computeBootstrapCharCap(32000)).toBe(CONTEXT_BOOTSTRAP_CHAR_CAP);
-  });
-
-  it('scales up for large windows and clamps at the ceiling', () => {
-    // 200k tokens → 200000*4*0.03 = 24000 = ceiling.
-    expect(computeBootstrapCharCap(200000)).toBe(CONTEXT_BOOTSTRAP_CHAR_CAP_MAX);
-    // 1M tokens → far over ceiling → clamped.
-    expect(computeBootstrapCharCap(1_000_000)).toBe(CONTEXT_BOOTSTRAP_CHAR_CAP_MAX);
-  });
-
-  it('returns an intermediate value between floor and ceiling', () => {
-    // 100k tokens → 100000*4*0.03 = 12000, between 6000 and 24000.
-    expect(computeBootstrapCharCap(100000)).toBe(12000);
+  it('uses the full character budget of a known window', () => {
+    // 32k tokens → 32000*4 characters. A fitting transcript must not stop at the old 6k floor.
+    expect(computeBootstrapCharCap(32000)).toBe(128_000);
+    expect(computeBootstrapCharCap(200_000)).toBe(800_000);
+    expect(computeBootstrapCharCap(1_000_000)).toBe(4_000_000);
   });
 });
 
@@ -113,6 +103,62 @@ describe('buildConversationContextBootstrap', () => {
     expect(out).not.toContain('[earlier turns omitted]');
   });
 
+  it('omits only the overflow past the target window and marks it', () => {
+    const newest = 'NEWEST-TURN-MUST-REMAIN';
+    const older = `OLDER-TURN-${'z'.repeat(12_000)}`;
+    const out = buildProviderSwitchCarry({
+      messages: [
+        { id: 'old', role: 'user', content: older, timestamp: 1 },
+        { id: 'new', role: 'user', content: newest, timestamp: 2 },
+      ],
+      contextWindowTokens: 1_000,
+    });
+    expect(out).toContain('[earlier turns omitted]');
+    expect(out).toContain(newest);
+    expect(out).not.toContain('OLDER-TURN');
+    expect(out.length).toBeLessThan(24_000);
+  });
+
+  it('keeps a long file path and stored outcome that fit the target window', () => {
+    const filePath = `vault/${'p'.repeat(144)}`;
+    const outcome = 'R'.repeat(2000);
+    const out = buildProviderSwitchCarry({
+      messages: [
+        { id: 'u', role: 'user', content: 'write the plan', timestamp: 1 },
+        {
+          id: 'a',
+          role: 'assistant',
+          content: 'wrote it',
+          timestamp: 2,
+          toolCalls: [{
+            id: 'tool-write',
+            name: 'Write',
+            input: { file_path: filePath },
+            status: 'completed',
+            result: outcome,
+          }],
+        },
+      ],
+      contextWindowTokens: 200_000,
+    });
+    expect(filePath).toHaveLength(150);
+    expect(out).toContain(filePath);
+    expect(out).toContain(outcome);
+    expect(out).not.toContain('[earlier turns omitted]');
+    expect(out).not.toContain('(truncated)');
+  });
+
+  it('does not stop at 24000 characters when the target window can hold more', () => {
+    const body = 'FITTING-BODY-' + 'm'.repeat(30_000);
+    const out = buildProviderSwitchCarry({
+      messages: [{ id: 'u', role: 'user', content: body, timestamp: 1 }],
+      contextWindowTokens: 20_000,
+    });
+    expect(out.length).toBeGreaterThan(24_000);
+    expect(out).toContain('FITTING-BODY-');
+    expect(out).not.toContain('[earlier turns omitted]');
+  });
+
   it('respects a custom maxChars override and stays bounded', () => {
     const out = buildConversationContextBootstrap(
       [
@@ -122,8 +168,7 @@ describe('buildConversationContextBootstrap', () => {
       ],
       { maxChars: 200 },
     );
-    const tagOverhead = '<conversation_context>\n\n</conversation_context>'.length;
-    expect(out.length).toBeLessThanOrEqual(200 + tagOverhead);
+    expect(out.length).toBeLessThanOrEqual(200);
     expect(out).toContain('[earlier turns omitted]');
   });
 

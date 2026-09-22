@@ -258,13 +258,19 @@ body.theme-light .claudian-tab-badge:hover {
   box-shadow: inset 0 -2px 0 var(--claudian-brand-grok, #E8E8E8);
 }
 
+.claudian-tab-badge[data-provider="grok-bot"] {
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-grok-bot, #E8E8E8);
+}
+
+.claudian-tab-badge[data-provider="perplexity-chat"] {
+  box-shadow: inset 0 -2px 0 var(--claudian-brand-perplexity-chat, #E8E8E8);
+}
+
 .claudian-tab-badge[data-provider="dsh"] {
   box-shadow: inset 0 -2px 0 var(--claudian-brand-dsh, #4D6BFE);
 }
 
-.claudian-tab-badge[data-provider="freebuff"] {
-  box-shadow: inset 0 -2px 0 var(--claudian-brand-freebuff, #E8A33D);
-}
+
 
 .claudian-tab-badge[data-provider="hermes"] {
   box-shadow: inset 0 -2px 0 var(--claudian-brand-hermes, #8B5CF6);
@@ -319,13 +325,19 @@ body.theme-light .claudian-tab-badge:hover {
   border-color: var(--claudian-brand-grok, #E8E8E8);
 }
 
+.claudian-tab-badge-streaming[data-provider="grok-bot"] {
+  border-color: var(--claudian-brand-grok-bot, #E8E8E8);
+}
+
+.claudian-tab-badge-streaming[data-provider="perplexity-chat"] {
+  border-color: var(--claudian-brand-perplexity-chat, #E8E8E8);
+}
+
 .claudian-tab-badge-streaming[data-provider="dsh"] {
   border-color: var(--claudian-brand-dsh, #4D6BFE);
 }
 
-.claudian-tab-badge-streaming[data-provider="freebuff"] {
-  border-color: var(--claudian-brand-freebuff, #E8A33D);
-}
+
 
 .claudian-tab-badge-streaming[data-provider="hermes"] {
   border-color: var(--claudian-brand-hermes, #8B5CF6);

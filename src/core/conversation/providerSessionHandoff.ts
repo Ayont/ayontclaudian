@@ -20,6 +20,11 @@
 export interface ProviderSessionSnapshot {
   sessionId?: string | null;
   providerState?: Record<string, unknown>;
+  /**
+   * Last local message id already inside this provider's native session.
+   * Turns after it must be carried when the conversation comes back.
+   */
+  coveredThroughMessageId?: string | null;
 }
 
 export interface ProviderSessionHandoffInput {
@@ -33,6 +38,8 @@ export interface ProviderSessionHandoffInput {
   currentProviderState?: Record<string, unknown>;
   /** Previously stashed per-provider sessions, if any. */
   providerSessions?: Record<string, ProviderSessionSnapshot>;
+  /** Last message id the outgoing provider's native session already has. */
+  coveredThroughMessageId?: string | null;
 }
 
 export interface ProviderSessionHandoffResult {
@@ -42,6 +49,8 @@ export interface ProviderSessionHandoffResult {
   providerState: Record<string, unknown> | undefined;
   /** Updated per-provider session map (immutable copy). */
   providerSessions: Record<string, ProviderSessionSnapshot>;
+  /** Watermark already covered by the restored native session, if any. */
+  coveredThroughMessageId: string | null;
 }
 
 export function needsProviderContextBootstrap(
@@ -72,12 +81,17 @@ export function computeProviderSessionHandoff(
   const previous = input.providerSessions ?? {};
 
   // Snapshot the outgoing provider's live session under its own key.
+  const outgoingSnapshot: ProviderSessionSnapshot = {
+    sessionId: input.currentSessionId ?? null,
+    providerState: input.currentProviderState,
+  };
+  if (input.coveredThroughMessageId !== undefined) {
+    outgoingSnapshot.coveredThroughMessageId = input.coveredThroughMessageId;
+  }
+
   const stashed: Record<string, ProviderSessionSnapshot> = {
     ...previous,
-    [input.oldProviderId]: {
-      sessionId: input.currentSessionId ?? null,
-      providerState: input.currentProviderState,
-    },
+    [input.oldProviderId]: outgoingSnapshot,
   };
 
   // Restore the incoming provider's own session, or start clean.
@@ -87,5 +101,6 @@ export function computeProviderSessionHandoff(
     sessionId: restored?.sessionId ?? null,
     providerState: restored?.providerState,
     providerSessions: stashed,
+    coveredThroughMessageId: restored?.coveredThroughMessageId ?? null,
   };
 }

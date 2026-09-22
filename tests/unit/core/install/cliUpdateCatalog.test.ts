@@ -30,11 +30,10 @@ describe('cliUpdateCatalog', () => {
     expect(getPreferredUpdateCommand('hermes', 'win32')).toBe('hermes update');
   });
 
-  it('updates npm-installed DeepSeek Harness and Freebuff through their npm packages', () => {
+  it('updates npm-installed DeepSeek Harness through its npm package', () => {
     expect(getCliUpdateSpec('dsh')?.npmPackage).toBe('@deepseek-ai/dsh');
     expect(getPreferredUpdateCommand('dsh', 'linux')).toBe('npm install -g @deepseek-ai/dsh@latest');
-    expect(getCliUpdateSpec('freebuff')?.npmPackage).toBe('freebuff');
-    expect(getPreferredUpdateCommand('freebuff', 'darwin')).toBe('npm install -g freebuff@latest');
+    expect(getCliUpdateSpec('freebuff')).toBeNull();
   });
 
   it('upgrades uv-installed CLIs with uv tool upgrade', () => {

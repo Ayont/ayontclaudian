@@ -96,11 +96,12 @@
   transform: scale(0.97);
 }
 
-.claudian-service-tier-button.active {
-  color: var(--cl-speed);
-  background: var(--cl-speed-soft);
-  border-color: var(--cl-speed-line);
-  box-shadow: inset 0 0 0 1px rgba(var(--cl-speed-rgb), 0.08);
+.claudian-service-tier-button.active,
+.claudian-container button.claudian-service-tier-button.active {
+  color: var(--cl-speed) !important;
+  background: var(--cl-speed-soft) !important;
+  border-color: var(--cl-speed-line) !important;
+  box-shadow: inset 0 0 0 1px rgba(var(--cl-speed-rgb), 0.08) !important;
 }
 
 .claudian-service-tier-button.active::before {
@@ -122,16 +123,18 @@
 }
 
 @media (pointer: coarse) {
-  .claudian-service-tier-button {
-    min-height: 44px;
+  .claudian-service-tier-button,
+  .claudian-container button.claudian-service-tier-button {
+    min-height: 44px !important;
   }
 }
 
-.claudian-service-tier-button.is-cooldown {
-  color: color-mix(in srgb, var(--cl-speed) 70%, var(--text-muted));
-  background: color-mix(in srgb, var(--cl-warning) 12%, var(--cl-surface-raised));
-  border-color: color-mix(in srgb, var(--cl-warning) 38%, transparent);
-  box-shadow: none;
+.claudian-service-tier-button.is-cooldown,
+.claudian-container button.claudian-service-tier-button.is-cooldown {
+  color: color-mix(in srgb, var(--cl-speed) 70%, var(--text-muted)) !important;
+  background: color-mix(in srgb, var(--cl-warning) 12%, var(--cl-surface-raised)) !important;
+  border-color: color-mix(in srgb, var(--cl-warning) 38%, transparent) !important;
+  box-shadow: none !important;
 }
 
 .claudian-service-tier-button.is-cooldown::before {
@@ -149,9 +152,10 @@
     display: none;
   }
 
-  .claudian-service-tier-button {
+  .claudian-service-tier-button,
+  .claudian-container button.claudian-service-tier-button {
     width: 30px;
-    padding: 0;
+    padding: 0 !important;
   }
 }
 
@@ -160,9 +164,10 @@
     display: none;
   }
 
-  .claudian-service-tier-button {
+  .claudian-service-tier-button,
+  .claudian-container button.claudian-service-tier-button {
     width: 30px;
-    padding: 0;
+    padding: 0 !important;
   }
 }
 

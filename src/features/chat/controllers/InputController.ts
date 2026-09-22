@@ -7,6 +7,7 @@ import {
   parseBuiltInCommandChain,
 } from '../../../core/commands/builtInCommands';
 import { buildLinkedNoteContext } from '../../../core/context/linkedNoteContext';
+import { computeBootstrapCharCap, limitSwitchCarry } from '../../../core/conversation/ConversationContextBootstrap';
 import { applyGoalPrefix, parseGoalArgs, parseGoalCommand } from '../../../core/conversation/goalPrompt';
 import { providerErrorRecoveryService } from '../../../core/diagnostics/errorRecovery';
 import { getLastPerf, perfMark, perfSince } from '../../../core/diagnostics/perfLog';
@@ -60,6 +61,7 @@ import {
 import type { TemplateContext } from '../../../features/templates/PromptTemplateService';
 import type { VaultHealthResult } from '../../../features/templates/VaultHealthService';
 import type ClaudianPlugin from '../../../main';
+import { desktopConversationCharCap } from '../../../providers/desktopBridge/settings';
 import { ResumeSessionDropdown } from '../../../shared/components/ResumeSessionDropdown';
 import { InstructionModal } from '../../../shared/modals/InstructionConfirmModal';
 import type { BrowserSelectionContext } from '../../../utils/browser';
@@ -76,6 +78,7 @@ import { InlineExitPlanMode } from '../rendering/InlineExitPlanMode';
 import { InlinePlanApproval,type PlanApprovalDecision } from '../rendering/InlinePlanApproval';
 import type { MessageRenderer } from '../rendering/MessageRenderer';
 import { setToolIcon, updateToolCallResult } from '../rendering/ToolCallRenderer';
+import type { DesktopContextSource } from '../services/desktopContext';
 import type { SubagentManager } from '../services/SubagentManager';
 import type { ChatState } from '../state/ChatState';
 import type { QueuedMessage } from '../state/types';
@@ -156,6 +159,11 @@ export interface InputControllerDeps {
    */
   consumePendingContextBootstrap?: () =>
     string | null | undefined | Promise<string | null | undefined>;
+  /**
+   * Puts a consumed carry back when the provider refused it before sending.
+   * A retry can then deliver the same transcript.
+   */
+  restorePendingContextBootstrap?: (carry: string) => void | Promise<void>;
   /** Reads the tab's active standing goal (provider-agnostic), if any. */
   getActiveGoal?: () => string | null;
   /** Sets (or clears, on null) the tab's standing goal. */
@@ -376,6 +384,20 @@ export class InputController {
       ? (imageContextManager?.getStagedAttachments() ?? [])
       : [];
     if (!content && !hasImages && stagedAttachments.length === 0) return;
+    const desktopRelay = ['grok-bot', 'perplexity-chat'].includes(this.getActiveProviderId());
+    if (desktopRelay && (hasImages || stagedAttachments.length)) {
+      new Notice('Desktop-Relay: Anhänge werden nicht eingelesen. Auswahl bleibt erhalten; Text ausdrücklich auswählen oder einfügen.');
+      return;
+    }
+    if (desktopRelay && state.isStreaming) {
+      new Notice('Desktop-Relay: Bitte laufende Anfrage beenden. Eingabe bleibt erhalten; Auswahlkontext wird nicht eingereiht.');
+      return;
+    }
+
+    if (desktopRelay) {
+      try { this.buildTurnSubmission({ content }); }
+      catch (error) { new Notice(error instanceof Error ? error.message : String(error)); return; }
+    }
 
     // Command chaining: execute several deterministic built-ins in order.
     const commandChain = parseBuiltInCommandChain(content);
@@ -604,19 +626,24 @@ export class InputController {
     renderer.addMessage(userMsg);
 
     const CONTEXT_FETCH_DEADLINE_MS = 800;
+    // Consumer relays have a bounded text-only transport, not a vault agent.
+    // Do not disclose automatic recall; explicitly selected context stays intact
+    // and is validated by the runtime. This policy is disclosed in relay settings.
+    const providerId = this.getActiveProviderId();
+    const useAutomaticContext = providerId !== 'grok-bot' && providerId !== 'perplexity-chat';
 
     // Kick off the one-hop graph neighborhood read HERE so it overlaps the
     // memory/RAG lookups below instead of running as a separate sequential
     // await afterward. All three only prepend independent context blocks, so
     // the final prepend order (graph, rag, memory, prompt) is unaffected.
-    const graphNotePath = !isRawProviderCommand && !options?.turnRequestOverride
+    const graphNotePath = useAutomaticContext && !isRawProviderCommand && !options?.turnRequestOverride
       ? (fileContextManager?.getCurrentNotePath() ?? null)
       : null;
     const graphContextPromise: Promise<string> = graphNotePath
       ? buildLinkedNoteContext(plugin.app, graphNotePath).catch(() => '')
       : Promise.resolve('');
 
-    if (!isRawProviderCommand && !options?.turnRequestOverride && plugin.settings.memoryEnabled !== false && plugin.app?.vault) {
+    if (useAutomaticContext && !isRawProviderCommand && !options?.turnRequestOverride && plugin.settings.memoryEnabled !== false && plugin.app?.vault) {
       const memoryFolder = plugin.settings.memoryFolder ?? '.claudian/memory';
       // Use the cached store so the always-on auto-recall doesn't re-scan every
       // vault markdown file on each turn. Falls back to a direct load if the store
@@ -841,34 +868,40 @@ export class InputController {
         turnRequest.externalContextPaths ?? [],
       ).catch(() => '')
       : '';
+    let consumedCarry: string | null = null;
+    let sawProviderText = false;
+    let sawUnsentRefusal = false;
     try {
       // Pass history WITHOUT current turn (userMsg + assistantMsg we just added).
       // This prevents duplication when rebuilding context for new sessions.
       const previousMessages = state.messages.slice(0, -2);
 
-      // One-shot cross-provider context carry: when this conversation was just switched
-      // to a different provider, prepend a BOUNDED, framed snapshot of prior turns to the
-      // FIRST turn only so the freshly-started provider session has minimal context.
-      // The snapshot was already built + stashed at switch time (switchBoundTabProvider),
-      // so we reuse it verbatim instead of rebuilding. Consumed exactly once; no-op on
-      // normal same-provider turns.
+      // One-shot cross-provider context carry. The switch already watermarked it
+      // to turns the target session does not have, including a return to a
+      // desktop app that still owns its native transcript. Consumed once.
       const pendingBootstrap = isRawProviderCommand
         ? null
         : await this.deps.consumePendingContextBootstrap?.();
       if (pendingBootstrap) {
-        turnRequest = {
-          ...turnRequest,
-          text: turnRequest.text
-            ? `${pendingBootstrap}\n\n${turnRequest.text}`
-            : pendingBootstrap,
-        };
+        consumedCarry = pendingBootstrap;
+        const userText = turnRequest.text ?? '';
+        const fitted = this.fitCarryBeforeUserLine(pendingBootstrap, userText, providerId);
+        if (fitted) {
+          turnRequest = {
+            ...turnRequest,
+            text: userText ? `${fitted}\n\n${userText}` : fitted,
+          };
+        } else {
+          await this.deps.restorePendingContextBootstrap?.(pendingBootstrap);
+          consumedCarry = null;
+        }
       }
       const providerHistory = pendingBootstrap ? [] : previousMessages;
 
       // Standing goal: re-inject the framed objective into the sent prompt for ANY
       // provider so it stays in view each turn. Only the sent/persisted text carries
       // it — the displayed user bubble keeps the raw `displayContent`.
-      if (!isRawProviderCommand) {
+      if (!isRawProviderCommand && (useAutomaticContext || turnRequest.outputSurface !== 'chat')) {
         turnRequest = applyTurnOutputContract(turnRequest, {
           mediaFolder: plugin.settings.mediaFolder,
           workspaceMode: normalizeWorkspaceMode(plugin.settings.workspaceMode),
@@ -884,6 +917,11 @@ export class InputController {
       // `preparedTurn` may be reassigned by the vision-fallback retry path
       // below (when the active model rejects image input, we rebuild the turn
       // with descriptions instead of images and re-query). Use `let`.
+      if (!useAutomaticContext && (state.cancelRequested || state.streamGeneration !== streamGeneration || this.getAgentService() !== agentService || this.getActiveProviderId() !== providerId)) {
+        delete turnRequest.desktopContext;
+        wasInterrupted = true;
+        return;
+      }
       let preparedTurn = agentService.prepareTurn(turnRequest);
       userMsg.content = preparedTurn.persistedContent;
       userMsg.currentNote = preparedTurn.isCompact
@@ -949,6 +987,16 @@ export class InputController {
             if (chunk.type === 'error' && this.isImageNotSupportedError(chunk.content)) {
               imageNotSupportedThisAttempt = true;
             }
+            if (chunk.type === 'text' || chunk.type === 'tool_use' || chunk.type === 'done') {
+              sawProviderText = true;
+            }
+            if (
+              chunk.type === 'error'
+              && typeof chunk.content === 'string'
+              && /Nichts (?:gesendet|gekürzt\/gesendet)/.test(chunk.content)
+            ) {
+              sawUnsentRefusal = true;
+            }
 
             recordRunTimelineChunk(runTimeline, chunk);
 
@@ -989,7 +1037,7 @@ export class InputController {
         }
 
         // Watchdog timeout → auto-retry the same turn if budget remains.
-        if (timedOutThisAttempt && !wasInvalidated && retryAttempt < InputController.MAX_AUTO_RETRIES) {
+        if (timedOutThisAttempt && !wasInvalidated && agentService.providerId !== 'grok-bot' && agentService.providerId !== 'perplexity-chat' && retryAttempt < InputController.MAX_AUTO_RETRIES) {
           retryAttempt += 1;
           state.cancelRequested = false;
           this.watchdogTimedOut = false;
@@ -1017,12 +1065,25 @@ export class InputController {
         if (timedOutThisAttempt) {
           wasInterrupted = true;
           await streamController.appendText(
-            `\n\n> ⚠️ *Timeout nach ${InputController.MAX_AUTO_RETRIES} automatischen Versuchen. Bitte erneut senden oder ein anderes Modell wählen.*\n`,
+            agentService.providerId === 'grok-bot' || agentService.providerId === 'perplexity-chat'
+              ? '\n\n> ⚠️ *Desktop-Relay: Zeitüberschreitung, nicht erneut gesendet. Der App-Auftrag kann weiterlaufen. Vor einem manuellen Neuversuch zuerst den App-Chat prüfen.*\n'
+              : `\n\n> ⚠️ *Timeout nach ${InputController.MAX_AUTO_RETRIES} automatischen Versuchen. Bitte erneut senden oder ein anderes Modell wählen.*\n`,
           ).catch(() => { /* best-effort */ });
         }
         break;
       }
+      if (consumedCarry && sawUnsentRefusal && !sawProviderText) {
+        await this.deps.restorePendingContextBootstrap?.(consumedCarry);
+        consumedCarry = null;
+      }
     } catch (error) {
+      if (consumedCarry && !sawProviderText) {
+        // Hand the carry back so a retry delivers the same transcript. A failing
+        // restore must not mask the turn error reported below.
+        try {
+          await this.deps.restorePendingContextBootstrap?.(consumedCarry);
+        } catch { /* best-effort */ }
+      }
       if (this.softSteerInProgress) {
         // Soft steer cancelled the stream — suppress the abort error.
       } else {
@@ -1099,11 +1160,13 @@ export class InputController {
         renderer.finalizeLiveAssistantMessage?.(finalAssistantMsg);
         this.deps.getSubagentManager().resetStreamingState();
 
-        // Auto-Memory: persist any claudian-memory blocks the model emitted.
+        // Desktop model text is not write consent, even with local tools enabled.
+        // Keep automatic memory persistence limited to coding providers.
         // Runs exactly once per completed turn (never on history reload) and
         // is idempotent per topic slug. storeMemory() emits `memory:updated`,
         // which refreshes the recall cache and the dashboard automatically.
         if (
+          useAutomaticContext &&
           !didCancelThisTurn &&
           plugin.settings.memoryEnabled !== false &&
           finalAssistantMsg.content?.includes('```claudian-memory')
@@ -1404,6 +1467,31 @@ export class InputController {
     // Staged file chips: append their @path references to the provider-bound
     // text only. `displayContent` stays clean — the user sees their own words,
     // the agent still receives the vault paths it needs to read the files.
+    const desktopRelay = ['grok-bot', 'perplexity-chat'].includes(this.getActiveProviderId());
+    const sources: DesktopContextSource[] = [];
+    if (desktopRelay) {
+      // Only explicit @mentions of attached TFiles, never automatic current-note chips.
+      let unresolved = options.content;
+      const paths = [...(fileContextManager?.getAttachedFiles?.() ?? [])].sort((a, b) => b.length - a.length);
+      for (const filePath of paths) {
+        const tokens = [`@"${filePath}"`, `@${filePath}`];
+        let selected = false;
+        for (const token of tokens) {
+          unresolved = unresolved.split(token).map((part, index, parts) => {
+            if (index === parts.length - 1) return part;
+            const next = parts[index + 1];
+            if (((index === 0 && part === '') || /\s$/.test(part)) && (!next || /^[\s,;!?]/.test(next))) { selected = true; return part; }
+            return part + token;
+          }).join('');
+        }
+        if (!selected) continue;
+        const file = this.deps.plugin.app.vault.getAbstractFileByPath(filePath);
+        if (!(file instanceof TFile)) throw new Error('Ausgewählte Notiz nicht mehr verfügbar.');
+        sources.push({ kind: 'note-file', file });
+      }
+      if (/(^|\s)@\S/.test(unresolved)) throw new Error('Explizite @Notiz nicht aufgelöst. Bitte über die Notizauswahl anhängen.');
+      if (editorContext?.mode === 'selection' && editorContext.selectedText !== undefined) sources.push({ kind: 'selection', label: editorContext.notePath, text: editorContext.selectedText });
+    }
     const attachments = options.attachments ?? [];
     const attachmentMentions = attachments.map((att) => `@${att.relPath}`).join('\n');
     const textWithAttachments = attachmentMentions
@@ -1420,10 +1508,12 @@ export class InputController {
       displayContent,
       turnRequest: {
         text: textWithAttachments,
+        attachments: attachments.length ? attachments.map(att => ({ name: att.name, relPath: att.relPath })) : undefined,
+        desktopContext: sources.length ? () => sources : undefined,
         outputSurface: options.outputSurface,
         images: options.images,
-        currentNotePath: shouldSendCurrentNote && currentNotePath ? currentNotePath : undefined,
-        editorSelection: editorContext,
+        currentNotePath: !desktopRelay && shouldSendCurrentNote && currentNotePath ? currentNotePath : undefined,
+        editorSelection: desktopRelay && editorContext?.mode === 'selection' ? undefined : editorContext,
         browserSelection: browserContext,
         canvasSelection: canvasContext,
         externalContextPaths: externalContextPaths && externalContextPaths.length > 0
@@ -1624,6 +1714,12 @@ export class InputController {
     this.watchdogWarningShown = false;
 
     this.streamWatchdogTimer = window.setInterval(() => {
+      // Human consent is not provider silence. Keep the deadline fresh while
+      // the real inline approval is pending; never cancel or resend that wait.
+      if (this.pendingApprovalInline) {
+        this.pingStreamWatchdog();
+        return;
+      }
       const silenceMs = Date.now() - this.lastChunkTime;
 
       // Phase 1: silence is now surfaced live by the StreamStatusBar (animated
@@ -3260,6 +3356,51 @@ export class InputController {
       this.activeResumeDropdown.destroy();
       this.activeResumeDropdown = null;
     }
+  }
+
+  /**
+   * Character budget the active provider will accept for one prompt.
+   * Zero means unknown: the carry is left as the switch built it.
+   */
+  private providerPromptCharCap(providerId: string): number {
+    const model = this.deps.getActiveModel?.() ?? '';
+    if (providerId === 'grok-bot' || providerId === 'perplexity-chat') {
+      return desktopConversationCharCap(
+        providerId,
+        model || `desktop:${providerId}`,
+        this.deps.plugin.settings.customContextLimits,
+      );
+    }
+    try {
+      const tokens = ProviderRegistry.getChatUIConfig(providerId).getContextWindowSize(
+        model,
+        this.deps.plugin.settings.customContextLimits,
+        this.deps.plugin.settings as unknown as Record<string, unknown>,
+      );
+      if (!tokens || tokens <= 0 || !Number.isFinite(tokens)) {
+        return 0;
+      }
+      return computeBootstrapCharCap(tokens);
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
+   * Leaves room for the new user line so the framed carry plus that line
+   * stays inside the provider's prompt budget. The newest tail is kept.
+   */
+  private fitCarryBeforeUserLine(carry: string, userText: string, providerId: string): string {
+    const cap = this.providerPromptCharCap(providerId);
+    if (cap <= 0) {
+      return carry;
+    }
+    const joiner = userText ? 2 : 0;
+    const room = cap - userText.length - joiner;
+    if (room <= 0) {
+      return '';
+    }
+    return carry.length > room ? limitSwitchCarry(carry, room) : carry;
   }
 
   private showResumeDropdown(): void {

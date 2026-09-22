@@ -258,6 +258,18 @@
   color: #ff8c00;
 }
 
+.claudian-history-item[data-provider="grok-bot"] .claudian-history-avatar {
+  background: color-mix(in srgb, var(--claudian-brand-grok-bot) 15%, transparent);
+  border-color: color-mix(in srgb, var(--claudian-brand-grok-bot) 36%, transparent);
+  color: var(--claudian-brand-grok-bot);
+}
+
+.claudian-history-item[data-provider="perplexity-chat"] .claudian-history-avatar {
+  background: color-mix(in srgb, var(--claudian-brand-perplexity-chat) 15%, transparent);
+  border-color: color-mix(in srgb, var(--claudian-brand-perplexity-chat) 36%, transparent);
+  color: var(--claudian-brand-perplexity-chat);
+}
+
 /* Pin toggle — quiet until hover; pinned rows keep it visible in accent. */
 .claudian-history-item-pin {
   display: inline-flex;

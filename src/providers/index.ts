@@ -9,10 +9,9 @@ import { clineWorkspaceRegistration } from './cline/app/ClineWorkspaceServices';
 import { clineProviderRegistration } from './cline/registration';
 import { codexWorkspaceRegistration } from './codex/app/CodexWorkspaceServices';
 import { codexProviderRegistration } from './codex/registration';
+import { desktopRegistration, desktopWorkspaceRegistration } from './desktopBridge/registration';
 import { dshWorkspaceRegistration } from './dsh/app/DshWorkspaceServices';
 import { dshProviderRegistration } from './dsh/registration';
-import { freebuffWorkspaceRegistration } from './freebuff/app/FreebuffWorkspaceServices';
-import { freebuffProviderRegistration } from './freebuff/registration';
 import { grokWorkspaceRegistration } from './grok/app/GrokWorkspaceServices';
 import { grokProviderRegistration } from './grok/registration';
 import { hermesWorkspaceRegistration } from './hermes/app/HermesWorkspaceServices';
@@ -37,6 +36,10 @@ export function registerBuiltInProviders(): void {
     return;
   }
 
+  for (const id of ['grok-bot', 'perplexity-chat'] as const) {
+    ProviderRegistry.register(id, desktopRegistration(id));
+    ProviderWorkspaceRegistry.register(id, desktopWorkspaceRegistration(id));
+  }
   ProviderRegistry.register('claude', claudeProviderRegistration);
   ProviderRegistry.register('cline', clineProviderRegistration);
   ProviderRegistry.register('codex', codexProviderRegistration);
@@ -47,7 +50,6 @@ export function registerBuiltInProviders(): void {
   ProviderRegistry.register('vibe', vibeProviderRegistration);
   ProviderRegistry.register('grok', grokProviderRegistration);
   ProviderRegistry.register('dsh', dshProviderRegistration);
-  ProviderRegistry.register('freebuff', freebuffProviderRegistration);
   ProviderRegistry.register('hermes', hermesProviderRegistration);
   ProviderRegistry.register('zcode', zcodeProviderRegistration);
   ProviderRegistry.register('omp', ompProviderRegistration);
@@ -62,7 +64,6 @@ export function registerBuiltInProviders(): void {
   ProviderWorkspaceRegistry.register('vibe', vibeWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('grok', grokWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('dsh', dshWorkspaceRegistration);
-  ProviderWorkspaceRegistry.register('freebuff', freebuffWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('hermes', hermesWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('zcode', zcodeWorkspaceRegistration);
   ProviderWorkspaceRegistry.register('omp', ompWorkspaceRegistration);

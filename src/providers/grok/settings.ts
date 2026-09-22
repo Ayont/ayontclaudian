@@ -1,7 +1,7 @@
 import { getProviderConfig, setProviderConfig } from '../../core/providers/providerConfig';
-import { normalizeGrokReasoningEffort } from './types/models';
 import type { HostnameCliPaths } from '../../core/types/settings';
 import { getHostnameKey } from '../../utils/env';
+import { normalizeGrokReasoningEffort } from './types/models';
 
 export const GROK_PROVIDER_ID = 'grok';
 

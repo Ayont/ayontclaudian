@@ -2595,15 +2595,17 @@ export default class ClaudianPlugin extends Plugin {
       const resumeSessionId = meta.sessionId !== undefined ? meta.sessionId : meta.id;
       const extra = meta as typeof meta & { _messageCount?: number; _preview?: string; _lazyMessages?: boolean };
 
+      const storedProviderId = meta.providerId ?? DEFAULT_CHAT_PROVIDER_ID;
+      const providerStillRegistered = ProviderRegistry.getProviderRegistrationSafe(storedProviderId) !== null;
       const conv: Conversation = {
         id: meta.id,
-        providerId: meta.providerId ?? DEFAULT_CHAT_PROVIDER_ID,
+        providerId: providerStillRegistered ? storedProviderId : DEFAULT_CHAT_PROVIDER_ID,
         title: meta.title,
         createdAt: meta.createdAt,
         updatedAt: meta.updatedAt,
         lastResponseAt: meta.lastResponseAt,
-        sessionId: resumeSessionId,
-        providerState: meta.providerState,
+        sessionId: providerStillRegistered ? resumeSessionId : null,
+        providerState: providerStillRegistered ? meta.providerState : undefined,
         providerSessions: meta.providerSessions,
         pendingContextBootstrap: meta.pendingContextBootstrap,
         goal: meta.goal,
@@ -3007,6 +3009,9 @@ export default class ClaudianPlugin extends Plugin {
         }
         if (full.providerSessions) {
           conversation.providerSessions = full.providerSessions;
+        }
+        if (typeof full.pendingContextBootstrap === 'string') {
+          conversation.pendingContextBootstrap = full.pendingContextBootstrap;
         }
       }
     } finally {

@@ -4,7 +4,6 @@ import { DEFAULT_CLAUDE_PROVIDER_SETTINGS } from './claude/settings';
 import { DEFAULT_CLINE_PROVIDER_SETTINGS } from './cline/settings';
 import { DEFAULT_CODEX_PROVIDER_SETTINGS } from './codex/settings';
 import { DEFAULT_DSH_PROVIDER_SETTINGS } from './dsh/settings';
-import { DEFAULT_FREEBUFF_PROVIDER_SETTINGS } from './freebuff/settings';
 import { DEFAULT_GROK_PROVIDER_SETTINGS } from './grok/settings';
 import { DEFAULT_HERMES_PROVIDER_SETTINGS } from './hermes/settings';
 import { DEFAULT_KIMI_PROVIDER_SETTINGS } from './kimi/settings';
@@ -16,6 +15,8 @@ import { DEFAULT_ZCODE_PROVIDER_SETTINGS } from './zcode/settings';
 
 export function getBuiltInProviderDefaultConfigs(): ProviderConfigMap {
   return {
+    'grok-bot': { enabled: false, anchor: '', bindings: {} },
+    'perplexity-chat': { enabled: false, anchor: '', bindings: {} },
     claude: { ...DEFAULT_CLAUDE_PROVIDER_SETTINGS },
     cline: { ...DEFAULT_CLINE_PROVIDER_SETTINGS },
     codex: { ...DEFAULT_CODEX_PROVIDER_SETTINGS },
@@ -26,7 +27,6 @@ export function getBuiltInProviderDefaultConfigs(): ProviderConfigMap {
     vibe: { ...DEFAULT_VIBE_PROVIDER_SETTINGS },
     grok: { ...DEFAULT_GROK_PROVIDER_SETTINGS },
     dsh: { ...DEFAULT_DSH_PROVIDER_SETTINGS },
-    freebuff: { ...DEFAULT_FREEBUFF_PROVIDER_SETTINGS },
     hermes: { ...DEFAULT_HERMES_PROVIDER_SETTINGS },
     zcode: { ...DEFAULT_ZCODE_PROVIDER_SETTINGS },
     omp: { ...DEFAULT_OMP_PROVIDER_SETTINGS },

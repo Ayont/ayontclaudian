@@ -53,11 +53,11 @@ import {
 } from '../normalization/streamMapping';
 import { buildGrokUsageInfo, isGrokContextLimitStop, readGrokReportedUsage } from '../normalization/usage';
 import { getGrokProviderSettings, GROK_PROVIDER_ID } from '../settings';
+import { buildPersistedGrokState, getGrokState, type GrokProviderState } from '../types';
 import {
   GROK_DEFAULT_REASONING_EFFORT,
   normalizeGrokReasoningEffort,
 } from '../types/models';
-import { buildPersistedGrokState, getGrokState, type GrokProviderState } from '../types';
 import { buildGrokLaunchSpec } from './GrokLaunchSpec';
 import { buildGrokRuntimeEnv } from './GrokRuntimeEnvironment';
 

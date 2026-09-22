@@ -1,11 +1,20 @@
 import { createMockEl } from '@test/helpers/mockElement';
-import { Notice } from 'obsidian';
+import { Notice, TFile } from 'obsidian';
 
+import { buildProviderSwitchCarry } from '@/core/conversation/ConversationContextBootstrap';
+import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { InputController, type InputControllerDeps } from '@/features/chat/controllers/InputController';
 import { ChatState } from '@/features/chat/state/ChatState';
 import { encodeClaudeTurn } from '@/providers/claude/prompt/ClaudeTurnEncoder';
+import { DesktopBridgeRuntime } from '@/providers/desktopBridge/DesktopBridgeRuntime';
+import { queryDesktopBridge } from '@/providers/desktopBridge/DesktopBridgeTransport';
+import { desktopRegistration } from '@/providers/desktopBridge/registration';
+import { desktopContextWindowTokens, desktopConversationCharCap, updateDesktopSettings } from '@/providers/desktopBridge/settings';
 import { ResumeSessionDropdown } from '@/shared/components/ResumeSessionDropdown';
 import { extractUserDisplayContent } from '@/utils/context';
+
+jest.mock('@/providers/desktopBridge/DesktopBridgeTransport', () => ({ queryDesktopBridge: jest.fn(), desktopBridgeProviders: [{ id: 'grok-bot', displayName: 'Grok' }, { id: 'perplexity-chat', displayName: 'Perplexity' }] }));
+jest.mock('@/providers/desktopBridge/helper', () => ({ prepareHelper: () => '/fixture', desktopAppPath: () => '/Applications/Fixture.app' }));
 
 jest.mock('@/shared/components/ResumeSessionDropdown', () => ({
   ResumeSessionDropdown: jest.fn(),
@@ -229,6 +238,353 @@ function createSendableDeps(
   }
   return result;
 }
+
+describe('cross-provider carry on the first send', () => {
+  it('hands the target runtime the full local carry and no duplicate history', async () => {
+    const userConstraint = 'KEEP-THE-PORTAL-REVERSIBLE';
+    const assistantDecision = 'MIGRATE-SHAREPOINT-FIRST';
+    const toolPath = 'vault/migration-plan.md';
+    const toolOutcome = 'wrote the reversible migration plan';
+    const goal = 'Portal migration stays reversible';
+    const pad = 'p'.repeat(9000);
+    const messages = [
+      { id: 'u-constraint', role: 'user' as const, content: userConstraint, timestamp: 1 },
+      {
+        id: 'a-decision',
+        role: 'assistant' as const,
+        content: assistantDecision,
+        timestamp: 2,
+        toolCalls: [{
+          id: 'tool-write',
+          name: 'Write',
+          input: { file_path: toolPath },
+          status: 'completed' as const,
+          result: toolOutcome,
+        }],
+        contentBlocks: [],
+      },
+      { id: 'u-pad-1', role: 'user' as const, content: pad, timestamp: 3 },
+      { id: 'a-pad-1', role: 'assistant' as const, content: pad, timestamp: 4, toolCalls: [], contentBlocks: [] },
+      { id: 'u-pad-2', role: 'user' as const, content: pad, timestamp: 5 },
+    ];
+    const carry = buildProviderSwitchCarry({
+      messages,
+      contextWindowTokens: 200_000,
+      goal,
+    });
+    const deps = createSendableDeps({
+      consumePendingContextBootstrap: jest.fn().mockResolvedValue(carry),
+      getActiveGoal: () => goal,
+    });
+    deps.mockAgentService.providerId = 'claude';
+    deps.mockAgentService.query.mockImplementation(() => createMockStream([{ type: 'done' }]));
+    deps.getInputEl().value = 'Continue from Opus';
+    await new InputController(deps).sendMessage();
+
+    const request = deps.mockAgentService.prepareTurn.mock.calls[0][0];
+    expect(request.text.length).toBeGreaterThan(24_000);
+    expect(request.text).toContain(userConstraint);
+    expect(request.text).toContain(assistantDecision);
+    expect(request.text).toContain(toolPath);
+    expect(request.text).toContain(toolOutcome);
+    expect(request.text).toContain(goal);
+    expect(request.text).not.toContain('[earlier turns omitted]');
+    expect(deps.mockAgentService.query.mock.calls[0][1]).toEqual([]);
+  });
+
+  it('submits a marked Perplexity carry that overflowed the window on the relay', async () => {
+    const tail = 'PERPLEXITY-TAIL-MUST-REMAIN';
+    const model = 'desktop:perplexity-chat';
+    const windowTokens = desktopContextWindowTokens('perplexity-chat', model);
+    const cap = desktopConversationCharCap('perplexity-chat', model);
+    const huge = `${'h'.repeat(900_000 - tail.length)}${tail}`;
+    const carry = buildProviderSwitchCarry({
+      messages: [{ id: 'u-huge', role: 'user', content: huge, timestamp: 1 }],
+      contextWindowTokens: windowTokens,
+    });
+    expect(huge).toHaveLength(900_000);
+    expect(carry.length).toBeLessThanOrEqual(cap);
+    expect(carry).toContain(tail);
+    expect(carry).toContain('[earlier turns omitted]');
+
+    const userLine = 'Continue on Perplexity.';
+    const deps = createSendableDeps({
+      consumePendingContextBootstrap: jest.fn().mockResolvedValue(carry),
+      getTabProviderId: () => 'perplexity-chat',
+      getActiveModel: () => model,
+    });
+    deps.mockAgentService.providerId = 'perplexity-chat';
+    let sent = '';
+    deps.mockAgentService.query.mockImplementation((turn: { request: { text: string } }) => {
+      sent = turn.request.text;
+      return createMockStream([{ type: 'done' }]);
+    });
+    deps.getInputEl().value = userLine;
+    await new InputController(deps).sendMessage();
+
+    expect(sent.length).toBeLessThanOrEqual(cap);
+    expect(sent).toContain(tail);
+    expect(sent).toContain('[earlier turns omitted]');
+    expect(sent).toContain(userLine);
+
+    const settings: Record<string, unknown> = {};
+    const plugin = {
+      settings,
+      saveSettings: jest.fn().mockResolvedValue(undefined),
+    };
+    updateDesktopSettings(settings, 'perplexity-chat', { enabled: true, anchor: 'overflow' });
+    jest.mocked(queryDesktopBridge).mockReset();
+    jest.mocked(queryDesktopBridge).mockResolvedValue('continued');
+    const runtime = new DesktopBridgeRuntime(plugin as never, 'perplexity-chat');
+    const chunks = [];
+    for await (const chunk of runtime.query(runtime.prepareTurn({ text: sent }))) {
+      chunks.push(chunk);
+    }
+    expect(queryDesktopBridge).toHaveBeenCalledTimes(1);
+    const payload = jest.mocked(queryDesktopBridge).mock.calls[0][0];
+    expect(payload.prompt.length).toBeLessThanOrEqual(cap);
+    expect(payload.prompt).toContain(tail);
+    expect(payload.prompt).toContain('[earlier turns omitted]');
+    expect(payload.prompt).toContain(userLine);
+    expect(chunks).toContainEqual({ type: 'text', content: 'continued' });
+  });
+
+  it('puts a refused desktop carry back so the next send can deliver it', async () => {
+    const carry = buildProviderSwitchCarry({
+      messages: [{ id: 'u', role: 'user', content: 'KEEP-AFTER-REFUSAL', timestamp: 1 }],
+      contextWindowTokens: 200_000,
+    });
+    const restore = jest.fn().mockResolvedValue(undefined);
+    const deps = createSendableDeps({
+      consumePendingContextBootstrap: jest.fn().mockResolvedValue(carry),
+      restorePendingContextBootstrap: restore,
+      getTabProviderId: () => 'perplexity-chat',
+      getActiveModel: () => 'desktop:perplexity-chat',
+    });
+    deps.mockAgentService.providerId = 'perplexity-chat';
+    deps.mockAgentService.query.mockImplementation(() => createMockStream([
+      { type: 'error', content: 'Desktop-Relay: Der vollständige vorbereitete Prompt überschreitet das Kontextfenster (800000 UTF-16-Zeichen). Nichts gesendet; Inhalt wird nicht gekürzt.' },
+    ]));
+    deps.getInputEl().value = 'Continue.';
+    await new InputController(deps).sendMessage();
+    expect(restore).toHaveBeenCalledWith(carry);
+  });
+
+  it('injects a reloaded carry longer than 500 characters', async () => {
+    const marker = 'RELOADED-CARRY-MARKER';
+    const carry = buildProviderSwitchCarry({
+      messages: [
+        { id: 'u1', role: 'user', content: `${marker} ${'q'.repeat(800)}`, timestamp: 1 },
+        { id: 'a1', role: 'assistant', content: 'ack', timestamp: 2, toolCalls: [], contentBlocks: [] },
+      ],
+      contextWindowTokens: 200_000,
+    });
+    const deps = createSendableDeps({
+      consumePendingContextBootstrap: jest.fn().mockResolvedValue(carry),
+    });
+    deps.mockAgentService.query.mockImplementation(() => createMockStream([{ type: 'done' }]));
+    deps.getInputEl().value = 'Next question';
+    await new InputController(deps).sendMessage();
+    const request = deps.mockAgentService.prepareTurn.mock.calls[0][0];
+    expect(carry.length).toBeGreaterThan(500);
+    expect(request.text).toContain(marker);
+    expect(request.text).toContain('q'.repeat(800));
+  });
+});
+
+describe('Model-emitted memory persistence policy', () => {
+  it.each([
+    ['grok-bot', false, false],
+    ['grok-bot', true, false],
+    ['perplexity-chat', false, false],
+    ['perplexity-chat', true, false],
+    ['claude', false, true],
+    ['codex', false, true],
+  ])('%s with localTools=%s persists automatically=%s', async (providerId, localTools, shouldPersist) => {
+    const deps = createSendableDeps();
+    deps.mockAgentService.providerId = providerId as string;
+    const adapter = { mkdir: jest.fn().mockResolvedValue(undefined), write: jest.fn().mockResolvedValue(undefined) };
+    Object.assign(deps.plugin, {
+      app: { vault: { adapter } },
+      cachedMemoryStore: { getNotes: jest.fn().mockResolvedValue([]) },
+    });
+    Object.assign(deps.plugin.settings, {
+      memoryEnabled: true,
+      memoryFolder: '.claudian/memory',
+      providerConfigs: { [providerId as string]: { localTools } },
+    });
+    const reply = '```claudian-memory\ntopic: Public fixture\n---\nSynthetic test only.\n```';
+    (deps.streamController.handleStreamChunk as jest.Mock).mockImplementation((chunk, message) => {
+      if (chunk.type === 'text') message.content += chunk.content;
+    });
+    deps.mockAgentService.query.mockImplementation(() => createMockStream([
+      { type: 'text', content: reply }, { type: 'done' },
+    ]));
+    deps.getInputEl().value = 'Hello';
+    await new InputController(deps).sendMessage();
+    await Promise.resolve();
+    expect(deps.state.messages.find(message => message.role === 'assistant')?.content).toBe(reply);
+    expect(adapter.mkdir).toHaveBeenCalledTimes(shouldPersist ? 1 : 0);
+    expect(adapter.write.mock.calls).toEqual(shouldPersist
+      ? [['.claudian/memory/public-fixture.md', '---\ntopic: Public fixture\n---\n\nSynthetic test only.']]
+      : []);
+    expect(deps.plugin.settings.memoryEnabled).toBe(true);
+    expect(deps.plugin.settings.memoryFolder).toBe('.claudian/memory');
+  });
+});
+
+describe('Desktop composer context policy', () => {
+  it.each(['grok-bot', 'perplexity-chat'] as const)('routes MCP catalog through actual inline consent %s', async id => {
+    const { McpServerManager } = await import('../../../../../src/core/mcp/McpServerManager');
+    const { ProviderWorkspaceRegistry } = await import('../../../../../src/core/providers/ProviderWorkspaceRegistry');
+    const deps = createSendableDeps();
+    const host = createMockEl(); const input = host.createDiv(); input.parentElement = host;
+    deps.getInputContainerEl = () => input;
+    updateDesktopSettings(deps.plugin.settings, id, { enabled: true, anchor: 'fixture', desktopMcp: true, toolRoot: process.cwd() });
+    const manager = new McpServerManager({ load: async () => [{ name: 'fixture', config: { type: 'http', url: 'https://fixture.invalid' }, enabled: true, contextSaving: false }] });
+    await manager.loadServers();
+    const previous = ProviderWorkspaceRegistry.getServices(id);
+    ProviderWorkspaceRegistry.setServices(id, { mcpServerManager: manager });
+    ProviderRegistry.register(id, desktopRegistration(id));
+    const runtime = ProviderRegistry.createChatRuntime({ plugin: deps.plugin, providerId: id });
+    deps.getAgentService = () => runtime;
+    const controller = new InputController(deps);
+    runtime.setApprovalCallback(controller.handleApprovalRequest.bind(controller));
+    jest.mocked(queryDesktopBridge).mockReset().mockResolvedValue('catalog received');
+    deps.getInputEl().value = 'List available MCP';
+    const pending = controller.sendMessage();
+    const clicked = new Set<unknown>(); const stages: string[] = [];
+    try {
+      for (let tick = 0; tick < 150; tick++) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+        const button = host.querySelectorAll('.claudian-ask-item').find((el: any) => el.getAttribute('aria-label') === 'Einmal erlauben' && !clicked.has(el));
+        if (button) { clicked.add(button); stages.push(host.querySelectorAll('.claudian-ask-approval-tool-name').map((el: any) => el.textContent).join(' ')); button.click(); }
+        if (stages.length === 2) break;
+      }
+      if (stages.length !== 2) { runtime.cancel(); controller.dismissPendingApproval(); }
+      await pending;
+      expect(stages).toEqual([expect.stringContaining('MCP catalog'), expect.stringContaining('MCP metadata')]);
+      expect(queryDesktopBridge).toHaveBeenCalledTimes(1);
+      expect(deps.streamController.handleStreamChunk).toHaveBeenCalledWith(expect.objectContaining({ type: 'text', content: 'catalog received' }), expect.anything());
+    } finally { runtime.cleanup(); controller.dismissPendingApproval(); ProviderWorkspaceRegistry.setServices(id, previous ?? undefined); }
+  });
+  let registrations: unknown;
+  beforeEach(() => { registrations = { ...(ProviderRegistry as any).registrations }; });
+  afterEach(() => { (ProviderRegistry as any).registrations = registrations; });
+  it.each(['grok-bot', 'perplexity-chat'] as const)('sends selected context through registered composer and inline consent for %s', async id => {
+    const deps = createSendableDeps();
+    const host = createMockEl(); const input = host.createDiv(); input.parentElement = host;
+    deps.getInputContainerEl = () => input;
+    updateDesktopSettings(deps.plugin.settings, id, { enabled: true, anchor: 'fixture', contextTools: true });
+    ProviderRegistry.register(id, desktopRegistration(id));
+    const runtime = ProviderRegistry.createChatRuntime({ plugin: deps.plugin, providerId: id });
+    deps.getAgentService = () => runtime;
+    (deps.selectionController.getContext as jest.Mock).mockReturnValue({ mode: 'selection', notePath: 'fixture.md', selectedText: 'EXPLICIT_FIXTURE' });
+    const controller = new InputController(deps);
+    runtime.setApprovalCallback(controller.handleApprovalRequest.bind(controller));
+    jest.mocked(queryDesktopBridge).mockReset().mockImplementationOnce(async r => JSON.stringify({ context_tool: 'read', nonce: r.prompt.match(/"nonce":"([^"]+)"/)![1], pageId: r.prompt.match(/"firstPageId":"([^"]+)"/)![1] })).mockResolvedValueOnce('received');
+    deps.getInputEl().value = 'Summarize';
+    const pending = controller.sendMessage();
+    const stages: string[] = [];
+    const clicked = new Set<unknown>();
+    for (let tick = 0; tick < 150; tick++) {
+      await new Promise(resolve => setTimeout(resolve, 0));
+      const button = host.querySelectorAll('.claudian-ask-item').find((el: any) => el.getAttribute('aria-label') === 'Einmal erlauben' && !clicked.has(el));
+      if (button) { clicked.add(button); stages.push(host.querySelectorAll('.claudian-ask-approval-desc').map((el: any) => el.textContent).join(' ') + host.querySelectorAll('.claudian-ask-approval-tool-name').map((el: any) => el.textContent).join(' ')); button.click(); }
+      if (stages.length === 3) break;
+    }
+    if (stages.length !== 3) { runtime.cancel(); controller.dismissPendingApproval(); }
+    await pending;
+    expect((deps.streamController.handleStreamChunk as jest.Mock).mock.calls.filter(c => c[0].type === 'error')).toEqual([]);
+    expect(stages).toHaveLength(3);
+    expect(stages[0]).toContain('Context sources');
+    expect(stages[1]).toContain('Context metadata');
+    expect(stages[2]).toContain('EXPLICIT_FIXTURE');
+    expect(jest.mocked(queryDesktopBridge).mock.calls[1][0].prompt).toContain('EXPLICIT_FIXTURE');
+    expect(deps.streamController.handleStreamChunk).toHaveBeenCalledWith(expect.objectContaining({ type: 'text', content: 'received' }), expect.anything());
+    expect(deps.state.isStreaming).toBe(false);
+  });
+  it.each(['@folder/my note.md', '@"folder/my note.md"'])('resolves explicit spaced mention %s', content => {
+    const deps = createSendableDeps(); deps.mockAgentService.providerId = 'grok-bot';
+    const file = Object.assign(new TFile(), { path: 'folder/my note.md', extension: 'md' });
+    Object.assign(deps.plugin, { app: { vault: { getAbstractFileByPath: jest.fn().mockReturnValue(file) } } });
+    const manager = { ...createMockFileContextManager(), getAttachedFiles: () => [file.path] };
+    deps.getFileContextManager = () => manager as any;
+    const result = (new InputController(deps) as any).buildTurnSubmission({ content });
+    expect(result.turnRequest.desktopContext?.()).toEqual([{ kind: 'note-file', file }]);
+  });
+  it('does not treat an embedded at-sign as selected context', () => {
+    const deps = createSendableDeps(); deps.mockAgentService.providerId = 'grok-bot';
+    const file = Object.assign(new TFile(), { path: 'note.md', extension: 'md' });
+    Object.assign(deps.plugin, { app: { vault: { getAbstractFileByPath: jest.fn().mockReturnValue(file) } } });
+    deps.getFileContextManager = () => ({ ...createMockFileContextManager(), getAttachedFiles: () => [file.path] }) as any;
+    expect((new InputController(deps) as any).buildTurnSubmission({ content: 'name@note.md' }).turnRequest.desktopContext).toBeUndefined();
+  });
+  it('rejects unresolved explicit mentions without consuming the draft', async () => {
+    const deps = createSendableDeps(); deps.mockAgentService.providerId = 'grok-bot';
+    deps.getInputEl().value = 'Read @missing.md';
+    await new InputController(deps).sendMessage();
+    expect(deps.mockAgentService.query).not.toHaveBeenCalled();
+    expect(deps.getInputEl().value).toBe('Read @missing.md');
+  });
+
+  it.each(['grok-bot', 'perplexity-chat'])('does not prepare or query after pre-query cancellation for %s', async providerId => {
+    const deps = createSendableDeps();
+    deps.mockAgentService.providerId = providerId;
+    deps.mockAgentService.query.mockImplementation(() => createMockStream([{ type: 'done' }]));
+    (deps.conversationController.save as jest.Mock).mockImplementationOnce(async () => { deps.state.cancelRequested = true; });
+    deps.getInputEl().value = 'Selected fixture';
+    await new InputController(deps).sendMessage();
+    expect(deps.mockAgentService.prepareTurn).not.toHaveBeenCalled();
+    expect(deps.mockAgentService.query).not.toHaveBeenCalled();
+    expect(deps.state.isStreaming).toBe(false);
+  });
+
+  it.each(['grok-bot', 'perplexity-chat'])('preserves unsupported attachment draft and chips for %s', async providerId => {
+    const deps = createSendableDeps(); deps.mockAgentService.providerId = providerId;
+    const images = deps.getImageContextManager()!;
+    (images.getStagedAttachments as jest.Mock).mockReturnValue([{ name: 'fixture.pdf', relPath: 'fixture.pdf' }]);
+    deps.getInputEl().value = 'Read attached PDF';
+    await new InputController(deps).sendMessage();
+    expect(deps.mockAgentService.query).not.toHaveBeenCalled();
+    expect(images.clearImages).not.toHaveBeenCalled();
+    expect(deps.getInputEl().value).toBe('Read attached PDF');
+  });
+  it('retains automatic recall and coding guidance for coding providers', async () => {
+    const deps = createSendableDeps();
+    const getNotes = jest.fn().mockResolvedValue([]);
+    const query = jest.fn().mockResolvedValue([{ path: 'fixture.md', score: 1, text: 'PUBLIC_FIXTURE_CONTEXT' }]);
+    Object.assign(deps.plugin, { app: { vault: {} }, cachedMemoryStore: { getNotes } });
+    deps.getVaultRAGService = () => ({ query }) as any;
+    deps.mockAgentService.query.mockImplementation(() => createMockStream([{ type: 'done' }]));
+    deps.getInputEl().value = 'Hello';
+    await new InputController(deps).sendMessage();
+    expect(getNotes).toHaveBeenCalled();
+    expect(query).toHaveBeenCalled();
+    const request = deps.mockAgentService.prepareTurn.mock.calls[0][0];
+    expect(request.text).toContain('PUBLIC_FIXTURE_CONTEXT');
+    expect(request.text).toContain('<claudian_output_contract');
+  });
+  it.each(['grok-bot', 'perplexity-chat'])('omits automatic recall for %s without changing explicit text or context', async providerId => {
+    const deps = createSendableDeps();
+    deps.mockAgentService.providerId = providerId;
+    const getNotes = jest.fn().mockResolvedValue([]);
+    const query = jest.fn().mockResolvedValue([]);
+    Object.assign(deps.plugin, { app: { vault: {} }, cachedMemoryStore: { getNotes } });
+    deps.getVaultRAGService = () => ({ query }) as any;
+    const fileContext = createMockFileContextManager();
+    fileContext.getCurrentNotePath.mockReturnValue('selected.md' as any);
+    fileContext.shouldSendCurrentNote.mockReturnValue(true);
+    deps.getFileContextManager = () => fileContext as any;
+    deps.mockAgentService.query.mockImplementation(() => createMockStream([{ type: 'done' }]));
+    const text = 'Explicit pasted context: ' + 'X'.repeat(2100);
+    deps.getInputEl().value = text;
+    await new InputController(deps).sendMessage();
+    expect(getNotes).not.toHaveBeenCalled();
+    expect(query).not.toHaveBeenCalled();
+    expect(deps.mockAgentService.prepareTurn).toHaveBeenCalledWith(expect.objectContaining({ text, currentNotePath: undefined, desktopContext: undefined }));
+  });
+});
 
 describe('InputController - Message Queue', () => {
   let controller: InputController;
@@ -1308,6 +1664,57 @@ describe('InputController - Message Queue', () => {
       await controller.sendMessage();
 
       expect(textReachingProvider).toBe('/compact keep decisions');
+    });
+
+    it.each(['perplexity-chat', 'grok-bot'])('injects the uncovered turn into restored %s native context', async providerId => {
+      const covered = 'DESKTOP-ALREADY-HAS-THIS';
+      const uncovered = 'TURN-AFTER-LEAVING-DESKTOP';
+      const carry = buildProviderSwitchCarry({
+        messages: [
+          { id: 'covered', role: 'user', content: covered, timestamp: 1 },
+          { id: 'uncovered', role: 'user', content: uncovered, timestamp: 2 },
+        ],
+        coveredThroughMessageId: 'covered',
+        contextWindowTokens: providerId === 'grok-bot' ? 500_000 : 200_000,
+      });
+      deps.getTabProviderId = () => providerId;
+      (deps as any).mockAgentService.providerId = providerId;
+      deps.consumePendingContextBootstrap = jest.fn().mockResolvedValue(carry);
+      (deps as any).mockAgentService.buildSessionUpdates = () => ({ updates: {
+        sessionId: null, providerState: { desktopProvider: providerId, binding: 'own-binding', anchor: 'own-anchor' },
+      } });
+      let text = '';
+      (deps as any).mockAgentService.query = jest.fn().mockImplementation((turn: any) => {
+        text = turn.request.text;
+        return createMockStream([{ type: 'done' }]);
+      });
+      inputEl.value = 'Continue.';
+      await controller.sendMessage();
+      expect(carry).toContain(uncovered);
+      expect(carry).not.toContain(covered);
+      expect(deps.consumePendingContextBootstrap).toHaveBeenCalledTimes(1);
+      expect(text).toContain(uncovered);
+      expect(text).not.toContain(covered);
+      expect(text).toContain('Continue.');
+    });
+
+    it.each([
+      ['perplexity-chat', { desktopProvider: 'perplexity-chat', binding: 'new', anchor: null }],
+      ['perplexity-chat', { desktopProvider: 'grok-bot', binding: 'foreign', anchor: 'foreign' }],
+      ['claude', { desktopProvider: 'perplexity-chat', binding: 'own', anchor: 'own' }],
+    ])('retains bootstrap for fresh, foreign, or non-desktop identity (%s)', async (providerId, providerState) => {
+      deps.getTabProviderId = () => providerId as string;
+      (deps as any).mockAgentService.providerId = providerId;
+      deps.consumePendingContextBootstrap = jest.fn().mockResolvedValue('<conversation_context>needed history</conversation_context>');
+      (deps as any).mockAgentService.buildSessionUpdates = () => ({ updates: { sessionId: null, providerState } });
+      let text = '';
+      (deps as any).mockAgentService.query = jest.fn().mockImplementation((turn: any) => {
+        text = turn.request.text;
+        return createMockStream([{ type: 'done' }]);
+      });
+      inputEl.value = 'Continue.';
+      await controller.sendMessage();
+      expect(text).toContain('needed history');
     });
 
     it('uses one bounded provider-switch bootstrap instead of replaying the same history twice', async () => {
@@ -2391,7 +2798,7 @@ describe('InputController - Message Queue', () => {
   });
 
   describe('Watchdog retry boundaries', () => {
-    it('reuses the visible turn without exposing the prepared prompt on retry', async () => {
+    it.each([['claude', 2], ['grok-bot', 1], ['perplexity-chat', 1]])('respects %s watchdog resend safety', async (providerId, expectedAttempts) => {
       jest.useFakeTimers();
       try {
         deps = createSendableDeps();
@@ -2408,6 +2815,7 @@ describe('InputController - Message Queue', () => {
           mcpMentions: new Set(),
         }));
 
+        mockAgentService.providerId = providerId;
         let releaseTimedOutAttempt: (() => void) | undefined;
         let signalTimedOutAttemptWaiting: (() => void) | undefined;
         const timedOutAttemptWaiting = new Promise<void>((resolve) => {
@@ -2448,7 +2856,7 @@ describe('InputController - Message Queue', () => {
         expect(mockAgentService.cancel).toHaveBeenCalled();
         await sendPromise;
 
-        expect(mockAgentService.query).toHaveBeenCalledTimes(2);
+        expect(mockAgentService.query).toHaveBeenCalledTimes(expectedAttempts);
         expect(deps.state.messages).toHaveLength(2);
         expect(deps.state.messages.map((message) => message.role)).toEqual(['user', 'assistant']);
         expect(deps.state.messages[0].displayContent).toBe('visible request');
@@ -2750,6 +3158,34 @@ describe('InputController - Message Queue', () => {
   });
 
   describe('handleApprovalRequest', () => {
+    it.each(['grok-bot', 'perplexity-chat'])('suspends watchdog during %s inline approval and resumes after dismissal', async (providerId) => {
+      jest.useFakeTimers();
+      try {
+        deps = createSendableDeps();
+        const service = (deps as any).mockAgentService;
+        service.providerId = providerId;
+        const parentEl = createMockEl();
+        const container = createMockEl();
+        (container as any).parentElement = parentEl;
+        deps.getInputContainerEl = () => container as any;
+        controller = new InputController(deps);
+        (controller as any).startStreamWatchdog(deps.state);
+        const approval = controller.handleApprovalRequest('Local read', { path: 'note.txt' }, 'Read fixture');
+        await jest.advanceTimersByTimeAsync(245_000);
+        expect(service.cancel).not.toHaveBeenCalled();
+        expect(deps.state.cancelRequested).toBe(false);
+        controller.dismissPendingApproval();
+        await expect(approval).resolves.toBe('cancel');
+        await jest.advanceTimersByTimeAsync(115_000);
+        expect(service.cancel).not.toHaveBeenCalled();
+        await jest.advanceTimersByTimeAsync(15_000);
+        expect(service.cancel).toHaveBeenCalledTimes(1);
+      } finally {
+        (controller as any).stopStreamWatchdog();
+        controller.dismissPendingApproval();
+        jest.useRealTimers();
+      }
+    });
     it('should create inline approval and store as pending', async () => {
       const parentEl = createMockEl();
       const inputContainerEl = createMockEl();

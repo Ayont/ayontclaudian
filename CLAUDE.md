@@ -24,7 +24,7 @@ ships via GitHub releases and BRAT.
 - **TDD for behavior changes:** failing test first in the mirrored `tests/` path.
 - Throwaway scripts and handoff notes go in `.context/` (git-ignored), not `dev/`.
 
-## Providers (14)
+## Providers (15)
 
 Every provider is a directory under `src/providers/<id>/` plus two calls in
 `src/providers/index.ts` and one entry in `defaultProviderConfigs.ts`.
@@ -44,11 +44,18 @@ to extend. What differs between providers is the **transport shape**:
 | `dsh` | `--print` |
 | `antigravity` | `agy --print`, single-shot; state recovered by tailing `transcript.jsonl` |
 | `pi` | `--print` |
-| `freebuff` | HTTP + SSE against the local desktop app (no child process) |
 | `zcode` | Z.ai GLM; CLI **or** direct API mode, chosen in settings |
 | `omp` | ACP (`omp acp`); Oh My Pi. Model catalog, modes (`default`/`plan`) and thinking levels all arrive as `session/new` **config options**; history is JSONL under `~/.omp/agent/sessions/` |
+| `grok-bot`, `perplexity-chat` | Desktop relay (`src/providers/desktopBridge/`). Not an API and not a CLI: a Swift helper drives the installed consumer app's own chat window. Shared code, two ids. Off by default; see the relay rules below. |
 
 `Conversation` carries `providerId` plus opaque, provider-owned `providerState`.
+
+**The two desktop relays are not coding agents.** They are a bounded, text-only
+transport into someone else's chat UI, so `InputController` deliberately withholds
+what every other provider gets: no automatic current-note/graph/RAG/memory recall,
+no attachments, no auto-retry on timeout, no automatic memory writes. Explicitly
+selected context still goes through. Anything you add to the send path must keep
+that asymmetry — `useAutomaticContext` is the single switch.
 
 **Adding a provider is mechanical but touches ~10 files outside its own directory.**
 See [`docs/adding-a-provider.md`](docs/adding-a-provider.md) for the checklist —

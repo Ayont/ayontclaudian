@@ -76,6 +76,34 @@ test('model picker keeps selection content inside non-overlapping rows', async (
   expect(rowBox.y + rowBox.height).toBeLessThanOrEqual(followingBox.y + tolerance);
 });
 
+test('speed states remain distinct and touch targets survive theme overrides', async ({ page }, testInfo) => {
+  const chips = page.locator('[data-vis="fast-chip"] .harness-row .claudian-service-tier-button');
+  const styles = await chips.evaluateAll((elements) => elements.map((element) => {
+    const style = getComputedStyle(element);
+    return { color: style.color, background: style.backgroundColor, height: element.getBoundingClientRect().height };
+  }));
+  expect(styles[1].color).not.toBe(styles[0].color);
+  expect(styles[2].background).not.toBe(styles[0].background);
+  if (testInfo.project.name === 'w320') {
+    for (const style of styles) expect(style.height).toBeGreaterThanOrEqual(44);
+  }
+});
+
+test('library rows keep separate names and actions without horizontal overflow', async ({ page }) => {
+  const rows = page.locator('[data-vis="document-library-mobile"] .claudian-preview-row');
+  await expect(rows).toHaveCount(2);
+  for (const row of await rows.all()) {
+    await expect(row.locator('.claudian-preview-card-btn')).toHaveCount(3);
+    const geometry = await row.evaluate((element) => {
+      const text = element.querySelector('.claudian-preview-row-text')!.getBoundingClientRect();
+      const actions = element.querySelector('.claudian-preview-row-actions')!.getBoundingClientRect();
+      return { overflow: element.scrollWidth - element.clientWidth, textRight: text.right, actionsLeft: actions.left };
+    });
+    expect(geometry.overflow).toBeLessThanOrEqual(1);
+    expect(geometry.textRight).toBeLessThanOrEqual(geometry.actionsLeft);
+  }
+});
+
 test('composer toolbar contains its controls and keeps send visible', async ({ page }) => {
   const toolbar = page.locator('[data-vis="composer-toolbar"] .claudian-input-toolbar');
   const send = toolbar.locator('.claudian-send-btn');

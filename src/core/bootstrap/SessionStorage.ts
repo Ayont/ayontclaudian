@@ -90,6 +90,29 @@ export class SessionStorage {
     }
   }
 
+  /**
+   * A removed provider id (for example a leftover freebuff chat) must come back
+   * as the default provider with no native session. The on-disk file can still
+   * name the old id; every read the app uses goes through here.
+   */
+  private withoutUnregisteredProvider<T extends SessionMetadata>(meta: T): T {
+    if (!meta.providerId) {
+      return meta;
+    }
+    const registered = ProviderRegistry.getRegisteredProviderIds();
+    // An empty registry means this process has not loaded providers yet.
+    // Leave the stored id untouched instead of treating every chat as removed.
+    if (registered.length === 0 || registered.includes(meta.providerId)) {
+      return meta;
+    }
+    return {
+      ...meta,
+      providerId: DEFAULT_CHAT_PROVIDER_ID,
+      sessionId: null,
+      providerState: undefined,
+    };
+  }
+
   extractLightMetadata(raw: SessionMetadata): LightSessionMetadata {
     const messageCount = raw.messages?.length ?? 0;
     let preview = '';
@@ -111,7 +134,7 @@ export class SessionStorage {
       }
     }
 
-    return {
+    return this.withoutUnregisteredProvider({
       id: raw.id,
       providerId: raw.providerId,
       title: raw.title,
@@ -141,14 +164,14 @@ export class SessionStorage {
         }
         return cleaned;
       })(),
-      pendingContextBootstrap: typeof raw.pendingContextBootstrap === "string" && raw.pendingContextBootstrap.length <= 500
+      pendingContextBootstrap: typeof raw.pendingContextBootstrap === "string"
         ? raw.pendingContextBootstrap
         : undefined,
       messages: [],
       _messageCount: messageCount,
       _preview: preview,
       _lazyMessages: messageCount > 0 || !!raw.providerState?.subagentData || !!raw.pendingContextBootstrap,
-    };
+    });
   }
 
   async saveMetadata(metadata: SessionMetadata): Promise<void> {
@@ -173,7 +196,7 @@ export class SessionStorage {
       }
 
       const content = await this.adapter.read(filePath);
-      const metadata = JSON.parse(content) as SessionMetadata;
+      const metadata = this.withoutUnregisteredProvider(JSON.parse(content) as SessionMetadata);
 
       if (filePath !== this.getMetadataPath(id)) {
         await this.saveMetadata(metadata);
@@ -208,7 +231,7 @@ export class SessionStorage {
         const id = this.getFileName(file).replace(/\.meta\.json$/, "");
         const item = this.indexCache?.get(id);
         if (item) {
-          ordered.push(item);
+          ordered.push(this.withoutUnregisteredProvider(item));
         }
       }
       return ordered;
@@ -222,6 +245,7 @@ export class SessionStorage {
 
     // 1. Try to read persisted index cache for instant sub-millisecond startup
     let indexLoaded = false;
+    let droppedUnregisteredProvider = false;
     try {
       if (await this.adapter.exists(SESSIONS_INDEX_PATH)) {
         const content = await this.adapter.read(SESSIONS_INDEX_PATH);
@@ -229,7 +253,11 @@ export class SessionStorage {
         if (parsed && typeof parsed === "object") {
           for (const [id, meta] of Object.entries(parsed)) {
             if (id && meta && meta.id) {
-              this.indexCache.set(id, meta);
+              const safe = this.withoutUnregisteredProvider(meta);
+              if (safe !== meta) {
+                droppedUnregisteredProvider = true;
+              }
+              this.indexCache.set(id, safe);
             }
           }
           indexLoaded = true;
@@ -237,6 +265,7 @@ export class SessionStorage {
       }
     } catch {
       this.indexCache.clear();
+      droppedUnregisteredProvider = false;
     }
 
     const diskIdSet = new Set<string>();
@@ -250,7 +279,7 @@ export class SessionStorage {
 
     // Fast path: index loaded, reconcile with files on disk
     if (indexLoaded && this.indexCache.size > 0) {
-      let indexDirty = false;
+      let indexDirty = droppedUnregisteredProvider;
 
       // Remove deleted files
       for (const id of Array.from(this.indexCache.keys())) {

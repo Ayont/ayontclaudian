@@ -28,12 +28,14 @@ body,
   /* Grok (xAI): white/black. Near-white accent on dark themes; black in light. */
   --claudian-brand-grok: oklch(0.93 0.006 255);
   --claudian-brand-grok-rgb: 245, 245, 245;
+  --claudian-brand-grok-bot: #A0A0A0;
+  --claudian-brand-grok-bot-rgb: 160, 160, 160;
+  --claudian-brand-perplexity-chat: #20A7A7;
+  --claudian-brand-perplexity-chat-rgb: 32, 167, 167;
   /* DeepSeek Harness: DeepSeek brand blue (#4D6BFE), legible on both themes. */
   --claudian-brand-dsh: oklch(0.585 0.23 266);
   --claudian-brand-dsh-rgb: 77, 107, 254;
-  /* Freebuff: warm buffalo amber (#E8A33D), distinct from the DeepSeek blue. */
-  --claudian-brand-freebuff: oklch(0.76 0.14 70);
-  --claudian-brand-freebuff-rgb: 232, 163, 61;
+
   /* Hermes (Nous Research): violet accent, legible on both themes. */
   --claudian-brand-hermes: oklch(0.62 0.21 296);
   --claudian-brand-hermes-rgb: 139, 92, 246;
@@ -351,15 +353,22 @@ body.theme-light .claudian-container {
   --claudian-brand-rgb: var(--claudian-brand-grok-rgb);
 }
 
+.claudian-container[data-provider="grok-bot"] {
+  --claudian-brand: var(--claudian-brand-grok-bot);
+  --claudian-brand-rgb: var(--claudian-brand-grok-bot-rgb);
+}
+
+.claudian-container[data-provider="perplexity-chat"] {
+  --claudian-brand: var(--claudian-brand-perplexity-chat);
+  --claudian-brand-rgb: var(--claudian-brand-perplexity-chat-rgb);
+}
+
 .claudian-container[data-provider="dsh"] {
   --claudian-brand: var(--claudian-brand-dsh);
   --claudian-brand-rgb: var(--claudian-brand-dsh-rgb);
 }
 
-.claudian-container[data-provider="freebuff"] {
-  --claudian-brand: var(--claudian-brand-freebuff);
-  --claudian-brand-rgb: var(--claudian-brand-freebuff-rgb);
-}
+
 
 .claudian-container[data-provider="cline"] {
   --claudian-brand: var(--claudian-brand-cline);

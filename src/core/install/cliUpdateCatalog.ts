@@ -20,7 +20,6 @@ const NPM_PACKAGES: Record<string, string> = {
   codex: '@openai/codex',
   opencode: 'opencode-ai',
   dsh: '@deepseek-ai/dsh',
-  freebuff: 'freebuff',
   omp: '@oh-my-pi/pi-coding-agent',
 };
 
@@ -95,6 +94,7 @@ export function getCliUpdateSpec(
   providerId: string,
   cliPath?: string | null,
 ): CliUpdateSpec | null {
+  if (providerId === 'grok-bot' || providerId === 'perplexity-chat') return null;
   const install = CLI_INSTALL_CATALOG[providerId];
   if (!install) {
     return null;

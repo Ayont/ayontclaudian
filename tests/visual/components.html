@@ -41,6 +41,8 @@
     .harness-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
     .harness-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
     .harness-workflow-host { position: relative; min-height: 230px; }
+    /* Capture the entire expanded dock, including its completed row on mobile. */
+    @media (max-width: 380px) { .harness-workflow-host { min-height: 360px; } }
     .harness-library-host { position: relative; width: 100%; height: 580px; overflow: hidden; }
     .harness-model-picker-host { width: min(100%, 560px); }
     /* Reproduce Obsidian themes that force generic buttons into a fixed,
@@ -439,10 +441,7 @@
     <div class="harness-library-host claudian-container claudian-preview-open" style="height:580px">
       <section class="claudian-preview-panel is-open" role="region" aria-label="Dokumentbibliothek">
         <header class="claudian-preview-header"><div class="claudian-preview-brand"><span class="claudian-preview-header-icon">▤</span><div class="claudian-preview-titles"><span class="claudian-preview-title">Bibliothek</span><span class="claudian-preview-subtitle">Dokumente &amp; Uploads</span></div></div><span class="claudian-preview-count">2</span><button class="claudian-preview-close" type="button" aria-label="Dokumentbibliothek schließen">×</button></header>
-        <div class="claudian-preview-content"><div class="claudian-preview-library">
-          <button class="claudian-preview-card claudian-preview-card--vault" type="button"><div class="claudian-preview-card-peek"><span class="claudian-preview-card-kind">Live-Dokument</span><strong>Claudian Systemstatus</strong><p class="claudian-preview-card-excerpt">Provider, Dokumente und Kosten auf einen Blick.</p></div><div class="claudian-preview-card-footer"><span class="claudian-preview-card-name">claudian-systemstatus.md</span><span class="claudian-preview-card-action">Öffnen</span></div></button>
-          <button class="claudian-preview-card" type="button"><div class="claudian-preview-card-peek"><span class="claudian-preview-card-kind">Markdown</span><strong>Release-Checkliste</strong><p class="claudian-preview-card-excerpt">Tests, Build und visuelle Abnahme.</p></div><div class="claudian-preview-card-footer"><span class="claudian-preview-card-name">release-checkliste.md</span><span class="claudian-preview-card-action">Öffnen</span></div></button>
-        </div></div>
+        <div class="claudian-preview-content"><div class="claudian-preview-library"></div></div>
       </section>
     </div>
   </div>
@@ -544,5 +543,32 @@ kurze Zeile</code></pre>
       </div>
     </div>
   </div>
+<script>
+  // Mirror FilePreviewPanel.renderLibraryItem's current compact row hierarchy.
+  // Construct action buttons through the DOM: HTML parsing unnests buttons.
+  // All HTML below uses fixed fixture strings, never external or user content.
+  const library = document.querySelector('[data-vis="document-library-mobile"] .claudian-preview-library');
+  library.replaceChildren();
+  for (const [name, folder] of [['claudian-systemstatus.md', 'Dokumente'], ['release-checkliste.md', 'Releases']]) {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'claudian-preview-card claudian-preview-row claudian-preview-row--document';
+    row.setAttribute('aria-label', `${name} öffnen`);
+    row.innerHTML = `<span class="claudian-preview-row-icon">MD</span><div class="claudian-preview-row-text"><span class="claudian-preview-card-name claudian-preview-row-name">${name}</span><span class="claudian-preview-row-folder">${folder}</span></div><div class="claudian-preview-card-actions claudian-preview-row-actions"></div>`;
+    for (const [label, icon] of [
+      ['In Finder anzeigen', '<path d="M3 7h6l2-3h4l2 3h4v13H3z"/>'],
+      ['In Standard-App öffnen', '<path d="M14 3h7v7M21 3l-10 10M10 3H3v18h18v-7"/>'],
+      ['Weitere Aktionen', '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>'],
+    ]) {
+      const action = document.createElement('button');
+      action.type = 'button';
+      action.className = 'claudian-preview-card-btn clickable-icon';
+      action.setAttribute('aria-label', label);
+      action.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor">${icon}</svg>`;
+      row.querySelector('.claudian-preview-row-actions').append(action);
+    }
+    library.append(row);
+  }
+</script>
 </body>
 </html>

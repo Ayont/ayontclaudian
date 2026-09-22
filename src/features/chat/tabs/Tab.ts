@@ -4,11 +4,8 @@ import { Menu, Notice, Platform, setIcon } from 'obsidian';
 import { runSerializedSettingsMutation } from '../../../app/settings/SettingsMutationQueue';
 import { resolveVoiceCloudConfig } from '../../../core/audio/resolveVoiceCloudConfig';
 import { resolveVoiceLanguage } from '../../../core/audio/transcription';
-import { buildConversationContextBootstrap, computeBootstrapCharCap } from '../../../core/conversation/ConversationContextBootstrap';
-import {
-  computeProviderSessionHandoff,
-  needsProviderContextBootstrap,
-} from '../../../core/conversation/providerSessionHandoff';
+import { buildProviderSwitchCarry } from '../../../core/conversation/ConversationContextBootstrap';
+import { computeProviderSessionHandoff } from '../../../core/conversation/providerSessionHandoff';
 import { GitService } from '../../../core/git/GitService';
 import { getHiddenProviderCommandSet } from '../../../core/providers/commands/hiddenCommands';
 import type { ProviderCommandDropdownConfig } from '../../../core/providers/commands/ProviderCommandCatalog';
@@ -678,9 +675,8 @@ function cleanupTabRuntime(tab: TabData): void {
  * Switches a BOUND tab's active provider to the owner of `model`, keeping all prior
  * messages visible. Mirrors the blank-tab switch plumbing (drop the stale runtime, sync
  * provider services + slash commands, persist the new provider's model, refresh UI), then
- * arms a one-shot, bounded context bootstrap so the freshly-started provider session gets
- * minimal prior context on the NEXT turn only. The runtime itself is recreated lazily by
- * `initializeTabService` on the next send (it rebuilds when `service.providerId` differs).
+ * arms a one-shot carry of the local transcript the target does not already have. The
+ * runtime itself is recreated lazily by `initializeTabService` on the next send.
  */
 async function switchBoundTabProvider(
   tab: TabData,
@@ -706,37 +702,27 @@ async function switchBoundTabProvider(
   // conversation.sessionId still holds the previous provider's id, and a provider that
   // falls back to it (Claude/Codex/Pi) resumes a foreign session → "session not found".
   const conversation = tab.conversationId ? plugin.getConversationSync(tab.conversationId) : null;
+  const lastMessage = tab.state.messages.length > 0
+    ? tab.state.messages[tab.state.messages.length - 1]
+    : undefined;
   const handoff = computeProviderSessionHandoff({
     oldProviderId: oldProvider,
     newProviderId: newProvider,
     currentSessionId: conversation?.sessionId ?? null,
     currentProviderState: conversation?.providerState,
     providerSessions: conversation?.providerSessions,
+    coveredThroughMessageId: lastMessage?.id ?? null,
   });
-  const restoredProviderSessionId = conversation
-    ? ProviderRegistry.getConversationHistoryService(newProvider)
-      .resolveSessionIdForConversation({
-        ...conversation,
-        providerId: newProvider,
-        sessionId: handoff.sessionId,
-        providerState: handoff.providerState,
-      })
-    : handoff.sessionId;
 
-  // Carry prior text only when the target provider truly starts fresh. Returning
-  // to a provider-owned session/thread already restores its native context; a
-  // second injected transcript would duplicate both tokens and instructions.
-  let nextPendingContextBootstrap: string | null;
-  if (needsProviderContextBootstrap(handoff, restoredProviderSessionId)) {
-    const targetContextWindow = ProviderRegistry.getChatUIConfig(newProvider)
-      .getContextWindowSize(model, plugin.settings.customContextLimits, plugin.settings);
-    const bootstrap = buildConversationContextBootstrap(tab.state.messages, {
-      maxChars: computeBootstrapCharCap(targetContextWindow),
-    });
-    nextPendingContextBootstrap = bootstrap || null;
-  } else {
-    nextPendingContextBootstrap = null;
-  }
+  const targetContextWindow = ProviderRegistry.getChatUIConfig(newProvider)
+    .getContextWindowSize(model, plugin.settings.customContextLimits, plugin.settings);
+  const bootstrap = buildProviderSwitchCarry({
+    messages: tab.state.messages,
+    contextWindowTokens: targetContextWindow,
+    coveredThroughMessageId: handoff.coveredThroughMessageId,
+    goal: conversation?.goal ?? tab.goal ?? null,
+  });
+  const nextPendingContextBootstrap = bootstrap || null;
 
   const uiConfig = ProviderRegistry.getChatUIConfig(newProvider);
   const providerSettings = await updateTabProviderSettings(tab, plugin, (settings) => {
@@ -2261,6 +2247,21 @@ export function initializeTabControllers(
     // description. The InputController then retries the turn with descriptions
     // instead of raw images so the conversation continues uninterrupted.
     analyzeImageViaVision: (image) => plugin.runVisionPrompt(image, 'Beschreibe dieses Bild im Detail. Was ist darauf zu sehen?').catch(() => null),
+    restorePendingContextBootstrap: async (pending: string) => {
+      if (!pending) return;
+      const conversation = tab.conversationId
+        ? plugin.getConversationSync(tab.conversationId)
+        : null;
+      tab.pendingContextBootstrap = pending;
+      if (conversation) {
+        conversation.pendingContextBootstrap = pending;
+      }
+      if (tab.conversationId) {
+        await plugin.updateConversation(tab.conversationId, {
+          pendingContextBootstrap: pending,
+        });
+      }
+    },
     consumePendingContextBootstrap: async () => {
       const conversation = tab.conversationId
         ? plugin.getConversationSync(tab.conversationId)

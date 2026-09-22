@@ -3747,6 +3747,257 @@ describe('Tab - Cross-Provider Model Switch (bound tab)', () => {
     expect(Notice).not.toHaveBeenCalled();
     expect(plugin.saveSettings).toHaveBeenCalled();
   });
+
+  it('carries a fitting Astra transcript onto Opus and only the later turn back to Astra', async () => {
+    jest.restoreAllMocks();
+    jest.spyOn(ProviderRegistry, 'createInstructionRefineService').mockReturnValue({ cancel: jest.fn(), resetConversation: jest.fn() } as any);
+    jest.spyOn(ProviderRegistry, 'createTitleGenerationService').mockReturnValue({ cancel: jest.fn() } as any);
+    jest.spyOn(ProviderRegistry, 'getTaskResultInterpreter').mockReturnValue({} as any);
+
+    const userConstraint = 'KEEP-THE-PORTAL-REVERSIBLE';
+    const assistantDecision = 'MIGRATE-SHAREPOINT-FIRST';
+    const toolPath = 'vault/migration-plan.md';
+    const toolOutcome = 'wrote the reversible migration plan';
+    const goal = 'Portal migration stays reversible';
+    const claudeTurn = 'CLAUDE-ERA-TURN-AFTER-ASTRA';
+    const pad = 'p'.repeat(9000);
+    const messages = [
+      { id: 'u-constraint', role: 'user' as const, content: userConstraint, timestamp: 1 },
+      {
+        id: 'a-decision',
+        role: 'assistant' as const,
+        content: assistantDecision,
+        timestamp: 2,
+        toolCalls: [{
+          id: 'tool-write',
+          name: 'Write',
+          input: { file_path: toolPath },
+          status: 'completed' as const,
+          result: toolOutcome,
+        }],
+        contentBlocks: [],
+      },
+      { id: 'u-pad-1', role: 'user' as const, content: pad, timestamp: 3 },
+      { id: 'a-pad-1', role: 'assistant' as const, content: pad, timestamp: 4, toolCalls: [], contentBlocks: [] },
+      { id: 'u-pad-2', role: 'user' as const, content: pad, timestamp: 5 },
+    ];
+    const conversation: Record<string, unknown> = {
+      id: 'conv-astra',
+      providerId: 'codex',
+      sessionId: 'codex-sess-astra',
+      providerState: { threadId: 'codex-sess-astra' },
+      goal,
+      messages,
+      providerSessions: {},
+    };
+    const outgoingQuery = jest.fn();
+    const updateConversation = jest.fn(async (_id: string, updates: Record<string, unknown>) => {
+      Object.assign(conversation, updates);
+    });
+    const plugin = createMockPlugin({
+      updateConversation,
+      getConversationSync: jest.fn(() => conversation),
+    });
+    const tab = createTab(createMockOptions({ plugin }));
+    initializeTabUI(tab, plugin);
+    tab.lifecycleState = 'bound_cold';
+    tab.providerId = 'codex';
+    tab.conversationId = 'conv-astra';
+    tab.state.messages = messages as typeof tab.state.messages;
+    tab.service = {
+      providerId: 'codex',
+      query: outgoingQuery,
+      cleanup: jest.fn(),
+      cancel: jest.fn(),
+    } as any;
+
+    const toolbarModule = jest.requireMock('@/features/chat/ui/InputToolbar') as {
+      createInputToolbar: jest.Mock;
+    };
+    const toolbarCallbacks = toolbarModule.createInputToolbar.mock.calls.at(-1)?.[1];
+
+    await toolbarCallbacks.onModelChange('claude-opus-5');
+
+    const toOpus = tab.pendingContextBootstrap ?? '';
+    expect(toOpus.length).toBeGreaterThan(24_000);
+    expect(toOpus).toContain(userConstraint);
+    expect(toOpus).toContain(assistantDecision);
+    expect(toOpus).toContain(toolPath);
+    expect(toOpus).toContain(toolOutcome);
+    expect(toOpus).toContain(goal);
+    expect(toOpus).not.toContain('[earlier turns omitted]');
+    expect(outgoingQuery).not.toHaveBeenCalled();
+    expect(updateConversation).toHaveBeenCalledWith('conv-astra', expect.objectContaining({
+      providerId: 'claude',
+      sessionId: null,
+    }));
+
+    tab.state.messages = [
+      ...messages,
+      { id: 'u-claude', role: 'user', content: claudeTurn, timestamp: 6 },
+      { id: 'a-claude', role: 'assistant', content: 'Claude continued the migration.', timestamp: 7, toolCalls: [], contentBlocks: [] },
+    ] as typeof tab.state.messages;
+    conversation.sessionId = 'claude-sess-1';
+    conversation.providerState = { providerSessionId: 'claude-sess-1' };
+
+    await toolbarCallbacks.onModelChange('gpt-6-astra');
+
+    const backToAstra = tab.pendingContextBootstrap ?? '';
+    expect(backToAstra).toContain(claudeTurn);
+    expect(backToAstra).not.toContain(userConstraint);
+    expect(backToAstra).not.toContain(toolOutcome);
+    expect(conversation.sessionId).toBe('codex-sess-astra');
+    expect(outgoingQuery).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['grok', 'grok-4.7'],
+    ['cline', 'cline-pass/kimi-k3'],
+    ['opencode', 'opencode:anthropic/claude-sonnet-4-5'],
+  ])('carries the same local transcript when switching Astra to %s', async (_provider, model) => {
+    jest.restoreAllMocks();
+    jest.spyOn(ProviderRegistry, 'createInstructionRefineService').mockReturnValue({ cancel: jest.fn(), resetConversation: jest.fn() } as any);
+    jest.spyOn(ProviderRegistry, 'createTitleGenerationService').mockReturnValue({ cancel: jest.fn() } as any);
+    jest.spyOn(ProviderRegistry, 'getTaskResultInterpreter').mockReturnValue({} as any);
+
+    const userConstraint = 'KEEP-THE-PORTAL-REVERSIBLE';
+    const messages = [
+      { id: 'u1', role: 'user' as const, content: userConstraint, timestamp: 1 },
+      { id: 'a1', role: 'assistant' as const, content: 'MIGRATE-SHAREPOINT-FIRST', timestamp: 2, toolCalls: [], contentBlocks: [] },
+    ];
+    const conversation: Record<string, unknown> = {
+      id: `conv-${model}`,
+      providerId: 'codex',
+      sessionId: 'codex-sess-astra',
+      providerState: { threadId: 'codex-sess-astra' },
+      goal: 'Portal migration stays reversible',
+      messages,
+    };
+    const plugin = createMockPlugin({
+      updateConversation: jest.fn(async (_id: string, updates: Record<string, unknown>) => {
+        Object.assign(conversation, updates);
+      }),
+      getConversationSync: jest.fn(() => conversation),
+    });
+    plugin.settings.providerConfigs = {
+      grok: { enabled: true },
+      cline: { enabled: true },
+      opencode: { enabled: true },
+      codex: { enabled: true },
+      claude: { enabled: true },
+    };
+    const tab = createTab(createMockOptions({ plugin }));
+    initializeTabUI(tab, plugin);
+    tab.lifecycleState = 'bound_cold';
+    tab.providerId = 'codex';
+    tab.conversationId = conversation.id as string;
+    tab.state.messages = messages as typeof tab.state.messages;
+    tab.service = { providerId: 'codex', query: jest.fn(), cleanup: jest.fn() } as any;
+
+    const toolbarModule = jest.requireMock('@/features/chat/ui/InputToolbar') as {
+      createInputToolbar: jest.Mock;
+    };
+    const toolbarCallbacks = toolbarModule.createInputToolbar.mock.calls.at(-1)?.[1];
+    await toolbarCallbacks.onModelChange(model);
+
+    expect(tab.providerId).toBe(_provider);
+    expect(tab.pendingContextBootstrap).toContain(userConstraint);
+    expect(tab.pendingContextBootstrap).toContain('Portal migration stays reversible');
+    expect(tab.service).toBeNull();
+  });
+
+  it.each([
+    ['grok-bot', 'desktop:grok-bot'],
+    ['perplexity-chat', 'desktop:perplexity-chat'],
+  ])('keeps a transcript past 6000 characters when switching Astra to %s', async (provider, model) => {
+    jest.restoreAllMocks();
+    jest.spyOn(ProviderRegistry, 'createInstructionRefineService').mockReturnValue({ cancel: jest.fn(), resetConversation: jest.fn() } as any);
+    jest.spyOn(ProviderRegistry, 'createTitleGenerationService').mockReturnValue({ cancel: jest.fn() } as any);
+    jest.spyOn(ProviderRegistry, 'getTaskResultInterpreter').mockReturnValue({} as any);
+
+    const body = `DESKTOP-FITTING-${'d'.repeat(8_000)}`;
+    const messages = [
+      { id: 'u1', role: 'user' as const, content: body, timestamp: 1 },
+    ];
+    const conversation: Record<string, unknown> = {
+      id: `conv-${provider}`,
+      providerId: 'codex',
+      sessionId: 'codex-sess-astra',
+      providerState: { threadId: 'codex-sess-astra' },
+      messages,
+    };
+    const plugin = createMockPlugin({
+      updateConversation: jest.fn(async (_id: string, updates: Record<string, unknown>) => {
+        Object.assign(conversation, updates);
+      }),
+      getConversationSync: jest.fn(() => conversation),
+    });
+    plugin.settings.providerConfigs = {
+      [provider]: { enabled: true, anchor: 'desk' },
+      codex: { enabled: true },
+      claude: { enabled: true },
+    };
+    const tab = createTab(createMockOptions({ plugin }));
+    initializeTabUI(tab, plugin);
+    tab.lifecycleState = 'bound_cold';
+    tab.providerId = 'codex';
+    tab.conversationId = conversation.id as string;
+    tab.state.messages = messages as typeof tab.state.messages;
+    tab.service = { providerId: 'codex', query: jest.fn(), cleanup: jest.fn() } as any;
+
+    const toolbarModule = jest.requireMock('@/features/chat/ui/InputToolbar') as {
+      createInputToolbar: jest.Mock;
+    };
+    const toolbarCallbacks = toolbarModule.createInputToolbar.mock.calls.at(-1)?.[1];
+    await toolbarCallbacks.onModelChange(model);
+
+    expect(tab.providerId).toBe(provider);
+    expect((tab.pendingContextBootstrap ?? '').length).toBeGreaterThan(6_000);
+    expect(tab.pendingContextBootstrap).toContain(body);
+    expect(tab.pendingContextBootstrap).not.toContain('[earlier turns omitted]');
+    expect(tab.service).toBeNull();
+  });
+
+  it('keeps a Codex session and does not inject history on a same-provider model change', async () => {
+    jest.restoreAllMocks();
+    jest.spyOn(ProviderRegistry, 'createInstructionRefineService').mockReturnValue({ cancel: jest.fn(), resetConversation: jest.fn() } as any);
+    jest.spyOn(ProviderRegistry, 'createTitleGenerationService').mockReturnValue({ cancel: jest.fn() } as any);
+    jest.spyOn(ProviderRegistry, 'getTaskResultInterpreter').mockReturnValue({} as any);
+
+    const conversation: Record<string, unknown> = {
+      id: 'conv-same',
+      providerId: 'codex',
+      sessionId: 'codex-sess-astra',
+      providerState: { threadId: 'codex-sess-astra' },
+      pendingContextBootstrap: null,
+    };
+    const updateConversation = jest.fn();
+    const plugin = createMockPlugin({
+      updateConversation,
+      getConversationSync: jest.fn(() => conversation),
+    });
+    const tab = createTab(createMockOptions({ plugin }));
+    initializeTabUI(tab, plugin);
+    tab.lifecycleState = 'bound_cold';
+    tab.providerId = 'codex';
+    tab.conversationId = 'conv-same';
+    tab.pendingContextBootstrap = null;
+    tab.state.messages = [
+      { id: 'u1', role: 'user', content: 'already in the Astra session', timestamp: 1 },
+      { id: 'a1', role: 'assistant', content: 'ack', timestamp: 2, toolCalls: [], contentBlocks: [] },
+    ];
+
+    const toolbarModule = jest.requireMock('@/features/chat/ui/InputToolbar') as {
+      createInputToolbar: jest.Mock;
+    };
+    const toolbarCallbacks = toolbarModule.createInputToolbar.mock.calls.at(-1)?.[1];
+    await toolbarCallbacks.onModelChange('gpt-5.6-sol');
+
+    expect(tab.providerId).toBe('codex');
+    expect(tab.pendingContextBootstrap).toBeNull();
+    expect(updateConversation).not.toHaveBeenCalled();
+    expect(conversation.sessionId).toBe('codex-sess-astra');
+  });
 });
 
 describe('Tab - Blank Tab Draft Model Change', () => {

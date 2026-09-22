@@ -65,7 +65,11 @@ const MESSAGE_MIDDLE_OMITTED_NOTE = '[message middle omitted]';
  * Formats tool input for inclusion in rebuilt context.
  * Includes all non-null parameters, truncates long string values.
  */
-function formatToolInput(input: Record<string, unknown>, maxLength = 200): string {
+function formatToolInput(
+  input: Record<string, unknown>,
+  maxLength = 200,
+  options: { preserveValues?: boolean } = {},
+): string {
   if (!input || Object.keys(input).length === 0) return '';
 
   try {
@@ -75,7 +79,9 @@ function formatToolInput(input: Record<string, unknown>, maxLength = 200): strin
 
       let valueStr: string;
       if (typeof value === 'string') {
-        valueStr = value.length > 100 ? `${value.slice(0, 100)}...` : value;
+        valueStr = !options.preserveValues && value.length > 100
+          ? `${value.slice(0, 100)}...`
+          : value;
       } else if (typeof value === 'object') {
         valueStr = '[object]';
       } else if (typeof value === 'function') {
@@ -91,7 +97,10 @@ function formatToolInput(input: Record<string, unknown>, maxLength = 200): strin
     }
 
     const result = parts.join(', ');
-    return result.length > maxLength ? `${result.slice(0, maxLength)}...` : result;
+    if (!options.preserveValues && result.length > maxLength) {
+      return `${result.slice(0, maxLength)}...`;
+    }
+    return result;
   } catch {
     return '[input formatting error]';
   }
@@ -101,27 +110,44 @@ function formatToolInput(input: Record<string, unknown>, maxLength = 200): strin
  * Formats a tool call for inclusion in rebuilt context.
  *
  * Strategy:
- * - Always include tool name and input (so Claude knows what was attempted)
- * - Only include results for failed tools (errors are important to remember)
- * - Successful tools can be re-executed if needed
+ * - Always include tool name and input
+ * - Session recovery includes failed results only, and caps long values
+ * - Switch carry (includeSuccessfulOutcome) keeps paths and stored results whole;
+ *   the context window is the only cap
  */
-export function formatToolCallForContext(toolCall: ToolCallInfo, maxErrorLength = 500): string {
+export function formatToolCallForContext(
+  toolCall: ToolCallInfo,
+  maxErrorLength = 500,
+  options: { includeSuccessfulOutcome?: boolean } = {},
+): string {
   const status = toolCall.status ?? 'completed';
   const isFailed = status === 'error' || status === 'blocked';
-  const inputStr = formatToolInput(toolCall.input);
+  const preserveFacts = options.includeSuccessfulOutcome === true;
+  const inputStr = formatToolInput(
+    toolCall.input,
+    preserveFacts ? Number.POSITIVE_INFINITY : 200,
+    { preserveValues: preserveFacts },
+  );
   const inputPart = inputStr ? ` input: ${inputStr}` : '';
+  const hasStoredResult = typeof toolCall.result === 'string' && toolCall.result.trim().length > 0;
+  const storedResult = () => (
+    preserveFacts
+      ? (toolCall.result as string)
+      : truncateToolResult(toolCall.result as string, maxErrorLength)
+  );
 
   if (!isFailed) {
+    if (options.includeSuccessfulOutcome && hasStoredResult) {
+      return `[Tool ${toolCall.name}${inputPart} status=${status}] outcome: ${storedResult()}`;
+    }
     return `[Tool ${toolCall.name}${inputPart} status=${status}]`;
   }
 
-  const hasResult = typeof toolCall.result === 'string' && toolCall.result.trim().length > 0;
-  if (!hasResult) {
+  if (!hasStoredResult) {
     return `[Tool ${toolCall.name}${inputPart} status=${status}]`;
   }
 
-  const errorMsg = truncateToolResult(toolCall.result as string, maxErrorLength);
-  return `[Tool ${toolCall.name}${inputPart} status=${status}] error: ${errorMsg}`;
+  return `[Tool ${toolCall.name}${inputPart} status=${status}] error: ${storedResult()}`;
 }
 
 export function truncateToolResult(result: string, maxLength = 500): string {
@@ -161,7 +187,15 @@ function formatThinkingBlocks(message: ChatMessage): string[] {
   return [`[Thinking: ${thinkingBlocks.length} block(s)${durationPart}]`];
 }
 
-export function buildContextFromHistory(messages: ChatMessage[]): string {
+export interface HistoryContextOptions {
+  /** Include stored results of successful tool calls. Switch carry uses this. */
+  includeSuccessfulOutcomes?: boolean;
+}
+
+export function buildContextFromHistory(
+  messages: ChatMessage[],
+  options: HistoryContextOptions = {},
+): string {
   const parts: string[] = [];
 
   for (const message of messages) {
@@ -220,7 +254,9 @@ export function buildContextFromHistory(messages: ChatMessage[]): string {
 
     if (message.role === 'assistant' && message.toolCalls?.length) {
       const toolLines = message.toolCalls
-        .map(tc => formatToolCallForContext(tc))
+        .map(tc => formatToolCallForContext(tc, 500, {
+          includeSuccessfulOutcome: options.includeSuccessfulOutcomes,
+        }))
         .filter(Boolean);
       if (toolLines.length > 0) {
         lines.push(...toolLines);
@@ -241,12 +277,13 @@ export function buildContextFromHistory(messages: ChatMessage[]): string {
 export function buildBoundedContextFromHistory(
   messages: ChatMessage[],
   maxChars = HISTORY_CONTEXT_CHAR_CAP,
+  options: HistoryContextOptions = {},
 ): string {
   if (maxChars <= 0 || messages.length === 0) {
     return '';
   }
 
-  const full = buildContextFromHistory(messages).trim();
+  const full = buildContextFromHistory(messages, options).trim();
   if (full.length <= maxChars) {
     return full;
   }
@@ -258,7 +295,7 @@ export function buildBoundedContextFromHistory(
 
   const bodyBudget = maxChars - prefix.length;
   for (let start = 1; start < messages.length; start += 1) {
-    const tail = buildContextFromHistory(messages.slice(start)).trim();
+    const tail = buildContextFromHistory(messages.slice(start), options).trim();
     if (tail && tail.length <= bodyBudget) {
       return `${prefix}${tail}`;
     }
@@ -267,7 +304,7 @@ export function buildBoundedContextFromHistory(
   // A single recent renderable message can itself exceed the cap. Keep its
   // beginning (including the role marker) and enforce the hard boundary.
   for (let start = messages.length - 1; start >= 0; start -= 1) {
-    const latest = buildContextFromHistory(messages.slice(start)).trim();
+    const latest = buildContextFromHistory(messages.slice(start), options).trim();
     if (latest) {
       const middleMarker = `\n\n${MESSAGE_MIDDLE_OMITTED_NOTE}\n\n`;
       if (bodyBudget <= middleMarker.length + 2) {

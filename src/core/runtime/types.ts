@@ -1,3 +1,4 @@
+import type { DesktopContextSource } from '../../features/chat/services/desktopContext';
 import type { BrowserSelectionContext } from '../../utils/browser';
 import type { CanvasSelectionContext } from '../../utils/canvas';
 import type { EditorSelectionContext } from '../../utils/editor';
@@ -47,6 +48,9 @@ export type AskUserQuestionCallback = (
 
 export interface ChatTurnRequest {
   text: string;
+  /** Ephemeral explicit selection factory; functions are never JSON persisted. */
+  desktopContext?: () => readonly DesktopContextSource[];
+  attachments?: { name: string; relPath: string }[];
   /** Application-selected presentation target for this turn. */
   outputSurface?: OutputSurface;
   images?: ImageAttachment[];

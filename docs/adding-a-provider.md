@@ -26,7 +26,7 @@ Copy the one whose transport matches your CLI:
 | Print + full-message NDJSON (one complete OpenAI message per line) | `src/providers/kimi/`, `src/providers/vibe/` |
 | ACP | `src/providers/opencode/` + `src/providers/acp/` |
 | Single-shot print, state recovered by tailing a transcript | `src/providers/antigravity/` |
-| HTTP + SSE against a local app API (no child process) | `src/providers/freebuff/` |
+| Desktop relay driving a consumer app's own chat UI (no API, no CLI) | `src/providers/desktopBridge/` |
 | Official SDK (full-feature reference) | `src/providers/claude/` |
 
 ## Steps
@@ -68,7 +68,7 @@ Copy the one whose transport matches your CLI:
    - `src/features/chat/ui/ProviderStatusBar.ts`: `PROVIDER_COLOR`
    - optional `brandColor` / `brandColorLight` on the registration (themes the
      multi-agent modal)
-   Hermes, DeepSeek Harness and Freebuff shipped without the dashboard and
+   Hermes and DeepSeek Harness shipped without the dashboard and
    model-picker rules and silently fell back to the generic accent.
 10. **Install catalog** (`src/core/install/cliInstallCatalog.ts`) — `binary`,
     `methods` (mac/win/linux command), `docsUrl`. Drives the in-app CLI installer
