@@ -59,6 +59,27 @@ export type OutputSurface =
   | 'image'
   | 'skill';
 
+/** Status of a goal owned by the provider's own goal system. */
+export type NativeGoalStatus =
+  | 'active'
+  | 'paused'
+  | 'blocked'
+  | 'usage_limited'
+  | 'budget_limited'
+  | 'complete';
+
+export interface NativeGoalState {
+  objective: string;
+  status: NativeGoalStatus;
+  /** Rounds the provider worked after re-checking the goal (1 = first round). */
+  round?: number;
+  /** Why the last check said "not yet met". */
+  lastReason?: string;
+  tokensUsed?: number;
+  tokenBudget?: number | null;
+  timeUsedSeconds?: number;
+}
+
 /** Content block for preserving streaming order in messages. */
 export type ContentBlock =
   | {
@@ -70,7 +91,9 @@ export type ContentBlock =
   | { type: 'tool_use'; toolId: string }
   | { type: 'thinking'; content: string; durationSeconds?: number }
   | { type: 'subagent'; subagentId: string; mode?: SubagentMode }
-  | { type: 'context_compacted' };
+  | { type: 'context_compacted' }
+  /** A provider-driven goal checked its condition and kept working. */
+  | { type: 'goal_round'; round: number; reason?: string };
 
 /** Chat message with content, tool calls, and attachments. */
 export interface ChatMessage {
@@ -92,6 +115,16 @@ export interface ChatMessage {
   isInterrupt?: boolean;
   /** True if this message is rebuilt context sent to SDK on session reset (should be hidden). */
   isRebuiltContext?: boolean;
+  /**
+   * Set on an answer that "Erneut generieren" replaced with a new turn because
+   * the provider cannot rewind. It stays in the transcript, collapsed.
+   */
+  isSuperseded?: boolean;
+  /**
+   * A fresh native session with condensed context starts after this message.
+   * Renders a divider and tells hydration which turns exist only locally.
+   */
+  sessionBoundary?: 'condensed';
   /** Duration in seconds from user send to response completion. */
   durationSeconds?: number;
   /** Flavor word used for duration display (e.g., "Baked", "Cooked"). */
@@ -145,6 +178,14 @@ export interface Conversation {
   pendingContextBootstrap?: string | null;
   /** Standing objective set via `/goal`; re-injected into every turn for any provider. */
   goal?: string | null;
+  /**
+   * The provider whose own goal system owns `goal`. While this chat runs on that
+   * provider, Claudian neither frames the goal into prompts nor loops on it;
+   * after a switch to another provider the goal falls back to Claudian's loop.
+   */
+  goalProviderId?: string | null;
+  /** Last goal state the owning provider reported (status, rounds, budget). */
+  nativeGoal?: NativeGoalState | null;
   /** Per-chat workspace mode (Code/Work). Falls back to the global default. */
   workspaceMode?: 'code' | 'work';
   /** Pinned conversations sort to the top of the history. */
@@ -208,6 +249,10 @@ export interface SessionMetadata {
   pendingContextBootstrap?: string | null;
   /** Standing objective set via `/goal` (see {@link Conversation.goal}). */
   goal?: string | null;
+  /** See {@link Conversation.goalProviderId}. */
+  goalProviderId?: string | null;
+  /** See {@link Conversation.nativeGoal}. */
+  nativeGoal?: NativeGoalState | null;
   /** Per-chat workspace mode (see {@link Conversation.workspaceMode}). */
   workspaceMode?: 'code' | 'work';
   /** Pinned conversations sort to the top of the history. */
@@ -241,7 +286,13 @@ export type StreamChunk =
   | { type: 'tool_result'; id: string; content: string; isError?: boolean; toolUseResult?: SDKToolUseResult }
   | { type: 'tool_output'; id: string; content: string }
   | { type: 'error'; content: string }
-  | { type: 'notice'; content: string; level?: 'info' | 'warning' }
+  | {
+      type: 'notice';
+      content: string;
+      level?: 'info' | 'warning';
+      /** Live status line only (e.g. an API retry countdown); never written into the answer. */
+      transient?: boolean;
+    }
   /**
    * Heartbeat for runtimes without incremental wire deltas (e.g. Kimi CLI
    * emits one COMPLETE message per NDJSON line — long reasoning phases are
@@ -258,6 +309,12 @@ export type StreamChunk =
       contextDisplay?: 'preserve';
     }
   | { type: 'context_compacted' }
+  /**
+   * The provider's own goal changed (Codex `thread/goal/*`, Claude's `/goal`
+   * Stop hook, Kimi's headless goal). `round` is set when the provider re-checked
+   * the goal and started another round of work in the same answer.
+   */
+  | { type: 'goal_update'; goal: NativeGoalState | null; round?: number }
   | {
       type: 'background_task_started';
       taskId: string;

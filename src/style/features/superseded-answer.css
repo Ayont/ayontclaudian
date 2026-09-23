@@ -1,0 +1,101 @@
+/* Superseded answer: an answer that "Erneut generieren" replaced with a new
+   turn because the provider cannot rewind. It stays in the transcript as
+   history, collapsed to one quiet row under its provider header.
+   Rendered by MessageRenderer.applySupersededState. */
+
+.claudian-superseded-bar {
+  order: -1;
+  display: flex;
+  align-items: center;
+  gap: var(--cl-space-2);
+  min-width: 0;
+  margin: 0 0 var(--cl-space-2);
+  padding: 4px 4px 4px var(--cl-space-3);
+  border: var(--cl-hairline);
+  border-radius: var(--cl-radius-md);
+  background: var(--cl-wash);
+  color: var(--text-muted);
+  font-size: var(--cl-text-sm);
+}
+
+.claudian-superseded-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.claudian-superseded-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.claudian-superseded-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claudian-superseded-toggle {
+  flex-shrink: 0;
+  height: auto;
+  min-height: 26px;
+  margin-inline-start: auto;
+  padding: 3px var(--cl-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--cl-radius-xs);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-family: var(--cl-font-ui);
+  font-size: var(--cl-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color var(--cl-dur-fast) var(--cl-ease),
+    background var(--cl-dur-fast) var(--cl-ease),
+    border-color var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-superseded-toggle:hover {
+  border-color: var(--cl-border-strong);
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.claudian-superseded-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--cl-accent-line);
+  color: var(--text-normal);
+}
+
+/* Collapsed: only the provider header and the bar remain. */
+.claudian-message--superseded:not(.is-expanded) > .claudian-message-content {
+  display: none;
+}
+
+/* Expanded: the old answer reads as history, not as the current reply. */
+.claudian-message--superseded.is-expanded > .claudian-message-content {
+  padding-inline-start: var(--cl-space-3);
+  border-inline-start: 1px solid var(--cl-border-subtle);
+  animation: claudian-superseded-reveal var(--cl-dur) var(--cl-ease-out);
+}
+
+.claudian-message--superseded .claudian-response-actions {
+  display: none;
+}
+
+@keyframes claudian-superseded-reveal {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-superseded-toggle {
+    transition: none;
+  }
+
+  .claudian-message--superseded.is-expanded > .claudian-message-content {
+    animation: none;
+  }
+}

@@ -26,22 +26,22 @@ describe('TodoListRenderer', () => {
       expect(parseTodoInput({ todos: 'not an array' })).toBeNull();
     });
 
-    it('should filter out invalid todo items', () => {
+    it('should keep items with unknown status as pending and drop items without text', () => {
       const input = {
         todos: [
           { content: 'Valid', status: 'pending', activeForm: 'Doing' },
-          { content: 'Invalid status', status: 'unknown' },
+          { content: 'Unknown status', status: 'unknown' },
           { status: 'pending' },
         ],
       };
 
       const result = parseTodoInput(input);
 
-      expect(result).toHaveLength(1);
-      expect(result![0].content).toBe('Valid');
+      expect(result).toHaveLength(2);
+      expect(result![1]).toEqual({ content: 'Unknown status', status: 'pending', activeForm: 'Unknown status' });
     });
 
-    it('should filter out items with empty strings', () => {
+    it('should drop empty content and fall back on empty activeForm', () => {
       const input = {
         todos: [
           { content: '', status: 'pending', activeForm: 'Doing' },
@@ -52,8 +52,9 @@ describe('TodoListRenderer', () => {
 
       const result = parseTodoInput(input);
 
-      expect(result).toHaveLength(1);
-      expect(result![0].content).toBe('Also valid');
+      expect(result).toHaveLength(2);
+      expect(result![0].activeForm).toBe('Valid');
+      expect(result![1].content).toBe('Also valid');
     });
   });
 

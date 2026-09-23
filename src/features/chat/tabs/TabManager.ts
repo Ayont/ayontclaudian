@@ -15,10 +15,12 @@ import type ClaudianPlugin from '../../../main';
 import { chooseForkTarget } from '../../../shared/modals/ForkTargetModal';
 import { revealWorkspaceLeaf } from '../../../utils/obsidianCompat';
 import { tabDraftKey } from '../services/ComposerDraftStore';
+import type { AttentionReason } from '../state/types';
 import { composerDraftKeyForTab, restoreComposerDraft } from './composerDraftTab';
 import { getTabProviderId } from './providerResolution';
 import {
   activateTab,
+  adoptTabGoalIntoConversation,
   createTab,
   deactivateTab,
   destroyTab,
@@ -27,9 +29,13 @@ import {
   initializeTabControllers,
   initializeTabService,
   initializeTabUI,
+  resetTabGoalMirror,
   setupServiceCallbacks,
   wireTabInputEvents,
 } from './Tab';
+import { shouldRaiseTabAttention, tabAttentionNotice } from './tabAttention';
+import { buildTabOverviewItem } from './tabOverviewItems';
+import { displayTabTitle, type TabOverviewItem } from './tabOverviewModel';
 import {
   DEFAULT_MAX_TABS,
   MAX_TABS,
@@ -51,6 +57,7 @@ function isTabManagerViewHost(value: unknown): value is TabManagerViewHost {
 }
 
 type CreateTabOptions = {
+  ignoreTabLimit?: boolean;
   activate?: boolean;
   draftModel?: string;
   /**
@@ -180,7 +187,7 @@ export class TabManager implements TabManagerInterface {
     options: CreateTabOptions = {},
   ): Promise<TabData | null> {
     const maxTabs = this.getMaxTabs();
-    if (this.tabs.size >= maxTabs) {
+    if (!options.ignoreTabLimit && this.tabs.size >= maxTabs) {
       return null;
     }
 
@@ -222,6 +229,7 @@ export class TabManager implements TabManagerInterface {
       onAttentionChanged: (needsAttention) => {
         this.callbacks.onTabAttentionChanged?.(tab.id, needsAttention);
       },
+      onAttentionRequested: (reason) => this.handleAttentionRequest(tab, reason),
       onConversationIdChanged: (conversationId) => {
         // The chat is re-keyed before its composer is cleared: save what was
         // typed under the old key first.
@@ -232,6 +240,11 @@ export class TabManager implements TabManagerInterface {
         if (!previousConversationId && conversationId) {
           // A blank tab just became a conversation; its draft goes with it.
           this.plugin.composerDrafts?.move(tabDraftKey(tab.id), composerDraftKeyForTab(tab));
+          // So does a goal set before the chat existed (it lived on the tab only).
+          adoptTabGoalIntoConversation(tab, this.plugin);
+        } else if (previousConversationId !== conversationId) {
+          // Another chat (or a new one): the previous chat's goal stays with it.
+          resetTabGoalMirror(tab, this.plugin);
         }
         this.callbacks.onTabConversationChanged?.(tab.id, conversationId);
       },
@@ -307,6 +320,8 @@ export class TabManager implements TabManagerInterface {
       this.hiddenOrder.delete(tabId);
       this.releaseIdleRuntimes();
       activateTab(tab);
+      // Opening the tab is how the user answers "Wartet auf dich".
+      if (tab.state.needsAttention) tab.state.needsAttention = false;
       this.plugin.updateProviderStatusBar();
 
       // Load conversation if not already loaded
@@ -456,9 +471,61 @@ export class TabManager implements TabManagerInterface {
     return this.tabs.size < this.getMaxTabs();
   }
 
+  /** 1-based, as shown on the badges and in the go-to-tab commands. */
+  getTabIdAt(position: number): TabId | null {
+    if (!Number.isInteger(position) || position < 1) return null;
+    return Array.from(this.tabs.keys())[position - 1] ?? null;
+  }
+
+  /** The neighbour of the active tab, wrapping around at both ends. */
+  getAdjacentTabId(delta: 1 | -1): TabId | null {
+    const ids = Array.from(this.tabs.keys());
+    if (ids.length === 0) return null;
+    const current = this.activeTabId ? ids.indexOf(this.activeTabId) : -1;
+    const start = current < 0 ? 0 : current;
+    return ids[(start + delta + ids.length) % ids.length] ?? null;
+  }
+
+  // ============================================
+  // Attention
+  // ============================================
+
+  /**
+   * Producers (a settled turn, a pending approval) ask; only a tab the user
+   * cannot see turns the request into visible attention.
+   */
+  private handleAttentionRequest(tab: TabData, reason: AttentionReason): void {
+    const raise = shouldRaiseTabAttention({
+      isActive: tab.id === this.activeTabId,
+      isChatVisible: this.view.isChatVisible?.() ?? true,
+      isClosing: tab.lifecycleState === 'closing' || !this.tabs.has(tab.id),
+    });
+    if (!raise) return;
+    const alreadyAnnounced = tab.state.needsAttention && tab.state.attentionReason === reason;
+    tab.state.setAttention(reason);
+    if (!alreadyAnnounced && this.plugin.settings.notifyOnBackgroundTabDone === true) {
+      new Notice(tabAttentionNotice(displayTabTitle(getTabTitle(tab, this.plugin)), reason));
+    }
+  }
+
+  /** The pane was hidden while its active tab finished; any interaction means it was seen. */
+  acknowledgeActiveTabAttention(): void {
+    const tab = this.getActiveTab();
+    if (tab?.state.needsAttention) tab.state.needsAttention = false;
+  }
+
   // ============================================
   // Tab Bar Data
   // ============================================
+
+  /** Rows of the tab overview, in tab order. */
+  getTabOverviewItems(): TabOverviewItem[] {
+    return Array.from(this.tabs.values(), (tab, position) => buildTabOverviewItem(tab, {
+      index: position + 1,
+      isActive: tab.id === this.activeTabId,
+      canClose: this.tabs.size > 1 || !tab.state.isStreaming,
+    }, this.plugin));
+  }
 
   /** Gets data for rendering the tab bar. */
   getTabBarItems(): TabBarItem[] {
@@ -474,6 +541,7 @@ export class TabManager implements TabManagerInterface {
         isActive: tab.id === this.activeTabId,
         isStreaming: tab.state.isStreaming,
         needsAttention: tab.state.needsAttention,
+        attentionReason: tab.state.needsAttention ? tab.state.attentionReason ?? 'input' : null,
         canClose: this.tabs.size > 1 || !tab.state.isStreaming,
         hasDraft: this.plugin.composerDrafts?.has(composerDraftKeyForTab(tab)) ?? false,
       });
@@ -615,7 +683,7 @@ export class TabManager implements TabManagerInterface {
     try {
       return await this.createTab(conversationId);
     } catch (error) {
-      await this.plugin.deleteConversation(conversationId).catch(() => {});
+      await this.plugin.deleteConversation(conversationId, { permanent: true }).catch(() => {});
       throw error;
     }
   }
@@ -628,7 +696,7 @@ export class TabManager implements TabManagerInterface {
     try {
       await activeTab.controllers.conversationController.switchTo(conversationId);
     } catch (error) {
-      await this.plugin.deleteConversation(conversationId).catch(() => {});
+      await this.plugin.deleteConversation(conversationId, { permanent: true }).catch(() => {});
       throw error;
     }
     return true;
@@ -721,6 +789,9 @@ export class TabManager implements TabManagerInterface {
           const created = await this.createTab(tabState.conversationId, tabState.tabId, {
             activate: false,
             deferHydration: true,
+            // The limit caps new tabs; a saved layout above it (a lowered
+            // setting) comes back whole instead of silently losing chats.
+            ignoreTabLimit: true,
             ...(typeof tabState.draftModel === 'string' ? { draftModel: tabState.draftModel } : {}),
           });
           // Builds before the draft store kept the draft in the tab layout.

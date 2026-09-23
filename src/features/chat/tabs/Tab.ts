@@ -5,6 +5,7 @@ import { runSerializedSettingsMutation } from '../../../app/settings/SettingsMut
 import { resolveVoiceCloudConfig } from '../../../core/audio/resolveVoiceCloudConfig';
 import { resolveVoiceLanguage } from '../../../core/audio/transcription';
 import { buildProviderSwitchCarry } from '../../../core/conversation/ConversationContextBootstrap';
+import { isGoalOwnedByProvider } from '../../../core/conversation/nativeGoal';
 import { computeProviderSessionHandoff } from '../../../core/conversation/providerSessionHandoff';
 import { GitService } from '../../../core/git/GitService';
 import { getHiddenProviderCommandSet } from '../../../core/providers/commands/hiddenCommands';
@@ -28,7 +29,7 @@ import { AUTO_MODEL_VALUE } from '../../../core/routing/modelRouterRules';
 import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
 import type { AutoTurnResult } from '../../../core/runtime/types';
 import { TOOL_AGENT_OUTPUT } from '../../../core/tools/toolNames';
-import type { ChatMessage, ClaudianSettings, Conversation, StreamChunk } from '../../../core/types';
+import type { ChatMessage, ClaudianSettings, Conversation, NativeGoalState, StreamChunk } from '../../../core/types';
 import { getWorkspaceModeMeta, normalizeWorkspaceMode } from '../../../core/workspace/workspaceMode';
 import { getLocale, t } from '../../../i18n/i18n';
 import type ClaudianPlugin from '../../../main';
@@ -39,6 +40,7 @@ import { getVaultPath } from '../../../utils/path';
 import { TeamConfigModal } from '../../multiAgent/TeamConfigModal';
 import { BrowserSelectionController } from '../controllers/BrowserSelectionController';
 import { CanvasSelectionController } from '../controllers/CanvasSelectionController';
+import { ContextPressureController } from '../controllers/ContextPressureController';
 import { ConversationController } from '../controllers/ConversationController';
 import { InputController } from '../controllers/InputController';
 import { NavigationController } from '../controllers/NavigationController';
@@ -51,12 +53,14 @@ import { findRewindContext } from '../rewind';
 import { BangBashService } from '../services/BangBashService';
 import { SubagentManager } from '../services/SubagentManager';
 import { ChatState } from '../state/ChatState';
+import type { AttentionReason } from '../state/types';
 import { SubagentActionController } from '../subagents/SubagentActionController';
 import { isLiveSubagentPhase, resolveSubagentPhase } from '../subagents/subagentPresentation';
 import { BangBashModeManager as BangBashModeManagerClass } from '../ui/BangBashModeManager';
-import { ChatSearchController } from '../ui/ChatSearch';
+import { bindChatSearchShortcut, ChatSearchController } from '../ui/ChatSearch';
 import { CommitBar } from '../ui/CommitBar';
 import { mountComposerSendButton } from '../ui/ComposerSendButton';
+import { ContextPressureBanner } from '../ui/ContextPressureBanner';
 import { buildVaultAttachmentPath, parentFolder } from '../ui/file-drop/vaultAttachment';
 import { FileContextManager } from '../ui/FileContext';
 import { FilePreviewPanel } from '../ui/FilePreviewPanel';
@@ -73,7 +77,9 @@ import { VoiceInput } from '../ui/VoiceInput';
 import { buildWorkspaceQuickPromptRow } from '../ui/WorkspaceModeToggle';
 import { recalculateUsageForModel } from '../utils/usageInfo';
 import { attachComposerDraftAutosave, restoreComposerDraft } from './composerDraftTab';
+import { startCondensedSession } from './condensedSession';
 import { getTabProviderId } from './providerResolution';
+import { regenerateTabAnswer } from './regenerateAnswer';
 import type { TabData, TabDOMElements, TabId, TabProviderContext } from './types';
 import { generateTabId } from './types';
 
@@ -135,6 +141,8 @@ export interface TabCreateOptions {
   onStreamingChanged?: (isStreaming: boolean) => void;
   onTitleChanged?: (title: string) => void;
   onAttentionChanged?: (needsAttention: boolean) => void;
+  /** A settled turn or pending prompt may need the user; the tab manager decides. */
+  onAttentionRequested?: (reason: AttentionReason) => void;
   onConversationIdChanged?: (conversationId: string | null) => void;
 }
 
@@ -575,6 +583,8 @@ function applyProviderUIGating(tab: TabData, plugin: ClaudianPlugin): void {
   if (!capabilities.supportsMcpTools) {
     tab.ui.mcpServerSelector?.clearEnabled();
   }
+  // The selector otherwise keeps the list of the provider the tab started with.
+  tab.ui.mcpServerSelector?.setMcpManager(mcpManager);
   tab.ui.mcpServerSelector?.setVisible(capabilities.supportsMcpTools);
   tab.ui.permissionToggle?.setVisible(hasPermissionToggle);
   tab.ui.fileContextManager?.setMcpManager(mcpManager);
@@ -588,6 +598,8 @@ function applyProviderUIGating(tab: TabData, plugin: ClaudianPlugin): void {
     tab.ui.multiAgentButton.classList.toggle('claudian-hidden', !capabilities.supportsMultiAgent);
   }
   tab.ui.contextUsageMeter?.update(tab.state.usage);
+  tab.ui.contextPressure?.invalidateCompactCommand();
+  tab.ui.contextPressure?.refresh();
 }
 
 function syncTabProviderServices(
@@ -631,20 +643,98 @@ function goalLoopLabel(tab: TabData, plugin: ClaudianPlugin): string | undefined
 export function applyTabGoal(tab: TabData, plugin: ClaudianPlugin, goal: string | null): void {
   const trimmed = (goal ?? '').trim() || null;
   tab.goal = trimmed;
+  // Set this way, the goal belongs to Claudian's loop, not to a provider.
+  tab.goalProviderId = null;
+  tab.nativeGoal = null;
 
-  if (tab.ui.goalBanner) {
-    if (trimmed) {
-      tab.ui.goalBanner.setGoal(trimmed, goalProviderLabel(tab, plugin), goalLoopLabel(tab, plugin));
-    } else {
-      tab.ui.goalBanner.clear();
-    }
+  persistTabGoal(tab, plugin);
+  syncTabGoalBanner(tab, plugin);
+}
+
+/** A goal the provider's own goal system now works on (core/conversation/nativeGoal). */
+export function applyTabNativeGoal(tab: TabData, plugin: ClaudianPlugin, objective: string, providerId: ProviderId): void {
+  const goal = objective.trim();
+  if (!goal) return;
+  tab.goal = goal;
+  tab.goalProviderId = providerId;
+  tab.nativeGoal = { objective: goal, status: 'active', round: 1 };
+  persistTabGoal(tab, plugin);
+  syncTabGoalBanner(tab, plugin);
+}
+
+/**
+ * The provider reported its goal's state. A goal it started on its own (Codex
+ * lets the model create one) is adopted; null means it ended the goal.
+ */
+export function updateTabNativeGoal(tab: TabData, plugin: ClaudianPlugin, goal: NativeGoalState | null): void {
+  const providerId = getTabProviderId(tab, plugin);
+  if (!goal) {
+    if (tab.goalProviderId === providerId) applyTabGoal(tab, plugin, null);
+    return;
   }
+  tab.goal = goal.objective || tab.goal || null;
+  tab.goalProviderId = providerId;
+  tab.nativeGoal = goal;
+  persistTabGoal(tab, plugin);
+  syncTabGoalBanner(tab, plugin);
+}
 
+/** Writes a goal set in a blank tab onto the conversation that tab just became. */
+export function adoptTabGoalIntoConversation(tab: TabData, plugin: ClaudianPlugin): void {
+  if (!tab.goal || !tab.conversationId) return;
+  if (plugin.getConversationSync(tab.conversationId)?.goal) return;
+  persistTabGoal(tab, plugin);
+}
+
+/** The tab left its conversation (new chat, another chat): that chat's goal stays behind. */
+export function resetTabGoalMirror(tab: TabData, plugin: ClaudianPlugin): void {
+  tab.goal = null;
+  tab.goalProviderId = null;
+  tab.nativeGoal = null;
+  syncTabGoalBanner(tab, plugin);
+}
+
+interface TabGoalSource {
+  goal: string | null;
+  goalProviderId: ProviderId | null;
+  nativeGoal: NativeGoalState | null;
+}
+
+/**
+ * The goal that applies to this tab. A bound tab reads only its conversation,
+ * so a copy left on the tab by another chat can never carry over; the tab's
+ * own copy counts only while the tab is blank.
+ */
+export function readTabGoal(tab: TabData, plugin: ClaudianPlugin): TabGoalSource {
   if (tab.conversationId) {
-    void plugin.updateConversation(tab.conversationId, { goal: trimmed }).catch(() => {
-      // Best-effort persistence — the in-memory goal still drives this session.
-    });
+    const conversation = plugin.getConversationSync(tab.conversationId);
+    return {
+      goal: conversation?.goal ?? null,
+      goalProviderId: conversation?.goalProviderId ?? null,
+      nativeGoal: conversation?.nativeGoal ?? null,
+    };
   }
+  return { goal: tab.goal ?? null, goalProviderId: tab.goalProviderId ?? null, nativeGoal: tab.nativeGoal ?? null };
+}
+
+function persistTabGoal(tab: TabData, plugin: ClaudianPlugin): void {
+  if (!tab.conversationId) return;
+  const updates = {
+    goal: tab.goal ?? null,
+    goalProviderId: tab.goal ? (tab.goalProviderId ?? null) : null,
+    nativeGoal: tab.goal ? (tab.nativeGoal ?? null) : null,
+  };
+  // In memory right away: readers (banner, the send path) must not see the old goal.
+  const conversation = plugin.getConversationSync(tab.conversationId);
+  if (conversation) Object.assign(conversation, updates);
+  void plugin.updateConversation(tab.conversationId, updates).catch(() => {
+    // Best-effort persistence — the in-memory goal still drives this session.
+  });
+}
+
+/** Whether the provider this tab runs on owns the goal right now. */
+function isTabGoalProviderOwned(tab: TabData, plugin: ClaudianPlugin): boolean {
+  return isGoalOwnedByProvider(readTabGoal(tab, plugin), getTabProviderId(tab, plugin));
 }
 
 /** Refreshes the goal banner from the bound conversation (or the in-memory mirror). */
@@ -652,17 +742,27 @@ function syncTabGoalBanner(tab: TabData, plugin: ClaudianPlugin): void {
   const banner = tab.ui.goalBanner;
   if (!banner) return;
 
-  const persisted = tab.conversationId
-    ? plugin.getConversationSync(tab.conversationId)?.goal ?? null
-    : null;
-  const goal = persisted ?? tab.goal ?? null;
+  const source = readTabGoal(tab, plugin);
+  const goal = source.goal;
   tab.goal = goal;
+  tab.goalProviderId = source.goalProviderId;
+  tab.nativeGoal = source.nativeGoal;
 
-  if (goal) {
-    banner.setGoal(goal, goalProviderLabel(tab, plugin), goalLoopLabel(tab, plugin));
-    banner.setPaused(plugin.goalLoopPaused === true);
-  } else {
+  if (!goal) {
     banner.clear();
+    return;
+  }
+  // Names who works the goal: the provider itself ("nativ", set below) or Claudian's loop.
+  banner.setGoal(goal, goalProviderLabel(tab, plugin), goalLoopLabel(tab, plugin) ?? 'Claudian-Loop');
+  const providerId = getTabProviderId(tab, plugin);
+  if (isGoalOwnedByProvider({ goal, goalProviderId: tab.goalProviderId }, providerId)) {
+    banner.setNative(
+      tab.nativeGoal ?? { objective: goal, status: 'active' },
+      ProviderRegistry.getProviderRegistrationSafe(providerId)?.capabilities.nativeGoal ?? null,
+    );
+  } else {
+    banner.setNative(null, null);
+    banner.setPaused(plugin.goalLoopPaused === true);
   }
 }
 
@@ -723,7 +823,7 @@ async function switchBoundTabProvider(
     messages: tab.state.messages,
     contextWindowTokens: targetContextWindow,
     coveredThroughMessageId: handoff.coveredThroughMessageId,
-    goal: conversation?.goal ?? tab.goal ?? null,
+    goal: readTabGoal(tab, plugin).goal,
   });
   const nextPendingContextBootstrap = bootstrap || null;
 
@@ -844,6 +944,7 @@ export function createTab(options: TabCreateOptions): TabData {
     tabId,
     onStreamingChanged,
     onAttentionChanged,
+    onAttentionRequested,
     onConversationIdChanged,
   } = options;
 
@@ -861,6 +962,9 @@ export function createTab(options: TabCreateOptions): TabData {
     onStreamingStateChanged: (isStreaming: boolean) => {
       streamStatusBar?.setStreaming(isStreaming);
       tab.ui.composerSend?.sync();
+      // A finished turn may have brought the agent's advertised command list.
+      if (!isStreaming) tab.ui.contextPressure?.invalidateCompactCommand();
+      tab.ui.contextPressure?.refresh();
       if (isStreaming && streamStatusBar && getRunContextLabel) {
         const label = getRunContextLabel();
         if (label) {
@@ -870,6 +974,7 @@ export function createTab(options: TabCreateOptions): TabData {
       onStreamingChanged?.(isStreaming);
     },
     onAttentionChanged: onAttentionChanged,
+    onAttentionRequested,
     onConversationChanged: onConversationIdChanged,
   });
 
@@ -951,6 +1056,7 @@ export function createTab(options: TabCreateOptions): TabData {
       instructionModeManager: null,
       bangBashModeManager: null,
       contextUsageMeter: null,
+      contextPressure: null,
       statusPanel: null,
       navigationSidebar: null,
       chatSearch: null,
@@ -1004,6 +1110,8 @@ function buildTabDOM(contentEl: HTMLElement, plugin?: ClaudianPlugin): TabDOMEle
   const welcomeEl = messagesEl.createDiv({ cls: 'claudian-welcome' });
   const statusPanelContainerEl = contentEl.createDiv({ cls: 'claudian-status-panel-container' });
   const inputContainerEl = contentEl.createDiv({ cls: 'claudian-input-container' });
+  // Above the queue and composer; the live status bar is prepended before it later.
+  const contextPressureHostEl = inputContainerEl.createDiv({ cls: 'claudian-context-pressure-host' });
   const queueIndicatorEl = inputContainerEl.createDiv({ cls: 'claudian-input-queue-row' });
   const navRowEl = inputContainerEl.createDiv({ cls: 'claudian-input-nav-row' });
   const inputWrapper = inputContainerEl.createDiv({ cls: 'claudian-input-wrapper' });
@@ -1031,6 +1139,7 @@ function buildTabDOM(contentEl: HTMLElement, plugin?: ClaudianPlugin): TabDOMEle
     welcomeEl,
     statusPanelContainerEl,
     inputContainerEl,
+    contextPressureHostEl,
     queueIndicatorEl,
     inputWrapper,
     inputEl,
@@ -1334,6 +1443,91 @@ function isBangBashEnabled(settings: Record<string, unknown>): boolean {
 /**
  * Creates and wires the input toolbar for a tab.
  */
+/**
+ * Mounts the context-pressure warning above the composer. It renders only for
+ * this tab's own usage, so a hidden tab never shows or acts on it.
+ */
+function initializeContextPressure(tab: TabData, plugin: ClaudianPlugin): void {
+  const hostEl = tab.dom.contextPressureHostEl;
+  if (!hostEl) return;
+
+  const banner = new ContextPressureBanner(hostEl, {
+    onCompact: () => { void tab.ui.contextPressure?.compact(); },
+    onContinueFresh: () => { void tab.ui.contextPressure?.continueWithLessContext(); },
+    onDismiss: () => tab.ui.contextPressure?.dismiss(),
+  });
+
+  tab.ui.contextPressure = new ContextPressureController({
+    view: banner,
+    getProviderId: () => getTabProviderId(tab, plugin),
+    getCompactSupport: () => getTabCapabilities(tab, plugin).compact,
+    getUsage: () => tab.state.usage,
+    isStreaming: () => tab.state.isStreaming,
+    getConversationId: () => tab.conversationId,
+    loadAdvertisedCommands: async () => {
+      // Only a runtime that is already up may answer; this must never spawn a CLI.
+      const service = tab.service;
+      if (!service || service.providerId !== getTabProviderId(tab, plugin) || !service.isReady()) {
+        return null;
+      }
+      return service.getSupportedCommands();
+    },
+    onCompactCommandChange: (command) => tab.ui.contextUsageMeter?.setCompactCommand(command),
+    sendCompact: async (command) => {
+      // A bare command: no current note or selection may trail it, or agents
+      // such as Hermes read the appended context as the compact focus.
+      await tab.controllers.inputController?.sendMessage({
+        content: command,
+        turnRequestOverride: { text: command },
+      });
+    },
+    continueWithLessContext: () => startTabCondensedSession(tab, plugin),
+    notifyError: (message) => {
+      new Notice(t('chat.contextPressure.freshSessionFailed', { error: message }));
+    },
+  });
+}
+
+async function startTabCondensedSession(tab: TabData, plugin: ClaudianPlugin): Promise<void> {
+  await startCondensedSession({
+    isStreaming: () => tab.state.isStreaming,
+    getConversationId: () => tab.conversationId,
+    getProviderId: () => getTabProviderId(tab, plugin),
+    getMessages: () => tab.state.messages,
+    setMessages: (messages) => { tab.state.messages = messages; },
+    getGoal: () => readTabGoal(tab, plugin).goal,
+    getContextWindow: () => {
+      const window = tab.state.usage?.contextWindow;
+      return window && window > 0 ? window : undefined;
+    },
+    createSummaryRunner: () => ProviderRegistry.createAuxQueryRunner(plugin, getTabProviderId(tab, plugin)),
+    recordAuxiliaryUsage: (record) => plugin.recordAuxiliaryUsage(record),
+    releaseRuntime: () => {
+      if (tab.service) cleanupTabRuntime(tab);
+    },
+    persist: async (updates) => {
+      // A provider-owned goal lived in the session that is dropped now. It
+      // continues under Claudian's loop; `/goal` hands it back to the provider.
+      const handOver = isTabGoalProviderOwned(tab, plugin);
+      if (handOver) {
+        tab.goalProviderId = null;
+        tab.nativeGoal = null;
+      }
+      if (tab.conversationId) {
+        await plugin.updateConversation(tab.conversationId, {
+          ...updates,
+          ...(handOver ? { goalProviderId: null, nativeGoal: null } : {}),
+        });
+      }
+      if (handOver) syncTabGoalBanner(tab, plugin);
+    },
+    setPendingBootstrap: (carry) => { tab.pendingContextBootstrap = carry; },
+    clearUsage: () => { tab.state.usage = null; },
+    renderBoundary: () => { tab.renderer?.renderSessionBoundary(); },
+    notify: (message) => { new Notice(message); },
+  });
+}
+
 function initializeInputToolbar(
   tab: TabData,
   plugin: ClaudianPlugin,
@@ -1736,7 +1930,15 @@ export function initializeTabUI(
   // Active-goal banner: provider-agnostic standing objective set via /goal.
   tab.ui.goalBanner = new GoalBanner({
     mountEl: dom.goalBannerHostEl,
-    onClear: () => applyTabGoal(tab, plugin, null),
+    // Through the command path: a provider-owned goal must end inside the provider too.
+    onClear: () => {
+      const input = tab.controllers.inputController;
+      if (input) void input.runGoalCommand('clear');
+      else applyTabGoal(tab, plugin, null);
+    },
+    onNativeTogglePause: (paused) => {
+      void tab.controllers.inputController?.runGoalCommand(paused ? 'pause' : 'resume');
+    },
     onDone: () => {
       applyTabGoal(tab, plugin, null);
       new Notice('🎯 Goal als erreicht markiert.');
@@ -1798,31 +2000,18 @@ export function initializeTabUI(
       dom.messagesEl.parentElement,
       dom.messagesEl,
     );
-    const searchKeyHandler = (event: KeyboardEvent) => {
-      if (
-        (event.metaKey || event.ctrlKey) &&
-        !event.altKey &&
-        !event.shiftKey &&
-        event.key.toLowerCase() === 'f'
-      ) {
-        event.preventDefault();
-        event.stopPropagation();
-        tab.ui.chatSearch?.open();
-      }
-    };
-    dom.contentEl.addEventListener('keydown', searchKeyHandler, true);
-    dom.eventCleanups.push(() =>
-      dom.contentEl.removeEventListener('keydown', searchKeyHandler, true),
-    );
+    dom.eventCleanups.push(bindChatSearchShortcut(dom.contentEl, () => tab.ui.chatSearch?.open()));
   }
 
   initializeInstructionAndTodo(tab, plugin);
   initializeInputToolbar(tab, plugin, options.getProviderCatalogConfig, options.onProviderChanged);
+  initializeContextPressure(tab, plugin);
 
   state.callbacks = {
     ...state.callbacks,
     onUsageChanged: (usage) => {
       tab.ui.contextUsageMeter?.update(usage);
+      tab.ui.contextPressure?.refresh();
       // The status bar shows the visible tab only; a background stream must not
       // recompute it on every usage report.
       if (!tab.dom.contentEl.hasClass('claudian-hidden')) {
@@ -2054,35 +2243,15 @@ export function initializeTabControllers(
     plugin,
     component,
     dom.messagesEl,
-    (id, mode) => tab.controllers.conversationController!.rewind(id, mode),
+    async (id, mode) => { await tab.controllers.conversationController!.rewind(id, mode); },
     forkRequestCallback
       ? (id) => handleForkRequest(tab, plugin, id, forkRequestCallback)
       : undefined,
     () => getTabCapabilities(tab, plugin),
     () => tab.ui.modelSelector?.openPicker(),
-    // "Erneut generieren": re-send the user prompt that preceded this answer
-    // as a NEW turn through the normal send path (context stays intact).
+    // "Erneut generieren" / "Erneut versuchen" (see regenerateAnswer.ts).
     (assistantMsg) => {
-      if (tab.state.isStreaming) {
-        new Notice('Es läuft bereits eine Antwort — bitte warten oder abbrechen.');
-        return;
-      }
-      const messages = (tab.conversationId
-        ? plugin.getConversationSync(tab.conversationId)?.messages
-        : null) ?? [];
-      const index = messages.findIndex((message) => message.id === assistantMsg.id);
-      const pool = index >= 0 ? messages.slice(0, index) : messages;
-      const lastUser = [...pool]
-        .reverse()
-        .find((message) => message.role === 'user' && !message.isInterrupt && !message.isRebuiltContext);
-      const prompt = (lastUser?.displayContent ?? lastUser?.content ?? '').trim();
-      if (!prompt) {
-        new Notice('Kein Prompt zum erneuten Ausführen gefunden.');
-        return;
-      }
-      dom.inputEl.value = prompt;
-      dom.inputEl.dispatchEvent(new Event('input', { bubbles: true }));
-      void tab.controllers.inputController?.sendMessage();
+      void regenerateTabAnswer(tab, plugin, assistantMsg.id);
     },
   );
   tab.renderer.setDockHandler?.((target) => {
@@ -2133,6 +2302,7 @@ export function initializeTabControllers(
     getFileContextManager: () => ui.fileContextManager,
     updateQueueIndicator: () => tab.controllers.inputController?.updateQueueIndicator(),
     getAgentService: () => tab.service,
+    onNativeGoalUpdate: (goal) => updateTabNativeGoal(tab, plugin, goal),
     updateLiveActivity: ({ primary, meta, phrase }) => {
       if (phrase) {
         tab.ui.streamStatusBar?.setPhrase(phrase);
@@ -2232,6 +2402,7 @@ export function initializeTabControllers(
         tab.routedModel = null;
         tab.conversationId = null;
         tab.pendingContextBootstrap = null;
+        resetTabGoalMirror(tab, plugin);
         tab.providerId = getTabProviderId(tab, plugin);
         if (tab.providerId !== previousProviderId) {
           syncTabProviderServices(tab, plugin);
@@ -2346,11 +2517,22 @@ export function initializeTabControllers(
         throw error;
       }
     },
-    getActiveGoal: () => (tab.conversationId
-      ? plugin.getConversationSync(tab.conversationId)?.goal ?? tab.goal ?? null
-      : tab.goal ?? null),
+    getActiveGoal: () => {
+      const source = readTabGoal(tab, plugin);
+      // A goal its provider reported complete is done; it must not start Claudian's loop.
+      if (source.nativeGoal?.status === 'complete') return null;
+      return source.goal;
+    },
     setActiveGoal: (goal: string | null) => applyTabGoal(tab, plugin, goal),
     refreshGoalBanner: () => syncTabGoalBanner(tab, plugin),
+    setNativeGoal: (objective, providerId) => applyTabNativeGoal(tab, plugin, objective, providerId),
+    updateNativeGoal: (goal) => updateTabNativeGoal(tab, plugin, goal),
+    isGoalProviderOwned: () => isTabGoalProviderOwned(tab, plugin),
+    onGoalInterrupted: () => {
+      if (tab.nativeGoal?.status === 'active' && isTabGoalProviderOwned(tab, plugin)) {
+        updateTabNativeGoal(tab, plugin, { ...tab.nativeGoal, status: 'paused' });
+      }
+    },
     ensureServiceInitialized: async () => {
       if (tab.serviceInitialized && tab.lifecycleState === 'bound_active') {
         // The runtime object already exists, but its provider process may still
@@ -2837,8 +3019,9 @@ function isVisibleAutoTurnChunk(chunk: StreamChunk, hiddenToolIds: Set<string>):
   switch (chunk.type) {
     case 'text':
       return chunk.content.trim().length > 0;
-    case 'thinking':
     case 'notice':
+      return !chunk.transient;
+    case 'thinking':
     case 'error':
     case 'tool_output':
     case 'context_compacted':
@@ -2949,6 +3132,9 @@ async function renderAutoTriggeredTurn(tab: TabData, plugin: ClaudianPlugin, res
     if (hasVisibleContent) {
       await tab.controllers.streamController?.finalizeCurrentThinkingBlock(assistantMsg);
       await tab.controllers.streamController?.finalizeCurrentTextBlock(assistantMsg);
+      // A background agent answered without a running turn; for a hidden tab
+      // that is as much news as a finished stream.
+      if (hasVisibleAutoTurnMessageContent(assistantMsg)) tab.state.requestAttention('finished');
     }
   } finally {
     if (hasVisibleContent) {

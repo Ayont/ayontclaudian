@@ -1,5 +1,6 @@
 import { setIcon } from 'obsidian';
 
+import { matchesChatKeyBinding } from './chatKeyBindings';
 import { findTextMatches, wrapIndex } from './chatSearchMatching';
 
 const SEARCH_DEBOUNCE_MS = 120;
@@ -21,6 +22,21 @@ function getHighlightApi(): { registry: HighlightRegistryLike; Highlight: Highli
   const registry = globals.CSS?.highlights;
   const ctor = globals.Highlight;
   return registry && ctor ? { registry, Highlight: ctor } : null;
+}
+
+/**
+ * Cmd/Ctrl+F inside one tab opens that tab's search. Captured so the key never
+ * reaches Obsidian's editor search while focus is in the chat.
+ */
+export function bindChatSearchShortcut(scopeEl: HTMLElement, open: () => void): () => void {
+  const handler = (event: KeyboardEvent): void => {
+    if (!matchesChatKeyBinding(event, 'search')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    open();
+  };
+  scopeEl.addEventListener('keydown', handler, true);
+  return () => scopeEl.removeEventListener('keydown', handler, true);
 }
 
 /**

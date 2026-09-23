@@ -147,6 +147,40 @@ describe('buildRateLimitChips', () => {
     });
   });
 
+  describe('live native windows reported by a runtime', () => {
+    const estimate: ClaudeWindowsInput = {
+      fiveHour: { tokens: 500000, resetAt: NOW + 90 * 60000 },
+      weekly: { tokens: 4200000 },
+    };
+    const nowSec = NOW / 1000;
+
+    it('replaces the token-sum estimate for the window the provider reported', () => {
+      const chips = buildRateLimitChips({
+        codex: null,
+        claude: estimate,
+        native: { claude: { windows: [{ usedPercent: 41.6, windowMinutes: 300, resetsAtEpochSec: nowSec + 2 * 3600 }] } },
+        trackerWindows: [],
+        activeProviderId: 'claude',
+        now: NOW,
+      });
+      expect(chips).toEqual([
+        { providerId: 'claude', label: '5h', percent: 42, resetIn: '2h' },
+        { providerId: 'claude', label: '7T', percent: null, tokensUsed: 4200000, resetIn: '' },
+      ]);
+    });
+
+    it('drops a native window once its reset has passed instead of showing a stale percent', () => {
+      const chips = buildRateLimitChips({
+        codex: null,
+        claude: estimate,
+        native: { claude: { windows: [{ usedPercent: 97, windowMinutes: 300, resetsAtEpochSec: nowSec - 60 }] } },
+        trackerWindows: [],
+        now: NOW,
+      });
+      expect(chips.map((chip) => [chip.label, chip.percent])).toEqual([['5h', null], ['7T', null]]);
+    });
+  });
+
   it('computes percent when a budget is configured', () => {
     const claude: ClaudeWindowsInput = {
       fiveHour: { tokens: 250000, resetAt: NOW + 60000 },

@@ -9,6 +9,10 @@ export interface CollapsibleOptions {
   onToggle?: (isExpanded: boolean) => void;
   /** Base label for aria-label (will append "click to expand/collapse") */
   baseAriaLabel?: string;
+  /** Full aria-label per state; wins over `baseAriaLabel` (e.g. German copy). */
+  getAriaLabel?: (isExpanded: boolean) => string;
+  /** Class that hides the content; a surface that animates its height swaps out `claudian-hidden`. */
+  hiddenClass?: string;
 }
 
 /**
@@ -34,11 +38,14 @@ export function setupCollapsible(
   state: CollapsibleState,
   options: CollapsibleOptions = {}
 ): void {
-  const { initiallyExpanded = false, onToggle, baseAriaLabel } = options;
+  const { initiallyExpanded = false, onToggle, baseAriaLabel, getAriaLabel } = options;
+  const hiddenClass = options.hiddenClass ?? 'claudian-hidden';
 
   // Helper to update aria-label based on expanded state
   const updateAriaLabel = (isExpanded: boolean) => {
-    if (baseAriaLabel) {
+    if (getAriaLabel) {
+      headerEl.setAttribute('aria-label', getAriaLabel(isExpanded));
+    } else if (baseAriaLabel) {
       const action = isExpanded ? 'click to collapse' : 'click to expand';
       headerEl.setAttribute('aria-label', `${baseAriaLabel} - ${action}`);
     }
@@ -48,10 +55,10 @@ export function setupCollapsible(
   state.isExpanded = initiallyExpanded;
   if (initiallyExpanded) {
     wrapperEl.addClass('expanded');
-    contentEl.removeClass('claudian-hidden');
+    contentEl.removeClass(hiddenClass);
     headerEl.setAttribute('aria-expanded', 'true');
   } else {
-    contentEl.addClass('claudian-hidden');
+    contentEl.addClass(hiddenClass);
     headerEl.setAttribute('aria-expanded', 'false');
   }
   updateAriaLabel(initiallyExpanded);
@@ -61,11 +68,11 @@ export function setupCollapsible(
     state.isExpanded = !state.isExpanded;
     if (state.isExpanded) {
       wrapperEl.addClass('expanded');
-      contentEl.removeClass('claudian-hidden');
+      contentEl.removeClass(hiddenClass);
       headerEl.setAttribute('aria-expanded', 'true');
     } else {
       wrapperEl.removeClass('expanded');
-      contentEl.addClass('claudian-hidden');
+      contentEl.addClass(hiddenClass);
       headerEl.setAttribute('aria-expanded', 'false');
     }
     updateAriaLabel(state.isExpanded);

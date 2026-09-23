@@ -34,7 +34,7 @@ JSONL remains the provider-owned replay source for history hydration and session
 
 ### Thread Resume Requirement
 
-The app-server requires `thread/resume` before any operation on an existing thread in a new daemon process. `loadedThreadId` tracks which thread has been resumed in the current daemon session. If the process is killed and restarted, the next query will resume the thread first. For forks, `thread/resume` must be called on the **new fork** (not the source) before `thread/rollback`.
+The app-server requires `thread/resume` before any operation on an existing thread in a new daemon process. `loadedThreadId` tracks which thread has been resumed in the current daemon session. If the process is killed and restarted, the next query will resume the thread first. For forks, `thread/fork` receives `lastTurnId` (inclusive) so the app-server truncates the fork itself — codex 0.156 has no `thread/rollback` — and `thread/resume` is then called on the **new fork** (not the source) before `turn/start`.
 
 ### Pending Turn Notification Buffering
 

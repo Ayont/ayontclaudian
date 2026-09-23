@@ -178,3 +178,72 @@
   max-height: 220px;
   overflow-y: auto;
 }
+
+/* Retry ------------------------------------------------------------------
+   The card's one action. It carries the card's own severity hue, so an error
+   retry never borrows the provider accent. */
+
+.claudian-status-card-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: auto;
+  min-height: 28px;
+  margin-top: var(--cl-space-3);
+  padding: 4px var(--cl-space-3);
+  border: 1px solid rgba(var(--cl-status-rgb), 0.38);
+  border-radius: var(--cl-radius-pill);
+  background: rgba(var(--cl-status-rgb), 0.08);
+  box-shadow: none;
+  color: var(--cl-status-accent);
+  font-family: var(--cl-font-ui);
+  font-size: var(--cl-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--cl-dur-fast) var(--cl-ease),
+    border-color var(--cl-dur-fast) var(--cl-ease),
+    transform var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-status-card-retry-icon {
+  display: flex;
+  align-items: center;
+}
+
+.claudian-status-card-retry-icon svg {
+  width: 13px;
+  height: 13px;
+  transition: transform var(--cl-dur) var(--cl-ease-out);
+}
+
+.claudian-status-card-retry:hover {
+  border-color: rgba(var(--cl-status-rgb), 0.6);
+  background: rgba(var(--cl-status-rgb), 0.16);
+}
+
+/* A quarter turn backwards names the action before the click lands. */
+.claudian-status-card-retry:hover .claudian-status-card-retry-icon svg {
+  transform: rotate(-90deg);
+}
+
+.claudian-status-card-retry:active {
+  transform: scale(0.97);
+}
+
+.claudian-status-card-retry:focus-visible {
+  outline: 2px solid var(--cl-status-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-status-card-retry,
+  .claudian-status-card-retry-icon svg {
+    transition: none;
+  }
+
+  .claudian-status-card-retry:hover .claudian-status-card-retry-icon svg,
+  .claudian-status-card-retry:active {
+    transform: none;
+  }
+}

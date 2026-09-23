@@ -12,7 +12,8 @@ export const CLINE_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Objec
   supportsProviderCommands: true,
   supportsImageAttachments: true,
   supportsInstructionMode: true,
-  supportsMcpTools: true,
+  // The runtime never passes the in-chat MCP selection to `cline`.
+  supportsMcpTools: false,
   supportsMultiAgent: true,
   supportsTurnSteer: false,
   reasoningControl: 'effort',

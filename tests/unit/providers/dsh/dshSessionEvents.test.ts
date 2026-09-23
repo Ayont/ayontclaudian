@@ -190,6 +190,42 @@ describe('projectDshRecord', () => {
     expect((projectDshRecord(read, 0)?.chunks[0] as { input: Record<string, unknown> }).input)
       .toEqual({ file_path: 'notes/a.md', path: 'notes/a.md' });
   });
+
+  // Verbatim shape from a real dsh transcript: `{content, status}` with no activeForm.
+  const TODO_DISPATCH = JSON.stringify({
+    type: 'tool/code-dispatch-start', seq: 1964,
+    data: {
+      subCallId: 'f01e:code:2',
+      name: 'todo_write',
+      arguments: { todos: [
+        { content: 'Recon: dsh-headless real verifizieren', status: 'in_progress' },
+        { content: 'Parser-Tests schreiben', status: 'pending' },
+      ] },
+    },
+  });
+
+  it('normalizes the todo_write dispatch into canonical todos', () => {
+    expect(projectDshRecord(TODO_DISPATCH, 0)?.chunks).toEqual([{
+      id: 'f01e:code:2',
+      input: { todos: [
+        { activeForm: 'Recon: dsh-headless real verifizieren', content: 'Recon: dsh-headless real verifizieren', status: 'in_progress' },
+        { activeForm: 'Parser-Tests schreiben', content: 'Parser-Tests schreiben', status: 'pending' },
+      ] },
+      name: 'TodoWrite',
+      type: 'tool_use',
+    }]);
+  });
+
+  it('does not project the todo/write mirror record a second time', () => {
+    // dsh writes `todo/write` right after every `todo_write` dispatch (51 of 51
+    // in real transcripts); projecting both would show every list twice.
+    const mirror = JSON.stringify({
+      type: 'todo/write', seq: 1965,
+      data: { todos: [{ content: 'Recon', status: 'in_progress' }] },
+    });
+
+    expect(projectDshRecord(mirror, 0)?.chunks).toEqual([]);
+  });
 });
 
 describe('projectDshTranscript', () => {

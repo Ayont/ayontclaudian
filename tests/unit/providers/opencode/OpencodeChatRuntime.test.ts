@@ -1,5 +1,9 @@
+import { attachPlanTestTurn, planNotification, todoToolUses } from '@test/helpers/acpPlanTurn';
+
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '@/core/providers/ProviderSettingsCoordinator';
+import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceRegistry';
+import { parseTodoInput } from '@/core/tools/todo';
 import type { StreamChunk } from '@/core/types';
 import {
   OPENCODE_BUILD_MODE_ID,
@@ -31,6 +35,36 @@ function createMockPlugin(overrides: Record<string, unknown> = {}): any {
 describe('OpencodeChatRuntime', () => {
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  // opencode 1.18.32 answers `initialize` with mcpCapabilities { http, sse }.
+  it('hands Claudian MCP servers to session/new and session/load over the advertised transports', async () => {
+    jest.spyOn(ProviderWorkspaceRegistry, 'getMcpServerManager').mockReturnValue({
+      getServers: () => [
+        { name: 'files', config: { command: 'npx', args: ['fs'] }, enabled: true, contextSaving: false },
+        { name: 'docs', config: { type: 'http', url: 'https://mcp.example' }, enabled: true, contextSaving: false },
+      ],
+    } as never);
+    const plugin = createMockPlugin({ settings: { providerConfigs: { opencode: { enabled: true } } } });
+    const runtime = new OpencodeChatRuntime(plugin);
+    jest.spyOn(ProviderRegistry, 'resolveSettingsProviderId').mockReturnValue('opencode');
+    jest.spyOn(ProviderSettingsCoordinator, 'getProviderSettingsSnapshot').mockReturnValue(plugin.settings);
+    const connection = {
+      negotiatedAgentCapabilities: { mcpCapabilities: { http: true, sse: true } },
+      newSession: jest.fn().mockResolvedValue({ sessionId: 'session-new' }),
+      loadSession: jest.fn().mockResolvedValue({ sessionId: 'session-new' }),
+    };
+    (runtime as any).connection = connection;
+
+    await (runtime as any).createSession('/vault');
+    await (runtime as any).loadSession('session-new', '/vault');
+
+    const expected = [
+      { name: 'files', command: 'npx', args: ['fs'], env: [] },
+      { type: 'http', name: 'docs', url: 'https://mcp.example', headers: [] },
+    ];
+    expect(connection.newSession).toHaveBeenCalledWith({ cwd: '/vault', mcpServers: expected });
+    expect(connection.loadSession).toHaveBeenCalledWith({ cwd: '/vault', mcpServers: expected, sessionId: 'session-new' });
   });
 
   it('normalizes live cumulative usage as a snapshot and prompt usage as the final turn report', async () => {
@@ -853,5 +887,48 @@ describe('OpencodeChatRuntime', () => {
     jest.spyOn(ProviderSettingsCoordinator, 'getProviderSettingsSnapshot').mockReturnValue(plugin.settings);
 
     expect(runtime.getAuxiliaryModel()).toBe('opencode:anthropic/claude-sonnet-4');
+  });
+
+  describe('ACP plan updates', () => {
+    it('shows the plan as one TodoWrite card that later updates refresh', async () => {
+      const runtime = new OpencodeChatRuntime(createMockPlugin());
+      const turn = attachPlanTestTurn(runtime);
+
+      await (runtime as any).handleSessionNotification(planNotification([
+        { content: 'Recon', status: 'in_progress' },
+        { content: 'Build', status: 'pending' },
+      ]));
+      await (runtime as any).handleSessionNotification(planNotification([
+        { content: 'Recon', status: 'completed' },
+        { content: 'Build', status: 'in_progress' },
+      ]));
+
+      const uses = todoToolUses(turn.chunks());
+      expect(uses).toHaveLength(2);
+      expect(uses[1].id).toBe(uses[0].id);
+      expect(parseTodoInput(uses[1].input)?.map((todo) => todo.status)).toEqual(['completed', 'in_progress']);
+      expect(turn.chunks().filter((chunk) => chunk.type === 'tool_result')).toHaveLength(2);
+    });
+
+    it('fills the todowrite card the agent opened instead of adding a second one', async () => {
+      const runtime = new OpencodeChatRuntime(createMockPlugin());
+      const turn = attachPlanTestTurn(runtime);
+
+      await (runtime as any).handleSessionNotification({
+        sessionId: 'sess-1',
+        update: {
+          kind: 'other',
+          rawInput: { todos: [{ content: 'Recon', status: 'in_progress' }] },
+          sessionUpdate: 'tool_call',
+          status: 'pending',
+          title: 'todowrite',
+          toolCallId: 'tool-todo-1',
+        },
+      });
+      await (runtime as any).handleSessionNotification(planNotification([{ content: 'Recon', status: 'completed' }]));
+
+      const ids = todoToolUses(turn.chunks()).map((chunk) => chunk.id);
+      expect(ids).toEqual(['tool-todo-1', 'tool-todo-1']);
+    });
   });
 });

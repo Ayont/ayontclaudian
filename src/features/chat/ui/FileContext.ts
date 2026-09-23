@@ -253,6 +253,34 @@ export class FileContextManager {
     return chunks.join('');
   }
 
+  /**
+   * Attaches a vault file or folder from outside the composer (file explorer
+   * menu) exactly as picking it from the @ dropdown would: a `@path` mention
+   * in the draft, plus the attached-file entry the relay transports rely on.
+   * The mention is appended, not inserted at a stale cursor, and never added
+   * twice. Returns false for the vault root or a path outside the vault.
+   */
+  attachVaultPath(rawPath: string, kind: 'file' | 'folder' = 'file'): boolean {
+    const normalized = this.normalizePathForVault(rawPath)?.replace(/\/+$/, '');
+    if (!normalized || /^(?:\/|[A-Za-z]:[\\/])/.test(normalized)) return false;
+
+    const mention = kind === 'folder' ? `@${normalized}/` : `@${normalized}`;
+    if (kind === 'file') this.state.attachFile(normalized);
+
+    const draft = this.inputEl.value;
+    const alreadyMentioned = draft.split(/\s+/).includes(mention);
+    if (!alreadyMentioned) {
+      const separator = draft && !/\s$/.test(draft) ? ' ' : '';
+      this.inputEl.value = `${draft}${separator}${mention} `;
+      const end = this.inputEl.value.length;
+      this.inputEl.selectionStart = end;
+      this.inputEl.selectionEnd = end;
+      // Resize, draft autosave and the mention state all listen for input.
+      this.inputEl.dispatchEvent?.(new Event('input', { bubbles: true }));
+    }
+    return true;
+  }
+
   /** Cleans up event listeners (call on view close). */
   destroy() {
     if (this.deleteEventRef) this.app.vault.offref(this.deleteEventRef);

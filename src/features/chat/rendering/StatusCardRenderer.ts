@@ -25,7 +25,16 @@ function applyAriaSemantics(card: HTMLElement, severity: StatusSeverity): void {
   card.setAttribute('aria-live', 'polite');
 }
 
-export function renderStatusCard(parent: HTMLElement, classified: ClassifiedError): HTMLElement {
+export interface StatusCardOptions {
+  /** Offered only on retryable errors; limits and notices are not fixed by a retry. */
+  onRetry?: () => void;
+}
+
+export function renderStatusCard(
+  parent: HTMLElement,
+  classified: ClassifiedError,
+  options: StatusCardOptions = {},
+): HTMLElement {
   const labels = statusCardLabels();
 
   const card = parent.createDiv({
@@ -55,6 +64,20 @@ export function renderStatusCard(parent: HTMLElement, classified: ClassifiedErro
     const hintIcon = hint.createSpan({ cls: 'claudian-status-card-hint-icon' });
     setIcon(hintIcon, 'lightbulb');
     hint.createSpan({ cls: 'claudian-status-card-hint-text', text: classified.hint });
+  }
+
+  const onRetry = options.onRetry;
+  if (classified.retryable && onRetry) {
+    const retry = card.createEl('button', {
+      cls: 'claudian-status-card-retry',
+      attr: { type: 'button' },
+    });
+    setIcon(retry.createSpan({ cls: 'claudian-status-card-retry-icon' }), 'rotate-ccw');
+    retry.createSpan({ cls: 'claudian-status-card-retry-label', text: 'Erneut versuchen' });
+    retry.addEventListener('click', (event) => {
+      event.stopPropagation();
+      onRetry();
+    });
   }
 
   // Keep the cryptic original available without letting it dominate. Skip when

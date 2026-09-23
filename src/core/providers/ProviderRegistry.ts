@@ -4,6 +4,7 @@ import {
   withInstructionRefineUsage,
   withTitleGenerationUsage,
 } from '../auxiliary/AuxiliaryUsageAccounting';
+import type { AuxQueryRunner } from '../auxiliary/AuxQueryRunner';
 import { withGoalLoop } from '../conversation/goalLoopRuntime';
 import { AUTO_MODEL_VALUE } from '../routing/modelRouterRules';
 import type { ChatRuntime } from '../runtime/ChatRuntime';
@@ -128,6 +129,24 @@ export class ProviderRegistry {
       plugin,
       providerId,
     });
+  }
+
+  /**
+   * Session-isolated runner for one hidden call on the provider's current chat
+   * model. The caller books the usage (see AuxiliaryUsageAccounting).
+   */
+  static createAuxQueryRunner(
+    plugin: ClaudianPlugin,
+    providerId: ProviderId,
+  ): { runner: AuxQueryRunner; model: string | undefined } | null {
+    const factory = this.getProviderRegistration(providerId).createAuxQueryRunner;
+    if (!factory) {
+      return null;
+    }
+    return {
+      runner: factory(plugin),
+      model: this.resolveAuxiliaryModel(plugin, providerId, false),
+    };
   }
 
   static getConversationHistoryService(

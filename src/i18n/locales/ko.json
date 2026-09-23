@@ -67,6 +67,33 @@
       "expandOutput": "명령 출력 펼치기",
       "running": "실행 중...",
       "copyFailed": "클립보드에 복사하지 못했습니다"
+    },
+    "contextPressure": {
+      "titleHigh": "컨텍스트가 차오르고 있습니다",
+      "titleCritical": "컨텍스트가 거의 가득 찼습니다",
+      "percent": "{percent}%",
+      "usage": "{total} 토큰 중 {used} 사용",
+      "usageEstimated": "{total} 토큰 중 약 {used} 사용 (추정)",
+      "bodyHigh": "대화가 컨텍스트 창의 대부분을 차지해 초반의 세부 내용이 사라질 수 있습니다.",
+      "bodyCritical": "다음 긴 답변이 한도를 넘을 수 있습니다. 지금 컨텍스트를 비워 주세요.",
+      "compact": "압축",
+      "compactHint": "제공자가 이 세션의 기록을 그 자리에서 압축합니다 ({command})",
+      "continueFresh": "더 적은 컨텍스트로 계속",
+      "continueFreshHint": "압축된 요약으로 새 세션을 시작합니다. 채팅 기록은 계속 보입니다.",
+      "condensing": "기록을 요약하는 중…",
+      "streamingNote": "현재 답변이 끝나면 사용할 수 있습니다.",
+      "dismiss": "경고 숨기기",
+      "regionLabel": "컨텍스트 사용량 경고",
+      "freshSessionDivider": "압축된 컨텍스트로 새 세션 시작",
+      "freshSessionBusy": "답변이 아직 진행 중입니다. 끝난 뒤 다시 시도하세요.",
+      "freshSessionAborted": "취소됨: 요약하는 동안 대화가 바뀌었습니다.",
+      "freshSessionFailed": "새 세션을 시작하지 못했습니다: {error}",
+      "freshSessionUnsaved": "새 세션을 저장하지 못했습니다: {error}"
+    },
+    "contextMeter": {
+      "estimatedPrefix": "추정 · ",
+      "nearLimitCompact": "한도에 거의 도달 – {command}(으)로 압축",
+      "nearLimit": "한도에 거의 도달 – 더 적은 컨텍스트로 계속"
     }
   },
   "settings": {

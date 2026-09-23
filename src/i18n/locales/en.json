@@ -67,6 +67,33 @@
       "expandOutput": "Expand command output",
       "running": "Running...",
       "copyFailed": "Failed to copy to clipboard"
+    },
+    "contextPressure": {
+      "titleHigh": "Context is filling up",
+      "titleCritical": "Context almost full",
+      "percent": "{percent}%",
+      "usage": "{used} of {total} tokens",
+      "usageEstimated": "≈ {used} of {total} tokens (estimated)",
+      "bodyHigh": "The conversation takes up most of the context window, so early details can get lost.",
+      "bodyCritical": "The next long answer may exceed the limit. Free up context now.",
+      "compact": "Compact",
+      "compactHint": "The provider condenses this session's history in place ({command})",
+      "continueFresh": "Continue with less context",
+      "continueFreshHint": "Starts a new session with a condensed summary. The chat history stays visible.",
+      "condensing": "Condensing history…",
+      "streamingNote": "Available once the current answer has finished.",
+      "dismiss": "Dismiss warning",
+      "regionLabel": "Context usage warning",
+      "freshSessionDivider": "New session with condensed context",
+      "freshSessionBusy": "An answer is still running. Try again once it has finished.",
+      "freshSessionAborted": "Cancelled: the conversation changed while condensing.",
+      "freshSessionFailed": "Could not start a new session: {error}",
+      "freshSessionUnsaved": "The new session could not be saved: {error}"
+    },
+    "contextMeter": {
+      "estimatedPrefix": "Estimated · ",
+      "nearLimitCompact": "Limit nearly reached – condense with {command}",
+      "nearLimit": "Limit nearly reached – continue with less context"
     }
   },
   "settings": {

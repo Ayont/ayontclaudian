@@ -5,6 +5,7 @@ import { ProviderRegistry } from '../../../core/providers/ProviderRegistry';
 import type { TitleGenerationService } from '../../../core/providers/types';
 import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
 import type { ChatRewindMode } from '../../../core/runtime/types';
+import { getRestorableTodos } from '../../../core/tools/todo';
 import type { Conversation, ConversationMeta } from '../../../core/types';
 import { t } from '../../../i18n/i18n';
 import type ClaudianPlugin from '../../../main';
@@ -32,6 +33,7 @@ import {
 import type { ImageContextManager } from '../ui/ImageContext';
 import type { ExternalContextSelector, McpServerSelector } from '../ui/InputToolbar';
 import type { StatusPanel } from '../ui/StatusPanel';
+import { userMessageText } from '../utils/messageText';
 
 function runConversationAction(action: () => Promise<void>, failureMessage: string): void {
   void action().catch(() => {
@@ -316,60 +318,70 @@ export class ConversationController {
     }
   }
 
+  /**
+   * Rewinds the conversation to just before a user message. `silent` is the
+   * regenerate path: the user already chose to replace the answer, and the
+   * prompt is resent directly, so neither a confirm dialog nor the composer
+   * (which may hold an unsent draft) is involved. Resolves true on success.
+   */
   async rewind(
     userMessageId: string,
     mode: ChatRewindMode = 'code-and-conversation',
-  ): Promise<void> {
+    options: { silent?: boolean } = {},
+  ): Promise<boolean> {
     const { plugin, state, renderer } = this.deps;
+    const silent = options.silent === true;
 
     const agentServiceForCheck = this.getAgentService();
     if (agentServiceForCheck && !agentServiceForCheck.getCapabilities().supportsRewind) {
       new Notice(t('chat.rewind.failed', { error: 'Zurücksetzen wird von diesem Anbieter nicht unterstützt.' }));
-      return;
+      return false;
     }
 
     if (state.isStreaming) {
       new Notice(t('chat.rewind.unavailableStreaming'));
-      return;
+      return false;
     }
 
     const msgs = state.messages;
     const userIdx = msgs.findIndex(m => m.id === userMessageId);
     if (userIdx === -1) {
       new Notice(t('chat.rewind.failed', { error: 'Nachricht nicht gefunden' }));
-      return;
+      return false;
     }
     const userMsg = msgs[userIdx];
     if (!userMsg.userMessageId) {
       new Notice(t('chat.rewind.unavailableNoUuid'));
-      return;
+      return false;
     }
 
     const rewindCtx = findRewindContext(msgs, userIdx);
     if (!rewindCtx.hasResponse || !rewindCtx.prevAssistantUuid) {
       new Notice(t('chat.rewind.unavailableNoUuid'));
-      return;
+      return false;
     }
     const prevAssistantUuid = rewindCtx.prevAssistantUuid;
 
-    const confirmed = await confirm(
-      plugin.app,
-      mode === 'conversation'
-        ? t('chat.rewind.confirmMessageConversationOnly')
-        : t('chat.rewind.confirmMessage'),
-      t('chat.rewind.confirmButton')
-    );
-    if (!confirmed) return;
+    if (!silent) {
+      const confirmed = await confirm(
+        plugin.app,
+        mode === 'conversation'
+          ? t('chat.rewind.confirmMessageConversationOnly')
+          : t('chat.rewind.confirmMessage'),
+        t('chat.rewind.confirmButton')
+      );
+      if (!confirmed) return false;
+    }
 
     if (state.isStreaming) {
       new Notice(t('chat.rewind.unavailableStreaming'));
-      return;
+      return false;
     }
 
     const agentService = this.getAgentService();
     if (!agentService) {
       new Notice(t('chat.rewind.failed', { error: 'Agentendienst nicht verfügbar' }));
-      return;
+      return false;
     }
 
     let result;
@@ -377,18 +389,21 @@ export class ConversationController {
       result = await agentService.rewind(userMsg.userMessageId, prevAssistantUuid, mode);
     } catch (e) {
       new Notice(t('chat.rewind.failed', { error: e instanceof Error ? e.message : 'Unbekannter Fehler' }));
-      return;
+      return false;
     }
     if (!result.canRewind) {
       new Notice(t('chat.rewind.cannot', { error: result.error ?? 'Unbekannter Fehler' }));
-      return;
+      return false;
     }
 
     state.truncateAt(userMessageId);
 
-    const inputEl = this.deps.getInputEl();
-    inputEl.value = userMsg.content;
-    inputEl.focus();
+    if (!silent) {
+      // `content` is the transport prompt; resending it would double every envelope.
+      const inputEl = this.deps.getInputEl();
+      inputEl.value = userMessageText(userMsg);
+      inputEl.focus();
+    }
 
     const welcomeEl = renderer.renderMessages(state.messages, () => this.getGreeting());
     this.deps.setWelcomeEl(welcomeEl);
@@ -408,14 +423,17 @@ export class ConversationController {
           ? t('chat.rewind.noticeConversationOnlySaveFailed', { error: saveError })
           : t('chat.rewind.noticeSaveFailed', { count: String(filesChanged), error: saveError })
       );
-      return;
+      return true;
     }
 
-    new Notice(
-      mode === 'conversation'
-        ? t('chat.rewind.noticeConversationOnly')
-        : t('chat.rewind.notice', { count: String(filesChanged) })
-    );
+    if (!silent) {
+      new Notice(
+        mode === 'conversation'
+          ? t('chat.rewind.noticeConversationOnly')
+          : t('chat.rewind.notice', { count: String(filesChanged) })
+      );
+    }
+    return true;
   }
 
   /**
@@ -518,8 +536,7 @@ export class ConversationController {
     state.autoScrollEnabled = plugin.settings.enableAutoScroll ?? true;
     state.hasPendingConversationSave = false;
 
-    // Clear status panels (auto-hide: panels reappear when agent creates new todos)
-    state.currentTodos = null;
+    state.currentTodos = getRestorableTodos(state.messages);
 
     const hasMessages = state.messages.length > 0;
 
@@ -1133,7 +1150,7 @@ export class ConversationController {
       attr: { type: 'button' },
     });
     setIcon(deleteBtn, 'trash-2');
-    deleteBtn.setAttribute('aria-label', 'Löschen');
+    deleteBtn.setAttribute('aria-label', 'In den Papierkorb (30 Tage wiederherstellbar)');
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       runConversationAction(
@@ -1234,7 +1251,7 @@ export class ConversationController {
         void this.deps.plugin.exportActiveConversation(conversationId);
       }));
     menu.addItem((menuItem) => menuItem
-      .setTitle('Löschen')
+      .setTitle('In den Papierkorb')
       .onClick(() => {
         void this.runHistoryAction(
           () => this.deleteHistoryConversation(conversationId, options),

@@ -1,5 +1,9 @@
 import { createMockEl } from '@test/helpers/mockElement';
+import { Platform } from 'obsidian';
 
+import { BUILT_IN_COMMANDS } from '@/core/commands/builtInCommands';
+import { registerTabNavigationCommands } from '@/features/chat/tabs/tabCommands';
+import { formatChatKeyBinding } from '@/features/chat/ui/chatKeyBindings';
 import {
   CHAT_SHORTCUTS,
   filterShortcuts,
@@ -77,5 +81,64 @@ describe('ShortcutOverlay', () => {
     } finally {
       (globalThis as { document?: unknown }).document = originalDocument;
     }
+  });
+});
+
+// The overlay once listed ⌘N, ⌘⇧H and ⌘K, which nothing was bound to. Key rows
+// come from the binding table the handlers use (see the ClaudianView test that
+// drives each listed key through its real handler); commands must exist.
+describe('CHAT_SHORTCUTS lists only real bindings', () => {
+  it('renders every key row from the binding table', () => {
+    for (const entry of CHAT_SHORTCUTS) {
+      if (entry.trigger.kind !== 'key') continue;
+      expect(entry.keys).toBe(formatChatKeyBinding(entry.trigger.binding, Platform.isMacOS));
+    }
+  });
+
+  it('names only commands the plugin registers, marked as having no default hotkey', () => {
+    const registered = new Set<string>();
+    registerTabNavigationCommands({
+      addCommand: (command) => {
+        registered.add(command.id);
+        return command;
+      },
+      getView: () => null,
+    });
+    const commandRows = CHAT_SHORTCUTS.filter((entry) => entry.trigger.kind === 'command');
+
+    expect(commandRows.length).toBeGreaterThan(0);
+    for (const entry of commandRows) {
+      if (entry.trigger.kind !== 'command') continue;
+      expect(entry.keys).toBe('Befehl');
+      for (const id of entry.trigger.commandIds) expect(registered.has(id)).toBe(true);
+    }
+  });
+
+  it('names only slash commands that exist', () => {
+    const names = new Set(BUILT_IN_COMMANDS.map((command) => command.name));
+    for (const entry of CHAT_SHORTCUTS) {
+      if (entry.trigger.kind !== 'slash') continue;
+      expect(names.has(entry.trigger.command)).toBe(true);
+      expect(entry.keys).toBe(`/${entry.trigger.command}`);
+    }
+  });
+
+  it('no longer advertises keys that nothing listens to', () => {
+    const keys = CHAT_SHORTCUTS.map((entry) => entry.keys.replace(/\s+/g, ''));
+    expect(keys).not.toContain('⌘N');
+    expect(keys).not.toContain('⌘⇧H');
+    expect(keys).not.toContain('⌘K');
+  });
+
+  it('explains how to give a command a hotkey', () => {
+    const host = createMockEl();
+    const overlay = new ShortcutOverlay(host);
+    overlay.open();
+
+    const commandKey = host.querySelectorAll('.claudian-shortcuts-keys')
+      .find((element: any) => element.hasClass('claudian-shortcuts-keys--command'));
+    expect(commandKey?.textContent).toBe('Befehl');
+    expect(commandKey?.getAttribute('title')).toContain('Einstellungen → Tastenkürzel');
+    expect(host.querySelector('.claudian-shortcuts-note')?.textContent).toContain('Hotkey');
   });
 });

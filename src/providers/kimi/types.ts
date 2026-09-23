@@ -13,6 +13,8 @@ export interface KimiProviderState {
   goal?: string;
   /** Parent session id when this conversation was forked via `/fork`. */
   forkParentId?: string;
+  /** A headless goal ended paused or blocked and still exists in the session: the next one must replace it. */
+  nativeGoalOpen?: boolean;
 }
 
 export function getKimiState(providerState?: Record<string, unknown>): KimiProviderState {
@@ -30,6 +32,9 @@ export function getKimiState(providerState?: Record<string, unknown>): KimiProvi
   if (typeof record.forkParentId === 'string' && record.forkParentId.trim()) {
     state.forkParentId = record.forkParentId.trim();
   }
+  if (record.nativeGoalOpen === true) {
+    state.nativeGoalOpen = true;
+  }
   return state;
 }
 
@@ -45,6 +50,9 @@ export function buildPersistedKimiState(
   }
   if (state.forkParentId) {
     entries.forkParentId = state.forkParentId;
+  }
+  if (state.nativeGoalOpen) {
+    entries.nativeGoalOpen = true;
   }
   return Object.keys(entries).length > 0 ? entries : undefined;
 }

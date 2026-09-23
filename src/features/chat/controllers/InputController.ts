@@ -8,7 +8,8 @@ import {
 } from '../../../core/commands/builtInCommands';
 import { buildLinkedNoteContext } from '../../../core/context/linkedNoteContext';
 import { computeBootstrapCharCap, limitSwitchCarry } from '../../../core/conversation/ConversationContextBootstrap';
-import { applyGoalPrefix, parseGoalArgs, parseGoalCommand } from '../../../core/conversation/goalPrompt';
+import { applyGoalPrefix, type GoalCommand, parseGoalArgs, parseGoalCommand } from '../../../core/conversation/goalPrompt';
+import { planNativeGoalCommand, resolveNativeGoalSupport } from '../../../core/conversation/nativeGoal';
 import { providerErrorRecoveryService } from '../../../core/diagnostics/errorRecovery';
 import { getLastPerf, perfMark, perfSince } from '../../../core/diagnostics/perfLog';
 import { ensureProviderHealthy } from '../../../core/diagnostics/providerHealthCheck';
@@ -45,12 +46,14 @@ import type {
   ApprovalCallbackOptions,
   ApprovalDecisionOption,
   ChatTurnRequest,
+  NativeGoalAction,
   OutputSurface,
   PreparedChatTurn,
 } from '../../../core/runtime/types';
 import { finishRunTimeline, recordRunTimelineChunk, startRunTimeline } from '../../../core/timeline/runTimeline';
+import { areAllTodosCompleted } from '../../../core/tools/todo';
 import { TOOL_EXIT_PLAN_MODE } from '../../../core/tools/toolNames';
-import type { ApprovalDecision, ChatMessage, ExitPlanModeDecision, ImageAttachment, StreamChunk } from '../../../core/types';
+import type { ApprovalDecision, ChatMessage, ExitPlanModeDecision, ImageAttachment, NativeGoalState, StreamChunk } from '../../../core/types';
 import {
   buildAngebotPrompt,
   buildBerichtsheftPrompt,
@@ -73,6 +76,7 @@ import { appendMarkdownSnippet } from '../../../utils/markdown';
 import { COMPLETION_FLAVOR_WORDS } from '../constants';
 import { resolveAutoQuestionAnswers, summarizeAutoAnswers } from '../rendering/autoQuestionAnswer';
 import { renderDiffContent, renderDiffStats } from '../rendering/DiffRenderer';
+import { ERROR_MARKER } from '../rendering/errorClassification';
 import { type InlineAskQuestionConfig, InlineAskUserQuestion } from '../rendering/InlineAskUserQuestion';
 import { InlineExitPlanMode } from '../rendering/InlineExitPlanMode';
 import { InlinePlanApproval,type PlanApprovalDecision } from '../rendering/InlinePlanApproval';
@@ -83,6 +87,7 @@ import type { SubagentManager } from '../services/SubagentManager';
 import type { ChatState } from '../state/ChatState';
 import type { QueuedMessage } from '../state/types';
 import {
+  attachmentOnlyDisplayContent,
   attachmentPromptReferences,
   type ComposerAttachment,
   toMessageAttachment,
@@ -177,6 +182,14 @@ export interface InputControllerDeps {
   setActiveGoal?: (goal: string | null) => void;
   /** Re-renders the goal banner after a change that leaves the goal text intact. */
   refreshGoalBanner?: () => void;
+  /** Records a goal the provider's own goal system now works on. */
+  setNativeGoal?: (objective: string, providerId: ProviderId) => void;
+  /** Applies a goal state the provider reported outside a stream (e.g. after a pause). */
+  updateNativeGoal?: (goal: NativeGoalState | null) => void;
+  /** True while the active provider owns the goal (then no framing, no Claudian loop). */
+  isGoalProviderOwned?: () => boolean;
+  /** The user stopped the answer: a running provider goal is paused now. */
+  onGoalInterrupted?: () => void;
   /** Returns true if ready. */
   ensureServiceInitialized?: () => Promise<boolean>;
   openConversation?: (conversationId: string) => Promise<void>;
@@ -357,8 +370,14 @@ export class InputController {
     canvasContextOverride?: CanvasSelectionContext | null;
     content?: string;
     images?: ChatMessage['images'];
+    /** File chips of a programmatic send; the composer's own chips stay untouched. */
+    attachments?: ComposerAttachment[];
     outputSurface?: OutputSurface;
     turnRequestOverride?: ChatTurnRequest;
+    /** Send `/…` to the provider even if a Claudian built-in has that name (native `/goal`). */
+    bypassBuiltInCommands?: boolean;
+    /** Goal action an RPC goal provider applies with exactly this turn. */
+    nativeGoal?: NativeGoalAction;
   }): Promise<void> {
     const {
       plugin,
@@ -392,7 +411,7 @@ export class InputController {
     // invisibly — an attachment-only send with an empty textarea is valid.
     const stagedAttachments = shouldUseInput
       ? (imageContextManager?.getStagedAttachments() ?? [])
-      : [];
+      : (options?.attachments ?? []);
     if (!content && !hasImages && stagedAttachments.length === 0) return;
     const desktopRelay = ['grok-bot', 'perplexity-chat'].includes(this.getActiveProviderId());
     if (desktopRelay && (hasImages || stagedAttachments.length)) {
@@ -436,7 +455,7 @@ export class InputController {
     }
 
     // Check for built-in commands first (e.g., /clear, /new, /add-dir)
-    const builtInCmd = detectBuiltInCommand(content);
+    const builtInCmd = options?.bypassBuiltInCommands ? null : detectBuiltInCommand(content);
     if (builtInCmd) {
       if (shouldUseInput) {
         this.consumeComposerInput(inputEl);
@@ -506,9 +525,17 @@ export class InputController {
       const images = hasImages
         ? [...(imageOverride ?? imageContextManager?.getAttachedImages() ?? [])]
         : undefined;
-      const editorContext = selectionController.getContext();
-      const browserContext = browserSelectionController?.getContext() ?? null;
-      const canvasContext = canvasSelectionController.getContext();
+      // A programmatic send (explain selection, regenerate) brings its own
+      // context; the live selection belongs to whatever the user does next.
+      const editorContext = options?.editorContextOverride !== undefined
+        ? options.editorContextOverride
+        : selectionController.getContext();
+      const browserContext = options?.browserContextOverride !== undefined
+        ? options.browserContextOverride
+        : (browserSelectionController?.getContext() ?? null);
+      const canvasContext = options?.canvasContextOverride !== undefined
+        ? options.canvasContextOverride
+        : canvasSelectionController.getContext();
       const { displayContent, turnRequest } = this.buildTurnSubmission({
         content,
         images,
@@ -600,6 +627,7 @@ export class InputController {
       outputSurface: resolveTurnOutputSurface(displayContent, turnRequest.outputSurface, {
         workspaceMode: normalizeWorkspaceMode(plugin.settings.workspaceMode),
       }),
+      ...(options?.nativeGoal ? { nativeGoal: options.nativeGoal } : {}),
     };
 
     // CRITICAL: decouple THIS turn's image base64 from the message objects that
@@ -783,25 +811,17 @@ export class InputController {
     // only waits for any remaining cold-start time instead of the full sum.
     const ready = await serviceInitialization;
     if (!ready) {
-      new Notice('Agent-Dienst konnte nicht gestartet werden. Bitte erneut versuchen.');
-      streamController.hideThinkingIndicator();
-      state.isStreaming = false;
-      this.activeStreamingAssistantMessage = null;
-      this.resetProviderMessageBoundaryState();
+      await this.failTurnBeforeStream('Agent-Dienst konnte nicht gestartet werden. Bitte erneut versuchen.', assistantMsg);
       return;
     }
 
     const agentService = this.getAgentService();
     if (!agentService) {
-      new Notice('Agent-Dienst nicht verfügbar. Bitte das Plugin neu laden.');
       // Must clear isStreaming (and the indicator) like every sibling bail-out
       // above/below. Leaving it set stranded the tab: subsequent sends silently
       // queued forever, cancel only sets a flag, and the tab even refused to
       // close — a plugin reload was the only way out.
-      streamController.hideThinkingIndicator();
-      state.isStreaming = false;
-      this.activeStreamingAssistantMessage = null;
-      this.resetProviderMessageBoundaryState();
+      await this.failTurnBeforeStream('Agent-Dienst nicht verfügbar. Bitte das Plugin neu laden.', assistantMsg);
       return;
     }
 
@@ -817,13 +837,9 @@ export class InputController {
     );
     perfSince(healthStart, 'provider-health-check', agentService.providerId);
     if (!health.ok) {
-      new Notice(health.error ?? 'Provider is not reachable.');
       // Without this the "(esc to interrupt · mm:ss)" row keeps ticking forever
       // even though the turn never started.
-      streamController.hideThinkingIndicator();
-      this.activeStreamingAssistantMessage = null;
-      this.resetProviderMessageBoundaryState();
-      state.isStreaming = false;
+      await this.failTurnBeforeStream(health.error ?? 'Provider is not reachable.', assistantMsg);
       return;
     }
 
@@ -915,7 +931,11 @@ export class InputController {
         });
       }
 
-      const activeGoal = isRawProviderCommand ? null : (this.deps.getActiveGoal?.() ?? null);
+      // A goal the provider runs itself is already in its own context; framing
+      // it again would also start Claudian's loop on top of the provider's.
+      const activeGoal = isRawProviderCommand || this.deps.isGoalProviderOwned?.()
+        ? null
+        : (this.deps.getActiveGoal?.() ?? null);
       if (activeGoal) {
         turnRequest = { ...turnRequest, text: applyGoalPrefix(turnRequest.text, activeGoal) };
       }
@@ -1070,6 +1090,7 @@ export class InputController {
         // Retries exhausted (or none allowed): surface as a recoverable interrupt.
         if (timedOutThisAttempt) {
           wasInterrupted = true;
+          state.markTurnFailed();
           await streamController.appendText(
             agentService.providerId === 'grok-bot' || agentService.providerId === 'perplexity-chat'
               ? '\n\n> ⚠️ *Desktop-Relay: Zeitüberschreitung, nicht erneut gesendet. Der App-Auftrag kann weiterlaufen. Vor einem manuellen Neuversuch zuerst den App-Chat prüfen.*\n'
@@ -1191,7 +1212,7 @@ export class InputController {
 
         // Auto-hide completed todo panel on response end
         // Panel reappears only when new TodoWrite tool is called
-        if (state.currentTodos && state.currentTodos.every(t => t.status === 'completed')) {
+        if (areAllTodosCompleted(state.currentTodos)) {
           state.currentTodos = null;
         }
         this.syncScrollToBottomAfterRenderUpdates();
@@ -1505,10 +1526,7 @@ export class InputController {
       : transformedText;
 
     // An attachment-only send would otherwise render an empty user bubble.
-    const displayContent = options.content
-      || (attachments.length > 0
-        ? `📎 ${attachments.map((att) => att.name).join(', ')}`
-        : options.content);
+    const displayContent = options.content || attachmentOnlyDisplayContent(attachments);
 
     return {
       displayContent,
@@ -1912,6 +1930,31 @@ export class InputController {
     this.updateQueueIndicator();
   }
 
+  /**
+   * A turn that fails before the provider stream starts still ends as a real
+   * answer. The empty placeholder used to be dropped on finalize, which took
+   * the only "Erneut versuchen" / "Erneut generieren" affordance with it.
+   */
+  private async failTurnBeforeStream(message: string, assistantMsg: ChatMessage): Promise<void> {
+    const { state, streamController, renderer } = this.deps;
+    new Notice(message);
+    streamController.hideThinkingIndicator();
+    await streamController.appendText(`${ERROR_MARKER}${message}`);
+    await streamController.finalizeCurrentTextBlock(assistantMsg);
+    state.currentContentEl = null;
+    renderer.finalizeLiveAssistantMessage?.(assistantMsg);
+    // Before isStreaming flips: a hidden tab then flags the failure for attention.
+    state.markTurnFailed();
+    state.isStreaming = false;
+    this.activeStreamingAssistantMessage = null;
+    this.resetProviderMessageBoundaryState();
+    try {
+      await this.deps.conversationController.save();
+    } catch {
+      // The error is already visible; a failed write must not mask it.
+    }
+  }
+
   private activateStreamingAssistantMessage(message: ChatMessage): void {
     const { state, renderer } = this.deps;
     const msgEl = renderer.addMessage(message);
@@ -2288,6 +2331,8 @@ export class InputController {
     const { state, streamController } = this.deps;
     if (!state.isStreaming) return;
     state.cancelRequested = true;
+    // The stream is not read after a stop, so the provider's "paused" never arrives.
+    this.deps.onGoalInterrupted?.();
     // Restore queued message to input instead of discarding
     this.restorePendingMessagesToInput();
     this.getAgentService()?.cancel();
@@ -2593,6 +2638,7 @@ export class InputController {
       setPending(inline);
       try {
         inline.render();
+        this.deps.state.requestAttention('input');
       } catch (err) {
         setPending(null);
         this.restoreInputContainer(inputContainerEl);
@@ -2654,6 +2700,7 @@ export class InputController {
       this.pendingExitPlanModeInline = inline;
       try {
         inline.render();
+        this.deps.state.requestAttention('input');
       } catch (err) {
         this.pendingExitPlanModeInline = null;
         this.restoreInputContainer(inputContainerEl);
@@ -2707,6 +2754,7 @@ export class InputController {
       this.pendingPlanApproval = inline;
       try {
         inline.render();
+        this.deps.state.requestAttention('input');
       } catch (err) {
         this.pendingPlanApproval = null;
         this.pendingPlanApprovalInvalidated = false;
@@ -2796,6 +2844,91 @@ export class InputController {
       }
     }
     return trimmed;
+  }
+
+  /**
+   * `/goal …` from the composer or the goal banner. Providers with their own
+   * goal system get it handed over; the rest use Claudian's goal loop.
+   */
+  async runGoalCommand(args: string): Promise<void> {
+    const command = parseGoalCommand(args);
+    if (await this.runNativeGoalCommand(command)) return;
+    if (command.action === 'pause') {
+      this.deps.plugin.goalLoopPaused = true;
+      this.deps.refreshGoalBanner?.();
+      new Notice('⏸️ Goal-Loop pausiert. /goal resume setzt fort.');
+      return;
+    }
+    if (command.action === 'resume') {
+      this.deps.plugin.goalLoopPaused = false;
+      this.deps.refreshGoalBanner?.();
+      new Notice('▶️ Goal-Loop fortgesetzt. Nächste Nachricht arbeitet am Ziel weiter.');
+      return;
+    }
+    const nextGoal = command.action === 'set' ? command.goal : parseGoalArgs(args);
+    this.deps.setActiveGoal?.(nextGoal);
+    new Notice(nextGoal ? `🎯 Goal gesetzt — Loop startet jetzt: ${nextGoal}` : 'Goal gelöscht.');
+    // A newly set goal starts working IMMEDIATELY through the normal send
+    // path, so the harness loop picks it up (framed goal in the prompt). Sent
+    // as content, not via the composer: that would overwrite an unsent draft.
+    if (command.action === 'set' && nextGoal) {
+      void this.sendMessage({ content: nextGoal }).catch(() => {});
+    }
+  }
+
+  /** Hands a `/goal` command to the provider's own goal system; false when it has none. */
+  private async runNativeGoalCommand(command: GoalCommand): Promise<boolean> {
+    const providerId = this.getActiveProviderId();
+    const capabilities = ProviderRegistry.getProviderRegistrationSafe(providerId)?.capabilities;
+    if (!capabilities?.nativeGoal) return false;
+    await this.deps.ensureServiceInitialized?.();
+    const runtime = this.getAgentService();
+    const support = runtime ? resolveNativeGoalSupport(capabilities, runtime) : null;
+    if (!runtime || !support) return false;
+
+    const providerLabel = ProviderRegistry.getProviderDisplayName(providerId);
+    const plan = planNativeGoalCommand(support, command, this.deps.getActiveGoal?.() ?? null, providerLabel);
+    // Queued behind a running answer, a raw `/goal` would be merged into other
+    // queued text and the goal action would ride on the wrong message.
+    if (this.deps.state.isStreaming && (plan.kind === 'send' || plan.kind === 'rpc-pause')) {
+      new Notice('Ziel-Befehle gehen nach der laufenden Antwort. Bitte kurz warten oder erst stoppen.');
+      return true;
+    }
+    switch (plan.kind) {
+      case 'send':
+        if (command.action === 'set' && command.goal) {
+          this.deps.setNativeGoal?.(command.goal, providerId);
+        } else if (command.action === 'clear') {
+          this.deps.setActiveGoal?.(null);
+        }
+        void this.sendMessage({
+          content: plan.content,
+          bypassBuiltInCommands: plan.raw === true,
+          ...(plan.queue ? { nativeGoal: plan.queue } : {}),
+        }).catch(() => {});
+        return true;
+      case 'rpc-pause': {
+        const paused = await runtime.pauseNativeGoal?.().catch(() => null);
+        if (paused) {
+          this.deps.updateNativeGoal?.(paused);
+          new Notice(`⏸️ ${providerLabel}-Ziel pausiert. /goal resume setzt fort.`);
+        } else {
+          new Notice('Ziel konnte nicht pausiert werden.');
+        }
+        return true;
+      }
+      case 'rpc-clear':
+      case 'local-clear': {
+        // local-clear still drops the provider runtime's own copy (Kimi's `[Goal: …]`).
+        const cleared = await runtime.clearNativeGoal?.().then(() => true, () => false) ?? true;
+        this.deps.setActiveGoal?.(null);
+        new Notice(cleared ? 'Ziel gelöscht.' : `Ziel gelöscht; ${providerLabel} übernimmt das beim nächsten Senden.`);
+        return true;
+      }
+      case 'notice':
+        new Notice(plan.message);
+        return true;
+    }
   }
 
   private async executeBuiltInCommand(command: BuiltInCommand, args: string): Promise<void> {
@@ -2915,33 +3048,9 @@ export class InputController {
       case 'export-pdf':
         await this.deps.plugin.exportActiveConversationPdf();
         break;
-      case 'goal': {
-        const command = parseGoalCommand(args);
-        if (command.action === 'pause') {
-          this.deps.plugin.goalLoopPaused = true;
-          this.deps.refreshGoalBanner?.();
-          new Notice('⏸️ Goal-Loop pausiert. /goal resume setzt fort.');
-          break;
-        }
-        if (command.action === 'resume') {
-          this.deps.plugin.goalLoopPaused = false;
-          this.deps.refreshGoalBanner?.();
-          new Notice('▶️ Goal-Loop fortgesetzt. Nächste Nachricht arbeitet am Ziel weiter.');
-          break;
-        }
-        const nextGoal = command.action === 'set' ? command.goal : parseGoalArgs(args);
-        this.deps.setActiveGoal?.(nextGoal);
-        new Notice(nextGoal ? `🎯 Goal gesetzt — Loop startet jetzt: ${nextGoal}` : 'Goal gelöscht.');
-        // A newly set goal starts working IMMEDIATELY: put the goal text into
-        // the composer and fire the normal send path so the harness loop picks
-        // it up (framed goal in the prompt) on this very turn.
-        if (command.action === 'set' && nextGoal) {
-          const inputEl = this.deps.getInputEl();
-          inputEl.value = nextGoal;
-          void this.sendMessage().catch(() => {});
-        }
+      case 'goal':
+        await this.runGoalCommand(args);
         break;
-      }
       case 'workflow': {
         const inputEl = this.deps.getInputEl();
         const [name, ...rest] = args.split(/\s+/).filter(Boolean);

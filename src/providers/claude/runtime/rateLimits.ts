@@ -2,6 +2,43 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import type { ProviderRateLimitReport } from '../../../core/budget/nativeRateLimits';
+
+/** Subset of SDKRateLimitInfo (sdk.d.ts) the status bar and capacity need. */
+export interface ClaudeRateLimitInfo {
+  status?: unknown;
+  resetsAt?: unknown;
+  rateLimitType?: unknown;
+  utilization?: unknown;
+}
+
+// Only the account-wide windows: per-model weekly limits (`seven_day_opus`,
+// `seven_day_sonnet`) and overage would share the "7T" label with a different meaning.
+const CLAUDE_WINDOW_MINUTES: Record<string, number> = {
+  five_hour: 300,
+  seven_day: 10080,
+};
+
+const CLAUDE_RATE_LIMIT_STATUSES = new Set(['allowed', 'allowed_warning', 'rejected']);
+
+/**
+ * Maps one `rate_limit_event` to a provider-neutral report. The bundled CLI
+ * treats `utilization` as 0..1 (`Math.floor(utilization * 100)`) and `resetsAt`
+ * as epoch seconds (`resetsAt * 1000` against Date.now()).
+ */
+export function toClaudeRateLimitReport(info: ClaudeRateLimitInfo | undefined): ProviderRateLimitReport | null {
+  if (!info || typeof info.status !== 'string' || !CLAUDE_RATE_LIMIT_STATUSES.has(info.status)) {
+    return null;
+  }
+  const resetsAtEpochSec = typeof info.resetsAt === 'number' && Number.isFinite(info.resetsAt) ? info.resetsAt : null;
+  const windowMinutes = typeof info.rateLimitType === 'string' ? CLAUDE_WINDOW_MINUTES[info.rateLimitType] : undefined;
+  const utilization = typeof info.utilization === 'number' && Number.isFinite(info.utilization) ? info.utilization : null;
+  const window = windowMinutes !== undefined && utilization !== null && resetsAtEpochSec !== null
+    ? { usedPercent: Math.round(utilization * 10000) / 100, windowMinutes, resetsAtEpochSec }
+    : null;
+  return { window, rejected: info.status === 'rejected', resetsAtEpochSec };
+}
+
 export interface ClaudeUsageEvent {
   atMs: number;
   tokens: number;

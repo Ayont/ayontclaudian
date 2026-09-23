@@ -173,6 +173,12 @@
     min-width: 44px;
     min-height: 44px;
   }
+
+  /* 44px targets space themselves; a desktop-sized gap pushed five of them
+     past a phone-width nav row. */
+  .claudian-header-actions {
+    gap: var(--cl-space-1);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

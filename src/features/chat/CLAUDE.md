@@ -104,7 +104,7 @@ blocks; it is not inferred again from rendered prose after reload.
 | `InlineExitPlanMode` | Claude tool-driven exit-plan approval |
 | `InlinePlanApproval` | Shared post-plan approval flow driven by consumed turn metadata (currently Codex) |
 | `InlineAskUserQuestion` | Ask-user cards emitted by provider runtimes |
-| `TodoListRenderer` | Todo items and status icons |
+| `todoUtils` | The one todo renderer (header summary + list) shared by `StatusPanel` and the TodoWrite card; every provider's list is normalized by `core/tools/todo` first, ACP `plan` updates arrive via `providers/acp/AcpPlanTodoBridge` |
 | `SubagentRenderer` | Background agent lifecycle rendering |
 
 ## Key Patterns

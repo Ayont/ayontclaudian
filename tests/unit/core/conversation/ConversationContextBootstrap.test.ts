@@ -1,7 +1,11 @@
 import {
+  buildCondensedContextCarry,
   buildConversationContextBootstrap,
   buildProviderSwitchCarry,
   computeBootstrapCharCap,
+  computeCondensedCarryCharBudget,
+  CONDENSED_CARRY_WINDOW_SHARE,
+  condensedCarryOmitsTurns,
   CONTEXT_BOOTSTRAP_CHAR_CAP,
 } from '@/core/conversation/ConversationContextBootstrap';
 import type { ChatMessage } from '@/core/types';
@@ -186,5 +190,100 @@ describe('buildConversationContextBootstrap', () => {
     const msgs = [userMsg('hi'), assistantMsg('yo')];
     expect(buildConversationContextBootstrap(msgs, { maxChars: 0 })).toBe('');
     expect(buildConversationContextBootstrap(msgs, { maxChars: -10 })).toBe('');
+  });
+});
+
+describe('computeCondensedCarryCharBudget', () => {
+  it('is a clearly smaller share of the window than a provider switch', () => {
+    expect(CONDENSED_CARRY_WINDOW_SHARE).toBeGreaterThanOrEqual(0.15);
+    expect(CONDENSED_CARRY_WINDOW_SHARE).toBeLessThanOrEqual(0.2);
+    expect(computeCondensedCarryCharBudget(200_000))
+      .toBe(Math.round(computeBootstrapCharCap(200_000) * CONDENSED_CARRY_WINDOW_SHARE));
+    expect(computeCondensedCarryCharBudget(200_000)).toBeLessThan(computeBootstrapCharCap(200_000) / 4);
+  });
+
+  it('halves the unknown-window floor instead of inventing a window', () => {
+    expect(computeCondensedCarryCharBudget(undefined)).toBe(CONTEXT_BOOTSTRAP_CHAR_CAP / 2);
+    expect(computeCondensedCarryCharBudget(0)).toBe(CONTEXT_BOOTSTRAP_CHAR_CAP / 2);
+  });
+});
+
+describe('buildCondensedContextCarry', () => {
+  const longHistory = (): ChatMessage[] => Array.from({ length: 40 }, (_, index) => (
+    index % 2 === 0
+      ? userMsg(`frage-${index} ${'x'.repeat(400)}`, `u${index}`)
+      : assistantMsg(`antwort-${index} ${'y'.repeat(400)}`, `a${index}`)
+  ));
+
+  it('returns an empty string when there is nothing to carry', () => {
+    expect(buildCondensedContextCarry({ messages: [], contextWindowTokens: 10_000 })).toBe('');
+  });
+
+  it('keeps the newest turns inside the condensed budget and marks the cut', () => {
+    // 2_000 tokens → 8_000 chars → condensed budget 1_440 chars.
+    const carry = buildCondensedContextCarry({ messages: longHistory(), contextWindowTokens: 2_000 });
+    expect(carry.length).toBeLessThanOrEqual(computeCondensedCarryCharBudget(2_000));
+    expect(carry.startsWith('<conversation_context>\n')).toBe(true);
+    expect(carry.endsWith('\n</conversation_context>')).toBe(true);
+    expect(carry).toContain('antwort-39');
+    expect(carry).not.toContain('frage-0 ');
+    expect(carry).toContain('[earlier turns omitted]');
+  });
+
+  it('places the standing goal first so shrinking never drops it', () => {
+    const carry = buildCondensedContextCarry({
+      messages: longHistory(),
+      contextWindowTokens: 2_000,
+      goal: 'Release fertigstellen',
+    });
+    expect(carry.startsWith('<conversation_context>\n<standing_goal>\nRelease fertigstellen\n</standing_goal>')).toBe(true);
+    expect(carry.length).toBeLessThanOrEqual(computeCondensedCarryCharBudget(2_000));
+  });
+
+  it('adds a model-written summary before the recent turns and keeps the whole within budget', () => {
+    const carry = buildCondensedContextCarry({
+      messages: longHistory(),
+      contextWindowTokens: 4_000,
+      goal: 'Ziel',
+      summary: 'Wir haben das Build-Skript repariert und offen ist nur noch der Release.',
+    });
+    const goalAt = carry.indexOf('<standing_goal>');
+    const summaryAt = carry.indexOf('<condensed_summary>');
+    const turnsAt = carry.indexOf('antwort-39');
+    expect(goalAt).toBeGreaterThan(-1);
+    expect(summaryAt).toBeGreaterThan(goalAt);
+    expect(turnsAt).toBeGreaterThan(summaryAt);
+    expect(carry).toContain('Wir haben das Build-Skript repariert');
+    expect(carry.length).toBeLessThanOrEqual(computeCondensedCarryCharBudget(4_000));
+  });
+
+  it('clips an oversized summary so recent turns still fit', () => {
+    const carry = buildCondensedContextCarry({
+      messages: longHistory(),
+      contextWindowTokens: 4_000,
+      summary: 's'.repeat(50_000),
+    });
+    expect(carry.length).toBeLessThanOrEqual(computeCondensedCarryCharBudget(4_000));
+    expect(carry).toContain('antwort-39');
+  });
+
+  it('carries only the goal when the transcript has no renderable turns', () => {
+    const carry = buildCondensedContextCarry({
+      messages: [assistantMsg('')],
+      contextWindowTokens: 4_000,
+      goal: 'Nur das Ziel',
+    });
+    expect(carry).toBe('<conversation_context>\n<standing_goal>\nNur das Ziel\n</standing_goal>\n</conversation_context>');
+  });
+});
+
+describe('condensedCarryOmitsTurns', () => {
+  it('is false when the whole visible transcript fits the condensed budget', () => {
+    expect(condensedCarryOmitsTurns([userMsg('kurz'), assistantMsg('auch kurz')], 200_000)).toBe(false);
+  });
+
+  it('is true when older turns would be dropped', () => {
+    const messages = Array.from({ length: 30 }, (_, index) => userMsg('z'.repeat(500), `m${index}`));
+    expect(condensedCarryOmitsTurns(messages, 2_000)).toBe(true);
   });
 });

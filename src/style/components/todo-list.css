@@ -1,0 +1,658 @@
+/* Todo list — one component for the status panel and the inline TodoWrite card.
+   Markup comes from features/chat/rendering/todoUtils.ts. Provider accent marks
+   progress and live state; success marks what is finished (never the accent). */
+
+@property --claudian-todo-fade-top {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --claudian-todo-fade-bottom {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+.claudian-status-panel-todos,
+.claudian-tool-call--todo {
+  --claudian-todo-font: var(--font-ui-small, 13px);
+  --claudian-todo-line: calc(var(--claudian-todo-font) * 1.45);
+  /* One row: line + 8px padding + 1px gap. Caps below are counted in rows and
+     end on a half row, so a cut-off row signals there is more to scroll. */
+  --claudian-todo-row: calc(var(--claudian-todo-line) + 9px);
+  --claudian-todo-icon: 14px;
+  --claudian-todo-step-w: 16px;
+  --claudian-todo-track: color-mix(in srgb, var(--text-faint) 30%, transparent);
+  --claudian-todo-success-ink: color-mix(in srgb, var(--cl-success) 58%, var(--text-normal));
+  --claudian-todo-fade: 18px;
+
+  container: claudian-todo / inline-size;
+}
+
+/* ── Header summary: meter · count · live task | finished ─────────────── */
+
+.claudian-todo-summary {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--cl-space-2);
+  min-width: 0;
+}
+
+.claudian-todo-meter {
+  display: inline-flex;
+  flex: 0 1 72px;
+  gap: 2px;
+  min-width: 32px;
+  height: 4px;
+}
+
+.claudian-todo-meter-seg {
+  flex: 1;
+  min-width: 2px;
+  border-radius: var(--cl-radius-pill);
+  background: var(--claudian-todo-track);
+  transition: background-color var(--cl-dur) var(--cl-ease-out);
+}
+
+.claudian-todo-meter-seg.is-completed {
+  background: var(--cl-accent);
+}
+
+.claudian-todo-meter-seg.is-in_progress {
+  background: color-mix(in srgb, var(--cl-accent) 42%, var(--claudian-todo-track));
+}
+
+.claudian-todo-meter--continuous {
+  overflow: hidden;
+  border-radius: var(--cl-radius-pill);
+  background: var(--claudian-todo-track);
+}
+
+.claudian-todo-meter-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--cl-accent);
+  transform: scaleX(var(--claudian-todo-progress, 0));
+  transform-origin: left center;
+  transition: transform var(--cl-dur) var(--cl-ease-out);
+}
+
+.claudian-todo-summary.is-complete .claudian-todo-meter-seg,
+.claudian-todo-summary.is-complete .claudian-todo-meter-fill {
+  background: var(--cl-success);
+}
+
+.claudian-todo-count {
+  flex-shrink: 0;
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--text-muted);
+}
+
+.claudian-todo-summary.is-complete .claudian-todo-count {
+  color: var(--claudian-todo-success-ink);
+}
+
+.claudian-todo-current {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  /* A long task must ellipsize, never widen the panel (or its grid/flex host). */
+  contain: inline-size;
+  font-family: var(--cl-font-ui);
+  font-size: var(--cl-text-sm);
+  color: var(--text-muted);
+}
+
+.claudian-todo-current-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Live dot: a steady core with a soft halo, transform/opacity only. */
+.claudian-todo-pulse {
+  position: relative;
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cl-accent);
+}
+
+.claudian-todo-pulse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--cl-accent);
+  animation: claudian-todo-halo 1.8s var(--cl-ease-out) infinite;
+}
+
+@keyframes claudian-todo-halo {
+  from {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(2.8);
+  }
+}
+
+.claudian-todo-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-family: var(--cl-font-ui);
+  font-size: var(--cl-text-sm);
+  font-weight: 600;
+  color: var(--claudian-todo-success-ink);
+  white-space: nowrap;
+}
+
+.claudian-todo-done-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: var(--claudian-todo-icon);
+  height: var(--claudian-todo-icon);
+  border-radius: 50%;
+  background: var(--cl-success);
+  color: var(--background-primary);
+}
+
+.claudian-todo-done-icon svg {
+  width: 9px;
+  height: 9px;
+  stroke-width: 3.5;
+}
+
+.claudian-todo-done-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Sidebar-narrow: the icon names the section, so the word "Aufgaben" steps back
+   (still read via the header label) and the running task keeps its room. */
+@container claudian-todo (max-width: 340px) {
+  .claudian-status-panel-label,
+  .claudian-tool-call--todo > .claudian-tool-header > .claudian-tool-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .claudian-todo-meter {
+    flex-basis: 40px;
+  }
+}
+
+/* The list itself answers "what is running" once it is open. */
+.claudian-status-panel-todos.is-expanded .claudian-todo-current,
+.claudian-tool-call--todo.expanded .claudian-todo-current {
+  display: none;
+}
+
+/* ── Collapse: grid rows 0fr ↔ 1fr, hidden from AT once closed ───────── */
+
+.claudian-todo-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition:
+    grid-template-rows var(--cl-dur) var(--cl-ease-out),
+    opacity var(--cl-dur) var(--cl-ease-out);
+}
+
+.claudian-todo-collapse.claudian-todo-collapsed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows var(--cl-dur) var(--cl-ease-out),
+    opacity var(--cl-dur-fast) var(--cl-ease-out),
+    visibility 0s linear var(--cl-dur);
+}
+
+.claudian-todo-collapse-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── List ──────────────────────────────────────────────────────────── */
+
+.claudian-todo-scroll {
+  position: relative;
+  max-height: var(--claudian-todo-max-h, 280px);
+  padding: var(--cl-space-1);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text-faint) 45%, transparent) transparent;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black var(--claudian-todo-fade-top),
+    black calc(100% - var(--claudian-todo-fade-bottom)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black var(--claudian-todo-fade-top),
+    black calc(100% - var(--claudian-todo-fade-bottom)),
+    transparent 100%
+  );
+  /* Fades appear only at an edge that has more content behind it. An inactive
+     scroll timeline (nothing to scroll) leaves both fades at 0. */
+  animation: claudian-todo-scroll-fade linear both;
+  animation-timeline: scroll(self);
+}
+
+@keyframes claudian-todo-scroll-fade {
+  0% {
+    --claudian-todo-fade-top: 0px;
+    --claudian-todo-fade-bottom: var(--claudian-todo-fade);
+  }
+
+  6%,
+  94% {
+    --claudian-todo-fade-top: var(--claudian-todo-fade);
+    --claudian-todo-fade-bottom: var(--claudian-todo-fade);
+  }
+
+  100% {
+    --claudian-todo-fade-top: var(--claudian-todo-fade);
+    --claudian-todo-fade-bottom: 0px;
+  }
+}
+
+.claudian-todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cl-space-2);
+  padding: 4px 8px;
+  border-radius: var(--cl-radius-sm);
+  font-family: var(--cl-font-ui);
+  font-size: var(--claudian-todo-font);
+  line-height: var(--claudian-todo-line);
+  color: var(--text-normal);
+  transition: background-color var(--cl-dur-fast) var(--cl-ease-out);
+}
+
+.claudian-todo-item + .claudian-todo-item,
+.claudian-todo-group + .claudian-todo-item {
+  margin-top: 1px;
+}
+
+.claudian-todo-step {
+  flex: 0 0 var(--claudian-todo-step-w);
+  font-family: var(--cl-font-mono);
+  font-size: var(--cl-text-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--claudian-todo-line);
+  text-align: right;
+  color: var(--text-muted);
+}
+
+.claudian-todo-status-icon {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 var(--claudian-todo-icon);
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--claudian-todo-icon);
+  height: var(--claudian-todo-icon);
+  margin-top: calc((var(--claudian-todo-line) - var(--claudian-todo-icon)) / 2);
+  border-radius: 50%;
+}
+
+.claudian-todo-status-icon svg {
+  width: 9px;
+  height: 9px;
+  stroke-width: 3.5;
+}
+
+.claudian-todo-pending .claudian-todo-status-icon {
+  border: 1.5px solid color-mix(in srgb, var(--text-muted) 80%, transparent);
+}
+
+.claudian-todo-in_progress .claudian-todo-status-icon {
+  border: 1.5px solid var(--cl-accent);
+}
+
+/* Breathing core inside the accent ring. */
+.claudian-todo-in_progress .claudian-todo-status-icon::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cl-accent);
+  animation: claudian-todo-breathe 1.6s ease-in-out infinite alternate;
+}
+
+@keyframes claudian-todo-breathe {
+  from {
+    opacity: 0.55;
+    transform: scale(0.6);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.claudian-todo-completed .claudian-todo-status-icon,
+.claudian-todo-group-icon {
+  background: var(--cl-success);
+  color: var(--background-primary);
+}
+
+.claudian-todo-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.claudian-todo-in_progress {
+  background: color-mix(in srgb, var(--cl-accent) 9%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cl-accent) 18%, transparent);
+}
+
+.claudian-todo-in_progress .claudian-todo-text {
+  font-weight: 500;
+}
+
+.claudian-todo-completed .claudian-todo-text {
+  color: var(--text-muted);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--text-faint) 65%, transparent);
+  text-decoration-thickness: 1px;
+}
+
+/* The one authored moment: a check lands when an item finishes. */
+.claudian-todo-item.is-just-done .claudian-todo-status-icon {
+  animation: claudian-todo-check-in var(--cl-dur) var(--cl-ease-out) both;
+}
+
+@keyframes claudian-todo-check-in {
+  from {
+    opacity: 0.2;
+    transform: scale(0.55);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.claudian-todo-priority {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  height: 18px;
+  margin-top: calc((var(--claudian-todo-line) - 18px) / 2);
+  padding: 0 7px;
+  border-radius: var(--cl-radius-pill);
+  font-size: var(--cl-text-xs);
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text-muted);
+  background: var(--cl-wash-strong);
+  box-shadow: inset 0 0 0 1px var(--cl-border-subtle);
+}
+
+.claudian-todo-priority--high {
+  color: color-mix(in srgb, var(--cl-warning) 55%, var(--text-normal));
+  background: color-mix(in srgb, var(--cl-warning) 13%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cl-warning) 32%, transparent);
+}
+
+.claudian-todo-priority--low {
+  color: var(--text-muted);
+  background: transparent;
+}
+
+/* A finished step's priority no longer asks for attention: neutral, still legible. */
+.claudian-todo-completed .claudian-todo-priority {
+  color: var(--text-muted);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--cl-border-subtle);
+}
+
+/* Visually hidden, still read: status never rests on shape or color alone. */
+.claudian-todo-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ── "N erledigt" fold ─────────────────────────────────────────────── */
+
+.claudian-todo-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--cl-space-2);
+  padding: 4px 8px;
+  border-radius: var(--cl-radius-sm);
+  font-family: var(--cl-font-ui);
+  font-size: var(--claudian-todo-font);
+  line-height: var(--claudian-todo-line);
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color var(--cl-dur-fast) var(--cl-ease-out),
+    color var(--cl-dur-fast) var(--cl-ease-out);
+}
+
+.claudian-todo-scroll.is-numbered .claudian-todo-group-toggle {
+  padding-left: calc(8px + var(--claudian-todo-step-w) + var(--cl-space-2));
+}
+
+.claudian-todo-group-toggle:hover {
+  background: var(--cl-wash-strong);
+  color: var(--text-normal);
+}
+
+.claudian-todo-group-toggle:active {
+  background: color-mix(in srgb, var(--cl-success) 10%, var(--cl-wash-strong));
+}
+
+.claudian-todo-group-toggle:focus-visible {
+  outline: 2px solid var(--cl-accent);
+  outline-offset: -2px;
+}
+
+.claudian-todo-group-toggle .claudian-todo-status-icon {
+  margin-top: 0;
+}
+
+.claudian-todo-group-label {
+  font-variant-numeric: tabular-nums;
+}
+
+.claudian-todo-group-chevron {
+  display: inline-flex;
+  margin-left: auto;
+  color: var(--text-faint);
+  transform: rotate(-90deg);
+  transition: transform var(--cl-dur) var(--cl-ease-out);
+}
+
+.claudian-todo-group.is-expanded .claudian-todo-group-chevron {
+  transform: rotate(0deg);
+}
+
+.claudian-todo-group-chevron svg {
+  width: 14px;
+  height: 14px;
+}
+
+.claudian-todo-group-body .claudian-todo-collapse-inner {
+  padding-top: 1px;
+}
+
+.claudian-todo-empty {
+  display: block;
+  padding: 8px 12px;
+  font-size: var(--cl-text-sm);
+  color: var(--text-muted);
+}
+
+/* ── Surface: status panel (above the composer) ───────────────────── */
+
+.claudian-status-panel-todos {
+  --claudian-todo-max-h: min(calc(var(--claudian-todo-row) * 6.5 + 8px), 36vh);
+
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: var(--cl-radius-md);
+  background: var(--cl-glass-sheen), var(--cl-glass-body);
+  -webkit-backdrop-filter: var(--cl-glass-filter-soft);
+  backdrop-filter: var(--cl-glass-filter-soft);
+  box-shadow: var(--cl-glass-edge), var(--cl-shadow-sm);
+  transition: box-shadow var(--cl-dur) var(--cl-ease-out);
+}
+
+.claudian-status-panel-todos.is-complete {
+  background:
+    linear-gradient(color-mix(in srgb, var(--cl-success) 7%, transparent), color-mix(in srgb, var(--cl-success) 7%, transparent)),
+    var(--cl-glass-body);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--cl-success) 30%, var(--cl-border-subtle)),
+    var(--cl-shadow-sm);
+}
+
+.claudian-todo-header {
+  display: flex;
+  align-items: center;
+  gap: var(--cl-space-2);
+  min-height: 36px;
+  padding: 6px 10px 6px 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--cl-dur-fast) var(--cl-ease-out);
+}
+
+.claudian-todo-header:hover {
+  background: var(--cl-wash-strong);
+}
+
+.claudian-todo-header:active {
+  background: color-mix(in srgb, var(--cl-accent) 7%, var(--cl-wash-strong));
+}
+
+.claudian-todo-header:focus-visible {
+  outline: 2px solid var(--cl-accent);
+  outline-offset: -2px;
+  border-radius: var(--cl-radius-md);
+}
+
+.claudian-status-panel-todos.is-expanded .claudian-todo-header {
+  box-shadow: inset 0 -1px 0 var(--cl-border-subtle);
+}
+
+.claudian-status-panel-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  color: var(--cl-accent);
+}
+
+.claudian-status-panel-todos.is-complete .claudian-status-panel-icon {
+  color: var(--cl-success);
+}
+
+.claudian-status-panel-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.claudian-status-panel-label {
+  flex-shrink: 0;
+  font-family: var(--cl-font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.claudian-todo-chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text-faint);
+  transition:
+    transform var(--cl-dur) var(--cl-ease-out),
+    color var(--cl-dur-fast) var(--cl-ease-out);
+}
+
+.claudian-todo-chevron svg {
+  width: 15px;
+  height: 15px;
+}
+
+.claudian-todo-header:hover .claudian-todo-chevron {
+  color: var(--text-muted);
+}
+
+.claudian-status-panel-todos.is-expanded .claudian-todo-chevron {
+  transform: rotate(180deg);
+}
+
+/* ── Surface: inline TodoWrite card ────────────────────────────────── */
+
+.claudian-tool-call--todo {
+  --claudian-todo-max-h: calc(var(--claudian-todo-row) * 8.5 + 8px);
+}
+
+/* The summary carries count and finished state; generic slots stay out. */
+.claudian-tool-call--todo > .claudian-tool-header > .claudian-tool-summary,
+.claudian-tool-call--todo > .claudian-tool-header > .claudian-tool-status {
+  display: none;
+}
+
+.claudian-tool-call--todo > .claudian-tool-content {
+  background: none;
+}
+
+.claudian-tool-call--todo.is-complete > .claudian-tool-header .claudian-tool-icon {
+  color: var(--cl-success);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-todo-collapse,
+  .claudian-todo-collapse.claudian-todo-collapsed,
+  .claudian-todo-meter-seg,
+  .claudian-todo-meter-fill,
+  .claudian-todo-chevron,
+  .claudian-todo-group-chevron {
+    transition: none;
+  }
+
+  .claudian-todo-pulse::after,
+  .claudian-todo-in_progress .claudian-todo-status-icon::after,
+  .claudian-todo-item.is-just-done .claudian-todo-status-icon {
+    animation: none;
+  }
+}

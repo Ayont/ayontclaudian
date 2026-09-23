@@ -24,6 +24,8 @@ import {
  */
 export class MessageChannel implements AsyncIterable<SDKUserMessage> {
   private queue: PendingMessage[] = [];
+  /** Steer messages that belong to the running turn, not behind it. */
+  private injected: SDKUserMessage[] = [];
   private turnActive = false;
   private closed = false;
   private resolveNext: ((value: IteratorResult<SDKUserMessage>) => void) | null = null;
@@ -121,6 +123,26 @@ export class MessageChannel implements AsyncIterable<SDKUserMessage> {
     }
   }
 
+  /**
+   * Hands a message to the SDK while a turn runs instead of holding it until
+   * the turn ends. The SDK keeps reading its input stream mid-turn, and the CLI
+   * folds `priority: 'next'` input into the running turn between tool rounds.
+   * Returns false when no turn is running; the caller then queues normally.
+   */
+  injectIntoActiveTurn(message: SDKUserMessage): boolean {
+    if (this.closed || !this.turnActive) {
+      return false;
+    }
+    if (this.resolveNext) {
+      const resolve = this.resolveNext;
+      this.resolveNext = null;
+      resolve({ value: message, done: false });
+    } else {
+      this.injected.push(message);
+    }
+    return true;
+  }
+
   onTurnComplete(): void {
     this.turnActive = false;
 
@@ -136,6 +158,7 @@ export class MessageChannel implements AsyncIterable<SDKUserMessage> {
   close(): void {
     this.closed = true;
     this.queue = [];
+    this.injected = [];
     if (this.resolveNext) {
       const resolve = this.resolveNext;
       this.resolveNext = null;
@@ -145,6 +168,7 @@ export class MessageChannel implements AsyncIterable<SDKUserMessage> {
 
   reset(): void {
     this.queue = [];
+    this.injected = [];
     this.turnActive = false;
     this.closed = false;
     this.resolveNext = null;
@@ -159,6 +183,10 @@ export class MessageChannel implements AsyncIterable<SDKUserMessage> {
       next: (): Promise<IteratorResult<SDKUserMessage>> => {
         if (this.closed) {
           return Promise.resolve({ value: undefined, done: true } as IteratorResult<SDKUserMessage>);
+        }
+
+        if (this.injected.length > 0) {
+          return Promise.resolve({ value: this.injected.shift()!, done: false });
         }
 
         // If there's a queued message and no active turn, return it

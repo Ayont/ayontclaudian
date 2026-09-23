@@ -1,4 +1,10 @@
-import { extractLastTodosFromMessages, parseTodoInput } from '@/core/tools/todo';
+import {
+  extractLastTodosFromMessages,
+  getRestorableTodos,
+  normalizeTodoItems,
+  parseTodoInput,
+  summarizeTodos,
+} from '@/core/tools/todo';
 import { TOOL_TODO_WRITE } from '@/core/tools/toolNames';
 
 describe('parseTodoInput', () => {
@@ -29,16 +35,16 @@ describe('parseTodoInput', () => {
     expect(parseTodoInput({ todos: null })).toBeNull();
   });
 
-  it('should filter out invalid items', () => {
+  it('should skip items without any usable text', () => {
     const input = {
       todos: [
         { content: 'Valid', status: 'pending', activeForm: 'Working' },
-        { content: '', status: 'pending', activeForm: 'Working' }, // empty content
-        { content: 'No status', activeForm: 'Working' }, // missing status
-        { content: 'Bad status', status: 'unknown', activeForm: 'Working' }, // invalid status
+        { content: '', status: 'pending', activeForm: 'Working' },
+        { content: '   ', status: 'pending' },
+        { status: 'pending' },
         null,
         42,
-        'string',
+        false,
       ],
     };
 
@@ -48,12 +54,12 @@ describe('parseTodoInput', () => {
     expect(result![0].content).toBe('Valid');
   });
 
-  it('should return null when all items are invalid', () => {
+  it('should return null when all items are unusable', () => {
     const input = {
       todos: [
         { content: '', status: 'pending', activeForm: 'Working' },
         null,
-        { status: 'pending' }, // missing content and activeForm
+        { status: 'pending' },
       ],
     };
 
@@ -64,32 +70,147 @@ describe('parseTodoInput', () => {
     expect(parseTodoInput({ todos: [] })).toBeNull();
   });
 
-  it('should reject items with missing activeForm', () => {
-    const input = {
+  it('should fall back to the content when activeForm is missing or empty', () => {
+    const result = parseTodoInput({
       todos: [
-        { content: 'Task', status: 'pending' }, // no activeForm
+        { content: 'Write tests', status: 'pending' },
+        { content: 'Ship it', status: 'in_progress', activeForm: '' },
       ],
-    };
+    });
 
-    expect(parseTodoInput(input)).toBeNull();
+    expect(result).toEqual([
+      { content: 'Write tests', status: 'pending', activeForm: 'Write tests' },
+      { content: 'Ship it', status: 'in_progress', activeForm: 'Ship it' },
+    ]);
   });
 
-  it('should reject items with empty activeForm', () => {
-    const input = {
-      todos: [
-        { content: 'Task', status: 'pending', activeForm: '' },
-      ],
-    };
+  it('should accept snake_case active_form', () => {
+    const result = parseTodoInput({
+      todos: [{ content: 'Lint', status: 'in_progress', active_form: 'Linting' }],
+    });
 
-    expect(parseTodoInput(input)).toBeNull();
+    expect(result![0].activeForm).toBe('Linting');
   });
 
-  it('should reject non-object items', () => {
-    const input = {
-      todos: [undefined, false, 0],
-    };
+  it.each([
+    ['inProgress', 'in_progress'],
+    ['in-progress', 'in_progress'],
+    ['In Progress', 'in_progress'],
+    ['active', 'in_progress'],
+    ['done', 'completed'],
+    ['cancelled', 'completed'],
+    ['canceled', 'completed'],
+    ['COMPLETED', 'completed'],
+    ['pending', 'pending'],
+    ['unknown', 'pending'],
+    [undefined, 'pending'],
+    [7, 'pending'],
+  ])('should map status %p to %p', (status, expected) => {
+    const result = parseTodoInput({ todos: [{ content: 'Task', status }] });
 
-    expect(parseTodoInput(input)).toBeNull();
+    expect(result![0].status).toBe(expected);
+  });
+
+  it.each(['title', 'text', 'step', 'description'])('should read the text from "%s"', (key) => {
+    const result = parseTodoInput({ todos: [{ [key]: '  Build the thing  ', status: 'pending' }] });
+
+    expect(result![0].content).toBe('Build the thing');
+    expect(result![0].activeForm).toBe('Build the thing');
+  });
+
+  it('should prefer content over alternative text keys', () => {
+    const result = parseTodoInput({ todos: [{ content: 'Primary', title: 'Secondary' }] });
+
+    expect(result![0].content).toBe('Primary');
+  });
+
+  it('should keep a known priority and drop unknown ones', () => {
+    const result = parseTodoInput({
+      todos: [
+        { content: 'A', status: 'pending', priority: 'high' },
+        { content: 'B', status: 'pending', priority: 'Medium' },
+        { content: 'C', status: 'pending', priority: 'low' },
+        { content: 'D', status: 'pending', priority: 'urgent' },
+      ],
+    });
+
+    expect(result!.map((todo) => todo.priority)).toEqual(['high', 'medium', 'low', undefined]);
+    expect(result![3]).not.toHaveProperty('priority');
+  });
+
+  it('should keep a non-empty id as a string', () => {
+    const result = parseTodoInput({
+      todos: [
+        { id: 'a1', content: 'A' },
+        { id: 3, content: 'B' },
+        { id: '', content: 'C' },
+      ],
+    });
+
+    expect(result![0].id).toBe('a1');
+    expect(result![1].id).toBe('3');
+    expect(result![2]).not.toHaveProperty('id');
+  });
+
+  it('should accept plain strings as pending items', () => {
+    const result = parseTodoInput({ todos: ['Read the spec', ''] });
+
+    expect(result).toEqual([
+      { content: 'Read the spec', status: 'pending', activeForm: 'Read the spec' },
+    ]);
+  });
+
+  it('should accept an ACP-style entries list', () => {
+    const result = parseTodoInput({
+      entries: [{ content: 'Plan', priority: 'high', status: 'in_progress' }],
+    });
+
+    expect(result).toEqual([
+      { content: 'Plan', status: 'in_progress', activeForm: 'Plan', priority: 'high' },
+    ]);
+  });
+});
+
+describe('normalizeTodoItems', () => {
+  it('returns an empty list for non-arrays', () => {
+    expect(normalizeTodoItems(undefined)).toEqual([]);
+    expect(normalizeTodoItems('x')).toEqual([]);
+  });
+
+  it('returns canonical items for a raw provider list', () => {
+    expect(normalizeTodoItems([{ id: '1', content: 'Recon', status: 'in_progress' }])).toEqual([
+      { activeForm: 'Recon', content: 'Recon', id: '1', status: 'in_progress' },
+    ]);
+  });
+});
+
+describe('summarizeTodos', () => {
+  it('counts progress and finds the current task', () => {
+    const summary = summarizeTodos([
+      { content: 'A', status: 'completed', activeForm: 'A' },
+      { content: 'B', status: 'in_progress', activeForm: 'Doing B' },
+      { content: 'C', status: 'pending', activeForm: 'C' },
+    ]);
+
+    expect(summary).toEqual({
+      allCompleted: false,
+      completed: 1,
+      current: { content: 'B', status: 'in_progress', activeForm: 'Doing B' },
+      currentIndex: 1,
+      total: 3,
+    });
+  });
+
+  it('reports a finished list', () => {
+    const summary = summarizeTodos([{ content: 'A', status: 'completed', activeForm: 'A' }]);
+
+    expect(summary.allCompleted).toBe(true);
+    expect(summary.current).toBeUndefined();
+    expect(summary.currentIndex).toBe(-1);
+  });
+
+  it('never reports an empty list as finished', () => {
+    expect(summarizeTodos([]).allCompleted).toBe(false);
   });
 });
 
@@ -223,5 +344,44 @@ describe('extractLastTodosFromMessages', () => {
     ];
 
     expect(extractLastTodosFromMessages(messages)).toBeNull();
+  });
+});
+
+describe('getRestorableTodos', () => {
+  const todoWrite = (todos: unknown[]) => ({
+    role: 'assistant',
+    toolCalls: [{ name: TOOL_TODO_WRITE, input: { todos } }],
+  });
+
+  it('restores the latest unfinished list', () => {
+    const result = getRestorableTodos([
+      todoWrite([{ content: 'Old', status: 'pending' }]),
+      { role: 'user' },
+      todoWrite([
+        { content: 'Done', status: 'completed' },
+        { content: 'Next', status: 'in_progress' },
+      ]),
+    ]);
+
+    expect(result?.map((todo) => todo.content)).toEqual(['Done', 'Next']);
+  });
+
+  it('stays hidden when the latest list is finished', () => {
+    const result = getRestorableTodos([
+      todoWrite([{ content: 'Old', status: 'pending' }]),
+      todoWrite([{ content: 'Done', status: 'completed' }]),
+    ]);
+
+    expect(result).toBeNull();
+  });
+
+  it('restores lists written by providers without activeForm', () => {
+    const result = getRestorableTodos([todoWrite([{ content: 'Recon', status: 'in_progress' }])]);
+
+    expect(result).toEqual([{ content: 'Recon', status: 'in_progress', activeForm: 'Recon' }]);
+  });
+
+  it('returns null when there is no list', () => {
+    expect(getRestorableTodos([{ role: 'assistant' }])).toBeNull();
   });
 });

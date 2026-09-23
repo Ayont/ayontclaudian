@@ -2,6 +2,7 @@ import { type App,Notice, setIcon } from 'obsidian';
 import * as os from 'os';
 import * as path from 'path';
 
+import { resolveContextPressureLevel } from '../../../core/conversation/contextPressure';
 import type { McpServerManager } from '../../../core/mcp/McpServerManager';
 import type {
   ProviderCapabilities,
@@ -17,8 +18,10 @@ import type {
   ManagedMcpServer,
   UsageInfo,
 } from '../../../core/types';
+import { t } from '../../../i18n/i18n';
 import { appendCheckIcon, appendMcpIcon, createProviderIconSvg } from '../../../shared/icons';
 import { filterValidPaths, findConflictingPath, isDuplicatePath, isValidDirectoryPath, validateDirectoryPath } from '../../../utils/externalContext';
+import { formatTokenCount } from '../../../utils/formatTokenCount';
 import { expandHomePath, normalizePathForFilesystem } from '../../../utils/path';
 import { ModelSelectModal } from './ModelSelectModal';
 
@@ -1481,6 +1484,8 @@ export class ContextUsageMeter {
   private fillPath: SVGPathElement | null = null;
   private percentEl: HTMLElement | null = null;
   private circumference: number = 0;
+  private compactCommand: string | null = null;
+  private lastUsage: UsageInfo | null = null;
 
   constructor(parentEl: HTMLElement) {
     this.container = parentEl.createDiv({ cls: 'claudian-context-meter' });
@@ -1547,6 +1552,7 @@ export class ContextUsageMeter {
 
   update(usage: UsageInfo | null): void {
     if (!usage || usage.contextTokens <= 0) {
+      this.lastUsage = null;
       this.container.addClass('claudian-hidden');
       return;
     }
@@ -1555,6 +1561,8 @@ export class ContextUsageMeter {
     if (this.fillPath) {
       this.fillPath.setAttribute('stroke-dashoffset', String(this.circumference - fillLength));
     }
+
+    this.lastUsage = usage;
 
     // Providers that report no token counts (Kimi, Antigravity) send an
     // estimated usage; signal that with a leading "≈" and a tooltip note so the
@@ -1566,35 +1574,31 @@ export class ContextUsageMeter {
       this.percentEl.setText(`${approximate ? '≈' : ''}${usage.percentage}%`);
     }
 
-    // Toggle warning class for > 80%
-    if (usage.percentage > 80) {
-      this.container.addClass('warning');
-    } else {
-      this.container.removeClass('warning');
-    }
+    // Same thresholds as the context-pressure banner, so the two never disagree.
+    const level = resolveContextPressureLevel(usage.percentage);
+    this.container.toggleClass('warning', level !== 'normal');
+    this.container.toggleClass('critical', level === 'critical');
 
-    // Set tooltip with detailed usage
-    let tooltip = `${approximate ? 'Geschätzt · ' : ''}${this.formatTokens(usage.contextTokens)} / ${this.formatTokens(usage.contextWindow)}`;
-    if (usage.percentage > 80) {
-      tooltip += ' (Limit fast erreicht – mit `/compact` fortfahren)';
+    const prefix = approximate ? t('chat.contextMeter.estimatedPrefix') : '';
+    let tooltip = `${prefix}${formatTokenCount(usage.contextTokens)} / ${formatTokenCount(usage.contextWindow)}`;
+    if (level !== 'normal') {
+      const hint = this.compactCommand
+        ? t('chat.contextMeter.nearLimitCompact', { command: this.compactCommand })
+        : t('chat.contextMeter.nearLimit');
+      tooltip += ` (${hint})`;
     }
     this.container.setAttribute('data-tooltip', tooltip);
   }
 
-  private formatTokens(tokens: number): string {
-    if (!Number.isFinite(tokens) || tokens < 0) {
-      return '0';
+  /** The provider's manual compact command, or null when it cannot compact on request. */
+  setCompactCommand(command: string | null): void {
+    if (this.compactCommand === command) {
+      return;
     }
-    if (tokens >= 1_000_000_000) {
-      return `${(tokens / 1_000_000_000).toFixed(1).replace(/\.0$/, '')}B`;
+    this.compactCommand = command;
+    if (this.lastUsage) {
+      this.update(this.lastUsage);
     }
-    if (tokens >= 1_000_000) {
-      return `${(tokens / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
-    }
-    if (tokens >= 1_000) {
-      return `${(tokens / 1_000).toFixed(1).replace(/\.0$/, '')}k`;
-    }
-    return String(Math.round(tokens));
   }
 }
 

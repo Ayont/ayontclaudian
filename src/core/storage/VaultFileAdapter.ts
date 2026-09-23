@@ -5,10 +5,14 @@
  * vault adapter instead of Node's fs module.
  */
 
+import { promises as fs } from 'fs';
 import type { App } from 'obsidian';
+
+import { writeTextFileAtomic } from './atomicJsonFile';
 
 export class VaultFileAdapter {
   private writeQueue: Promise<void> = Promise.resolve();
+  private pathQueues = new Map<string, Promise<void>>();
 
   constructor(private app: App) {}
 
@@ -23,6 +27,62 @@ export class VaultFileAdapter {
   async write(path: string, content: string): Promise<void> {
     await this.ensureParentFolder(path);
     await this.app.vault.adapter.write(path, content);
+  }
+
+  /**
+   * Replaces a file in one step and serializes writes per path. An in-place
+   * write cut off at quit leaves a truncated session file, and two writers of
+   * one path (a tab save and background compaction) could interleave.
+   */
+  async writeAtomic(path: string, content: string): Promise<void> {
+    const previous = this.pathQueues.get(path) ?? Promise.resolve();
+    const run = async (): Promise<void> => {
+      const fullPath = this.getFullPath(path);
+      if (fullPath) {
+        try {
+          await writeTextFileAtomic(fullPath, content);
+          return;
+        } catch {
+          // Windows can refuse the rename (EPERM/EBUSY from sync clients or
+          // antivirus). A plain write beats losing the save.
+        }
+      }
+      // Mobile adapters have no filesystem path; they get the plain write.
+      await this.ensureParentFolder(path);
+      await this.app.vault.adapter.write(path, content);
+    };
+    const result = previous.then(run, run);
+    const tail = result.catch(() => undefined);
+    this.pathQueues.set(path, tail);
+    void tail.then(() => {
+      if (this.pathQueues.get(path) === tail) this.pathQueues.delete(path);
+    });
+    return result;
+  }
+
+  /** Resolves once every write already queued for `path` has landed. */
+  async whenWritten(path: string): Promise<void> {
+    await this.pathQueues.get(path);
+  }
+
+  /**
+   * Reads at most `bytes` from the start of a file, so the header of a
+   * multi-megabyte session can be read without pulling the whole transcript
+   * into the renderer.
+   */
+  async readHead(path: string, bytes: number): Promise<string> {
+    const fullPath = this.getFullPath(path);
+    if (!fullPath) {
+      return (await this.read(path)).slice(0, bytes);
+    }
+    const handle = await fs.open(fullPath, 'r');
+    try {
+      const buffer = Buffer.alloc(bytes);
+      const { bytesRead } = await handle.read(buffer, 0, bytes, 0);
+      return buffer.subarray(0, bytesRead).toString('utf8');
+    } finally {
+      await handle.close();
+    }
   }
 
   async append(path: string, content: string): Promise<void> {
@@ -92,6 +152,11 @@ export class VaultFileAdapter {
 
     await processFolder(folder);
     return allFiles;
+  }
+
+  private getFullPath(path: string): string | null {
+    const adapter = this.app.vault.adapter as { getFullPath?: (normalizedPath: string) => string };
+    return typeof adapter.getFullPath === 'function' ? adapter.getFullPath(path) : null;
   }
 
   private async ensureParentFolder(filePath: string): Promise<void> {

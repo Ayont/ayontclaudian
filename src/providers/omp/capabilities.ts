@@ -14,10 +14,12 @@ import type { ProviderCapabilities } from '../../core/providers/types';
  *   is what makes `native-system` prompt delivery truthful here.
  *
  * `supportsFork` and `supportsMcpTools` stay false on purpose. The agent
- * advertises both, but Claudian has no OMP-side fork wiring yet and the runtime
- * still sends `mcpServers: []` on `session/new`. Declaring a capability the
- * runtime cannot service is exactly how providers have shipped broken before;
- * flip these together with the wiring, not ahead of it.
+ * advertises both, but Claudian has no OMP-side fork wiring yet. Claudian's
+ * always-on MCP servers now go out on `session/new` / `session/load`
+ * (`resolveClaudianAcpMcpServers`), yet the in-chat selector only toggles
+ * per-turn servers, which an ACP session cannot change mid-session. Declaring a
+ * capability the runtime cannot service is exactly how providers have shipped
+ * broken before; flip these together with the wiring, not ahead of it.
  */
 export const OMP_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({
   providerId: 'omp',
@@ -34,4 +36,7 @@ export const OMP_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object.
   supportsMultiAgent: true,
   supportsTurnSteer: true,
   reasoningControl: 'effort',
+  // `compact` is a builtin with an ACP `handle` (slash-commands/builtin-lifecycle.ts):
+  // advertised in `available_commands_update`, run by executeAcpBuiltinSlashCommand.
+  compact: Object.freeze({ command: '/compact', availability: 'advertised' }),
 });

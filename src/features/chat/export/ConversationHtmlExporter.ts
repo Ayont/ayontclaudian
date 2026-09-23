@@ -1,6 +1,8 @@
 import { type App,normalizePath } from 'obsidian';
 
 import type { Conversation } from '../../../core/types';
+import { assistantMessageText, userMessageText } from '../utils/messageText';
+import { withoutSupersededTurns } from '../utils/supersededTurns';
 import { safeExportFileName } from './ConversationExporter';
 
 function escapeHtml(value: string): string {
@@ -20,9 +22,16 @@ function messageHtml(role: 'user' | 'assistant', content: string, label?: string
 }
 
 export function formatConversationHtml(conversation: Conversation): string {
-  const messages = conversation.messages
-    .filter((message) => !message.isRebuiltContext && message.content.trim())
-    .map((message) => messageHtml(message.role, message.displayContent ?? message.content, message.agentLabel))
+  // A user message's `content` is the transport prompt, envelopes included.
+  const exported = withoutSupersededTurns(conversation.messages)
+    .filter((message) => !message.isRebuiltContext)
+    .map((message) => ({
+      message,
+      text: message.role === 'user' ? userMessageText(message) : assistantMessageText(message),
+    }))
+    .filter(({ text }) => text);
+  const messages = exported
+    .map(({ message, text }) => messageHtml(message.role, text, message.agentLabel))
     .join('\n');
   const title = escapeHtml(conversation.title || 'Claudian conversation');
   return `<!doctype html>
@@ -35,7 +44,7 @@ h1{margin:9px 0 6px;font-size:clamp(30px,5vw,52px);line-height:1.04;letter-spaci
 .message{margin:0 0 18px;padding:18px 20px;border-radius:14px;background:#1b1b18;border:1px solid #30302b;break-inside:avoid}
 .message.user{margin-left:10%;background:#22211d}.message header{margin-bottom:10px;color:#d97757;font:650 12px ui-monospace,monospace}.message.user header{color:#aaa79d}
 .content{font-size:15px;line-height:1.65;overflow-wrap:anywhere}@media print{:root,body{background:#fff;color:#161616}.page{width:auto;margin:0}.message,.message.user{background:#fff;border-color:#ddd;box-shadow:none}.meta{color:#666}}
-</style></head><body><main class="page"><header class="masthead"><div class="eyebrow">ayontclaudian export</div><h1>${title}</h1><div class="meta">${new Date(conversation.updatedAt).toLocaleString('de-DE')} · ${conversation.messages.length} Nachrichten</div></header>${messages}</main></body></html>`;
+</style></head><body><main class="page"><header class="masthead"><div class="eyebrow">ayontclaudian export</div><h1>${title}</h1><div class="meta">${new Date(conversation.updatedAt).toLocaleString('de-DE')} · ${exported.length} Nachrichten</div></header>${messages}</main></body></html>`;
 }
 
 async function ensureFolder(app: App, folder: string): Promise<void> {

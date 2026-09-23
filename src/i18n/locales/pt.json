@@ -67,6 +67,33 @@
       "expandOutput": "Expandir a saída do comando",
       "running": "Executando...",
       "copyFailed": "Falha ao copiar para a área de transferência"
+    },
+    "contextPressure": {
+      "titleHigh": "O contexto está enchendo",
+      "titleCritical": "Contexto quase cheio",
+      "percent": "{percent}%",
+      "usage": "{used} de {total} tokens",
+      "usageEstimated": "≈ {used} de {total} tokens (estimado)",
+      "bodyHigh": "A conversa ocupa a maior parte da janela de contexto, e detalhes iniciais podem se perder.",
+      "bodyCritical": "A próxima resposta longa pode ultrapassar o limite. Libere contexto agora.",
+      "compact": "Compactar",
+      "compactHint": "O provedor condensa o histórico desta sessão ({command})",
+      "continueFresh": "Continuar com menos contexto",
+      "continueFreshHint": "Inicia uma nova sessão com um resumo condensado. O histórico do chat continua visível.",
+      "condensing": "Condensando o histórico…",
+      "streamingNote": "Disponível assim que a resposta atual terminar.",
+      "dismiss": "Ocultar aviso",
+      "regionLabel": "Aviso de uso do contexto",
+      "freshSessionDivider": "Nova sessão com contexto condensado",
+      "freshSessionBusy": "Uma resposta ainda está em andamento. Tente novamente quando ela terminar.",
+      "freshSessionAborted": "Cancelado: a conversa mudou durante a condensação.",
+      "freshSessionFailed": "Não foi possível iniciar uma nova sessão: {error}",
+      "freshSessionUnsaved": "Não foi possível salvar a nova sessão: {error}"
+    },
+    "contextMeter": {
+      "estimatedPrefix": "Estimado · ",
+      "nearLimitCompact": "Limite quase atingido – condensar com {command}",
+      "nearLimit": "Limite quase atingido – continuar com menos contexto"
     }
   },
   "settings": {

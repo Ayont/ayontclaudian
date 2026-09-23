@@ -28,6 +28,7 @@ import { extractToolResultContent } from '../../../core/tools/toolResultContent'
 import type {
   ChatMessage,
   ContentBlock,
+  NativeGoalState,
   OutputSurface,
   StreamChunk,
   SubagentInfo,
@@ -54,6 +55,7 @@ import {
   unfoldActivity,
 } from '../rendering/activityFold';
 import { containsMermaidFence } from '../rendering/DisplayOnlyCodeFences';
+import { renderGoalRoundBoundary } from '../rendering/goalRoundBoundary';
 import type { MessageRenderer, RenderContentOptions } from '../rendering/MessageRenderer';
 import {
   resolveRichOutputSurface,
@@ -97,6 +99,8 @@ export interface StreamControllerDeps {
   updateQueueIndicator: () => void;
   /** Get the agent service from the tab. */
   getAgentService?: () => ChatRuntime | null;
+  /** The provider's own goal changed (null: it ended the goal). */
+  onNativeGoalUpdate?: (goal: NativeGoalState | null) => void;
   /** Update the compact live status bar with the latest visible activity. */
   updateLiveActivity?: (activity: { primary: string; meta?: string; phrase?: string }) => void;
   /** Surface a browser/desktop automation step in the live status bar. */
@@ -398,6 +402,10 @@ export class StreamController {
         break;
 
       case 'notice':
+        if (chunk.transient) {
+          this.deps.updateLiveActivity?.({ primary: 'Neuer Versuch', meta: chunk.content, phrase: 'wartet auf API' });
+          break;
+        }
         if (chunk.level === 'warning' && chunk.content.startsWith('Speed-Limit')) {
           this.deps.plugin.getView()?.getActiveTab()?.ui.serviceTierToggle?.setRuntimeState('cooldown');
         }
@@ -425,6 +433,7 @@ export class StreamController {
         });
         recordProviderError(providerId, chunk.content);
         providerErrorRecoveryService.recordError(providerId, new Error(chunk.content));
+        state.markTurnFailed();
         // Flush pending tools before rendering error message
         this.flushPendingTools();
         // Finalize the preceding text so the error lands in its OWN block and
@@ -441,6 +450,25 @@ export class StreamController {
           this.foldPrecedingActivity(state.currentContentEl, msg);
         }
         break;
+
+      case 'goal_update': {
+        this.deps.onNativeGoalUpdate?.(chunk.goal);
+        if (chunk.round && chunk.round > 1) {
+          this.flushPendingTools();
+          if (state.currentThinkingState) {
+            await this.finalizeCurrentThinkingBlock(msg);
+          }
+          await this.finalizeCurrentTextBlock(msg);
+          const reason = chunk.goal?.lastReason;
+          msg.contentBlocks = msg.contentBlocks || [];
+          msg.contentBlocks.push({ type: 'goal_round', round: chunk.round, ...(reason ? { reason } : {}) });
+          if (state.currentContentEl) {
+            this.hideThinkingIndicator();
+            renderGoalRoundBoundary(state.currentContentEl, chunk.round, reason);
+          }
+        }
+        break;
+      }
 
       case 'context_compacted': {
         this.flushPendingTools();

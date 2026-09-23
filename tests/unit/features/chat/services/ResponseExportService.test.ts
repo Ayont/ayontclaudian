@@ -43,4 +43,14 @@ describe('ResponseExportService', () => {
     expect(path).toBe('Claudian/Antworten/2026-07-13 - Netzwerk prüfen (1).md');
     expect(vault.create).toHaveBeenCalledWith(path, expect.stringContaining(message.content));
   });
+
+  it('exports the visible text blocks when the answer body is empty', () => {
+    const markdown = buildResponseExportMarkdown({
+      ...message,
+      content: '',
+      contentBlocks: [{ type: 'text', content: 'Nur im Block' }],
+    });
+
+    expect(markdown).toContain('Nur im Block');
+  });
 });

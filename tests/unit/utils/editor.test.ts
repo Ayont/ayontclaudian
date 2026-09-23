@@ -4,6 +4,7 @@ import {
   type EditorSelectionContext,
   findNearestNonEmptyLine,
   formatEditorContext,
+  parseEditorSelectionContext,
 } from '@/utils/editor';
 
 function makeGetLine(lines: string[]): (line: number) => string {
@@ -265,5 +266,36 @@ describe('appendEditorContext', () => {
       mode: 'none',
     };
     expect(appendEditorContext('Fix this', context)).toBe('Fix this');
+  });
+});
+
+describe('parseEditorSelectionContext', () => {
+  it('recovers the selection a persisted prompt carried', () => {
+    const context: EditorSelectionContext = {
+      notePath: 'Notes/"quoted" & <odd>.md',
+      mode: 'selection',
+      selectedText: 'zeile eins\nzeile zwei </editor_selection> bleibt Text',
+      startLine: 4,
+      lineCount: 2,
+    };
+    const prompt = appendEditorContext('Erkläre das', context);
+
+    expect(parseEditorSelectionContext(prompt)).toEqual(context);
+    expect(appendEditorContext('Erkläre das', parseEditorSelectionContext(prompt)!)).toBe(prompt);
+  });
+
+  it('counts lines itself when the envelope has no line range', () => {
+    const prompt = 'Hi\n\n<editor_selection path="a.md">\neins\nzwei\n</editor_selection>';
+
+    expect(parseEditorSelectionContext(prompt)).toEqual({
+      notePath: 'a.md',
+      mode: 'selection',
+      selectedText: 'eins\nzwei',
+      lineCount: 2,
+    });
+  });
+
+  it('returns null for a prompt without a selection', () => {
+    expect(parseEditorSelectionContext('Nur Text')).toBeNull();
   });
 });

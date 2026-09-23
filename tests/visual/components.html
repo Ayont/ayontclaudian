@@ -37,6 +37,23 @@
       color: var(--text-normal);
       font-family: var(--font-interface);
     }
+    /* Obsidian's default light palette; only the light-theme captures switch to it. */
+    body.theme-light {
+      --mono-rgb-0: 255, 255, 255;
+      --mono-rgb-100: 0, 0, 0;
+      --background-primary: #ffffff;
+      --background-primary-alt: #f7f7f8;
+      --background-secondary: #f4f4f6;
+      --background-secondary-alt: #ececf0;
+      --background-modifier-border: #e0e0e5;
+      --background-modifier-border-hover: #cdcdd4;
+      --background-modifier-hover: rgba(0, 0, 0, 0.05);
+      --text-normal: #222227;
+      --text-muted: #5b5b66;
+      --text-faint: #8a8a94;
+      --color-orange: #ec7500;
+      --color-red: #e93147;
+    }
     .harness-section { margin-bottom: 28px; max-width: 720px; }
     .harness-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
     .harness-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
@@ -80,6 +97,36 @@
     .harness-obsidian-controls input[type='text'] { border: 1px solid #55555e; border-radius: 6px; padding: 4px 8px; background: #111114; }
     .harness-obsidian-controls input[type='text']:focus { border: 2px solid #7c3aed; box-shadow: 0 0 0 2px #7c3aed; }
     .harness-history-host .claudian-history-menu { position: static; max-height: none; }
+    /* Obsidian's semantic colors per theme (feed --cl-success/--cl-warning). Scoped
+       to the todo fixtures so the established snapshots keep their inputs. */
+    [data-vis^="todo-"] { --color-green: #44cf6e; --color-orange: #e9973f; }
+    body.theme-light [data-vis^="todo-"] { --color-green: #08b94e; --color-orange: #ec7500; }
+    /* Light theme for the fixtures that are also captured in light (Obsidian sets these on body). */
+    body.theme-light {
+      --mono-rgb-0: 255, 255, 255;
+      --mono-rgb-100: 0, 0, 0;
+      --background-primary: #ffffff;
+      --background-primary-alt: #f7f7f8;
+      --background-secondary: #f4f4f6;
+      --background-secondary-alt: #ececf0;
+      --background-modifier-border: #e0e0e5;
+      --background-modifier-border-hover: #cdcdd4;
+      --background-modifier-hover: rgba(0, 0, 0, 0.05);
+      --text-normal: #222227;
+      --text-muted: #5b5b66;
+      --text-faint: #8a8a94;
+    }
+    .harness-todo-grid { display: grid; gap: 14px; }
+    .harness-todo-host { width: 100%; max-width: 560px; }
+    /* Tab overview: the pane opens above the composer inside .claudian-input-container,
+       so the host leaves room above it and sits the composer at the bottom. */
+    .harness-tab-host { position: relative; display: flex; flex-direction: column; justify-content: flex-end; width: min(100%, 440px); height: 720px; border: 1px solid var(--background-modifier-border); border-radius: 12px; }
+    .harness-tab-host--narrow { width: min(100%, 300px); }
+    .harness-tab-host .claudian-input-wrapper { min-height: 72px; }
+    .harness-tabbar-host { width: min(100%, 400px); padding: 8px 0; border: 1px solid var(--background-modifier-border); border-radius: 12px; }
+    /* On a phone the chat drawer spans the screen; the body padding would make it narrower than any real pane. */
+    @media (max-width: 380px) { .harness-tabbar-host { width: calc(100% + 40px); margin-inline: -20px; } }
+    .harness-tab-host *, .harness-tabbar-host * { animation-play-state: paused !important; }
     /* Stand-in for setIcon's injected SVG so layout/box sizing is representative. */
     .harness-section svg { width: 100%; height: 100%; }
   </style>
@@ -103,6 +150,26 @@
         <div class="claudian-goal-banner-actions"><button class="claudian-goal-banner-action" type="button" aria-label="Ziel pausieren">Ⅱ</button><button class="claudian-goal-banner-action claudian-goal-banner-action--done" type="button" aria-label="Ziel abschließen">✓</button><button class="claudian-goal-banner-action claudian-goal-banner-clear" type="button" aria-label="Ziel entfernen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
       </div>
     </div>
+  </div>
+
+  <!-- Provider-owned goals. Empty hosts: goal.spec.ts bundles the real
+       GoalBanner and round divider (tests/visual/goalHarness.ts). -->
+  <div class="harness-section claudian-container" data-vis="goal-native">
+    <div class="harness-label">Natives Ziel · Status</div>
+    <div class="claudian-goal-banner-host" data-goal-fixture="codex-live"></div>
+    <div class="claudian-goal-banner-host" data-goal-fixture="claude-round"></div>
+    <div class="claudian-goal-banner-host" data-goal-fixture="codex-paused"></div>
+    <div class="claudian-goal-banner-host" data-goal-fixture="grok-loop"></div>
+  </div>
+  <div class="harness-section claudian-container" data-vis="goal-settled">
+    <div class="harness-label">Natives Ziel · Abschluss</div>
+    <div class="claudian-goal-banner-host" data-goal-fixture="codex-complete"></div>
+    <div class="claudian-goal-banner-host" data-goal-fixture="codex-budget"></div>
+    <div class="claudian-goal-banner-host" data-goal-fixture="kimi-blocked"></div>
+  </div>
+  <div class="harness-section claudian-container" data-vis="goal-rounds" data-provider="claude">
+    <div class="harness-label">Ziel-Runden im Verlauf</div>
+    <div class="claudian-message-content" data-goal-rounds></div>
   </div>
 
   <!-- Permission toggle: Safe / YOLO / AUTO -->
@@ -791,6 +858,173 @@ kurze Zeile</code></pre>
       </div>
     </div>
   </div>
+  <!-- Context-pressure warning above the composer. Mirrors ContextPressureBanner's DOM. -->
+  <div class="harness-section claudian-container" data-vis="context-pressure-high">
+    <div class="harness-label">Kontextdruck · hoch</div>
+    <div class="claudian-context-pressure-host">
+      <section class="claudian-context-pressure" data-level="high" aria-label="Warnung zur Kontextauslastung" aria-busy="false">
+        <div class="claudian-context-pressure-main">
+          <span class="claudian-context-pressure-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg></span>
+          <div class="claudian-context-pressure-body">
+            <div class="claudian-context-pressure-head"><span class="claudian-context-pressure-title" aria-live="polite">Kontext wird knapp</span><span class="claudian-context-pressure-percent">84 %</span></div>
+            <div class="claudian-context-pressure-meter" aria-hidden="true"><span class="claudian-context-pressure-meter-fill" style="--claudian-pressure-fill: 0.84"></span></div>
+            <p class="claudian-context-pressure-detail"><span class="claudian-context-pressure-usage">168k von 200k Tokens</span><span class="claudian-context-pressure-text">Das Gespräch belegt den Großteil des Kontextfensters, frühe Details können verloren gehen.</span></p>
+          </div>
+          <button class="claudian-context-pressure-dismiss" type="button" aria-label="Hinweis ausblenden" title="Hinweis ausblenden"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+        </div>
+        <div class="claudian-context-pressure-actions">
+          <button class="claudian-context-pressure-action claudian-context-pressure-action--compact is-primary" type="button" title="Der Provider verdichtet den Verlauf dieser Sitzung (/compact)">Kompaktieren</button>
+          <button class="claudian-context-pressure-action claudian-context-pressure-action--fresh" type="button" title="Startet eine neue Sitzung mit einer verdichteten Zusammenfassung. Der Chatverlauf bleibt sichtbar.">Mit weniger Kontext fortsetzen</button>
+        </div>
+        <p class="claudian-context-pressure-note claudian-hidden"></p>
+      </section>
+    </div>
+  </div>
+
+  <div class="harness-section claudian-container" data-vis="context-pressure-critical">
+    <div class="harness-label">Kontextdruck · kritisch</div>
+    <div class="claudian-context-pressure-host">
+      <section class="claudian-context-pressure is-critical" data-level="critical" aria-label="Warnung zur Kontextauslastung" aria-busy="false">
+        <div class="claudian-context-pressure-main">
+          <span class="claudian-context-pressure-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span>
+          <div class="claudian-context-pressure-body">
+            <div class="claudian-context-pressure-head"><span class="claudian-context-pressure-title" aria-live="polite">Kontext fast voll</span><span class="claudian-context-pressure-percent">95 %</span></div>
+            <div class="claudian-context-pressure-meter" aria-hidden="true"><span class="claudian-context-pressure-meter-fill" style="--claudian-pressure-fill: 0.95"></span></div>
+            <p class="claudian-context-pressure-detail"><span class="claudian-context-pressure-usage">190k von 200k Tokens</span><span class="claudian-context-pressure-text">Die nächste lange Antwort kann das Limit überschreiten. Jetzt Kontext freimachen.</span></p>
+          </div>
+          <button class="claudian-context-pressure-dismiss" type="button" aria-label="Hinweis ausblenden" title="Hinweis ausblenden"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+        </div>
+        <div class="claudian-context-pressure-actions">
+          <button class="claudian-context-pressure-action claudian-context-pressure-action--compact is-primary" type="button" title="Der Provider verdichtet den Verlauf dieser Sitzung (/compress)">Kompaktieren</button>
+          <button class="claudian-context-pressure-action claudian-context-pressure-action--fresh" type="button" title="Startet eine neue Sitzung mit einer verdichteten Zusammenfassung. Der Chatverlauf bleibt sichtbar.">Mit weniger Kontext fortsetzen</button>
+        </div>
+        <p class="claudian-context-pressure-note claudian-hidden"></p>
+      </section>
+    </div>
+  </div>
+
+  <div class="harness-section claudian-container" data-vis="context-pressure-estimated">
+    <div class="harness-label">Kontextdruck · geschätzt, ohne Kompaktieren</div>
+    <div class="claudian-context-pressure-host">
+      <section class="claudian-context-pressure is-estimated" data-level="high" aria-label="Warnung zur Kontextauslastung" aria-busy="false">
+        <div class="claudian-context-pressure-main">
+          <span class="claudian-context-pressure-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg></span>
+          <div class="claudian-context-pressure-body">
+            <div class="claudian-context-pressure-head"><span class="claudian-context-pressure-title" aria-live="polite">Kontext wird knapp</span><span class="claudian-context-pressure-percent">≈86 %</span></div>
+            <div class="claudian-context-pressure-meter" aria-hidden="true"><span class="claudian-context-pressure-meter-fill" style="--claudian-pressure-fill: 0.86"></span></div>
+            <p class="claudian-context-pressure-detail"><span class="claudian-context-pressure-usage">≈ 225k von 262k Tokens (geschätzt)</span><span class="claudian-context-pressure-text">Das Gespräch belegt den Großteil des Kontextfensters, frühe Details können verloren gehen.</span></p>
+          </div>
+          <button class="claudian-context-pressure-dismiss" type="button" aria-label="Hinweis ausblenden" title="Hinweis ausblenden"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+        </div>
+        <div class="claudian-context-pressure-actions">
+          <button class="claudian-context-pressure-action claudian-context-pressure-action--compact claudian-hidden" type="button">Kompaktieren</button>
+          <button class="claudian-context-pressure-action claudian-context-pressure-action--fresh is-primary" type="button" title="Startet eine neue Sitzung mit einer verdichteten Zusammenfassung. Der Chatverlauf bleibt sichtbar.">Mit weniger Kontext fortsetzen</button>
+        </div>
+        <p class="claudian-context-pressure-note claudian-hidden"></p>
+      </section>
+    </div>
+  </div>
+
+  <div class="harness-section claudian-container" data-vis="context-pressure-no-compact">
+    <div class="harness-label">Context pressure · English, no compact</div>
+    <div class="claudian-context-pressure-host">
+      <section class="claudian-context-pressure" data-level="high" aria-label="Context usage warning" aria-busy="false">
+        <div class="claudian-context-pressure-main">
+          <span class="claudian-context-pressure-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg></span>
+          <div class="claudian-context-pressure-body">
+            <div class="claudian-context-pressure-head"><span class="claudian-context-pressure-title" aria-live="polite">Context is filling up</span><span class="claudian-context-pressure-percent">81%</span></div>
+            <div class="claudian-context-pressure-meter" aria-hidden="true"><span class="claudian-context-pressure-meter-fill" style="--claudian-pressure-fill: 0.81"></span></div>
+            <p class="claudian-context-pressure-detail"><span class="claudian-context-pressure-usage">207k of 256k tokens</span><span class="claudian-context-pressure-text">The conversation takes up most of the context window, so early details can get lost.</span></p>
+          </div>
+          <button class="claudian-context-pressure-dismiss" type="button" aria-label="Dismiss warning" title="Dismiss warning"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+        </div>
+        <div class="claudian-context-pressure-actions">
+          <button class="claudian-context-pressure-action claudian-context-pressure-action--compact claudian-hidden" type="button">Compact</button>
+          <button class="claudian-context-pressure-action claudian-context-pressure-action--fresh is-primary" type="button" title="Starts a new session with a condensed summary. The chat history stays visible.">Continue with less context</button>
+        </div>
+        <p class="claudian-context-pressure-note claudian-hidden"></p>
+      </section>
+    </div>
+  </div>
+
+  <div class="harness-section claudian-container" data-vis="context-pressure-narrow">
+    <div class="harness-label">Kontextdruck · schmale Seitenleiste, Antwort läuft</div>
+    <div class="claudian-context-pressure-host" style="width: min(100%, 300px)">
+      <section class="claudian-context-pressure" data-level="high" aria-label="Warnung zur Kontextauslastung" aria-busy="false">
+        <div class="claudian-context-pressure-main">
+          <span class="claudian-context-pressure-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg></span>
+          <div class="claudian-context-pressure-body">
+            <div class="claudian-context-pressure-head"><span class="claudian-context-pressure-title" aria-live="polite">Kontext wird knapp</span><span class="claudian-context-pressure-percent">88 %</span></div>
+            <div class="claudian-context-pressure-meter" aria-hidden="true"><span class="claudian-context-pressure-meter-fill" style="--claudian-pressure-fill: 0.88"></span></div>
+            <p class="claudian-context-pressure-detail"><span class="claudian-context-pressure-usage">176k von 200k Tokens</span><span class="claudian-context-pressure-text">Das Gespräch belegt den Großteil des Kontextfensters, frühe Details können verloren gehen.</span></p>
+          </div>
+          <button class="claudian-context-pressure-dismiss" type="button" aria-label="Hinweis ausblenden" title="Hinweis ausblenden"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+        </div>
+        <div class="claudian-context-pressure-actions">
+          <button class="claudian-context-pressure-action claudian-context-pressure-action--compact is-primary" type="button" disabled aria-disabled="true" title="Der Provider verdichtet den Verlauf dieser Sitzung (/compact)">Kompaktieren</button>
+          <button class="claudian-context-pressure-action claudian-context-pressure-action--fresh" type="button" disabled aria-disabled="true" title="Startet eine neue Sitzung mit einer verdichteten Zusammenfassung. Der Chatverlauf bleibt sichtbar.">Mit weniger Kontext fortsetzen</button>
+        </div>
+        <p class="claudian-context-pressure-note">Verfügbar, sobald die aktuelle Antwort fertig ist.</p>
+      </section>
+    </div>
+  </div>
+
+  <!-- Transcript divider left by "Mit weniger Kontext fortsetzen". Mirrors MessageRenderer.renderSessionBoundary. -->
+  <div class="harness-section claudian-container" data-vis="session-boundary">
+    <div class="harness-label">Neue Sitzung · Trenner im Verlauf</div>
+    <div class="claudian-session-boundary" role="separator" aria-label="Neue Sitzung mit verdichtetem Kontext"><span class="claudian-session-boundary-label"><span class="claudian-session-boundary-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></span><span class="claudian-session-boundary-text">Neue Sitzung mit verdichtetem Kontext</span></span></div>
+  </div>
+  <!-- Todo lists. Empty hosts on purpose: components.spec.ts bundles the real
+       StatusPanel / TodoWrite renderers (tests/visual/todoHarness.ts) and mounts
+       the fixtures, so these shots always show production markup. -->
+  <div class="harness-section claudian-container" data-provider="claude" data-vis="todo-mixed">
+    <div class="harness-label">Aufgaben · gemischt</div>
+    <div class="harness-todo-grid">
+      <div class="claudian-status-panel-container harness-todo-host" data-todo-fixture="mixed" data-surface="panel"></div>
+      <div class="claudian-status-panel-container harness-todo-host" data-todo-fixture="mixed" data-surface="panel" data-expanded="true"></div>
+      <div class="harness-todo-host" data-todo-fixture="mixed" data-surface="card"></div>
+      <div class="harness-todo-host" data-todo-fixture="mixed" data-surface="card" data-expanded="true"></div>
+    </div>
+  </div>
+  <div class="harness-section claudian-container" data-provider="claude" data-vis="todo-many">
+    <div class="harness-label">Aufgaben · 12 Schritte</div>
+    <div class="harness-todo-grid">
+      <div class="claudian-status-panel-container harness-todo-host" data-todo-fixture="many" data-surface="panel" data-expanded="true"></div>
+      <div class="harness-todo-host" data-todo-fixture="many" data-surface="card" data-expanded="true" data-group-open="true"></div>
+    </div>
+  </div>
+  <div class="harness-section claudian-container" data-provider="claude" data-vis="todo-done">
+    <div class="harness-label">Aufgaben · erledigt</div>
+    <div class="harness-todo-grid">
+      <div class="claudian-status-panel-container harness-todo-host" data-todo-fixture="done" data-surface="panel"></div>
+      <div class="harness-todo-host" data-todo-fixture="done" data-surface="card"></div>
+      <div class="harness-todo-host" data-todo-fixture="done" data-surface="card" data-expanded="true"></div>
+    </div>
+  </div>
+  <div class="harness-section claudian-container" data-provider="claude" data-vis="todo-long">
+    <div class="harness-label">Aufgaben · lange Texte und Prioritäten</div>
+    <div class="harness-todo-grid">
+      <div class="claudian-status-panel-container harness-todo-host" data-todo-fixture="long" data-surface="panel"></div>
+      <div class="harness-todo-host" data-todo-fixture="long" data-surface="card" data-expanded="true"></div>
+    </div>
+  </div>
+
+  <!-- Tab overview ("Offene Chats") and the tab bar with many tabs. The script at
+       the end builds them with the same DOM TabOverview and TabBar render. -->
+  <div class="harness-section claudian-container" data-provider="claude" data-vis="tab-overview">
+    <div class="harness-tab-host" data-overview="all"></div>
+  </div>
+  <div class="harness-section claudian-container" data-provider="claude" data-vis="tab-overview-filtered">
+    <div class="harness-tab-host" data-overview="filtered"></div>
+  </div>
+  <div class="harness-section claudian-container" data-provider="claude" data-vis="tab-overview-narrow">
+    <div class="harness-tab-host harness-tab-host--narrow" data-overview="narrow"></div>
+  </div>
+  <div class="harness-section claudian-container" data-provider="claude" data-vis="tab-bar-overflow">
+    <div class="harness-tabbar-host">
+      <div class="claudian-input-container"><div class="claudian-input-nav-row" data-tabbar="overflow"></div></div>
+    </div>
+  </div>
 <script>
   // Mirror FilePreviewPanel.renderLibraryItem's current compact row hierarchy.
   // Construct action buttons through the DOM: HTML parsing unnests buttons.
@@ -817,6 +1051,241 @@ kurze Zeile</code></pre>
     }
     library.append(row);
   }
+</script>
+<script>
+  // Mirrors TabOverview.createRow/patchRow and TabBar.renderBadge. Fixed fixture
+  // strings only; nothing here comes from outside the file.
+  (() => {
+    const DOT = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7" fill="currentColor"/></svg>';
+    const icon = (path) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
+    const X = icon('<path d="M18 6 6 18M6 6l12 12"/>');
+    const PENCIL = icon('<path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.4 2.6a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/>');
+    const LIST = icon('<path d="M3 6h.01M3 12h.01M3 18h.01M8 6h13M8 12h13M8 18h13"/>');
+    const PLUS = icon('<path d="M12 5v14M5 12h14"/>');
+    const SEARCH = icon('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>');
+    const CHECKS = icon('<path d="m3 17 2 2 4-4M3 7l2 2 4-4M13 6h8M13 12h8M13 18h8"/>');
+    const BOT = icon('<rect x="3" y="8" width="18" height="12" rx="2"/><path d="M12 8V4M8 14h.01M16 14h.01"/>');
+
+    const TABS = [
+      { n: 1, provider: 'claude', name: 'Claude', model: 'Opus 4.7', title: 'Firewall-Regeln für das CERTUSS-Portal freischalten', state: 'idle', status: 'Fertig vor 2 Min.', active: true, context: 42 },
+      { n: 2, provider: 'codex', name: 'Codex', model: 'GPT-6 Sol', title: 'Faxfehler C. Beuthel untersuchen', state: 'streaming', status: 'Arbeitet · 1:23', context: 68, todos: [3, 7], agents: 2 },
+      { n: 3, provider: 'kimi', name: 'Kimi', model: 'K2.7 Code', title: 'Angebot GF Partners: drei Pakete', state: 'input', status: 'Wartet auf dich' },
+      { n: 4, provider: 'claude', name: 'Claude', model: 'Sonnet 5', title: 'Galerie mit Lightbox bauen', state: 'finished', status: 'Neue Antwort · vor 4 Min.' },
+      { n: 5, provider: 'grok', name: 'Grok', model: 'Grok 4.7', title: 'Kontextfenster prüfen', state: 'failed', status: 'Fehlgeschlagen · vor 12 Min.' },
+      { n: 6, provider: 'opencode', name: 'OpenCode', model: 'Qwen 3.6 Coder', title: 'Release-Checkliste 5.130', state: 'draft', status: 'Entwurf' },
+      { n: 7, provider: 'hermes', name: 'Hermes', model: 'Hermes 5', title: '3CX V20 Trunk-Registrierung nach Firewall-Update', state: 'idle', status: 'Fertig vor 1 Std.', context: 91 },
+      { n: 8, provider: 'claude', name: 'Claude', model: 'Opus 4.7', title: 'Neuer Chat', state: 'empty', status: 'Noch leer' },
+      { n: 9, provider: 'cline', name: 'Cline', model: 'ClinePass', title: 'Verwaiste Anhänge im Vault aufräumen', state: 'streaming', status: 'Arbeitet · 0:18', todos: [7, 7] },
+    ];
+
+    const el = (tag, cls, html) => {
+      const node = document.createElement(tag);
+      if (cls) node.className = cls;
+      if (html !== undefined) node.innerHTML = html;
+      return node;
+    };
+
+    const chip = (kind, label, inner) => {
+      const node = el('span', `claudian-tab-overview-chip claudian-tab-overview-chip--${kind}`, inner);
+      node.setAttribute('aria-label', label);
+      node.title = label;
+      return node;
+    };
+
+    const buildRow = (tab, confirming) => {
+      const row = el('div', `claudian-tab-overview-row${tab.active ? ' is-active' : ''}${confirming ? ' is-confirming' : ''}`);
+      row.setAttribute('role', 'listitem');
+      row.dataset.tabId = `tab-${tab.n}`;
+      row.dataset.provider = tab.provider;
+      row.dataset.state = tab.state;
+      row.style.setProperty('--claudian-tab-provider', `var(--claudian-brand-${tab.provider}, var(--text-muted))`);
+      row.append(el('span', 'claudian-tab-overview-avatar', DOT));
+
+      const main = el('button', 'claudian-tab-overview-main');
+      main.type = 'button';
+      if (tab.active) main.setAttribute('aria-current', 'true');
+      main.setAttribute('aria-label', `${tab.title}, ${tab.name} · ${tab.model}, ${tab.status}`);
+      main.append(el('span', 'claudian-tab-overview-title', tab.title));
+      main.append(el('span', 'claudian-tab-overview-model', `${tab.name} · ${tab.model}`));
+      const detail = el('span', 'claudian-tab-overview-detail');
+      const status = el('span', 'claudian-tab-overview-status');
+      status.append(el('span', 'claudian-tab-overview-status-mark', tab.state === 'draft' ? PENCIL : ''));
+      status.append(el('span', 'claudian-tab-overview-status-text', tab.status));
+      detail.append(status);
+      const meta = el('span', 'claudian-tab-overview-meta');
+      if (tab.context !== undefined) {
+        const c = chip('context', `Kontext zu ${tab.context} % belegt`, '<span class="claudian-tab-overview-meter"><span class="claudian-tab-overview-meter-fill"></span></span>');
+        c.querySelector('.claudian-tab-overview-meter-fill').style.setProperty('--claudian-tab-meter', String(tab.context / 100));
+        if (tab.context >= 80) c.classList.add('is-high');
+        c.append(el('span', 'claudian-tab-overview-chip-text', `${tab.context}%`));
+        meta.append(c);
+      }
+      if (tab.todos) {
+        const c = chip('todos', `Aufgaben: ${tab.todos[0]} von ${tab.todos[1]} erledigt`, `<span class="claudian-tab-overview-chip-icon">${CHECKS}</span>`);
+        if (tab.todos[0] === tab.todos[1]) c.classList.add('is-complete');
+        c.append(el('span', 'claudian-tab-overview-chip-text', `${tab.todos[0]}/${tab.todos[1]}`));
+        meta.append(c);
+      }
+      if (tab.agents) {
+        const c = chip('subagents', `${tab.agents} Subagenten laufen`, `<span class="claudian-tab-overview-chip-icon">${BOT}</span>`);
+        c.append(el('span', 'claudian-tab-overview-chip-text', String(tab.agents)));
+        meta.append(c);
+      }
+      if (!meta.children.length) meta.classList.add('claudian-hidden');
+      detail.append(meta);
+      main.append(detail);
+      row.append(main);
+
+      const side = el('div', 'claudian-tab-overview-side');
+      side.append(el('kbd', 'claudian-tab-overview-key', String(tab.n)));
+      const close = el('button', 'claudian-tab-overview-close', X);
+      close.type = 'button';
+      close.setAttribute('aria-label', `„${tab.title}“ schließen`);
+      side.append(close);
+      row.append(side);
+
+      const confirm = el('div', `claudian-tab-overview-confirm${confirming ? '' : ' claudian-hidden'}`);
+      confirm.append(el('span', 'claudian-tab-overview-confirm-text', 'Arbeitet noch – Antwort abbrechen?'));
+      for (const [cls, text] of [['claudian-tab-overview-confirm-stop', 'Stoppen & schließen'], ['claudian-tab-overview-confirm-keep', 'Behalten']]) {
+        const button = el('button', cls, text);
+        button.type = 'button';
+        confirm.append(button);
+      }
+      row.append(confirm);
+      return row;
+    };
+
+    const buildHeaderActions = (count, waiting) => {
+      const actions = el('div', 'claudian-header-actions');
+      const newTab = el('button', 'claudian-header-btn claudian-new-tab-btn', PLUS);
+      newTab.type = 'button';
+      newTab.setAttribute('aria-label', 'Neuer Tab');
+      const container = el('div', 'claudian-tab-overview-container');
+      const button = el('button', `claudian-header-btn claudian-tab-overview-btn${waiting ? ' has-attention' : ''}`);
+      button.type = 'button';
+      button.innerHTML = `<span class="claudian-tab-overview-btn-icon">${LIST}</span><span class="claudian-tab-overview-btn-count">${count}</span>`;
+      button.setAttribute('aria-label', `Offene Chats: ${count}${waiting ? `, ${waiting} warten auf dich` : ''}`);
+      container.append(button);
+      // Same order as ClaudianView.buildNavRowContent: new tab, overview, new chat, history, shortcuts.
+      const newChat = el('button', 'claudian-header-btn', icon('<path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.4 2.6a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/>'));
+      newChat.type = 'button';
+      newChat.setAttribute('aria-label', 'Neue Unterhaltung');
+      const history = el('button', 'claudian-header-btn', icon('<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l4 2"/>'));
+      history.type = 'button';
+      history.setAttribute('aria-label', 'Chat-Verlauf');
+      const keys = el('button', 'claudian-header-btn', icon('<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>'));
+      keys.type = 'button';
+      keys.setAttribute('aria-label', 'Tastenkürzel');
+      actions.append(newTab, container, newChat, history, keys);
+      return { actions, container, button };
+    };
+
+    const buildOverview = (host, variant) => {
+      const query = variant === 'filtered' ? 'firewall' : '';
+      const tabs = query ? TABS.filter((tab) => tab.title.toLowerCase().includes(query)) : TABS;
+      const input = el('div', 'claudian-input-container');
+      const nav = el('div', 'claudian-input-nav-row');
+      const content = el('div', 'claudian-input-nav-content');
+      const bar = el('div', 'claudian-tab-bar-container');
+      bar.append(el('div', 'claudian-tab-badges'));
+      const { actions, container, button } = buildHeaderActions(TABS.length, 3);
+      button.setAttribute('aria-expanded', 'true');
+      content.append(bar, actions);
+      nav.append(content);
+      input.append(nav, el('div', 'claudian-input-wrapper'));
+      host.append(input);
+
+      const panel = el('div', 'claudian-tab-overview visible');
+      panel.setAttribute('role', 'dialog');
+      panel.setAttribute('aria-label', 'Offene Chats');
+      const header = el('div', 'claudian-tab-overview-header');
+      // The summary always counts every open tab, filtered or not.
+      const summary = '9 Tabs · 2 arbeiten · 3 warten auf dich';
+      header.innerHTML = `<div class="claudian-tab-overview-header-top"><span class="claudian-tab-overview-heading">Offene Chats</span><span class="claudian-tab-overview-summary">${summary}</span></div>`
+        + `<div class="claudian-tab-overview-search"><span class="claudian-tab-overview-search-icon">${SEARCH}</span><input class="claudian-tab-overview-search-input" type="text" placeholder="Tabs filtern …" aria-label="Offene Chats filtern" value="${query}" /></div>`;
+      const list = el('div', 'claudian-tab-overview-list');
+      list.setAttribute('role', 'list');
+      for (const tab of tabs) list.append(buildRow(tab, variant === 'narrow' && tab.n === 2));
+      const footer = el('div', 'claudian-tab-overview-footer');
+      const newTab = el('button', 'claudian-tab-overview-new', `<span class="claudian-tab-overview-new-icon">${PLUS}</span><span>Neuer Tab</span>`);
+      newTab.type = 'button';
+      const hints = el('div', 'claudian-tab-overview-hints');
+      for (const [keys, label] of [['↑↓', 'Wählen'], ['↵', 'Öffnen'], ['⌘ 1–9', 'Direkt']]) {
+        hints.append(el('span', 'claudian-tab-overview-hint', `<kbd>${keys}</kbd><span>${label}</span>`));
+      }
+      footer.append(newTab, hints);
+      panel.append(header, list, el('div', 'claudian-tab-overview-empty claudian-hidden'), footer);
+      container.append(panel);
+    };
+
+    const buildBadge = (tab) => {
+      const attention = { input: 'input', finished: 'finished', failed: 'failed' }[tab.state];
+      const stateClass = tab.active ? 'claudian-tab-badge-active claudian-tab-badge--active'
+        : attention ? 'claudian-tab-badge-attention'
+          : tab.state === 'streaming' ? 'claudian-tab-badge-streaming' : 'claudian-tab-badge-idle';
+      const badge = el('button', `claudian-tab-badge clickable-icon ${stateClass}${tab.state === 'draft' ? ' claudian-tab-badge--draft' : ''}`, String(tab.n));
+      badge.type = 'button';
+      badge.dataset.provider = tab.provider;
+      if (attention) badge.dataset.attention = attention;
+      badge.append(el('span', 'claudian-tab-provider-badge', DOT));
+      if (tab.state === 'draft') badge.append(el('span', 'claudian-tab-draft-indicator', PENCIL));
+      if (attention) {
+        const dot = el('span', 'claudian-tab-attention-dot');
+        dot.dataset.reason = attention;
+        badge.append(dot);
+      } else if (tab.state === 'streaming') {
+        badge.append(el('span', 'claudian-tab-streaming-indicator'));
+      }
+      if (tab.title !== 'Neuer Chat') badge.append(el('span', 'claudian-tab-badge-title', tab.title));
+      return badge;
+    };
+
+    // Same rule as tabBarOverflow.ts: a badge less than half on screen is hidden.
+    const applyOverflow = (strip, overflowChip) => {
+      const start = strip.scrollLeft;
+      const end = start + strip.clientWidth;
+      let hidden = 0;
+      let waiting = 0;
+      for (const badge of strip.children) {
+        const visible = Math.min(badge.offsetLeft + badge.offsetWidth, end) - Math.max(badge.offsetLeft, start);
+        if (visible < badge.offsetWidth / 2) {
+          hidden++;
+          if (badge.dataset.attention) waiting++;
+        }
+      }
+      strip.classList.toggle('has-overflow-start', strip.scrollLeft > 1);
+      strip.classList.toggle('has-overflow-end', strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 1);
+      overflowChip.classList.toggle('claudian-hidden', hidden === 0);
+      overflowChip.classList.toggle('has-attention', waiting > 0);
+      overflowChip.textContent = `+${hidden}`;
+      overflowChip.dataset.hidden = String(hidden);
+    };
+
+    for (const host of document.querySelectorAll('[data-overview]')) buildOverview(host, host.dataset.overview);
+
+    for (const nav of document.querySelectorAll('[data-tabbar]')) {
+      const content = el('div', 'claudian-input-nav-content');
+      const bar = el('div', 'claudian-tab-bar-container');
+      const strip = el('div', 'claudian-tab-badges');
+      strip.setAttribute('aria-label', 'Chat-Tabs');
+      // Active tab 7 sits late in the strip, so both edges fade and the
+      // waiting tabs before it are counted by the chip.
+      const ACTIVE = 7;
+      for (const tab of TABS) strip.append(buildBadge({ ...tab, active: tab.n === ACTIVE }));
+      const overflowChip = el('button', 'claudian-tab-overflow-chip');
+      overflowChip.type = 'button';
+      bar.append(strip, overflowChip);
+      const { actions } = buildHeaderActions(TABS.length, 3);
+      content.append(bar, actions);
+      nav.append(content);
+      strip.style.scrollBehavior = 'auto';
+      // Same rule as scrollLeftToReveal: bring the active badge in, 16px clear of the fade.
+      const active = strip.children[ACTIVE - 1];
+      const overshoot = active.offsetLeft + active.offsetWidth + 16 - strip.clientWidth;
+      strip.scrollLeft = Math.min(Math.max(0, overshoot), strip.scrollWidth - strip.clientWidth);
+      applyOverflow(strip, overflowChip);
+    }
+  })();
 </script>
 </body>
 </html>

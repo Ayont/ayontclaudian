@@ -16,11 +16,13 @@ import { VIEW_TYPE_CLAUDIAN } from '../../core/types';
 import { getWorkspaceModeMeta, normalizeWorkspaceMode, type WorkspaceMode } from '../../core/workspace/workspaceMode';
 import type ClaudianPlugin from '../../main';
 import { createProviderIconSvg } from '../../shared/icons';
+import { confirm } from '../../shared/modals/ConfirmModal';
 import {
   cancelScheduledAnimationFrame,
   scheduleAnimationFrame,
   type ScheduledAnimationFrame,
 } from '../../utils/animationFrame';
+import { revealWorkspaceLeaf } from '../../utils/obsidianCompat';
 import type { HistoryConversationOpenState } from './controllers/ConversationController';
 import {
   getTabProviderId,
@@ -32,7 +34,9 @@ import {
 } from './tabs/Tab';
 import { TabBar } from './tabs/TabBar';
 import { TabManager } from './tabs/TabManager';
+import { TabOverview } from './tabs/TabOverview';
 import type { TabData, TabId } from './tabs/types';
+import { CHAT_KEY_BINDINGS, chatKeyBindingScopeModifiers, matchesChatKeyBinding } from './ui/chatKeyBindings';
 import { ModelSelectModal } from './ui/ModelSelectModal';
 import { ShortcutOverlay } from './ui/ShortcutOverlay';
 import { UpdateDock } from './ui/UpdateDock';
@@ -50,6 +54,7 @@ export class ClaudianView extends ItemView {
   // Tab management
   private tabManager: TabManager | null = null;
   private tabBar: TabBar | null = null;
+  private tabOverview: TabOverview | null = null;
   private workspaceModeToggle: WorkspaceModeToggle | null = null;
   private tabBarContainerEl: HTMLElement | null = null;
   private tabContentEl: HTMLElement | null = null;
@@ -91,6 +96,7 @@ export class ClaudianView extends ItemView {
    * it restored; saving then would write an empty tab list over the real layout.
    */
   private tabLayoutRestored = false;
+  private tabRestore: Promise<void> | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: ClaudianPlugin) {
     super(leaf);
@@ -183,7 +189,7 @@ export class ClaudianView extends ItemView {
   }
 
   /** The history list is rebuilt whenever it opens; while closed, redrawing it is waste. */
-  private refreshHistoryIfOpen(): void {
+  refreshHistoryIfOpen(): void {
     if (this.historyDropdown?.hasClass('visible')) {
       this.updateHistoryDropdown();
     }
@@ -294,6 +300,8 @@ export class ClaudianView extends ItemView {
    * it, and a corrupt archive costs the history, not the window.
    */
   private startTabRestore(): void {
+    let markRestored: () => void = () => {};
+    this.tabRestore = new Promise<void>((resolve) => { markRestored = resolve; });
     const restoreTabs = async () => {
       const restoreStart = perfMark();
       try {
@@ -303,6 +311,7 @@ export class ClaudianView extends ItemView {
         new Notice('Der zuletzt offene Chat konnte nicht wiederhergestellt werden.');
       } finally {
         this.tabLayoutRestored = true;
+        markRestored();
       }
       this.syncProviderBrandColor();
       this.applyChatAppearance();
@@ -487,6 +496,8 @@ export class ClaudianView extends ItemView {
 
     this.tabBar?.destroy();
     this.tabBar = null;
+    this.tabOverview?.destroy();
+    this.tabOverview = null;
     this.unsubscribeUpdates?.();
     this.unsubscribeUpdates = null;
     this.unsubscribeDrafts?.();
@@ -499,13 +510,14 @@ export class ClaudianView extends ItemView {
     if (event.isComposing) {
       return false;
     }
-    const target = event.target as HTMLElement | null;
-    const typingInField = target instanceof HTMLElement
-      && (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT' || target.isContentEditable);
-    if ((event.key === '/' || event.code === 'Slash') && (event.metaKey || event.ctrlKey)) {
+    if (matchesChatKeyBinding(event, 'shortcuts')) {
       return true;
     }
-    return event.key === '?' && !typingInField;
+    if (event.key !== '?') return false;
+    // Duck-typed: popout windows have their own HTMLElement constructor.
+    const target = event.target as Partial<HTMLElement> | null;
+    const typingInField = target?.tagName === 'TEXTAREA' || target?.tagName === 'INPUT' || target?.isContentEditable === true;
+    return !typingInField;
   }
 
   // ============================================
@@ -559,7 +571,9 @@ export class ClaudianView extends ItemView {
     // Tab badges (left side in nav row, or in title slot for header mode)
     this.tabBarContainerEl = activeDocument.createElement('div');
     this.tabBarContainerEl.className = 'claudian-tab-bar-container';
-    this.tabBar = new TabBar(this.tabBarContainerEl, {
+    // The badges scroll; the "+N" chip sits beside them in the container.
+    const tabBadgesEl = this.tabBarContainerEl.createDiv();
+    this.tabBar = new TabBar(tabBadgesEl, {
       onTabClick: (tabId) => this.handleTabClick(tabId),
       onTabClose: (tabId) => {
         void this.handleTabClose(tabId);
@@ -567,7 +581,9 @@ export class ClaudianView extends ItemView {
       onNewTab: () => {
         void this.createNewTab().catch(() => new Notice('Tab konnte nicht erstellt werden.'));
       },
-    });
+      onOpenOverview: () => this.tabOverview?.open(),
+      onTabContextMenu: (tabId, event) => this.showTabContextMenu(tabId, event),
+    }, { overflowHostEl: this.tabBarContainerEl });
     fragment.appendChild(this.tabBarContainerEl);
 
     // Header actions (right side)
@@ -586,6 +602,19 @@ export class ClaudianView extends ItemView {
     setIcon(this.newTabButtonEl, 'square-plus');
     this.newTabButtonEl.addEventListener('click', () => {
       void this.createNewTab().catch(() => new Notice('Tab konnte nicht erstellt werden.'));
+    });
+
+    this.tabOverview = new TabOverview(this.headerActionsContent, {
+      getItems: () => this.tabManager?.getTabOverviewItems() ?? [],
+      onSelect: (tabId) => this.activateTabAndFocusComposer(tabId),
+      onClose: (tabId) => {
+        void this.handleTabClose(tabId);
+      },
+      onNewTab: () => {
+        void this.createNewTab().catch(() => new Notice('Tab konnte nicht erstellt werden.'));
+      },
+      canCreateTab: () => this.tabManager?.canCreateTab() ?? false,
+      onOpen: () => this.closeHistoryDropdown(false),
     });
 
     this.pluginUpdateButtonEl = this.headerActionsContent.createEl('button', {
@@ -735,9 +764,34 @@ export class ClaudianView extends ItemView {
     }
   }
 
+  private showTabContextMenu(tabId: TabId, event: MouseEvent): void {
+    const menu = new Menu();
+    menu.addItem((item) => item
+      .setTitle('Tab schließen')
+      .setIcon('x')
+      .onClick(() => { void this.handleTabClose(tabId); }));
+    if (this.tabOverview) {
+      menu.addItem((item) => item
+        .setTitle('Tab-Übersicht öffnen')
+        .setIcon('list')
+        .onClick(() => this.tabOverview?.open()));
+    }
+    menu.showAtMouseEvent(event);
+  }
+
   private async handleTabClose(tabId: TabId): Promise<void> {
     try {
-      // User explicitly clicked close -> always force close (aborts stream if active)
+      // Closing keeps the chat in the history, but a running answer would be
+      // cut off: ask first.
+      const tab = this.tabManager?.getTab(tabId);
+      if (tab?.state.isStreaming) {
+        const confirmed = await confirm(
+          this.app,
+          'In diesem Tab läuft noch eine Antwort. Stoppen und Tab schließen? Der Chat bleibt im Verlauf.',
+          'Stoppen & schließen',
+        );
+        if (!confirmed) return;
+      }
       await this.tabManager?.closeTab(tabId, true);
       this.updateTabBarVisibility();
     } catch (err) {
@@ -771,6 +825,8 @@ export class ClaudianView extends ItemView {
 
       const items = this.tabManager.getTabBarItems();
       this.tabBar.update(items);
+      this.tabOverview?.syncButton(items.length, items.filter((item) => item.attentionReason !== null).length);
+      this.tabOverview?.refresh();
       this.updateTabBarVisibility();
     }, this.containerEl.ownerDocument.defaultView ?? null);
   }
@@ -931,6 +987,7 @@ export class ClaudianView extends ItemView {
     if (isVisible) {
       this.closeHistoryDropdown();
     } else {
+      this.tabOverview?.close({ restoreFocus: false });
       this.updateHistoryDropdown();
       this.historyDropdown.addClass('visible');
       this.historyButtonEl?.setAttribute('aria-expanded', 'true');
@@ -1020,7 +1077,14 @@ export class ClaudianView extends ItemView {
     // Document-level click to close dropdowns
     this.registerDomEvent(activeDocument, 'click', () => {
       this.closeHistoryDropdown(false);
+      this.tabOverview?.close({ restoreFocus: false });
     });
+
+    // A pane that was hidden while its active tab finished: any interaction
+    // means the user has now seen it.
+    const acknowledgeActiveTab = (): void => this.tabManager?.acknowledgeActiveTabAttention();
+    this.registerDomEvent(this.containerEl, 'pointerdown', acknowledgeActiveTab);
+    this.registerDomEvent(this.containerEl, 'focusin', acknowledgeActiveTab);
 
     // View-level Shift+Tab to toggle plan mode (works from any focused element)
     this.registerDomEvent(this.containerEl, 'keydown', (e: KeyboardEvent) => {
@@ -1040,7 +1104,7 @@ export class ClaudianView extends ItemView {
         e.stopPropagation();
         return;
       }
-      if (e.key === 'Tab' && e.shiftKey && !e.isComposing) {
+      if (matchesChatKeyBinding(e, 'plan-mode')) {
         e.preventDefault();
         const activeTab = this.tabManager?.getActiveTab();
         if (!activeTab) return;
@@ -1064,8 +1128,10 @@ export class ClaudianView extends ItemView {
     // View scopes are the Obsidian-owned boundary for main-area tab hotkeys.
     // Returning false consumes Escape before Obsidian uses it for pane navigation.
     this.scope = new Scope(this.app.scope);
-    this.scope.register([], 'Escape', (e: KeyboardEvent) => {
+    this.scope.register(chatKeyBindingScopeModifiers('stop'), CHAT_KEY_BINDINGS.stop.key, (e: KeyboardEvent) => {
       if (e.isComposing) return;
+      // The overview handles its own Escape first (e.g. backing out of a close question).
+      if (!e.defaultPrevented && this.tabOverview?.close()) return false;
       if (this.closeHistoryDropdown()) return false;
       if (!e.defaultPrevented) {
         const activeTab = this.tabManager?.getActiveTab();
@@ -1075,7 +1141,7 @@ export class ClaudianView extends ItemView {
       }
       return false;
     });
-    this.scope.register(['Mod'], 'Enter', (e: KeyboardEvent) => {
+    this.scope.register(chatKeyBindingScopeModifiers('send'), CHAT_KEY_BINDINGS.send.key, (e: KeyboardEvent) => {
       if (e.isComposing || e.defaultPrevented) return;
       const activeTab = this.tabManager?.getActiveTab();
       if (!activeTab) return;
@@ -1185,8 +1251,60 @@ export class ClaudianView extends ItemView {
     return this.tabManager?.getActiveTab() ?? null;
   }
 
+  /**
+   * Resolves once the deferred tab restore has run, so an action that just
+   * opened the pane (context menu, command) reaches a real tab.
+   */
+  whenTabsRestored(): Promise<void> {
+    return this.tabRestore ?? Promise.resolve();
+  }
+
   /** Gets the tab manager. */
   getTabManager(): TabManager | null {
     return this.tabManager;
+  }
+
+  /** Collapsed sidebar or hidden window: even the active tab is out of sight. */
+  isChatVisible(): boolean {
+    const el = this.containerEl as HTMLElement & { isShown?: () => boolean };
+    if (el.ownerDocument?.visibilityState === 'hidden') return false;
+    return typeof el.isShown === 'function' ? el.isShown() : true;
+  }
+
+  getOpenTabCount(): number {
+    return this.tabManager?.getTabCount() ?? 0;
+  }
+
+  /** "Tab-Übersicht öffnen" works from anywhere, so the pane is revealed too. */
+  openTabOverview(): void {
+    void this.revealSelf();
+    this.tabOverview?.open();
+  }
+
+  switchToAdjacentTab(delta: 1 | -1): void {
+    const tabId = this.tabManager?.getAdjacentTabId(delta);
+    if (tabId) this.activateTabAndFocusComposer(tabId);
+  }
+
+  /** 1-based, as on the badges. */
+  switchToTabNumber(position: number): void {
+    const tabId = this.tabManager?.getTabIdAt(position);
+    if (tabId) this.activateTabAndFocusComposer(tabId);
+  }
+
+  private revealSelf(): Promise<void> {
+    return revealWorkspaceLeaf(this.app.workspace, this.leaf).catch(() => {
+      // Revealing is a courtesy; the switch below still happens.
+    });
+  }
+
+  /** Keyboard switches land in the composer so the user can type at once. */
+  private activateTabAndFocusComposer(tabId: TabId): void {
+    const tabManager = this.tabManager;
+    if (!tabManager) return;
+    void this.revealSelf();
+    void tabManager.switchToTab(tabId)
+      .then(() => tabManager.getActiveTab()?.dom.inputEl.focus())
+      .catch(() => new Notice('Tab-Wechsel fehlgeschlagen.'));
   }
 }

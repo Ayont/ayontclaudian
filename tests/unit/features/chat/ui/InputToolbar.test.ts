@@ -13,6 +13,7 @@ import {
   ServiceTierToggle,
   ThinkingBudgetSelector,
 } from '@/features/chat/ui/InputToolbar';
+import { setLocale } from '@/i18n/i18n';
 import { DEFAULT_CODEX_PRIMARY_MODEL } from '@/providers/codex/types/models';
 
 
@@ -1154,16 +1155,63 @@ describe('ContextUsageMeter', () => {
     expect(container?.getAttribute('data-tooltip')).toBe('500 / 200k');
   });
 
-  it('should add compact reminder to tooltip when usage > 80%', () => {
-    meter.update(makeUsage({ contextTokens: 170000, contextWindow: 200000, percentage: 85 }));
-    const container = parentEl.querySelector('.claudian-context-meter');
-    expect(container?.getAttribute('data-tooltip')).toBe('170k / 200k (Limit fast erreicht – mit `/compact` fortfahren)');
+  describe('near-limit hint', () => {
+    afterEach(() => setLocale('en'));
+
+    it('names the provider compact command in the selected language', () => {
+      setLocale('de');
+      meter.setCompactCommand('/compact');
+      meter.update(makeUsage({ contextTokens: 170000, contextWindow: 200000, percentage: 85 }));
+      const container = parentEl.querySelector('.claudian-context-meter');
+      expect(container?.getAttribute('data-tooltip')).toBe('170k / 200k (Limit fast erreicht – mit /compact verdichten)');
+
+      setLocale('en');
+      meter.update(makeUsage({ contextTokens: 170000, contextWindow: 200000, percentage: 85 }));
+      expect(container?.getAttribute('data-tooltip')).toBe('170k / 200k (Limit nearly reached – condense with /compact)');
+    });
+
+    it('never suggests compacting when the provider cannot compact', () => {
+      setLocale('de');
+      meter.setCompactCommand(null);
+      meter.update(makeUsage({ contextTokens: 170000, contextWindow: 200000, percentage: 85 }));
+      const tooltip = parentEl.querySelector('.claudian-context-meter')?.getAttribute('data-tooltip');
+      expect(tooltip).toBe('170k / 200k (Limit fast erreicht – mit weniger Kontext fortsetzen)');
+      expect(tooltip).not.toContain('/compact');
+    });
+
+    it('re-renders the hint when the compact command becomes known later', () => {
+      meter.update(makeUsage({ contextTokens: 170000, contextWindow: 200000, percentage: 85 }));
+      meter.setCompactCommand('/compress');
+      expect(parentEl.querySelector('.claudian-context-meter')?.getAttribute('data-tooltip'))
+        .toBe('170k / 200k (Limit nearly reached – condense with /compress)');
+    });
+
+    it('localizes the estimated prefix', () => {
+      setLocale('de');
+      meter.update(makeUsage({ contextTokens: 50000, contextWindow: 200000, percentage: 25, contextWindowIsAuthoritative: false }));
+      expect(parentEl.querySelector('.claudian-context-meter')?.getAttribute('data-tooltip')).toBe('Geschätzt · 50k / 200k');
+    });
   });
 
-  it('should not add compact reminder to tooltip when usage ≤ 80%', () => {
-    meter.update(makeUsage({ contextTokens: 160000, contextWindow: 200000, percentage: 80 }));
+  it('should not add a near-limit hint below the high threshold', () => {
+    meter.update(makeUsage({ contextTokens: 158000, contextWindow: 200000, percentage: 79 }));
     const container = parentEl.querySelector('.claudian-context-meter');
-    expect(container?.getAttribute('data-tooltip')).toBe('160k / 200k');
+    expect(container?.getAttribute('data-tooltip')).toBe('158k / 200k');
+  });
+
+  it('warns from exactly the high threshold and marks the critical level separately', () => {
+    const container = parentEl.querySelector('.claudian-context-meter');
+    meter.update(makeUsage({ contextTokens: 160000, contextWindow: 200000, percentage: 80 }));
+    expect(container?.hasClass('warning')).toBe(true);
+    expect(container?.hasClass('critical')).toBe(false);
+
+    meter.update(makeUsage({ contextTokens: 184000, contextWindow: 200000, percentage: 92 }));
+    expect(container?.hasClass('warning')).toBe(true);
+    expect(container?.hasClass('critical')).toBe(true);
+
+    meter.update(makeUsage({ contextTokens: 40000, contextWindow: 200000, percentage: 20 }));
+    expect(container?.hasClass('warning')).toBe(false);
+    expect(container?.hasClass('critical')).toBe(false);
   });
 
   it('should format million-scale token counts as M', () => {

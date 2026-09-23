@@ -846,6 +846,52 @@ describe('FileContextManager', () => {
     });
   });
 
+  describe('attachVaultPath', () => {
+    it('appends a file mention to the draft and tracks the file like the @ picker', () => {
+      const app = createMockApp();
+      const manager = new FileContextManager(app, containerEl as any, inputEl, createMockCallbacks());
+      inputEl.value = 'Vergleiche das mit';
+
+      expect(manager.attachVaultPath('Notes/Plan.md')).toBe(true);
+
+      expect(inputEl.value).toBe('Vergleiche das mit @Notes/Plan.md ');
+      expect(manager.getAttachedFiles().has('Notes/Plan.md')).toBe(true);
+      manager.destroy();
+    });
+
+    it('does not mention the same file twice', () => {
+      const app = createMockApp();
+      const manager = new FileContextManager(app, containerEl as any, inputEl, createMockCallbacks());
+      inputEl.value = '@Notes/Plan.md bitte prüfen';
+
+      expect(manager.attachVaultPath('Notes/Plan.md')).toBe(true);
+
+      expect(inputEl.value).toBe('@Notes/Plan.md bitte prüfen');
+      manager.destroy();
+    });
+
+    it('mentions a folder with a trailing slash, as the @ picker does', () => {
+      const app = createMockApp();
+      const manager = new FileContextManager(app, containerEl as any, inputEl, createMockCallbacks());
+
+      expect(manager.attachVaultPath('Projekte/Alpha', 'folder')).toBe(true);
+
+      expect(inputEl.value).toBe('@Projekte/Alpha/ ');
+      expect(manager.getAttachedFiles().size).toBe(0);
+      manager.destroy();
+    });
+
+    it('refuses the vault root and paths outside the vault', () => {
+      const app = createMockApp();
+      const manager = new FileContextManager(app, containerEl as any, inputEl, createMockCallbacks());
+
+      expect(manager.attachVaultPath('/', 'folder')).toBe(false);
+      expect(manager.attachVaultPath('/elsewhere/file.md')).toBe(false);
+      expect(inputEl.value).toBe('');
+      manager.destroy();
+    });
+  });
+
   describe('destroy', () => {
     it('should clean up event listeners', () => {
       const app = createMockApp();

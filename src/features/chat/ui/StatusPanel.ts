@@ -4,7 +4,13 @@ import type { TodoItem } from '../../../core/tools/todo';
 import { getToolIcon } from '../../../core/tools/toolIcons';
 import { TOOL_TODO_WRITE } from '../../../core/tools/toolNames';
 import { t } from '../../../i18n/i18n';
-import { renderTodoItems } from '../rendering/todoUtils';
+import {
+  getTodoToggleLabel,
+  mountTodoCollapse,
+  renderTodoItems,
+  renderTodoSummary,
+  revealActiveTodo,
+} from '../rendering/todoUtils';
 
 export interface PanelBashOutput {
   id: string;
@@ -35,6 +41,7 @@ export class StatusPanel {
   private todoContainerEl: HTMLElement | null = null;
   private todoHeaderEl: HTMLElement | null = null;
   private todoContentEl: HTMLElement | null = null;
+  private todoBodyEl: HTMLElement | null = null;
   private isTodoExpanded = false;
   private currentTodos: TodoItem[] | null = null;
 
@@ -98,6 +105,9 @@ export class StatusPanel {
     this.todoContainerEl = null;
     this.todoHeaderEl = null;
     this.todoContentEl = null;
+    this.todoBodyEl = null;
+    // A remounted panel starts collapsed, like a freshly mounted one.
+    this.isTodoExpanded = false;
     this.createPanel();
 
     // Re-render current state
@@ -154,7 +164,7 @@ export class StatusPanel {
 
     // Todo header (collapsed view)
     this.todoHeaderEl = ownerDocument.createElement('div');
-    this.todoHeaderEl.className = 'claudian-status-panel-header';
+    this.todoHeaderEl.className = 'claudian-status-panel-header claudian-todo-header';
     this.todoHeaderEl.setAttribute('tabindex', '0');
     this.todoHeaderEl.setAttribute('role', 'button');
 
@@ -170,10 +180,12 @@ export class StatusPanel {
     this.todoHeaderEl.addEventListener('keydown', this.todoKeydownHandler);
     this.todoContainerEl.appendChild(this.todoHeaderEl);
 
-    // Todo content (expanded list)
+    // Todo content (expanded list). Collapsed by class, not display:none, so the
+    // list can animate open.
     this.todoContentEl = ownerDocument.createElement('div');
-    this.todoContentEl.className = 'claudian-status-panel-content claudian-todo-list-container claudian-hidden';
+    this.todoContentEl.className = 'claudian-status-panel-content claudian-todo-collapsed';
     this.todoContainerEl.appendChild(this.todoContentEl);
+    this.todoBodyEl = mountTodoCollapse(this.todoContentEl);
 
     this.containerEl.appendChild(this.panelEl);
   }
@@ -184,7 +196,7 @@ export class StatusPanel {
    * Passing null or empty array hides the panel.
    */
   updateTodos(todos: TodoItem[] | null): void {
-    if (!this.todoContainerEl || !this.todoHeaderEl || !this.todoContentEl) {
+    if (!this.todoContainerEl || !this.todoHeaderEl || !this.todoContentEl || !this.todoBodyEl) {
       // Component not ready - don't update internal state to keep it consistent with display
       return;
     }
@@ -195,119 +207,55 @@ export class StatusPanel {
     if (!todos || todos.length === 0) {
       this.todoContainerEl.addClass('claudian-hidden');
       this.todoHeaderEl.empty();
-      this.todoContentEl.empty();
+      this.todoBodyEl.empty();
       return;
     }
 
     this.todoContainerEl.removeClass('claudian-hidden');
-
-    // Count completed and find current task
-    const completedCount = todos.filter(t => t.status === 'completed').length;
-    const totalCount = todos.length;
-    const currentTask = todos.find(t => t.status === 'in_progress');
-
-    // Update header
-    this.renderTodoHeader(completedCount, totalCount, currentTask);
-
-    // Update content
-    this.renderTodoContent(todos);
-
-    // Update ARIA
-    this.updateTodoAriaLabel(completedCount, totalCount);
-
-    this.scrollToBottom();
-  }
-
-  /**
-   * Render the todo collapsed header.
-   */
-  private renderTodoHeader(completedCount: number, totalCount: number, currentTask: TodoItem | undefined): void {
-    if (!this.todoHeaderEl) return;
-
-    this.todoHeaderEl.empty();
-    const ownerDocument = this.todoHeaderEl.ownerDocument ?? window.document;
-
-    // List icon
-    const icon = ownerDocument.createElement('span');
-    icon.className = 'claudian-status-panel-icon';
-    setIcon(icon, getToolIcon(TOOL_TODO_WRITE));
-    this.todoHeaderEl.appendChild(icon);
-
-    // Label
-    const label = ownerDocument.createElement('span');
-    label.className = 'claudian-status-panel-label';
-    label.textContent = `Tasks (${completedCount}/${totalCount})`;
-    this.todoHeaderEl.appendChild(label);
-
-    // Collapsed-only elements: status indicator and current task preview
-    if (!this.isTodoExpanded) {
-      // Status indicator (tick only when all todos complete)
-      if (completedCount === totalCount && totalCount > 0) {
-        const status = ownerDocument.createElement('span');
-        status.className = 'claudian-status-panel-status status-completed';
-        setIcon(status, 'check');
-        this.todoHeaderEl.appendChild(status);
-      }
-
-      // Current task preview
-      if (currentTask) {
-        const current = ownerDocument.createElement('span');
-        current.className = 'claudian-status-panel-current';
-        current.textContent = currentTask.activeForm;
-        this.todoHeaderEl.appendChild(current);
-      }
-    }
-  }
-
-  /**
-   * Render the expanded todo content.
-   */
-  private renderTodoContent(todos: TodoItem[]): void {
-    if (!this.todoContentEl) return;
-    renderTodoItems(this.todoContentEl, todos);
-  }
-
-  /**
-   * Toggle todo expanded/collapsed state.
-   */
-  private toggleTodos(): void {
-    this.isTodoExpanded = !this.isTodoExpanded;
+    this.renderTodoHeader(todos);
+    renderTodoItems(this.todoBodyEl, todos);
     this.updateTodoDisplay();
   }
 
-  /**
-   * Update todo display based on expanded state.
-   */
-  private updateTodoDisplay(): void {
-    if (!this.todoContentEl || !this.todoHeaderEl) return;
+  private renderTodoHeader(todos: TodoItem[]): void {
+    if (!this.todoHeaderEl || !this.todoContainerEl) return;
 
-    // Show/hide content
-    this.todoContentEl.toggleClass('claudian-hidden', !this.isTodoExpanded);
+    const header = this.todoHeaderEl;
+    header.empty();
 
-    // Re-render header to update current task visibility
-    if (this.currentTodos && this.currentTodos.length > 0) {
-      const completedCount = this.currentTodos.filter(t => t.status === 'completed').length;
-      const totalCount = this.currentTodos.length;
-      const currentTask = this.currentTodos.find(t => t.status === 'in_progress');
-      this.renderTodoHeader(completedCount, totalCount, currentTask);
-      this.updateTodoAriaLabel(completedCount, totalCount);
-    }
+    const icon = header.createSpan({ cls: 'claudian-status-panel-icon' });
+    icon.setAttribute('aria-hidden', 'true');
+    setIcon(icon, getToolIcon(TOOL_TODO_WRITE));
 
-    this.scrollToBottom();
+    header.createSpan({ cls: 'claudian-status-panel-label', text: 'Aufgaben' });
+
+    const summary = renderTodoSummary(header.createSpan({ cls: 'claudian-todo-summary' }), todos);
+    this.todoContainerEl.toggleClass('is-complete', summary.allCompleted);
+
+    const chevron = header.createSpan({ cls: 'claudian-todo-chevron' });
+    chevron.setAttribute('aria-hidden', 'true');
+    setIcon(chevron, 'chevron-down');
   }
 
-  /**
-   * Update todo ARIA label.
-   */
-  private updateTodoAriaLabel(completedCount: number, totalCount: number): void {
-    if (!this.todoHeaderEl) return;
+  private toggleTodos(): void {
+    this.isTodoExpanded = !this.isTodoExpanded;
+    this.updateTodoDisplay();
+    if (this.isTodoExpanded && this.todoBodyEl) {
+      revealActiveTodo(this.todoBodyEl);
+    }
+  }
 
-    const action = this.isTodoExpanded ? 'einklappen' : 'ausklappen';
-    this.todoHeaderEl.setAttribute(
-      'aria-label',
-      `Aufgabenliste ${action} – ${completedCount} von ${totalCount} erledigt`
-    );
+  // The header keeps its content across toggles; CSS drops the current-task
+  // preview while the list itself is visible.
+  private updateTodoDisplay(): void {
+    if (!this.todoContentEl || !this.todoHeaderEl || !this.todoContainerEl) return;
+
+    this.todoContentEl.toggleClass('claudian-todo-collapsed', !this.isTodoExpanded);
+    this.todoContainerEl.toggleClass('is-expanded', this.isTodoExpanded);
     this.todoHeaderEl.setAttribute('aria-expanded', String(this.isTodoExpanded));
+    this.todoHeaderEl.setAttribute('aria-label', getTodoToggleLabel(this.currentTodos ?? [], this.isTodoExpanded));
+
+    this.scrollToBottom();
   }
 
   /**
@@ -583,6 +531,7 @@ export class StatusPanel {
     this.todoContainerEl = null;
     this.todoHeaderEl = null;
     this.todoContentEl = null;
+    this.todoBodyEl = null;
     this.containerEl = null;
     this.currentTodos = null;
   }

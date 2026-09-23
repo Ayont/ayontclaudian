@@ -73,11 +73,13 @@ export function buildGrokLaunchSpec(params: BuildGrokLaunchSpecParams): GrokLaun
     args.push('--agent', agentName);
   }
 
-  // Tool-approval posture: yolo auto-approves. In plan/normal mode we do not
-  // pass a headless approval flag so the run will respect the CLI's default
-  // review behaviour and not hang on unknown flags.
+  // Tool-approval posture: yolo auto-approves; plan maps to the CLI's own plan
+  // mode (`--permission-mode plan`, verified in `grok --help`); normal passes no
+  // flag so the run keeps the CLI's default review behaviour.
   if (params.permissionMode === 'yolo') {
     args.push('--always-approve');
+  } else if (params.permissionMode === 'plan') {
+    args.push('--permission-mode', 'plan');
   }
 
   const sessionId = params.sessionId?.trim();

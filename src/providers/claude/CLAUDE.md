@@ -47,6 +47,11 @@ The SDK can send messages without a registered handler (e.g., background subagen
 - Text-only messages merge with `\n\n` up to 12000 chars while a turn is active (fast follow-up messages coalesce)
 - Attachment messages replace the previous queued attachment (one at a time)
 - Queue overflow beyond 8 messages drops the newest
+- Steering bypasses the queue: `steer()` hands the message to the SDK mid-turn via `injectIntoActiveTurn` with `priority: 'next'`, which the CLI folds into the running turn between tool rounds (sdk.d.ts). Nothing is cancelled. Slash commands and turns without a live persistent query are declined, so the chat keeps them queued
+
+### Live Rate Limits And Retries
+
+`rate_limit_event` never reaches the chat: `reportRateLimit` maps it (`utilization` is 0..1, `resetsAt` epoch seconds, per the bundled CLI) and hands it to `plugin.recordProviderRateLimit`, which feeds the status-bar chips and the multi-agent cooldown. `system/api_retry` becomes a `transient` notice that only updates the live status line.
 
 ### Branch Filtering
 

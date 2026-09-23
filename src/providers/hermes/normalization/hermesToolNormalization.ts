@@ -8,6 +8,7 @@
  * which is what the prefix table below decodes back into a tool name.
  */
 
+import { normalizeTodoItems } from '../../../core/tools/todo';
 import {
   TOOL_BASH,
   TOOL_EDIT,
@@ -313,6 +314,9 @@ export function normalizeHermesToolInput(
     case 'skill_view':
     case 'skill_manage':
       return firstTrimmedString(input.name) ? { skill: firstTrimmedString(input.name) } : {};
+    case 'todo':
+      // No `todos` means Hermes only read the list; there is nothing to render.
+      return Array.isArray(input.todos) ? { todos: normalizeTodoItems(input.todos) } : input;
     default:
       return input;
   }

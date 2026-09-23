@@ -20,7 +20,9 @@ import {
   type AuxiliaryUsageRecord,
   buildAuxiliaryUsageReport,
 } from './core/auxiliary/AuxiliaryUsageAccounting';
+import type { TrashEntry } from './core/bootstrap/SessionStorage';
 import type { SharedAppStorage } from './core/bootstrap/storage';
+import { NativeRateLimitStore, type ProviderRateLimitReport } from './core/budget/nativeRateLimits';
 import { buildRateLimitChips } from './core/budget/rateLimitDisplay';
 import { type TokenBudgetState,TokenBudgetTracker } from './core/budget/tokenBudget';
 import {
@@ -41,6 +43,7 @@ import {
   type WorkflowStep,
 } from './core/control/workflows/WorkflowEngine';
 import { buildConversationSearchIndex, type ConversationSearchIndex } from './core/conversation/conversationSearchIndex';
+import { preserveHistoryBeforeSessionBoundary } from './core/conversation/sessionBoundaryHistory';
 import { buildDiagnosticsMarkdown } from './core/diagnostics/buildDiagnostics';
 import { getErrorHistory } from './core/diagnostics/errorHistory';
 import { buildStartupProfile, perfMark, perfSince } from './core/diagnostics/perfLog';
@@ -139,6 +142,7 @@ import type {
   Conversation,
   ConversationMeta,
   ImageAttachment,
+  SessionMetadata,
 } from './core/types';
 import {
   VIEW_TYPE_CLAUDIAN,
@@ -160,6 +164,7 @@ import {
   exportConversationToHtml,
   exportConversationToPdf,
 } from './features/chat/export/ConversationHtmlExporter';
+import { registerChatIntegration } from './features/chat/integration/chatIntegration';
 import { resolveAppShotSettings } from './features/chat/services/appShotCapture';
 import { takeAppShot } from './features/chat/services/AppShotController';
 import { registerAppShotGlobalHotkey, unregisterAppShotGlobalHotkey } from './features/chat/services/AppShotHotkeys';
@@ -172,9 +177,11 @@ import {
   VIEW_TYPE_SUBAGENT_INSPECTOR,
 } from './features/chat/subagents/SubagentInspectorView';
 import { type LocatableTab, type LocatableView, resolveSubagentSource, type SubagentSource } from './features/chat/subagents/subagentLocator';
+import { registerTabNavigationCommands } from './features/chat/tabs/tabCommands';
 import type { TabData } from './features/chat/tabs/types';
 import { ModelSelectModal } from './features/chat/ui/ModelSelectModal';
 import { ProviderStatusBar } from './features/chat/ui/ProviderStatusBar';
+import { carrySupersededMarks } from './features/chat/utils/supersededTurns';
 import { ClaudianDashboardView, VIEW_TYPE_CLAUDIAN_DASHBOARD } from './features/dashboard/ClaudianDashboardView';
 import { dashboardStrings } from './features/dashboard/dashboardI18n';
 import { NewProjectModal, projectSlug } from './features/dashboard/NewProjectModal';
@@ -199,6 +206,7 @@ import type { Locale } from './i18n/types';
 import { buildClaudeWindows, type ClaudeRateWindows,readClaudeUsageEvents } from './providers/claude/runtime/rateLimits';
 import { readLatestCodexRateLimits } from './providers/codex/runtime/rateLimits';
 import { OPENCODE_PLAN_MODE_ID, OPENCODE_SAFE_MODE_ID } from './providers/opencode/modes';
+import { showActionNotice } from './shared/components/actionNotice';
 import { buildCursorContext } from './utils/editor';
 import { clearEnvPathCache, getEnhancedPath } from './utils/env';
 import { revealWorkspaceLeaf } from './utils/obsidianCompat';
@@ -210,6 +218,13 @@ import { getVaultPath } from './utils/path';
  * chunk of a stream — so re-reading per update buys nothing and costs a lot.
  */
 const RATE_LIMIT_REFRESH_MS = 60_000;
+
+/** Deleted chats stay restorable this long before their files are removed. */
+const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+function byLastActivity(a: Conversation, b: Conversation): number {
+  return (b.lastResponseAt ?? b.updatedAt) - (a.lastResponseAt ?? a.updatedAt);
+}
 
 function isClaudianView(value: unknown): value is ClaudianView {
   return !!value
@@ -233,6 +248,7 @@ export default class ClaudianPlugin extends Plugin {
   private claudeRateLimitCache: ClaudeRateWindows | null = null;
   private claudeRateLimitFetchedAt = 0;
   private claudeRateLimitFetching = false;
+  private readonly nativeRateLimits = new NativeRateLimitStore();
   /** Global pause switch for the goal harness loop (/goal pause|resume). */
   goalLoopPaused = false;
   private usagePersistTimer: number | null = null;
@@ -311,6 +327,23 @@ export default class ClaudianPlugin extends Plugin {
     if (!usage) return;
     this.tokenBudgetTracker.trackUsage(usage, record.providerId);
     this.persistTokenUsage();
+  }
+
+  /**
+   * Live limit state a runtime reported itself (Claude's `rate_limit_event`).
+   * The status bar prefers it over the transcript token sum, and a rejection
+   * keeps the provider out of multi-agent routing until the reset it named.
+   */
+  recordProviderRateLimit(providerId: ProviderId, report: ProviderRateLimitReport): void {
+    this.nativeRateLimits.record(providerId, report);
+    const now = Date.now();
+    if (report.rejected) {
+      const cooldownMs = report.resetsAtEpochSec === null ? undefined : report.resetsAtEpochSec * 1000 - now;
+      this.providerCapacityService?.markRateLimited(providerId, cooldownMs, now);
+    } else {
+      this.providerCapacityService?.clearRateLimit(providerId);
+    }
+    this.updateProviderStatusBar();
   }
 
   /**
@@ -579,6 +612,10 @@ export default class ClaudianPlugin extends Plugin {
         return true;
       },
     });
+
+    // Tab navigation: overview, next/previous, go to tab 1-9. One block in its
+    // own module; no default hotkeys.
+    registerTabNavigationCommands(this);
 
     this.addCommand({
       id: 'check-for-update',
@@ -890,6 +927,40 @@ export default class ClaudianPlugin extends Plugin {
       },
     });
 
+    this.addCommand({
+      id: 'restore-deleted-conversation',
+      name: 'Gelöschten Chat wiederherstellen',
+      callback: async () => {
+        const entries = await this.storage.sessions.listTrash();
+        if (entries.length === 0) {
+          new Notice('Der Papierkorb ist leer. Gelöschte Chats bleiben 30 Tage wiederherstellbar.');
+          return;
+        }
+        const restore = async (entry: TrashEntry) => {
+          const restored = await this.restoreConversation(entry.id);
+          if (!restored) {
+            new Notice('Chat konnte nicht wiederhergestellt werden.');
+            return;
+          }
+          new Notice(`„${restored.title}“ wiederhergestellt.`);
+          await this.getView()?.getTabManager()?.openConversation(restored.id);
+        };
+        const formatDate = (time: number) => new Date(time).toLocaleString('de-DE', {
+          day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+        });
+        const modal = new class extends FuzzySuggestModal<TrashEntry> {
+          getItems(): TrashEntry[] { return entries; }
+          getItemText(entry: TrashEntry): string { return `${entry.title} · gelöscht ${formatDate(entry.deletedAt)}`; }
+          onChooseItem(entry: TrashEntry | null): void { if (entry) void restore(entry); }
+        }(this.app);
+        modal.setPlaceholder('Gelöschten Chat suchen…');
+        modal.open();
+      },
+    });
+
+    // File/editor context menus and chat commands (stop, regenerate, focus, copy).
+    registerChatIntegration(this);
+
     this.addSettingTab(new ClaudianSettingTab(this.app, this));
 
     // Status-bar item: active provider, set-up/auth state, and context usage %.
@@ -1010,7 +1081,9 @@ export default class ClaudianPlugin extends Plugin {
           })
           .catch(() => {
             // Best-effort housekeeping — never surface as an error.
-          });
+          })
+          .then(() => this.purgeExpiredTrash())
+          .catch(() => undefined);
       }, 10_000);
     });
   }
@@ -1208,7 +1281,9 @@ export default class ClaudianPlugin extends Plugin {
       // Teardown is best-effort; an unhandled rejection here would surface as a
       // console error on every plugin disable.
     });
-    void this.persistOpenConversations();
+    void this.persistOpenConversations()
+      .then(() => this.storage.sessions.flushIndex())
+      .catch(() => undefined);
   }
 
   /**
@@ -2370,6 +2445,7 @@ export default class ClaudianPlugin extends Plugin {
       activeProviderId: providerId,
       codex: this.codexRateLimitCache,
       claude: this.claudeRateLimitCache,
+      native: this.nativeRateLimits.snapshot(),
       trackerWindows,
       budgets: {
         claude: {
@@ -2734,50 +2810,9 @@ export default class ClaudianPlugin extends Plugin {
     const didNormalizeModelVariants = this.normalizeModelVariantSettings();
 
     const allMetadata = await this.storage.sessions.listMetadata();
-    this.conversations = allMetadata.map(meta => {
-      const resumeSessionId = meta.sessionId !== undefined ? meta.sessionId : meta.id;
-      const extra = meta as typeof meta & { _messageCount?: number; _preview?: string; _lazyMessages?: boolean };
-
-      const storedProviderId = meta.providerId ?? DEFAULT_CHAT_PROVIDER_ID;
-      const providerStillRegistered = ProviderRegistry.getProviderRegistrationSafe(storedProviderId) !== null;
-      const conv: Conversation = {
-        id: meta.id,
-        providerId: providerStillRegistered ? storedProviderId : DEFAULT_CHAT_PROVIDER_ID,
-        title: meta.title,
-        createdAt: meta.createdAt,
-        updatedAt: meta.updatedAt,
-        lastResponseAt: meta.lastResponseAt,
-        sessionId: providerStillRegistered ? resumeSessionId : null,
-        providerState: providerStillRegistered ? meta.providerState : undefined,
-        providerSessions: meta.providerSessions,
-        pendingContextBootstrap: meta.pendingContextBootstrap,
-        goal: meta.goal,
-        workspaceMode: meta.workspaceMode,
-        pinned: meta.pinned,
-        searchIndex: meta.searchIndex,
-        messages: meta.messages ?? [],
-        currentNote: meta.currentNote,
-        externalContextPaths: meta.externalContextPaths,
-        enabledMcpServers: meta.enabledMcpServers,
-        usage: meta.usage,
-        titleGenerationStatus: meta.titleGenerationStatus,
-        resumeAtMessageId: meta.resumeAtMessageId,
-      };
-
-      if (extra._lazyMessages) {
-        (conv as any)._lazyMessages = true;
-      }
-      if (extra._messageCount !== undefined) {
-        (conv as any)._messageCount = extra._messageCount;
-      }
-      if (extra._preview) {
-        (conv as any)._preview = extra._preview;
-      }
-
-      return conv;
-    }).sort(
-      (a, b) => (b.lastResponseAt ?? b.updatedAt) - (a.lastResponseAt ?? a.updatedAt)
-    );
+    this.conversations = allMetadata
+      .map(meta => this.conversationFromMetadata(meta))
+      .sort(byLastActivity);
     setLocale(this.settings.locale as Locale);
 
     const backfilledConversations = this.backfillConversationResponseTimestamps();
@@ -2794,9 +2829,9 @@ export default class ClaudianPlugin extends Plugin {
 
     const conversationsToSave = new Set([...backfilledConversations, ...invalidatedConversations]);
     for (const conv of conversationsToSave) {
-      await this.storage.sessions.saveMetadata(
-        this.storage.sessions.toSessionMetadata(conv)
-      );
+      // Most of these were never opened: saveConversation merges onto the
+      // file instead of replacing it with an empty message list.
+      await this.persistConversation(conv);
     }
   }
 
@@ -2875,9 +2910,7 @@ export default class ClaudianPlugin extends Plugin {
 
     if (invalidatedConversations.length > 0) {
       for (const conv of invalidatedConversations) {
-        await this.storage.sessions.saveMetadata(
-          this.storage.sessions.toSessionMetadata(conv)
-        );
+        await this.persistConversation(conv);
       }
     }
 
@@ -3069,7 +3102,9 @@ export default class ClaudianPlugin extends Plugin {
         settings: this.settings as unknown as Record<string, unknown>,
         vaultPath: getVaultPath(this.app),
       });
+    conversation.messages = preserveHistoryBeforeSessionBoundary(cachedMessages, conversation.messages);
     await this.restoreConversationImageData(conversation, cachedMessages);
+    conversation.messages = carrySupersededMarks(cachedMessages, conversation.messages);
     // Chats whose messages live only in the provider's transcript (most Claude
     // chats) get their history preview and search text the first time they load.
     const alreadyIndexed = this.searchIndexMemo.get(conversation.messages)?.length === conversation.messages.length;
@@ -3131,6 +3166,55 @@ export default class ClaudianPlugin extends Plugin {
     }
   }
 
+  /** Builds the in-memory conversation for a listed session (messages load lazily). */
+  private conversationFromMetadata(meta: SessionMetadata): Conversation {
+    const resumeSessionId = meta.sessionId !== undefined ? meta.sessionId : meta.id;
+    const extra = meta as typeof meta & { _messageCount?: number; _preview?: string; _lazyMessages?: boolean; _stub?: boolean };
+
+    const storedProviderId = meta.providerId ?? DEFAULT_CHAT_PROVIDER_ID;
+    const providerStillRegistered = ProviderRegistry.getProviderRegistrationSafe(storedProviderId) !== null;
+    const conv: Conversation = {
+      id: meta.id,
+      providerId: providerStillRegistered ? storedProviderId : DEFAULT_CHAT_PROVIDER_ID,
+      title: meta.title,
+      createdAt: meta.createdAt,
+      updatedAt: meta.updatedAt,
+      lastResponseAt: meta.lastResponseAt,
+      sessionId: providerStillRegistered ? resumeSessionId : null,
+      providerState: providerStillRegistered ? meta.providerState : undefined,
+      providerSessions: meta.providerSessions,
+      pendingContextBootstrap: meta.pendingContextBootstrap,
+      goal: meta.goal,
+      goalProviderId: meta.goalProviderId,
+      nativeGoal: meta.nativeGoal,
+      workspaceMode: meta.workspaceMode,
+      pinned: meta.pinned,
+      searchIndex: meta.searchIndex,
+      messages: meta.messages ?? [],
+      currentNote: meta.currentNote,
+      externalContextPaths: meta.externalContextPaths,
+      enabledMcpServers: meta.enabledMcpServers,
+      usage: meta.usage,
+      titleGenerationStatus: meta.titleGenerationStatus,
+      resumeAtMessageId: meta.resumeAtMessageId,
+    };
+
+    if (extra._lazyMessages) {
+      (conv as any)._lazyMessages = true;
+    }
+    if (extra._stub) {
+      (conv as any)._stub = true;
+    }
+    if (extra._messageCount !== undefined) {
+      (conv as any)._messageCount = extra._messageCount;
+    }
+    if (extra._preview) {
+      (conv as any)._preview = extra._preview;
+    }
+
+    return conv;
+  }
+
   async createConversation(options?: {
     providerId?: ProviderId;
     sessionId?: string;
@@ -3150,37 +3234,69 @@ export default class ClaudianPlugin extends Plugin {
 
     this.conversations.unshift(conversation);
     this.conversationIndex = null;
-    await this.storage.sessions.saveMetadata(
-      this.storage.sessions.toSessionMetadata(conversation)
-    );
+    await this.persistConversation(conversation);
 
     return conversation;
   }
 
   async ensureConversationLoaded(conversation: Conversation): Promise<void> {
-    if (!(conversation as any)._lazyMessages) return;
-    try {
-      const full = await this.storage.sessions.loadMetadata(conversation.id);
-      if (full) {
-        if (full.messages && full.messages.length > 0) {
-          conversation.messages = full.messages;
-        }
-        if (full.providerState) {
-          conversation.providerState = {
-            ...conversation.providerState,
-            ...full.providerState,
-          };
-        }
-        if (full.providerSessions) {
-          conversation.providerSessions = full.providerSessions;
-        }
-        if (typeof full.pendingContextBootstrap === 'string') {
-          conversation.pendingContextBootstrap = full.pendingContextBootstrap;
-        }
-      }
-    } finally {
-      delete (conversation as any)._lazyMessages;
+    const flags = conversation as Conversation & { _lazyMessages?: boolean; _stub?: boolean };
+    if (!flags._lazyMessages) return;
+    const result = await this.storage.sessions.loadMetadataDetailed(conversation.id);
+    const listedWithMessages = ((conversation as { _messageCount?: number })._messageCount ?? 0) > 0 || flags._stub;
+    if (result.status === 'unreadable' || (result.status === 'missing' && listedWithMessages)) {
+      // Stay lazy: saves keep merging onto the file, and a merge that cannot
+      // read it writes nothing. A listed chat whose file is gone for a moment
+      // (a sync placeholder) must not turn into an empty one. The next open retries.
+      return;
     }
+    delete flags._lazyMessages;
+    if (result.status === 'corrupt') {
+      this.noticeCorruptConversation(conversation, result.backupPath);
+      return;
+    }
+    if (result.status !== 'ok') return;
+
+    const full = result.metadata;
+    if (flags._stub) {
+      // The list only read this file's head; the full file is authoritative
+      // for everything, including provider and native session.
+      delete flags._stub;
+      const { id: _id, messages: _messages, ...identity } = this.conversationFromMetadata(full);
+      Object.assign(conversation, identity);
+      delete (conversation as { _lazyMessages?: boolean })._lazyMessages;
+    }
+    if (full.messages && full.messages.length > 0) {
+      conversation.messages = full.messages;
+    }
+    if (full.providerState) {
+      conversation.providerState = {
+        ...conversation.providerState,
+        ...full.providerState,
+      };
+    }
+    if (full.providerSessions) {
+      conversation.providerSessions = full.providerSessions;
+    }
+    if (typeof full.pendingContextBootstrap === 'string') {
+      conversation.pendingContextBootstrap = full.pendingContextBootstrap;
+    }
+  }
+
+  /** Every conversation save goes through here; see SessionStorage.saveConversation. */
+  private async persistConversation(conversation: Conversation): Promise<void> {
+    const outcome = await this.storage.sessions.saveConversation(conversation);
+    if (outcome === 'skipped' && !this.unsavableNoticeShown.has(conversation.id)) {
+      this.unsavableNoticeShown.add(conversation.id);
+      new Notice(`Chat „${conversation.title}“ konnte gerade nicht gespeichert werden, weil seine Datei nicht lesbar ist. Die gespeicherte Fassung bleibt unverändert.`, 10_000);
+    }
+  }
+
+  private unsavableNoticeShown = new Set<string>();
+
+  private noticeCorruptConversation(conversation: Conversation, backupPath: string | null): void {
+    const where = backupPath ? ` Eine unveränderte Kopie liegt unter ${backupPath}.` : '';
+    new Notice(`Chat „${conversation.title}“ war beschädigt und konnte nicht vollständig geladen werden.${where}`, 12_000);
   }
 
   async switchConversation(id: string): Promise<Conversation | null> {
@@ -3193,7 +3309,12 @@ export default class ClaudianPlugin extends Plugin {
     return conversation;
   }
 
-  async deleteConversation(id: string): Promise<void> {
+  /**
+   * Deleting moves the chat to the trash (restorable for TRASH_RETENTION_MS,
+   * with an undo notice). `permanent` is for rolling back a chat that was only
+   * just created, e.g. a fork that failed to open.
+   */
+  async deleteConversation(id: string, options: { permanent?: boolean } = {}): Promise<void> {
     const index = this.conversations.findIndex(c => c.id === id);
     if (index === -1) return;
 
@@ -3201,13 +3322,14 @@ export default class ClaudianPlugin extends Plugin {
     this.conversations.splice(index, 1);
     this.conversationIndex = null;
 
-    await ProviderRegistry
-      .getConversationHistoryService(conversation.providerId)
-      .deleteConversationSession(conversation, getVaultPath(this.app));
-
-    await this.storage.sessions.deleteMetadata(id);
-    // A deleted chat's unsent draft has nowhere to come back to.
-    this.composerDrafts?.delete(conversationDraftKey(id));
+    if (options.permanent) {
+      await this.deleteConversationForGood(conversation);
+    } else {
+      // The provider's transcript and the draft stay until the trash entry is
+      // purged, so a restore brings the chat back complete.
+      await this.storage.sessions.moveToTrash(id);
+      this.showDeletedNotice(conversation);
+    }
 
     for (const view of this.getAllViews()) {
       const tabManager = view.getTabManager();
@@ -3222,6 +3344,49 @@ export default class ClaudianPlugin extends Plugin {
     }
   }
 
+  private async deleteConversationForGood(conversation: Conversation): Promise<void> {
+    await ProviderRegistry
+      .getConversationHistoryService(conversation.providerId)
+      .deleteConversationSession(conversation, getVaultPath(this.app));
+    await this.storage.sessions.deleteMetadata(conversation.id);
+    this.composerDrafts?.delete(conversationDraftKey(conversation.id));
+  }
+
+  private showDeletedNotice(conversation: Conversation): void {
+    showActionNotice(`„${conversation.title}“ gelöscht.`, 'Rückgängig', () => {
+      void this.restoreConversation(conversation.id).then((restored) => {
+        if (!restored) new Notice('Chat konnte nicht wiederhergestellt werden.');
+      });
+    });
+  }
+
+  /** Brings a trashed chat back into the list. */
+  async restoreConversation(id: string): Promise<Conversation | null> {
+    const meta = await this.storage.sessions.restoreFromTrash(id);
+    if (!meta) return null;
+    const conversation = this.conversationFromMetadata(meta);
+    this.conversations = [...this.conversations.filter((c) => c.id !== id), conversation].sort(byLastActivity);
+    this.conversationIndex = null;
+    for (const view of this.getAllViews()) {
+      view.refreshHistoryIfOpen();
+    }
+    return conversation;
+  }
+
+  /** Drops trash entries past the retention, including their provider transcripts. */
+  private async purgeExpiredTrash(): Promise<void> {
+    await this.storage.sessions.purgeTrash({
+      maxAgeMs: TRASH_RETENTION_MS,
+      onPurge: async (meta) => {
+        await ProviderRegistry
+          .getConversationHistoryService(meta.providerId ?? DEFAULT_CHAT_PROVIDER_ID)
+          .deleteConversationSession(this.conversationFromMetadata(meta), getVaultPath(this.app))
+          .catch(() => undefined);
+        this.composerDrafts?.delete(conversationDraftKey(meta.id));
+      },
+    });
+  }
+
   async renameConversation(id: string, title: string): Promise<void> {
     const conversation = this.conversations.find(c => c.id === id);
     if (!conversation) return;
@@ -3231,9 +3396,7 @@ export default class ClaudianPlugin extends Plugin {
     conversation.title = title.trim() || this.generateDefaultTitle();
     conversation.updatedAt = Date.now();
 
-    await this.storage.sessions.saveMetadata(
-      this.storage.sessions.toSessionMetadata(conversation)
-    );
+    await this.persistConversation(conversation);
   }
 
   async updateConversation(id: string, updates: Partial<Conversation>): Promise<void> {
@@ -3253,9 +3416,7 @@ export default class ClaudianPlugin extends Plugin {
     }
     Object.assign(conversation, safeUpdates, { updatedAt: Date.now() });
 
-    await this.storage.sessions.saveMetadata(
-      this.storage.sessions.toSessionMetadata(conversation)
-    );
+    await this.persistConversation(conversation);
 
     // Clear image data from memory after save. The durable image archive keeps
     // historic thumbnails available even for providers whose SDK transcript

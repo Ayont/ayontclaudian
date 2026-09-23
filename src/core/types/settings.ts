@@ -259,6 +259,8 @@ export interface ClaudianSettings {
   // UI preferences
   maxTabs: number;
   tabBarPosition: TabBarPosition;
+  /** Obsidian notice when a tab out of sight finishes, fails or waits for input. */
+  notifyOnBackgroundTabDone?: boolean;
   enableAutoScroll: boolean;
   deferMathRenderingDuringStreaming: boolean;
   expandFileEditsByDefault: boolean;

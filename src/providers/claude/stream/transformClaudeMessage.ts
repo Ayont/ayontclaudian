@@ -5,6 +5,8 @@ import { isBlockedMessage } from '../sdk/messages';
 import { extractToolResultContent } from '../sdk/toolResultContent';
 import type { TransformEvent } from '../sdk/types';
 import { getContextWindowSize, isDefaultClaudeModel, isLegacyClaudeAlias } from '../types/models';
+import { describeApiRetry } from './apiRetryNotice';
+import type { ClaudeGoalTracker } from './claudeGoalTracker';
 import { describeRefusalFallback } from './refusalFallback';
 import { createTransformStreamState, type TransformStreamState } from './toolInputStreamState';
 
@@ -165,6 +167,8 @@ export interface TransformOptions {
   streamState?: TransformStreamState;
   /** Tracks prompt-token usage across Anthropic-compatible stream events. */
   usageState?: TransformUsageState;
+  /** Follows a Claude Code `/goal` through its Stop-hook rounds. */
+  goalTracker?: ClaudeGoalTracker;
 }
 
 export interface MessageUsage {
@@ -674,6 +678,9 @@ export function* transformSDKMessage(
       } else if (message.subtype === 'model_refusal_fallback' || message.subtype === 'model_refusal_no_fallback') {
         const notice = describeRefusalFallback(message);
         if (notice) yield notice;
+      } else if (message.subtype === 'api_retry') {
+        const notice = describeApiRetry(message);
+        if (notice) yield notice;
       }
       break;
 
@@ -737,6 +744,14 @@ export function* transformSDKMessage(
 
     case 'user': {
       const parentToolUseId = message.parent_tool_use_id ?? null;
+
+      if (parentToolUseId === null && options?.goalTracker) {
+        const goalRound = options.goalTracker.fromUserText(userMessageText(message));
+        if (goalRound) {
+          yield goalRound;
+          break;
+        }
+      }
 
       // Check for blocked tool calls (from hook denials)
       if (isBlockedMessage(message)) {
@@ -851,6 +866,10 @@ export function* transformSDKMessage(
 
     case 'result':
       options?.streamState?.clearAll();
+      {
+        const settled = options?.goalTracker?.settle(isResultErrorShape(message));
+        if (settled) yield settled;
+      }
       if (message.fast_mode_state === 'cooldown') {
         yield {
           type: 'notice',
@@ -895,6 +914,27 @@ export function* transformSDKMessage(
       break;
 
     default:
+      // `active_goal` is a stdout message outside the SDKMessage union
+      // (sdk.d.ts SDKActiveGoalMessage); the SDK still forwards it.
+      if ((message as { type: string }).type === 'active_goal' && options?.goalTracker) {
+        const update = options.goalTracker.fromActiveGoal(
+          (message as unknown as { value: Parameters<ClaudeGoalTracker['fromActiveGoal']>[0] }).value,
+        );
+        if (update) yield update;
+      }
       break;
   }
+}
+
+function userMessageText(message: { message?: { content?: unknown } }): string {
+  const content = message.message?.content;
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+  return content
+    .filter((block): block is { type: 'text'; text: string } => (
+      !!block && typeof block === 'object' && (block as { type?: unknown }).type === 'text'
+      && typeof (block as { text?: unknown }).text === 'string'
+    ))
+    .map((block) => block.text)
+    .join('\n');
 }

@@ -67,6 +67,33 @@
       "expandOutput": "展开命令输出",
       "running": "运行中...",
       "copyFailed": "复制到剪贴板失败"
+    },
+    "contextPressure": {
+      "titleHigh": "上下文占用较高",
+      "titleCritical": "上下文即将用满",
+      "percent": "{percent}%",
+      "usage": "已用 {used} / 共 {total} 个 token",
+      "usageEstimated": "约已用 {used} / 共 {total} 个 token（估算）",
+      "bodyHigh": "对话已占用大部分上下文窗口，早期的细节可能会丢失。",
+      "bodyCritical": "下一次较长的回答可能超出上限。请立即释放上下文。",
+      "compact": "压缩",
+      "compactHint": "由提供方在本会话内压缩历史记录（{command}）",
+      "continueFresh": "以更少上下文继续",
+      "continueFreshHint": "使用精简摘要开始新会话。聊天记录仍然可见。",
+      "condensing": "正在精简历史记录…",
+      "streamingNote": "当前回答结束后即可使用。",
+      "dismiss": "隐藏提示",
+      "regionLabel": "上下文用量警告",
+      "freshSessionDivider": "已使用精简上下文开始新会话",
+      "freshSessionBusy": "仍有回答在进行中。请在结束后重试。",
+      "freshSessionAborted": "已取消：精简期间对话发生了变化。",
+      "freshSessionFailed": "无法开始新会话：{error}",
+      "freshSessionUnsaved": "无法保存新会话：{error}"
+    },
+    "contextMeter": {
+      "estimatedPrefix": "估算 · ",
+      "nearLimitCompact": "即将达到上限 – 使用 {command} 压缩",
+      "nearLimit": "即将达到上限 – 以更少上下文继续"
     }
   },
   "settings": {

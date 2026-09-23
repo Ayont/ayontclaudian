@@ -2,7 +2,7 @@ import type { App } from 'obsidian';
 import { setIcon } from 'obsidian';
 
 import { describeBrowserActivity, resolveBrowserActivity } from '../../../core/tools/browserActivity';
-import type { TodoItem } from '../../../core/tools/todo';
+import { parseTodoInput, summarizeTodos, type TodoItem } from '../../../core/tools/todo';
 import { getToolIcon, MCP_ICON_MARKER } from '../../../core/tools/toolIcons';
 import { extractResolvedAnswersFromResultText } from '../../../core/tools/toolInput';
 import {
@@ -46,8 +46,17 @@ import {
   renderMediaContent,
   resolveMediaActivity,
 } from './MediaActivityRenderer';
-import { renderTodoItems } from './todoUtils';
+import {
+  getTodoToggleLabel,
+  mountTodoCollapse,
+  renderTodoItems,
+  renderTodoSummary,
+  revealActiveTodo,
+} from './todoUtils';
 import { planToolOutputRendering, writeToolOutputFile } from './toolOutputOffload';
+
+const TODO_TITLE = 'Aufgaben';
+const TODO_COLLAPSED_CLASS = 'claudian-todo-collapsed';
 
 export function setToolIcon(el: HTMLElement, name: string, input: Record<string, unknown> = {}): void {
   const safeInput = input ?? {};
@@ -94,14 +103,9 @@ export function getToolName(name: string, input: Record<string, unknown> = {}): 
   }
 
   switch (name) {
-    case TOOL_TODO_WRITE: {
-      const todos = safeInput.todos as Array<{ status: string }> | undefined;
-      if (todos && Array.isArray(todos) && todos.length > 0) {
-        const completed = todos.filter(t => t.status === 'completed').length;
-        return `Tasks ${completed}/${todos.length}`;
-      }
-      return 'Tasks';
-    }
+    // The count is shown by the progress meter next to the name.
+    case TOOL_TODO_WRITE:
+      return TODO_TITLE;
     case TOOL_ENTER_PLAN_MODE:
       return 'Betrete Plan-Modus';
     case TOOL_EXIT_PLAN_MODE:
@@ -252,12 +256,10 @@ export function getToolLabel(name: string, input: Record<string, unknown> = {}):
     case TOOL_LS:
       return `LS: ${shortenPath(getInputText(safeInput, 'path')) || '.'}`;
     case TOOL_TODO_WRITE: {
-      const todos = safeInput.todos as Array<{ status: string }> | undefined;
-      if (todos && Array.isArray(todos)) {
-        const completed = todos.filter(t => t.status === 'completed').length;
-        return `Tasks (${completed}/${todos.length})`;
-      }
-      return 'Tasks';
+      const todos = parseTodoInput(safeInput);
+      if (!todos) return TODO_TITLE;
+      const { completed, total } = summarizeTodos(todos);
+      return `${TODO_TITLE} (${completed}/${total})`;
     }
     case TOOL_SKILL: {
       const skillName = getInputText(input, 'skill', 'skill');
@@ -1148,23 +1150,10 @@ function renderGenericToolContent(
   }
 }
 
-function getTodos(input: Record<string, unknown> = {}): TodoItem[] | undefined {
-  const safeInput = input ?? {};
-  const todos = safeInput.todos;
-  if (!todos || !Array.isArray(todos)) return undefined;
-  return todos as TodoItem[];
-}
-
-function getCurrentTask(input: Record<string, unknown> = {}): TodoItem | undefined {
-  const todos = getTodos(input);
-  if (!todos) return undefined;
-  return todos.find(t => t.status === 'in_progress');
-}
-
-function areAllTodosCompleted(input: Record<string, unknown> = {}): boolean {
-  const todos = getTodos(input);
-  if (!todos || todos.length === 0) return false;
-  return todos.every(t => t.status === 'completed');
+// Every provider's raw list goes through the shared parser, so a card never
+// shows a half-understood shape (missing activeForm, `done`, `inProgress`, …).
+function getTodos(input: Record<string, unknown> = {}): TodoItem[] {
+  return parseTodoInput(input ?? {}) ?? [];
 }
 
 function resetStatusElement(statusEl: HTMLElement, statusClass: string, ariaLabel: string): void {
@@ -1181,9 +1170,9 @@ const STATUS_ICONS: Record<string, string> = {
 };
 
 function setTodoWriteStatus(statusEl: HTMLElement, input: Record<string, unknown> = {}): void {
-  const isComplete = areAllTodosCompleted(input);
+  const isComplete = summarizeTodos(getTodos(input)).allCompleted;
   const status = isComplete ? 'completed' : 'running';
-  const ariaLabel = isComplete ? 'Status: completed' : 'Status: in progress';
+  const ariaLabel = isComplete ? 'Status: erledigt' : 'Status: in Arbeit';
   resetStatusElement(statusEl, `status-${status}`, ariaLabel);
   if (isComplete) setIcon(statusEl, 'check');
 }
@@ -1217,23 +1206,36 @@ function setGenericToolHeaderRight(statusEl: HTMLElement, toolCall: ToolCallInfo
   setToolStatus(statusEl, toolCall.status);
 }
 
+/** Renders the card body into `container`'s animated collapse; returns the list host. */
 export function renderTodoWriteResult(
   container: HTMLElement,
   input: Record<string, unknown> = {},
-): void {
-  container.empty();
-  container.addClass('claudian-todo-panel-content');
-  container.addClass('claudian-todo-list-container');
+): HTMLElement {
+  container.addClass('claudian-tool-content-todo');
+  const body = mountTodoCollapse(container);
 
-  const safeInput = input ?? {};
-  const todos = safeInput.todos as TodoItem[] | undefined;
-  if (!todos || !Array.isArray(todos)) {
-    const item = container.createSpan({ cls: 'claudian-tool-result-item' });
-    item.setText('Aufgaben aktualisiert');
-    return;
+  const todos = getTodos(input);
+  if (todos.length === 0) {
+    body.empty();
+    body.createSpan({ cls: 'claudian-tool-result-item claudian-todo-empty', text: 'Aufgaben aktualisiert' });
+    return body;
   }
 
-  renderTodoItems(container, todos);
+  renderTodoItems(body, todos);
+  return body;
+}
+
+function refreshTodoHeader(toolEl: HTMLElement, toolCall: ToolCallInfo): void {
+  const todos = getTodos(toolCall.input);
+  const summaryEl = toolEl.querySelector('.claudian-todo-summary') as HTMLElement | null;
+  if (summaryEl) {
+    const summary = renderTodoSummary(summaryEl, todos);
+    toolEl.toggleClass('is-complete', summary.allCompleted);
+  }
+  const header = toolEl.querySelector('.claudian-tool-header') as HTMLElement | null;
+  if (header) {
+    header.setAttribute('aria-label', getTodoToggleLabel(todos, header.getAttribute('aria-expanded') === 'true'));
+  }
 }
 
 export function isBlockedToolResult(content: unknown, isError?: boolean): boolean {
@@ -1254,7 +1256,6 @@ interface ToolElementStructure {
   summaryEl: HTMLElement;
   statusEl: HTMLElement;
   content: HTMLElement;
-  currentTaskEl: HTMLElement | null;
 }
 
 export interface ToolCallRenderOptions {
@@ -1314,9 +1315,11 @@ function createToolElementStructure(
     });
   }
 
-  const currentTaskEl = toolCall.name === TOOL_TODO_WRITE
-    ? createCurrentTaskPreview(header, toolCall.input)
-    : null;
+  if (toolCall.name === TOOL_TODO_WRITE) {
+    toolEl.addClass('claudian-tool-call--todo');
+    const summary = renderTodoSummary(header.createSpan({ cls: 'claudian-todo-summary' }), getTodos(toolCall.input));
+    toolEl.toggleClass('is-complete', summary.allCompleted);
+  }
 
   if (targetPath) {
     const app = (window as unknown as { app?: any }).app;
@@ -1329,7 +1332,7 @@ function createToolElementStructure(
 
   const content = toolEl.createDiv({ cls: 'claudian-tool-content' });
 
-  return { toolEl, header, iconEl, nameEl, summaryEl, statusEl, content, currentTaskEl };
+  return { toolEl, header, iconEl, nameEl, summaryEl, statusEl, content };
 }
 
 function formatAnswer(raw: unknown): string {
@@ -1639,32 +1642,29 @@ function renderFileReadExpanded(
   renderLines();
 }
 
-function createCurrentTaskPreview(
+/**
+ * TodoWrite cards collapse by class so the list can animate open, and label
+ * their header in German from the live input (a plan update rewrites it).
+ */
+function setupTodoCollapsible(
+  toolEl: HTMLElement,
   header: HTMLElement,
-  input: Record<string, unknown>
-): HTMLElement {
-  const currentTaskEl = header.createSpan({ cls: 'claudian-tool-current' });
-  const currentTask = getCurrentTask(input);
-  if (currentTask) {
-    currentTaskEl.setText(currentTask.activeForm);
-  }
-  return currentTaskEl;
-}
-
-function createTodoToggleHandler(
-  currentTaskEl: HTMLElement | null,
-  statusEl: HTMLElement | null,
-  onExpandChange?: (expanded: boolean) => void
-): (expanded: boolean) => void {
-  return (expanded: boolean) => {
-    if (onExpandChange) onExpandChange(expanded);
-    if (currentTaskEl) {
-      currentTaskEl.toggleClass('claudian-hidden', expanded);
-    }
-    if (statusEl) {
-      statusEl.toggleClass('claudian-hidden', expanded);
-    }
-  };
+  content: HTMLElement,
+  toolCall: ToolCallInfo,
+  initiallyExpanded: boolean,
+  onExpandChange?: (expanded: boolean) => void,
+): void {
+  setupCollapsible(toolEl, header, content, { isExpanded: initiallyExpanded }, {
+    getAriaLabel: (expanded) => getTodoToggleLabel(getTodos(toolCall.input), expanded),
+    hiddenClass: TODO_COLLAPSED_CLASS,
+    initiallyExpanded,
+    onToggle: (expanded) => {
+      onExpandChange?.(expanded);
+      if (expanded) {
+        revealActiveTodo(mountTodoCollapse(content));
+      }
+    },
+  });
 }
 
 function renderToolContent(
@@ -1676,7 +1676,6 @@ function renderToolContent(
   const mediaActivity = resolveMediaActivity(toolCall.name, toolCall.input, toolCall.result);
 
   if (toolCall.name === TOOL_TODO_WRITE) {
-    content.addClass('claudian-tool-content-todo');
     renderTodoWriteResult(content, toolCall.input);
   } else if (toolCall.name === TOOL_ASK_USER_QUESTION) {
     content.addClass('claudian-tool-content-ask');
@@ -1714,25 +1713,33 @@ export function renderToolCall(
   toolCallElements: Map<string, HTMLElement>,
   options: ToolCallRenderOptions = {}
 ): HTMLElement {
-  const { toolEl, header, statusEl, content, currentTaskEl } =
+  const { toolEl, header, statusEl, content } =
     createToolElementStructure(parentEl, toolCall);
 
   toolEl.dataset.toolId = toolCall.id;
   toolCallElements.set(toolCall.id, toolEl);
 
+  const initiallyExpanded = options.initiallyExpanded ?? false;
+  toolCall.isExpanded = initiallyExpanded;
+  const trackExpanded = (expanded: boolean) => {
+    toolCall.isExpanded = expanded;
+  };
+
+  if (toolCall.name === TOOL_TODO_WRITE) {
+    setTodoWriteStatus(statusEl, toolCall.input);
+    renderToolContent(content, toolCall);
+    setupTodoCollapsible(toolEl, header, content, toolCall, initiallyExpanded, trackExpanded);
+    return toolEl;
+  }
+
   setGenericToolHeaderRight(statusEl, toolCall);
 
   renderToolContent(content, toolCall, 'Running...');
 
-  const initiallyExpanded = options.initiallyExpanded ?? false;
   const state = { isExpanded: initiallyExpanded };
-  toolCall.isExpanded = initiallyExpanded;
-  const todoStatusEl = toolCall.name === TOOL_TODO_WRITE ? statusEl : null;
   setupCollapsible(toolEl, header, content, state, {
     initiallyExpanded,
-    onToggle: createTodoToggleHandler(currentTaskEl, todoStatusEl, (expanded) => {
-      toolCall.isExpanded = expanded;
-    }),
+    onToggle: trackExpanded,
     baseAriaLabel: getToolLabel(toolCall.name, toolCall.input)
   });
 
@@ -1760,11 +1767,7 @@ export function updateToolCallResult(
     if (nameEl) {
       nameEl.setText(getToolName(toolCall.name, toolCall.input));
     }
-    const currentTaskEl = toolEl.querySelector('.claudian-tool-current') as HTMLElement;
-    if (currentTaskEl) {
-      const currentTask = getCurrentTask(toolCall.input);
-      currentTaskEl.setText(currentTask ? currentTask.activeForm : '');
-    }
+    refreshTodoHeader(toolEl, toolCall);
     return;
   }
 
@@ -1807,22 +1810,23 @@ export function renderStoredToolCall(
   toolCall: ToolCallInfo,
   options: ToolCallRenderOptions = {}
 ): HTMLElement {
-  const { toolEl, header, statusEl, content, currentTaskEl } =
+  const { toolEl, header, statusEl, content } =
     createToolElementStructure(parentEl, toolCall);
+  const initiallyExpanded = options.initiallyExpanded ?? false;
 
   if (toolCall.name === TOOL_TODO_WRITE) {
     setTodoWriteStatus(statusEl, toolCall.input);
-  } else {
-    setGenericToolHeaderRight(statusEl, toolCall);
+    renderToolContent(content, toolCall);
+    setupTodoCollapsible(toolEl, header, content, toolCall, initiallyExpanded);
+    return toolEl;
   }
 
+  setGenericToolHeaderRight(statusEl, toolCall);
   renderToolContent(content, toolCall);
 
   const state = { isExpanded: false };
-  const todoStatusEl = toolCall.name === TOOL_TODO_WRITE ? statusEl : null;
   setupCollapsible(toolEl, header, content, state, {
-    initiallyExpanded: options.initiallyExpanded ?? false,
-    onToggle: createTodoToggleHandler(currentTaskEl, todoStatusEl),
+    initiallyExpanded,
     baseAriaLabel: getToolLabel(toolCall.name, toolCall.input)
   });
 

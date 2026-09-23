@@ -100,6 +100,22 @@ permissions. Verifier usage is still accounted for without replacing the visible
 turn's context meter. Loop turns suppress the duplicate `user_message_start` and
 the loop owns the single terminal `done`.
 
+**Native goals come first.** Providers with their own goal system declare
+`capabilities.nativeGoal` (verified per trap 5), and `/goal` is handed to it
+instead (`core/conversation/nativeGoal.ts` plans each sub-command):
+- **Codex** (`rpc`): `thread/goal/set|clear`, status/budget via `thread/goal/updated`.
+  Codex starts the follow-up rounds itself; the query holds its `done` across them
+  (`GOAL_CONTINUATION_GRACE_MS`) and pauses the goal on Stop, so it never keeps
+  working with no answer open.
+- **Claude** (`slash`): raw `/goal <condition>`; Claude Code's Stop hook keeps the
+  answer going. `ClaudeGoalTracker` turns its `Stop hook feedback:` messages into rounds.
+- **Kimi print** (`slash`): headless `/goal`; exit codes 0/3/6 = complete/blocked/paused.
+
+While the chat runs on the owning provider (`conversation.goalProviderId`), no
+`<standing_goal>` is framed and Claudian's loop stays out; after a switch to another
+provider the same goal falls back to Claudian's loop. Rounds render as `goal_round`
+content blocks; the banner shows the provider's status (`GoalBanner.setNative`).
+
 **Master prompter (multi-agent).** Missions no longer fan the same question out to
 every specialist. `MasterPrompterService` runs one planning pass that writes a
 tailored prompt per specialist (`masterPlan.ts`), then routes each subtask to a
@@ -182,7 +198,9 @@ Each of these has cost a real debugging session. They are not theoretical.
     build a new object from the base runtime; an optional method they do not
     copy silently disappears. Per-subagent stop (`canCancelSubagent` /
     `cancelSubagent`) was implemented and tested in two providers and still
-    never reached the chat until both wrappers forwarded it.
+    never reached the chat until both wrappers forwarded it. Both now go through
+    `core/runtime/forwardOptionalRuntimeMethods`; its list is type-checked against
+    `ChatRuntime`, so a new optional method that is not listed fails the build.
 13. **Nothing at startup may touch every tab or the whole RAG index.** Provider
     warmup built its context with `getConversationById` (full hydration) before
     checking whether the tab was visible, so nine restored tabs parsed ~45 MB of
@@ -192,6 +210,15 @@ Each of these has cost a real debugging session. They are not theoretical.
     (`TabManager.releaseIdleRuntimes`), and the index loads on first use or when
     idle (`VaultRAGService.ready`). `.claudian/perf/last-startup.json` records
     what each start cost.
+14. **A chat that was never opened has an empty message list in memory.** The
+    startup list holds header fields only (`_lazyMessages`). Settings reconcilers
+    that invalidated sessions after an env/model change saved those chats as-is and
+    erased their history. Every conversation save goes through
+    `SessionStorage.saveConversation`, which merges an unloaded chat onto its file
+    and refuses to write over a file it could not read. Session files and the index
+    are written atomically (`VaultFileAdapter.writeAtomic`); a file that fails to
+    parse is copied to `.claudian/recovery/` before anything can replace it; delete
+    moves chats to `.claudian/trash/` (30 days, undo notice).
 
 ## Commands
 
@@ -227,6 +254,8 @@ first release: **`origin` is a different fork.** Releases go to the `ayont` remo
 | `.claudian/tab-state.json` | Open-tab layout (atomic temp-file + rename writes) |
 | `.claudian/composer-drafts.json` | Unsent composer drafts per chat (text, file chips, staged image ids) |
 | `.claudian/sessions/*.meta.json` | Provider-neutral session metadata |
+| `.claudian/trash/*.meta.json` · `trash-index.json` | Deleted chats, restorable for 30 days (provider transcripts are kept until purge) |
+| `.claudian/recovery/*.meta.json` | Byte-exact copies of session files that failed to parse |
 | `.claudian/usage.json` | Token usage, budgets, rate-limit window events |
 | `.claude/settings.json` | Claude Code-compatible project settings and permissions |
 | `.claude/mcp.json` | Claudian-managed MCP servers for Claude |

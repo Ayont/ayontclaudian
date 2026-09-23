@@ -135,6 +135,13 @@ export class CodexConversationHistoryService implements ProviderConversationHist
       this.hydratedConversationPaths.delete(conversation.id);
       return;
     }
+    // A transcript can replay less than the chat showed (after a `compacted`
+    // record, only the summary). Shrinking the local copy would be saved over
+    // the only full history on the next save.
+    if (sdkMessages.length < conversation.messages.length) {
+      this.hydratedConversationPaths.set(conversation.id, hydrationKey);
+      return;
+    }
 
     conversation.messages = sdkMessages;
     this.hydratedConversationPaths.set(conversation.id, hydrationKey);

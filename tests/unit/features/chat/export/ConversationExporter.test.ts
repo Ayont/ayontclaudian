@@ -117,6 +117,55 @@ describe('formatConversationMarkdown', () => {
   });
 });
 
+describe('formatConversationMarkdown transport envelopes', () => {
+  const transportPrompt = [
+    '<standing_goal>\nShip it\n</standing_goal>',
+    '<vault_context>\nRelevant vault knowledge:\n- From [[secret]]\n</vault_context>',
+    '<conversation_context>\nolder turns\n</conversation_context>',
+    'Was steht drin?',
+    '',
+    '<current_note>\nNotes/a.md\n</current_note>',
+  ].join('\n');
+
+  it('exports what the user typed, never the prompt envelopes', () => {
+    const md = formatConversationMarkdown(conversation({
+      messages: [
+        msg({ id: 'u1', role: 'user', content: transportPrompt }),
+        msg({ id: 'a1', role: 'assistant', content: 'Antwort' }),
+      ],
+    }));
+
+    expect(md).toContain('Was steht drin?');
+    expect(md).not.toMatch(/standing_goal|vault_context|conversation_context|current_note|secret/);
+  });
+
+  it('exports answers whose text only lives in content blocks', () => {
+    const md = formatConversationMarkdown(conversation({
+      messages: [
+        msg({ id: 'u1', role: 'user', content: 'Frage' }),
+        msg({ id: 'a1', role: 'assistant', content: '', contentBlocks: [{ type: 'text', content: 'Blocktext' }] }),
+      ],
+    }));
+
+    expect(md).toContain('Blocktext');
+  });
+
+  it('leaves out a turn that a regenerated answer replaced', () => {
+    const md = formatConversationMarkdown(conversation({
+      messages: [
+        msg({ id: 'u1', role: 'user', content: 'Frage' }),
+        msg({ id: 'a1', role: 'assistant', content: 'Alte Antwort', isSuperseded: true }),
+        msg({ id: 'u2', role: 'user', content: 'Frage' }),
+        msg({ id: 'a2', role: 'assistant', content: 'Neue Antwort' }),
+      ],
+    }));
+
+    expect(md).not.toContain('Alte Antwort');
+    expect(md).toContain('Neue Antwort');
+    expect(md).toContain('message_count: 2');
+  });
+});
+
 describe('safeExportFileName', () => {
   it('strips path/illegal characters and trims', () => {
     expect(safeExportFileName('Re: a/b\\c:d*?"<>|')).not.toMatch(/[\\/:*?"<>|]/);

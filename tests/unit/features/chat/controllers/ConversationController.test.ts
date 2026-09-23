@@ -570,6 +570,60 @@ describe('ConversationController', () => {
     });
   });
 
+  describe('todo restore on reload', () => {
+    const assistantWithTodos = (todos: unknown[]) => ({
+      id: `a-${todos.length}`,
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now(),
+      toolCalls: [{ id: 'todo-1', name: 'TodoWrite', input: { todos }, status: 'completed' }],
+    });
+
+    it('restores an unfinished list when the active conversation loads', async () => {
+      deps.state.currentConversationId = 'conv-todos';
+      (deps.plugin.getConversationById as jest.Mock).mockResolvedValue({
+        id: 'conv-todos',
+        messages: [assistantWithTodos([
+          { content: 'Recon', status: 'completed' },
+          { content: 'Build', status: 'in_progress' },
+        ])],
+        sessionId: null,
+      });
+
+      await controller.loadActive();
+
+      expect(deps.state.currentTodos?.map((todo) => todo.content)).toEqual(['Recon', 'Build']);
+    });
+
+    it('restores the switched-to conversation\'s list instead of keeping the old one', async () => {
+      deps.state.currentConversationId = 'old-conv';
+      deps.state.currentTodos = [{ content: 'Old', status: 'pending', activeForm: 'Old' }];
+      (deps.plugin.switchConversation as jest.Mock).mockResolvedValue({
+        id: 'new-conv',
+        messages: [assistantWithTodos([{ content: 'New', status: 'pending' }])],
+        sessionId: null,
+      });
+
+      await controller.switchTo('new-conv');
+
+      expect(deps.state.currentTodos).toEqual([{ content: 'New', status: 'pending', activeForm: 'New' }]);
+    });
+
+    it('keeps the panel hidden when the last list was finished', async () => {
+      deps.state.currentConversationId = 'old-conv';
+      deps.state.currentTodos = [{ content: 'Old', status: 'pending', activeForm: 'Old' }];
+      (deps.plugin.switchConversation as jest.Mock).mockResolvedValue({
+        id: 'new-conv',
+        messages: [assistantWithTodos([{ content: 'Done', status: 'completed' }])],
+        sessionId: null,
+      });
+
+      await controller.switchTo('new-conv');
+
+      expect(deps.state.currentTodos).toBeNull();
+    });
+  });
+
   describe('switchTo with currentNote', () => {
     it('should set currentNote when switched conversation has one', async () => {
       const fileContextManager = deps.getFileContextManager()!;
@@ -1062,7 +1116,7 @@ describe('ConversationController', () => {
           'Im Hintergrund-Tab öffnen',
           'Umbenennen',
           'Als Notiz exportieren',
-          'Löschen',
+          'In den Papierkorb',
         ]);
       });
 
@@ -1094,7 +1148,7 @@ describe('ConversationController', () => {
           'Zum geöffneten Tab wechseln',
           'Umbenennen',
           'Als Notiz exportieren',
-          'Löschen',
+          'In den Papierkorb',
         ]);
       });
     });
@@ -2727,6 +2781,64 @@ describe('ConversationController - Rewind', () => {
     expect(mockAgentService.rewind).toHaveBeenCalledWith('user-uuid', 'prev-a', 'code-and-conversation');
     const msg = mockNotice.mock.calls[0][0] as string;
     expect(msg).toContain('Save failed');
+  });
+
+  it('puts back what the user typed, not the transport prompt, after a manual rewind', async () => {
+    deps.state.currentConversationId = 'conv-1';
+    deps.state.messages = [
+      { id: 'm1', role: 'assistant', content: '', timestamp: 1, assistantMessageId: 'prev-a' },
+      {
+        id: 'm2',
+        role: 'user',
+        content: 'Frage\n\n<current_note>\na.md\n</current_note>',
+        displayContent: 'Frage',
+        timestamp: 2,
+        userMessageId: 'user-uuid',
+      },
+      { id: 'm3', role: 'assistant', content: 'resp', timestamp: 3, assistantMessageId: 'resp-a' },
+    ];
+
+    await controller.rewind('m2', 'conversation');
+
+    expect(deps.getInputEl().value).toBe('Frage');
+  });
+
+  it('rewinds silently for a regenerate: no confirm, composer and notices untouched', async () => {
+    deps.state.currentConversationId = 'conv-1';
+    deps.state.messages = [
+      { id: 'm1', role: 'assistant', content: '', timestamp: 1, assistantMessageId: 'prev-a' },
+      { id: 'm2', role: 'user', content: 'test', timestamp: 2, userMessageId: 'user-uuid' },
+      { id: 'm3', role: 'assistant', content: 'resp', timestamp: 3, assistantMessageId: 'resp-a' },
+    ];
+    const inputEl = deps.getInputEl();
+    inputEl.value = 'ungesendeter Entwurf';
+
+    const rewound = await controller.rewind('m2', 'conversation', { silent: true });
+
+    expect(rewound).toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
+    expect(mockAgentService.rewind).toHaveBeenCalledWith('user-uuid', 'prev-a', 'conversation');
+    expect(deps.state.messages.map((m) => m.id)).toEqual(['m1']);
+    expect(inputEl.value).toBe('ungesendeter Entwurf');
+    expect(mockNotice).not.toHaveBeenCalled();
+    expect(deps.plugin.updateConversation).toHaveBeenCalledWith(
+      'conv-1',
+      expect.objectContaining({ resumeAtMessageId: 'prev-a' }),
+    );
+  });
+
+  it('reports a refused silent rewind so the caller can stop', async () => {
+    deps.state.messages = [
+      { id: 'm1', role: 'assistant', content: '', timestamp: 1, assistantMessageId: 'prev-a' },
+      { id: 'm2', role: 'user', content: 'test', timestamp: 2, userMessageId: 'user-uuid' },
+      { id: 'm3', role: 'assistant', content: 'resp', timestamp: 3, assistantMessageId: 'resp-a' },
+    ];
+    mockAgentService.rewind.mockResolvedValue({ canRewind: false, error: 'No checkpoints' });
+
+    const rewound = await controller.rewind('m2', 'conversation', { silent: true });
+
+    expect(rewound).toBe(false);
+    expect(deps.state.messages).toHaveLength(3);
   });
 
   describe('Inline prompt dismissal', () => {

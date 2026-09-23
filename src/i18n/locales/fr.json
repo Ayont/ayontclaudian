@@ -67,6 +67,33 @@
       "expandOutput": "Développer la sortie de la commande",
       "running": "Exécution...",
       "copyFailed": "Échec de la copie dans le presse-papiers"
+    },
+    "contextPressure": {
+      "titleHigh": "Le contexte se remplit",
+      "titleCritical": "Contexte presque plein",
+      "percent": "{percent} %",
+      "usage": "{used} sur {total} tokens",
+      "usageEstimated": "≈ {used} sur {total} tokens (estimation)",
+      "bodyHigh": "La conversation occupe la majeure partie de la fenêtre de contexte : les premiers détails risquent de se perdre.",
+      "bodyCritical": "La prochaine longue réponse peut dépasser la limite. Libérez du contexte maintenant.",
+      "compact": "Compacter",
+      "compactHint": "Le fournisseur condense l’historique de cette session ({command})",
+      "continueFresh": "Continuer avec moins de contexte",
+      "continueFreshHint": "Démarre une nouvelle session avec un résumé condensé. L’historique du chat reste visible.",
+      "condensing": "Condensation de l’historique…",
+      "streamingNote": "Disponible dès que la réponse en cours est terminée.",
+      "dismiss": "Masquer l’avertissement",
+      "regionLabel": "Avertissement d’utilisation du contexte",
+      "freshSessionDivider": "Nouvelle session avec contexte condensé",
+      "freshSessionBusy": "Une réponse est encore en cours. Réessayez une fois qu’elle est terminée.",
+      "freshSessionAborted": "Annulé : la conversation a changé pendant la condensation.",
+      "freshSessionFailed": "Impossible de démarrer une nouvelle session : {error}",
+      "freshSessionUnsaved": "La nouvelle session n’a pas pu être enregistrée : {error}"
+    },
+    "contextMeter": {
+      "estimatedPrefix": "Estimation · ",
+      "nearLimitCompact": "Limite presque atteinte – condenser avec {command}",
+      "nearLimit": "Limite presque atteinte – continuer avec moins de contexte"
     }
   },
   "settings": {

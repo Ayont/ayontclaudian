@@ -60,7 +60,17 @@ export interface ChatTurnRequest {
   canvasSelection?: CanvasSelectionContext | null;
   externalContextPaths?: string[];
   enabledMcpServers?: Set<string>;
+  /**
+   * RPC goal providers apply this with this very turn (`/goal` set/resume).
+   * Carried on the turn, not queued on the runtime, so it can never attach to
+   * a different message.
+   */
+  nativeGoal?: NativeGoalAction;
 }
+
+export type NativeGoalAction =
+  | { kind: 'set'; objective: string; tokenBudget?: number | null }
+  | { kind: 'resume' };
 
 export interface PreparedChatTurn {
   request: ChatTurnRequest;

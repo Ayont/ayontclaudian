@@ -1,6 +1,8 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
+import { Notice } from 'obsidian';
+
 import {
   buildSystemPrompt,
   computeSystemPromptKey,
@@ -44,6 +46,7 @@ import {
   AcpClientConnection,
   AcpJsonRpcTransport,
   type AcpPermissionOption,
+  AcpPlanTodoBridge,
   type AcpReadTextFileRequest,
   type AcpRequestPermissionRequest,
   type AcpRequestPermissionResponse,
@@ -59,6 +62,7 @@ import {
   extractAcpSessionModelState,
   extractAcpSessionModeState,
 } from '../../acp';
+import { openWithMcpFallback, resolveClaudianAcpMcpServers } from '../../acp/acpMcpServers';
 import { HERMES_PROVIDER_CAPABILITIES } from '../capabilities';
 import { updateHermesDiscoveryState } from '../discoveryState';
 import {
@@ -165,6 +169,7 @@ export class HermesChatRuntime implements ChatRuntime {
   private sessionId: string | null = null;
   private sessionInvalidated = false;
   private readonly sessionUpdateNormalizer = new AcpSessionUpdateNormalizer();
+  private readonly planTodos = new AcpPlanTodoBridge();
   private supportedCommands: SlashCommand[] = [];
   private readonly supportedCommandWaiters: Array<(commands: SlashCommand[]) => void> = [];
   private readonly toolStreamAdapter = createHermesToolStreamAdapter();
@@ -701,7 +706,11 @@ export class HermesChatRuntime implements ChatRuntime {
 
     try {
       this.setSupportedCommands([]);
-      const response = await this.connection.newSession({ cwd, mcpServers: [] });
+      const response = await openWithMcpFallback(
+        resolveClaudianAcpMcpServers(this.connection.negotiatedAgentCapabilities?.mcpCapabilities),
+        (mcpServers) => this.connection!.newSession({ cwd, mcpServers }),
+        () => new Notice('MCP-Server konnten für diese Sitzung nicht geladen werden; sie läuft ohne sie. Prüfe .claude/mcp.json.'),
+      );
       this.loadedSessionId = response.sessionId;
       this.sessionId = response.sessionId;
       this.sessionCwds.set(response.sessionId, cwd);
@@ -722,7 +731,11 @@ export class HermesChatRuntime implements ChatRuntime {
 
     try {
       this.setSupportedCommands([]);
-      const response = await this.connection.loadSession({ cwd, mcpServers: [], sessionId });
+      const response = await openWithMcpFallback(
+        resolveClaudianAcpMcpServers(this.connection.negotiatedAgentCapabilities?.mcpCapabilities),
+        (mcpServers) => this.connection!.loadSession({ cwd, mcpServers, sessionId }),
+        () => new Notice('MCP-Server konnten für diese Sitzung nicht geladen werden; sie läuft ohne sie. Prüfe .claude/mcp.json.'),
+      );
       // An unknown session id is answered with a bare `{}` instead of an error
       // (verified against hermes-agent 0.20.5). A real load always carries the
       // session's model and mode state, so their absence is the failure signal.
@@ -1062,7 +1075,15 @@ export class HermesChatRuntime implements ChatRuntime {
             normalized.toolCallUpdate,
             normalized.streamChunks,
           );
+        this.planTodos.observe(this.activeTurn, streamChunks);
         for (const chunk of streamChunks) {
+          this.activeTurn.queue.push(chunk);
+        }
+        return;
+      }
+      case 'plan': {
+        this.sawAssistantOutput = true;
+        for (const chunk of this.planTodos.fromPlan(this.activeTurn, normalized.plan)) {
           this.activeTurn.queue.push(chunk);
         }
         return;

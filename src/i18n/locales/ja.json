@@ -67,6 +67,33 @@
       "expandOutput": "コマンド出力を展開",
       "running": "実行中...",
       "copyFailed": "クリップボードへのコピーに失敗しました"
+    },
+    "contextPressure": {
+      "titleHigh": "コンテキストが残りわずかです",
+      "titleCritical": "コンテキストがほぼ上限です",
+      "percent": "{percent}%",
+      "usage": "{total} トークン中 {used} を使用",
+      "usageEstimated": "{total} トークン中 約 {used} を使用（推定）",
+      "bodyHigh": "会話がコンテキストウィンドウの大半を占めており、初期の詳細が失われる可能性があります。",
+      "bodyCritical": "次の長い回答で上限を超える可能性があります。今のうちにコンテキストを空けてください。",
+      "compact": "圧縮",
+      "compactHint": "プロバイダーがこのセッションの履歴をその場で圧縮します（{command}）",
+      "continueFresh": "コンテキストを減らして続行",
+      "continueFreshHint": "要約を引き継いで新しいセッションを開始します。チャット履歴は表示されたままです。",
+      "condensing": "履歴を要約しています…",
+      "streamingNote": "現在の回答が終わると利用できます。",
+      "dismiss": "警告を非表示",
+      "regionLabel": "コンテキスト使用量の警告",
+      "freshSessionDivider": "要約したコンテキストで新しいセッションを開始",
+      "freshSessionBusy": "回答を生成中です。終わってから再度お試しください。",
+      "freshSessionAborted": "キャンセルしました：要約中に会話が変わりました。",
+      "freshSessionFailed": "新しいセッションを開始できませんでした：{error}",
+      "freshSessionUnsaved": "新しいセッションを保存できませんでした：{error}"
+    },
+    "contextMeter": {
+      "estimatedPrefix": "推定 · ",
+      "nearLimitCompact": "上限間近 – {command} で圧縮",
+      "nearLimit": "上限間近 – コンテキストを減らして続行"
     }
   },
   "settings": {

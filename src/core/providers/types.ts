@@ -1,6 +1,7 @@
 import type ClaudianPlugin from '../../main';
 import type { CursorContext } from '../../utils/editor';
 import type { AuxQueryRunner } from '../auxiliary/AuxQueryRunner';
+import type { SessionLoadResult, TrashEntry } from '../bootstrap/SessionStorage';
 import type { SharedAppStorage } from '../bootstrap/storage';
 import type { ConversationSearchIndex } from '../conversation/conversationSearchIndex';
 import type { McpServerManager } from '../mcp/McpServerManager';
@@ -44,6 +45,44 @@ export interface ProviderCapabilities {
   supportsMultiAgent: boolean;
   reasoningControl: 'effort' | 'token-budget' | 'none';
   planPathPrefix?: string;
+  /**
+   * The provider has its own goal system that works a goal to completion
+   * (verified against the CLI/SDK, trap 5). Claudian then hands `/goal` to it
+   * instead of framing the goal into prompts and looping itself.
+   */
+  nativeGoal?: NativeGoalCapability;
+  /**
+   * Manual context compaction sent as an ordinary turn. Absent when the
+   * provider cannot compact on request (only automatically, or not at all).
+   * Declare it only after verifying the command against the real CLI/SDK.
+   */
+  compact?: Readonly<ProviderCompactSupport>;
+}
+
+export interface NativeGoalCapability {
+  /** `rpc`: goal methods on the runtime. `slash`: the provider's own `/goal` command. */
+  mode: 'rpc' | 'slash';
+  canPause: boolean;
+  /** Whether the goal and its progress survive into later turns and restarts. */
+  persistent: boolean;
+  /** Slash mode: the command that ends the goal inside the provider, when it has one. */
+  clearCommand?: string;
+  /**
+   * How an interrupted goal continues: `rpc` re-activates it, `next-turn` means
+   * the provider picks it up with the next message, `resend` sends the goal again.
+   */
+  resume: 'rpc' | 'next-turn' | 'resend';
+}
+
+export interface ProviderCompactSupport {
+  /** Slash command the agent itself interprets, e.g. `/compact` or `/compress`. */
+  command: string;
+  /**
+   * `builtin`: the transport always handles the command.
+   * `advertised`: offered only while the agent advertises it at runtime (ACP
+   * `available_commands_update`), because older agent versions lack it.
+   */
+  availability: 'builtin' | 'advertised';
 }
 
 export const DEFAULT_CHAT_PROVIDER_ID = 'claude' as const satisfies ProviderId;
@@ -133,9 +172,23 @@ export interface AppTabManagerState {
 export interface AppSessionStorage {
   listMetadata(): Promise<SessionMetadata[]>;
   loadMetadata(id: string): Promise<SessionMetadata | null>;
+  /** Like loadMetadata, but says why a file could not be used and backs up a corrupt one. */
+  loadMetadataDetailed(id: string): Promise<SessionLoadResult>;
   saveMetadata(meta: SessionMetadata): Promise<void>;
+  /** The save path for conversations; merges a never-loaded chat onto its file. */
+  saveConversation(conversation: Conversation): Promise<'saved' | 'skipped'>;
   deleteMetadata(id: string): Promise<void>;
   toSessionMetadata(conv: Conversation): SessionMetadata;
+  /** Writes a debounced index save now (unload). */
+  flushIndex(): Promise<void>;
+  moveToTrash(id: string, options?: { deletedAt?: number }): Promise<boolean>;
+  listTrash(): Promise<TrashEntry[]>;
+  restoreFromTrash(id: string): Promise<SessionMetadata | null>;
+  purgeTrash(options: {
+    now?: number;
+    maxAgeMs: number;
+    onPurge?: (metadata: SessionMetadata) => Promise<void>;
+  }): Promise<string[]>;
   /** Shrinks session files written before tool results were capped. Returns bytes reclaimed. */
   compactOversizedMetadata?(options?: {
     yieldBetweenFiles?: () => Promise<void>;

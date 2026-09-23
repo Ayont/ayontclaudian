@@ -62,6 +62,7 @@ describe('ClaudianPlugin', () => {
         }),
         setActiveLeaf: jest.fn(),
         revealLeaf: jest.fn(),
+        on: jest.fn().mockReturnValue({}),
       },
     };
 
@@ -1137,6 +1138,39 @@ describe('ClaudianPlugin', () => {
 
       const updated = await plugin.getConversationById(conv.id);
       expect((updated?.providerState as any)?.previousProviderSessionIds).toEqual([]);
+    });
+  });
+
+  describe('loadSdkMessagesForConversation - fresh session boundary', () => {
+    it('keeps local turns before a condensed-session boundary when the provider replaces the transcript', async () => {
+      await plugin.onload();
+      const conv = await plugin.createConversation();
+      await plugin.updateConversation(conv.id, {
+        messages: [
+          { id: 'u1', role: 'user', content: 'alt', timestamp: 1 },
+          { id: 'a1', role: 'assistant', content: 'alte Antwort', timestamp: 2, sessionBoundary: 'condensed' },
+          { id: 'u2', role: 'user', content: 'neu', timestamp: 3 },
+        ],
+      });
+
+      const { ProviderRegistry } = await import('@/core/providers/ProviderRegistry');
+      const realService = ProviderRegistry.getConversationHistoryService(conv.providerId);
+      const spy = jest.spyOn(ProviderRegistry, 'getConversationHistoryService').mockReturnValue({
+        ...realService,
+        hydrateConversationHistory: async (target) => {
+          target.messages = [
+            { id: 'n2', role: 'user', content: 'neu', timestamp: 3 },
+            { id: 'n3', role: 'assistant', content: 'frische Sitzung', timestamp: 4 },
+          ];
+        },
+      });
+
+      try {
+        const loaded = await plugin.getConversationById(conv.id);
+        expect(loaded?.messages.map((message) => message.id)).toEqual(['u1', 'a1', 'n2', 'n3']);
+      } finally {
+        spy.mockRestore();
+      }
     });
   });
 

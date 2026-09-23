@@ -1,5 +1,9 @@
+import { attachPlanTestTurn, planNotification, todoToolUses } from '@test/helpers/acpPlanTurn';
+
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '@/core/providers/ProviderSettingsCoordinator';
+import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceRegistry';
+import { parseTodoInput } from '@/core/tools/todo';
 import type { StreamChunk } from '@/core/types';
 import {
   getHermesDiscoveryState,
@@ -114,6 +118,36 @@ describe('loadSession', () => {
 
     await expect((runtime as any).loadSession('sess-1', '/vault')).resolves.toBe(true);
     expect(runtime.getSessionId()).toBe('sess-1');
+  });
+});
+
+describe('Claudian MCP servers', () => {
+  const managedServers = [
+    { name: 'files', config: { command: 'npx', args: ['fs'] }, enabled: true, contextSaving: false },
+    { name: 'docs', config: { type: 'http' as const, url: 'https://mcp.example' }, enabled: true, contextSaving: false },
+  ];
+
+  // hermes-agent 0.21.4 answers `initialize` without mcpCapabilities, so only
+  // the stdio baseline is offered.
+  it('hands stdio servers to session/new and session/load', async () => {
+    jest.spyOn(ProviderWorkspaceRegistry, 'getMcpServerManager')
+      .mockReturnValue({ getServers: () => managedServers } as never);
+    const plugin = createMockPlugin();
+    const runtime = new HermesChatRuntime(plugin);
+    stubProviderProjection(plugin);
+    const connection = createMockConnection({
+      loadSession: jest.fn().mockResolvedValue({ modes: { availableModes: [], currentModeId: 'default' } }),
+      negotiatedAgentCapabilities: { loadSession: true },
+      newSession: jest.fn().mockResolvedValue({ sessionId: 'sess-new' }),
+    });
+    (runtime as any).connection = connection;
+
+    await (runtime as any).createSession('/vault');
+    await (runtime as any).loadSession('sess-new', '/vault');
+
+    const expected = [{ name: 'files', command: 'npx', args: ['fs'], env: [] }];
+    expect(connection.newSession).toHaveBeenCalledWith({ cwd: '/vault', mcpServers: expected });
+    expect(connection.loadSession).toHaveBeenCalledWith({ cwd: '/vault', mcpServers: expected, sessionId: 'sess-new' });
   });
 });
 
@@ -519,5 +553,37 @@ describe('keepalive', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+});
+
+describe('ACP plan updates', () => {
+  it('fills the input-less todo card with the plan Hermes sends after it', async () => {
+    const runtime = new HermesChatRuntime(createMockPlugin());
+    const turn = attachPlanTestTurn(runtime);
+
+    // acp_adapter/tools.py sends raw_input=None for its polished `todo` tool and
+    // follows the completed call with a native `plan` update.
+    await (runtime as any).handleSessionNotification({
+      sessionId: 'sess-1',
+      update: { kind: 'other', sessionUpdate: 'tool_call', status: 'pending', title: 'todo', toolCallId: 'tc-todo' },
+    });
+    await (runtime as any).handleSessionNotification(planNotification([
+      { content: 'Recon', status: 'completed' },
+      { content: 'Build', status: 'in_progress' },
+    ]));
+
+    const uses = todoToolUses(turn.chunks());
+    expect(uses.map((chunk) => chunk.id)).toEqual(['tc-todo', 'tc-todo']);
+    expect(parseTodoInput(uses[1].input)?.map((todo) => todo.content)).toEqual(['Recon', 'Build']);
+  });
+
+  it('counts a plan update as real output, not an empty refusal', async () => {
+    const runtime = new HermesChatRuntime(createMockPlugin());
+    attachPlanTestTurn(runtime);
+    (runtime as any).sawAssistantOutput = false;
+
+    await (runtime as any).handleSessionNotification(planNotification([{ content: 'Recon', status: 'pending' }]));
+
+    expect((runtime as any).sawAssistantOutput).toBe(true);
   });
 });

@@ -1,9 +1,46 @@
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 
-import { expect, test } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
+import { buildSync } from 'esbuild';
 
 const HARNESS_URL = pathToFileURL(path.join(__dirname, 'components.html')).href;
+
+const TODO_SECTIONS = ['todo-mixed', 'todo-many', 'todo-done', 'todo-long'] as const;
+const TODO_LIGHT_SECTIONS = ['todo-mixed', 'todo-many'] as const;
+
+let todoBundle: string | null = null;
+
+/** The production todo renderers, bundled once per worker with the obsidian shim. */
+function getTodoBundle(): string {
+  todoBundle ??= buildSync({
+    alias: { obsidian: path.join(__dirname, 'obsidianShim.ts') },
+    bundle: true,
+    entryPoints: [path.join(__dirname, 'todoHarness.ts')],
+    format: 'iife',
+    logLevel: 'silent',
+    platform: 'browser',
+    target: 'chrome120',
+    write: false,
+  }).outputFiles[0].text;
+  return todoBundle;
+}
+
+async function mountTodoSection(page: Page, section: string, theme: 'dark' | 'light' = 'dark'): Promise<void> {
+  if (theme === 'light') {
+    await page.evaluate(() => document.body.classList.replace('theme-dark', 'theme-light'));
+  }
+  await page.evaluate((visible) => {
+    document.querySelectorAll<HTMLElement>('.harness-section').forEach((candidate) => {
+      if (candidate.dataset.vis !== visible) candidate.remove();
+    });
+  }, section);
+  await page.addScriptTag({ content: getTodoBundle() });
+  await page.evaluate(() => (window as unknown as { __mountTodoFixtures: () => void }).__mountTodoFixtures());
+  // The list reveals the running task on the next frame.
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await page.mouse.move(1, 1);
+}
 
 const LEGACY_SECTIONS = [
   'goal-banner',
@@ -23,6 +60,33 @@ const LEGACY_SECTIONS = [
 ] as const;
 
 const CONTROL_SECTIONS = ['fast-chip', 'model-picker', 'composer-toolbar', 'browser-activity', 'history-panel', 'history-search', 'subagent-cards', 'subagent-swarm', 'subagent-inspector', 'transcript-skeleton'] as const;
+
+const PRESSURE_BANNERS = [
+  'context-pressure-high',
+  'context-pressure-critical',
+  'context-pressure-estimated',
+  'context-pressure-no-compact',
+  'context-pressure-narrow',
+] as const;
+const PRESSURE_SECTIONS = [...PRESSURE_BANNERS, 'session-boundary'] as const;
+const PRESSURE_LIGHT_SECTIONS = ['context-pressure-high', 'context-pressure-critical', 'context-pressure-narrow', 'session-boundary'] as const;
+
+async function isolateSection(page: import('@playwright/test').Page, section: string): Promise<void> {
+  await page.evaluate((visibleSection) => {
+    document.querySelectorAll<HTMLElement>('.harness-section').forEach((candidate) => {
+      if (candidate.dataset.vis !== visibleSection) candidate.remove();
+    });
+  }, section);
+}
+// Tab overview ("Offene Chats") and the tab bar with more tabs than fit.
+const TAB_SECTIONS = ['tab-overview', 'tab-overview-filtered', 'tab-overview-narrow', 'tab-bar-overflow'] as const;
+const TAB_LIGHT_SECTIONS = ['tab-overview', 'tab-bar-overflow'] as const;
+const OVERVIEW_SECTIONS = ['tab-overview', 'tab-overview-filtered', 'tab-overview-narrow'] as const;
+
+/** Fixtures captured in isolation; legacy snapshots are taken without them. */
+// Goal fixtures are mounted and captured by goal.spec.ts.
+const GOAL_FIXTURE_SECTIONS = ['goal-native', 'goal-settled', 'goal-rounds'] as const;
+const ISOLATED_SECTIONS = [...CONTROL_SECTIONS, ...TAB_SECTIONS, ...GOAL_FIXTURE_SECTIONS];
 
 test.beforeEach(async ({ page }) => {
   await page.goto(HARNESS_URL);
@@ -339,7 +403,7 @@ for (const section of LEGACY_SECTIONS) {
   test(`component ${section} matches snapshot`, async ({ page }, testInfo) => {
     // Keep the established fixture order stable so existing snapshots are not
     // shifted by the taller control-regression fixtures added above them.
-    await page.locator(CONTROL_SECTIONS.map((name) => `[data-vis="${name}"]`).join(',')).evaluateAll((elements) => {
+    await page.locator(ISOLATED_SECTIONS.map((name) => `[data-vis="${name}"]`).join(',')).evaluateAll((elements) => {
       elements.forEach((element) => element.remove());
     });
     const el = page.locator(`[data-vis="${section}"]`);
@@ -372,5 +436,515 @@ for (const section of CONTROL_SECTIONS) {
     await expect(el).toHaveScreenshot(`${section}-${testInfo.project.name}.png`, {
       maxDiffPixelRatio: 0.01,
     });
+  });
+}
+
+// ---- Context-pressure warning ------------------------------------------------
+
+/** WCAG relative-luminance contrast between two CSS colours (rgb()/color(srgb)/hex). */
+async function contrastOf(page: import('@playwright/test').Page, selector: string, backgroundVar: string): Promise<number[]> {
+  return page.evaluate(({ selector: sel, backgroundVar: bgVar }) => {
+    const parse = (value: string): [number, number, number] => {
+      const text = value.trim();
+      if (text.startsWith('#')) {
+        const hex = text.slice(1);
+        return [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number];
+      }
+      const numbers = text.match(/[\d.]+/g)!.map(Number);
+      return text.startsWith('color(') ? [numbers[0], numbers[1], numbers[2]] : [numbers[0] / 255, numbers[1] / 255, numbers[2] / 255];
+    };
+    const luminance = ([r, g, b]: [number, number, number]) => {
+      const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+      return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    };
+    const background = luminance(parse(getComputedStyle(document.body).getPropertyValue(bgVar)));
+    return [...document.querySelectorAll<HTMLElement>(sel)]
+      .filter((element) => element.offsetParent !== null)
+      .map((element) => {
+        const foreground = luminance(parse(getComputedStyle(element).color));
+        const [light, dark] = foreground > background ? [foreground, background] : [background, foreground];
+        return (light + 0.05) / (dark + 0.05);
+      });
+  }, { selector, backgroundVar });
+}
+
+test('context-pressure banners keep text and actions inside their pane without clipping', async ({ page }) => {
+  for (const section of PRESSURE_BANNERS) {
+    const banner = page.locator(`[data-vis="${section}"] .claudian-context-pressure`);
+    await expect(banner).toBeVisible();
+    const geometry = await banner.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      const within = (node: Element) => {
+        const rect = node.getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0) return true;
+        return rect.left >= box.left - 0.5 && rect.right <= box.right + 0.5
+          && rect.top >= box.top - 0.5 && rect.bottom <= box.bottom + 0.5;
+      };
+      const textNodes = element.querySelectorAll<HTMLElement>(
+        '.claudian-context-pressure-title, .claudian-context-pressure-percent, .claudian-context-pressure-detail, .claudian-context-pressure-action, .claudian-context-pressure-note',
+      );
+      return {
+        overflow: element.scrollWidth - element.clientWidth,
+        outside: [...element.querySelectorAll('*')].filter((node) => !within(node)).map((node) => node.getAttribute('class')),
+        clipped: [...textNodes]
+          .filter((node) => node.offsetParent !== null)
+          .filter((node) => node.scrollWidth > node.clientWidth + 1 || node.scrollHeight > node.clientHeight + 1)
+          .map((node) => node.getAttribute('class')),
+      };
+    });
+    expect(geometry.overflow, section).toBeLessThanOrEqual(1);
+    expect(geometry.outside, section).toEqual([]);
+    expect(geometry.clipped, section).toEqual([]);
+  }
+});
+
+test('context-pressure actions wrap to full-width rows in a ~300px sidebar', async ({ page }) => {
+  const host = page.locator('[data-vis="context-pressure-narrow"] .claudian-context-pressure-host');
+  const result = await host.evaluate((element) => {
+    const actions = element.querySelector('.claudian-context-pressure-actions')!.getBoundingClientRect();
+    const buttons = [...element.querySelectorAll<HTMLElement>('.claudian-context-pressure-action')]
+      .map((button) => button.getBoundingClientRect());
+    return {
+      hostWidth: element.getBoundingClientRect().width,
+      actions: { left: actions.left, right: actions.right },
+      buttons: buttons.map((rect) => ({ left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom })),
+    };
+  });
+  expect(result.hostWidth).toBeLessThanOrEqual(300.5);
+  expect(result.buttons).toHaveLength(2);
+  for (const button of result.buttons) {
+    expect(button.left).toBeGreaterThanOrEqual(result.actions.left - 0.5);
+    expect(button.right).toBeLessThanOrEqual(result.actions.right + 0.5);
+  }
+  // Stacked, not squeezed side by side.
+  expect(result.buttons[1].top).toBeGreaterThanOrEqual(result.buttons[0].bottom - 0.5);
+});
+
+test('context-pressure actions keep coarse-pointer touch targets', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'w320');
+  const heights = await page.locator('.claudian-context-pressure-action:visible').evaluateAll((elements) => (
+    elements.map((element) => element.getBoundingClientRect().height)
+  ));
+  expect(heights.length).toBeGreaterThan(0);
+  for (const height of heights) expect(height).toBeGreaterThanOrEqual(44);
+});
+
+test('context-pressure actions have designed focus and disabled states', async ({ page }) => {
+  const primary = page.locator('[data-vis="context-pressure-high"] .claudian-context-pressure-action.is-primary');
+  await page.keyboard.press('Tab');
+  await primary.focus();
+  const focus = await primary.evaluate((element) => ({
+    visible: element.matches(':focus-visible'),
+    outlineStyle: getComputedStyle(element).outlineStyle,
+    outlineWidth: getComputedStyle(element).outlineWidth,
+  }));
+  expect(focus.visible).toBe(true);
+  expect(focus.outlineStyle).toBe('solid');
+  expect(focus.outlineWidth).toBe('2px');
+
+  const opacity = (selector: string) => page.locator(selector).first().evaluate((element) => Number(getComputedStyle(element).opacity));
+  expect(await opacity('[data-vis="context-pressure-narrow"] .claudian-context-pressure-action')).toBeLessThan(1);
+  expect(await opacity('[data-vis="context-pressure-high"] .claudian-context-pressure-action')).toBe(1);
+});
+
+test('context-pressure entrance is a short compositor-only animation that respects reduced motion', async ({ page }) => {
+  const banner = page.locator('[data-vis="context-pressure-high"] .claudian-context-pressure');
+  expect(await banner.evaluate((element) => getComputedStyle(element).animationName)).toBe('none');
+
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  const motion = await banner.evaluate((element) => {
+    const style = getComputedStyle(element);
+    // file:// stylesheets hide cssRules; the running animation exposes its keyframes.
+    const animation = element.getAnimations().find((candidate) => (
+      (candidate as CSSAnimation).animationName === style.animationName
+    ));
+    const animated = new Set<string>();
+    for (const frame of animation?.effect instanceof KeyframeEffect ? animation.effect.getKeyframes() : []) {
+      for (const key of Object.keys(frame)) {
+        if (!['offset', 'computedOffset', 'easing', 'composite'].includes(key)) animated.add(key);
+      }
+    }
+    return { name: style.animationName, duration: style.animationDuration, properties: [...animated].sort() };
+  });
+  expect(motion.name).toBe('cl-pressure-in');
+  const seconds = parseFloat(motion.duration);
+  expect(seconds).toBeGreaterThanOrEqual(0.15);
+  expect(seconds).toBeLessThanOrEqual(0.22);
+  expect(motion.properties).toEqual(['opacity', 'transform']);
+});
+
+test('context-pressure text stays readable in dark and light themes', async ({ page }) => {
+  for (const theme of ['theme-dark', 'theme-light']) {
+    await page.evaluate((next) => { document.body.className = next; }, theme);
+    const selector = '.claudian-context-pressure-title, .claudian-context-pressure-percent, .claudian-context-pressure-usage, .claudian-context-pressure-text, .claudian-context-pressure-action.is-primary:not(:disabled)';
+    const ratios = await contrastOf(page, selector, '--background-secondary');
+    expect(ratios.length, theme).toBeGreaterThan(0);
+    for (const ratio of ratios) expect(ratio, theme).toBeGreaterThanOrEqual(4.5);
+  }
+});
+
+for (const section of PRESSURE_SECTIONS) {
+  test(`component ${section} matches snapshot`, async ({ page }, testInfo) => {
+    await isolateSection(page, section);
+    await page.mouse.move(1, 1);
+    const el = page.locator(`[data-vis="${section}"]`);
+    await expect(el).toBeVisible();
+    await expect(el).toHaveScreenshot(`${section}-${testInfo.project.name}.png`, { maxDiffPixelRatio: 0.01 });
+  });
+}
+
+// ── Tab overview and tab bar ───────────────────────────────────────────────
+// Geometry, not pixels, is what these assert: nothing leaves the pane, nothing
+// is clipped, the active row is on screen, the "+N" chip counts what is hidden.
+
+const EDGE = 0.5;
+
+test('the tab overview stays inside its pane and never clips a row', async ({ page }) => {
+  for (const vis of OVERVIEW_SECTIONS) {
+    const geometry = await page.locator(`[data-vis="${vis}"]`).evaluate((section) => {
+      const rect = (element: Element) => {
+        const box = element.getBoundingClientRect();
+        return { left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height };
+      };
+      const panelEl = section.querySelector('.claudian-tab-overview')!;
+      const listEl = section.querySelector('.claudian-tab-overview-list')!;
+      const rows = [...section.querySelectorAll('.claudian-tab-overview-row')].map((row) => {
+        const title = row.querySelector('.claudian-tab-overview-title')!;
+        const parts = [...row.querySelectorAll([
+          '.claudian-tab-overview-avatar', '.claudian-tab-overview-title', '.claudian-tab-overview-model',
+          '.claudian-tab-overview-status', '.claudian-tab-overview-chip', '.claudian-tab-overview-key',
+          '.claudian-tab-overview-close', '.claudian-tab-overview-confirm',
+        ].join(','))].filter((part) => getComputedStyle(part).display !== 'none').map(rect);
+        return {
+          box: rect(row),
+          parts,
+          active: row.classList.contains('is-active'),
+          titleClipped: Math.max(title.scrollWidth - title.clientWidth, title.scrollHeight - title.clientHeight),
+        };
+      });
+      return {
+        host: rect(section.querySelector('.harness-tab-host')!),
+        panel: rect(panelEl),
+        list: rect(listEl),
+        listOverflow: listEl.scrollWidth - listEl.clientWidth,
+        viewportWidth: window.innerWidth,
+        rows,
+      };
+    });
+
+    // Inside the pane it belongs to, and inside the window.
+    expect(geometry.panel.left).toBeGreaterThanOrEqual(geometry.host.left - EDGE);
+    expect(geometry.panel.right).toBeLessThanOrEqual(geometry.host.right + EDGE);
+    expect(geometry.panel.top).toBeGreaterThanOrEqual(geometry.host.top - EDGE);
+    expect(geometry.panel.left).toBeGreaterThanOrEqual(0);
+    expect(geometry.panel.right).toBeLessThanOrEqual(geometry.viewportWidth + EDGE);
+    expect(geometry.listOverflow).toBeLessThanOrEqual(1);
+
+    expect(geometry.rows.length).toBeGreaterThan(0);
+    for (const row of geometry.rows) {
+      // The whole title, never cut: this is what the tab bar hides.
+      expect(row.titleClipped).toBeLessThanOrEqual(1);
+      for (const part of row.parts) {
+        expect(part.left).toBeGreaterThanOrEqual(row.box.left - EDGE);
+        expect(part.right).toBeLessThanOrEqual(row.box.right + EDGE);
+        expect(part.bottom).toBeLessThanOrEqual(row.box.bottom + EDGE);
+      }
+    }
+
+    const active = geometry.rows.find((row) => row.active);
+    if (active) {
+      expect(active.box.top).toBeGreaterThanOrEqual(geometry.list.top - EDGE);
+      expect(active.box.bottom).toBeLessThanOrEqual(geometry.list.bottom + EDGE);
+    }
+  }
+});
+
+test('the filtered overview keeps the query and shows only matching tabs', async ({ page }) => {
+  const section = page.locator('[data-vis="tab-overview-filtered"]');
+  await expect(section.locator('.claudian-tab-overview-search-input')).toHaveValue('firewall');
+  await expect(section.locator('.claudian-tab-overview-row')).toHaveCount(2);
+  await expect(section.locator('.claudian-tab-overview-row.is-active')).toHaveCount(1);
+});
+
+test('a narrow sidebar drops the key legend but keeps the close question inside its row', async ({ page }) => {
+  const section = page.locator('[data-vis="tab-overview-narrow"]');
+  const geometry = await section.evaluate((root) => {
+    const panel = root.querySelector('.claudian-tab-overview')!.getBoundingClientRect();
+    const confirm = root.querySelector('.claudian-tab-overview-row.is-confirming .claudian-tab-overview-confirm')!;
+    const row = confirm.closest('.claudian-tab-overview-row')!.getBoundingClientRect();
+    const buttons = [...confirm.querySelectorAll('button')].map((button) => button.getBoundingClientRect());
+    return {
+      panelWidth: panel.width,
+      hintsDisplay: getComputedStyle(root.querySelector('.claudian-tab-overview-hints')!).display,
+      rowLeft: row.left,
+      rowRight: row.right,
+      buttons: buttons.map((box) => ({ left: box.left, right: box.right })),
+      confirmOverflow: confirm.scrollWidth - confirm.clientWidth,
+    };
+  });
+
+  expect(geometry.panelWidth).toBeLessThanOrEqual(300);
+  expect(geometry.hintsDisplay).toBe('none');
+  expect(geometry.confirmOverflow).toBeLessThanOrEqual(1);
+  for (const button of geometry.buttons) {
+    expect(button.left).toBeGreaterThanOrEqual(geometry.rowLeft - EDGE);
+    expect(button.right).toBeLessThanOrEqual(geometry.rowRight + EDGE);
+  }
+});
+
+test('a crowded tab bar fades its edges and counts hidden tabs in the "+N" chip', async ({ page }, testInfo) => {
+  const geometry = await page.locator('[data-vis="tab-bar-overflow"]').evaluate((root) => {
+    const strip = root.querySelector<HTMLElement>('.claudian-tab-badges')!;
+    const chip = root.querySelector<HTMLElement>('.claudian-tab-overflow-chip')!;
+    const bar = root.querySelector('.claudian-tab-bar-container')!.getBoundingClientRect();
+    const navContent = root.querySelector('.claudian-input-nav-content')!;
+    const stripBox = strip.getBoundingClientRect();
+    const start = strip.scrollLeft;
+    const end = start + strip.clientWidth;
+    let hidden = 0;
+    let hiddenWaiting = 0;
+    for (const badge of [...strip.children] as HTMLElement[]) {
+      const visible = Math.min(badge.offsetLeft + badge.offsetWidth, end) - Math.max(badge.offsetLeft, start);
+      if (visible < badge.offsetWidth / 2) {
+        hidden++;
+        if (badge.dataset.attention) hiddenWaiting++;
+      }
+    }
+    const active = strip.querySelector('.claudian-tab-badge-active')!.getBoundingClientRect();
+    const dots = [...strip.querySelectorAll('.claudian-tab-attention-dot')].map((dot) => dot.getBoundingClientRect().top);
+    const chipBox = chip.getBoundingClientRect();
+    const overviewButton = root.querySelector<HTMLElement>('.claudian-tab-overview-btn')!;
+    return {
+      handedOver: getComputedStyle(strip).display === 'none',
+      overviewButtonVisible: overviewButton.getBoundingClientRect().width > 0,
+      overviewCount: overviewButton.querySelector('.claudian-tab-overview-btn-count')!.textContent,
+      classes: [...strip.classList],
+      chipText: chip.textContent,
+      chipVisible: getComputedStyle(chip).display !== 'none',
+      chipAttention: chip.classList.contains('has-attention'),
+      chipRight: chipBox.right,
+      barRight: bar.right,
+      hidden,
+      hiddenWaiting,
+      navOverflow: navContent.scrollWidth - navContent.clientWidth,
+      stripLeft: stripBox.left,
+      stripRight: stripBox.right,
+      stripTop: stripBox.top,
+      activeLeft: active.left,
+      activeRight: active.right,
+      dotTops: dots,
+    };
+  });
+
+  expect(geometry.navOverflow).toBeLessThanOrEqual(1);
+  expect(geometry.overviewButtonVisible).toBe(true);
+  expect(geometry.overviewCount).toBe('9');
+
+  // Phone width with 44px touch buttons: less than one badge plus the chip
+  // would remain, so the strip steps aside and the overview button switches.
+  if (testInfo.project.name === 'w320') {
+    expect(geometry.handedOver).toBe(true);
+    expect(geometry.chipVisible).toBe(false);
+    return;
+  }
+
+  expect(geometry.handedOver).toBe(false);
+  expect(geometry.hidden).toBeGreaterThan(0);
+  expect(geometry.chipVisible).toBe(true);
+  expect(geometry.chipText).toBe(`+${geometry.hidden}`);
+  expect(geometry.chipAttention).toBe(geometry.hiddenWaiting > 0);
+  expect(geometry.classes).toContain('has-overflow-end');
+  expect(geometry.chipRight).toBeLessThanOrEqual(geometry.barRight + EDGE);
+  expect(geometry.navOverflow).toBeLessThanOrEqual(1);
+  // The active tab is fully on screen, and no corner mark is cut by the scroller.
+  expect(geometry.activeLeft).toBeGreaterThanOrEqual(geometry.stripLeft - EDGE);
+  expect(geometry.activeRight).toBeLessThanOrEqual(geometry.stripRight + EDGE);
+  for (const top of geometry.dotTops) expect(top).toBeGreaterThanOrEqual(geometry.stripTop - EDGE);
+});
+
+test('attention badges are tinted by their reason, not all alike', async ({ page }) => {
+  const styles = await page.locator('[data-vis="tab-bar-overflow"] .claudian-tab-badge').evaluateAll((badges) =>
+    badges.map((badge) => ({
+      attention: (badge as HTMLElement).dataset.attention ?? null,
+      background: getComputedStyle(badge).backgroundColor,
+      dot: badge.querySelector('.claudian-tab-attention-dot')
+        ? getComputedStyle(badge.querySelector('.claudian-tab-attention-dot')!).backgroundColor
+        : null,
+    })));
+  const idle = styles.find((style) => !style.attention)!;
+  const byReason = new Map(styles.filter((style) => style.attention).map((style) => [style.attention, style]));
+
+  expect([...byReason.keys()].sort()).toEqual(['failed', 'finished', 'input']);
+  for (const style of byReason.values()) expect(style.background).not.toBe(idle.background);
+  expect(new Set([...byReason.values()].map((style) => style.dot)).size).toBe(3);
+});
+
+for (const section of TAB_SECTIONS) {
+  test(`component ${section} matches snapshot`, async ({ page }, testInfo) => {
+    await isolateSection(page, section);
+    await page.mouse.move(1, 1);
+    const el = page.locator(`[data-vis="${section}"]`);
+    await expect(el).toBeVisible();
+    await expect(el).toHaveScreenshot(`${section}-${testInfo.project.name}.png`, { maxDiffPixelRatio: 0.01 });
+  });
+}
+
+// ── Todo list: geometry first (these assertions are what verify the design;
+// the snapshots only guard against drift). ────────────────────────────────
+
+for (const section of TODO_SECTIONS) {
+  test(`todo ${section} keeps every row inside its surface`, async ({ page }) => {
+    await mountTodoSection(page, section);
+    const root = page.locator(`[data-vis="${section}"]`);
+    await expect(root.locator('.claudian-todo-summary').first()).toBeVisible();
+
+    const offenders = await root.evaluate((element) => {
+      const problems: string[] = [];
+      const tolerance = 0.5;
+      const describe = (el: Element) => `${el.className} "${(el.textContent ?? '').slice(0, 40)}"`;
+      for (const el of element.querySelectorAll<HTMLElement>(
+        '.claudian-todo-item, .claudian-todo-header, .claudian-tool-header, .claudian-todo-summary, .claudian-todo-scroll, .claudian-todo-group-toggle',
+      )) {
+        if (el.scrollWidth - el.clientWidth > 1) problems.push(`overflow ${describe(el)}`);
+      }
+      for (const scroller of element.querySelectorAll<HTMLElement>('.claudian-todo-scroll')) {
+        const box = scroller.getBoundingClientRect();
+        for (const row of scroller.querySelectorAll<HTMLElement>('.claudian-todo-item, .claudian-todo-group-toggle')) {
+          const rect = row.getBoundingClientRect();
+          if (rect.width === 0) continue;
+          if (rect.left < box.left - tolerance || rect.right > box.right + tolerance) problems.push(`row outside list ${describe(row)}`);
+          for (const part of row.querySelectorAll<HTMLElement>('.claudian-todo-text, .claudian-todo-priority')) {
+            const partRect = part.getBoundingClientRect();
+            if (partRect.right > rect.right + tolerance) problems.push(`part outside row ${describe(part)}`);
+          }
+        }
+      }
+      for (const header of element.querySelectorAll<HTMLElement>('.claudian-todo-header, .claudian-tool-header')) {
+        const box = header.getBoundingClientRect();
+        for (const part of header.children) {
+          const rect = (part as HTMLElement).getBoundingClientRect();
+          if (rect.width > 0 && rect.right > box.right + tolerance) problems.push(`header part clipped ${describe(part)}`);
+        }
+      }
+      if (element.scrollWidth - element.clientWidth > 1) problems.push('section overflows');
+      return problems;
+    });
+    expect(offenders).toEqual([]);
+  });
+}
+
+test('todo many: lists are height-capped and keep the running task in view', async ({ page }) => {
+  await mountTodoSection(page, 'todo-many');
+  const root = page.locator('[data-vis="todo-many"]');
+
+  const panelToggle = root.locator('.claudian-status-panel-todos .claudian-todo-group-toggle');
+  await expect(panelToggle).toHaveText('5 erledigt');
+  await expect(panelToggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(root.locator('.claudian-tool-call--todo .claudian-todo-group-toggle')).toHaveAttribute('aria-expanded', 'true');
+
+  const lists = await root.locator('.claudian-todo-scroll').evaluateAll((scrollers) => scrollers.map((scroller) => {
+    const box = scroller.getBoundingClientRect();
+    const active = scroller.querySelector<HTMLElement>('.claudian-todo-in_progress')!.getBoundingClientRect();
+    return {
+      activeBottom: active.bottom,
+      activeTop: active.top,
+      bottom: box.bottom,
+      clientHeight: scroller.clientHeight,
+      maxHeight: parseFloat(getComputedStyle(scroller).maxHeight),
+      scrollHeight: scroller.scrollHeight,
+      scrollTop: scroller.scrollTop,
+      top: box.top,
+    };
+  }));
+  expect(lists).toHaveLength(2);
+  for (const list of lists) {
+    expect(list.maxHeight).toBeGreaterThan(0);
+    expect(list.clientHeight).toBeLessThanOrEqual(list.maxHeight + 0.5);
+    // Twelve steps never fit: the cap is real and the list scrolls.
+    expect(list.scrollHeight).toBeGreaterThan(list.clientHeight);
+    expect(list.activeTop).toBeGreaterThanOrEqual(list.top - 0.5);
+    expect(list.activeBottom).toBeLessThanOrEqual(list.bottom + 0.5);
+  }
+  // With the finished group open the running task sits below the fold, so the
+  // card must have scrolled itself (and only itself) to it.
+  expect(lists[1].scrollTop).toBeGreaterThan(0);
+});
+
+test('todo long: long steps wrap instead of being cut off', async ({ page }) => {
+  await mountTodoSection(page, 'todo-long');
+  const card = page.locator('[data-vis="todo-long"] .claudian-tool-call--todo');
+  const measured = await card.evaluate((element) => {
+    const texts = [...element.querySelectorAll<HTMLElement>('.claudian-todo-text')];
+    const line = parseFloat(getComputedStyle(texts[0]).lineHeight);
+    return {
+      heights: texts.map((text) => text.getBoundingClientRect().height),
+      line,
+      priorities: [...element.querySelectorAll('.claudian-todo-priority-label')].map((chip) => chip.textContent),
+    };
+  });
+  expect(measured.line).toBeGreaterThan(0);
+  // The running step needs more than one line at every width.
+  expect(measured.heights[1]).toBeGreaterThan(measured.line * 1.5);
+  expect(measured.priorities).toEqual(['Hoch', 'Hoch', 'Mittel', 'Niedrig']);
+});
+
+test('todo mixed: collapsed lists are closed to layout and assistive tech; the header opens them by keyboard', async ({ page }) => {
+  await mountTodoSection(page, 'todo-mixed');
+  const panels = page.locator('[data-vis="todo-mixed"] .claudian-status-panel-todos');
+  const read = (index: number) => panels.nth(index).evaluate((panel) => {
+    const content = panel.querySelector<HTMLElement>('.claudian-status-panel-content')!;
+    return { height: content.getBoundingClientRect().height, visibility: getComputedStyle(content).visibility };
+  });
+
+  expect(await read(0)).toEqual({ height: 0, visibility: 'hidden' });
+  const opened = await read(1);
+  expect(opened.visibility).toBe('visible');
+  expect(opened.height).toBeGreaterThan(40);
+
+  const header = panels.nth(0).locator('.claudian-todo-header');
+  await header.focus();
+  await page.keyboard.press('Enter');
+  await expect(header).toHaveAttribute('aria-expanded', 'true');
+  await expect(header).toHaveAttribute('aria-label', 'Aufgabenliste einklappen – 2 von 5 erledigt');
+  expect((await read(0)).visibility).toBe('visible');
+});
+
+for (const section of TODO_SECTIONS) {
+  test(`component ${section} matches snapshot`, async ({ page }, testInfo) => {
+    await mountTodoSection(page, section);
+    const el = page.locator(`[data-vis="${section}"]`);
+    await expect(el).toBeVisible();
+    await expect(el).toHaveScreenshot(`${section}-${testInfo.project.name}.png`, { maxDiffPixelRatio: 0.01 });
+  });
+}
+
+for (const section of PRESSURE_LIGHT_SECTIONS) {
+  test(`component ${section} (light) matches snapshot`, async ({ page }, testInfo) => {
+    await page.evaluate(() => document.body.classList.replace('theme-dark', 'theme-light'));
+    await isolateSection(page, section);
+    await page.mouse.move(1, 1);
+    const el = page.locator(`[data-vis="${section}"]`);
+    await expect(el).toBeVisible();
+    await expect(el).toHaveScreenshot(`${section}-light-${testInfo.project.name}.png`, { maxDiffPixelRatio: 0.01 });
+  });
+}
+
+for (const section of TAB_LIGHT_SECTIONS) {
+  test(`component ${section} (light) matches snapshot`, async ({ page }, testInfo) => {
+    await page.evaluate(() => document.body.classList.replace('theme-dark', 'theme-light'));
+    await isolateSection(page, section);
+    await page.mouse.move(1, 1);
+    const el = page.locator(`[data-vis="${section}"]`);
+    await expect(el).toBeVisible();
+    await expect(el).toHaveScreenshot(`${section}-light-${testInfo.project.name}.png`, { maxDiffPixelRatio: 0.01 });
+  });
+}
+
+for (const section of TODO_LIGHT_SECTIONS) {
+  test(`component ${section} (light) matches snapshot`, async ({ page }, testInfo) => {
+    await mountTodoSection(page, section, 'light');
+    const el = page.locator(`[data-vis="${section}"]`);
+    await expect(el).toBeVisible();
+    await expect(el).toHaveScreenshot(`${section}-light-${testInfo.project.name}.png`, { maxDiffPixelRatio: 0.01 });
   });
 }

@@ -1,25 +1,52 @@
-import { setIcon } from 'obsidian';
+import { Platform, setIcon } from 'obsidian';
+
+import { GO_TO_TAB_COMMAND_COUNT } from '../tabs/tabCommands';
+import { type ChatKeyBindingId, formatChatKeyBinding } from './chatKeyBindings';
 
 let shortcutOverlayId = 0;
+
+/** What a row promises: a bound key, a slash command, or an Obsidian command. */
+export type ShortcutTrigger =
+  | { kind: 'key'; binding: ChatKeyBindingId }
+  | { kind: 'slash'; command: string }
+  | { kind: 'command'; commandIds: readonly string[] };
 
 export interface ShortcutEntry {
   id: string;
   keys: string;
   label: string;
   group: string;
+  trigger: ShortcutTrigger;
+}
+
+const COMMAND_KEYS_LABEL = 'Befehl';
+const COMMAND_KEYS_HINT = 'Kein Standard-Hotkey – in Obsidian unter Einstellungen → Tastenkürzel festlegen';
+const TAB_GROUP = 'Tabs';
+
+function key(id: string, binding: ChatKeyBindingId, label: string, group: string): ShortcutEntry {
+  return { id, keys: formatChatKeyBinding(binding, Platform.isMacOS), label, group, trigger: { kind: 'key', binding } };
+}
+
+function command(id: string, commandIds: readonly string[], label: string): ShortcutEntry {
+  return { id, keys: COMMAND_KEYS_LABEL, label, group: TAB_GROUP, trigger: { kind: 'command', commandIds } };
 }
 
 export const CHAT_SHORTCUTS: readonly ShortcutEntry[] = [
-  { id: 'send', keys: '⌘ ↵', label: 'Nachricht senden', group: 'Chat' },
-  { id: 'newline', keys: '⇧ ↵', label: 'Neue Zeile', group: 'Chat' },
-  { id: 'stop', keys: 'Esc', label: 'Antwort stoppen', group: 'Chat' },
-  { id: 'new-chat', keys: '⌘ N', label: 'Neuer Chat', group: 'Navigation' },
-  { id: 'search', keys: '⌘ F', label: 'Im Chat suchen', group: 'Navigation' },
-  { id: 'history', keys: '⌘ ⇧ H', label: 'Verlauf öffnen', group: 'Navigation' },
-  { id: 'command-center', keys: '⌘ K', label: 'Befehlspalette', group: 'Navigation' },
-  { id: 'plan', keys: '⇧ Tab', label: 'Plan-Modus umschalten', group: 'Modi' },
-  { id: 'speed', keys: '/fast', label: 'Speed-Modus umschalten', group: 'Modi' },
-  { id: 'shortcuts', keys: '⌘ /', label: 'Tastenkürzel', group: 'Modi' },
+  key('send', 'send', 'Nachricht senden', 'Chat'),
+  key('newline', 'newline', 'Neue Zeile', 'Chat'),
+  key('stop', 'stop', 'Antwort stoppen', 'Chat'),
+  key('search', 'search', 'Im Chat suchen', 'Navigation'),
+  key('plan', 'plan-mode', 'Plan-Modus umschalten', 'Modi'),
+  { id: 'speed', keys: '/fast', label: 'Speed-Modus umschalten', group: 'Modi', trigger: { kind: 'slash', command: 'fast' } },
+  key('shortcuts', 'shortcuts', 'Tastenkürzel', 'Modi'),
+  command('tab-overview', ['open-tab-overview'], 'Tab-Übersicht öffnen'),
+  command('next-tab', ['next-chat-tab'], 'Nächster Chat-Tab'),
+  command('previous-tab', ['previous-chat-tab'], 'Vorheriger Chat-Tab'),
+  command(
+    'go-to-tab',
+    Array.from({ length: GO_TO_TAB_COMMAND_COUNT }, (_, index) => `open-chat-tab-${index + 1}`),
+    `Chat-Tab 1–${GO_TO_TAB_COMMAND_COUNT} öffnen`,
+  ),
 ];
 
 export function filterShortcuts(
@@ -149,10 +176,21 @@ export class ShortcutOverlay {
       if (entry.group !== lastGroup) {
         lastGroup = entry.group;
         this.listEl.createDiv({ cls: 'claudian-shortcuts-group', text: entry.group });
+        if (entry.group === TAB_GROUP) {
+          this.listEl.createDiv({
+            cls: 'claudian-shortcuts-note',
+            text: 'Befehle ohne Standard-Hotkey: über die Befehlspalette aufrufen oder unter Einstellungen → Tastenkürzel einen Hotkey festlegen.',
+          });
+        }
       }
       const row = this.listEl.createDiv({ cls: 'claudian-shortcuts-row' });
       row.createSpan({ cls: 'claudian-shortcuts-label', text: entry.label });
-      row.createSpan({ cls: 'claudian-shortcuts-keys', text: entry.keys });
+      const isCommand = entry.trigger.kind === 'command';
+      const keysEl = row.createSpan({
+        cls: `claudian-shortcuts-keys${isCommand ? ' claudian-shortcuts-keys--command' : ''}`,
+        text: entry.keys,
+      });
+      if (isCommand) keysEl.setAttribute('title', COMMAND_KEYS_HINT);
     }
   }
 

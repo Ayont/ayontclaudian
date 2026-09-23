@@ -9,6 +9,7 @@ import {
   type SystemPromptSettings,
 } from '../prompt/mainAgent';
 import type { ChatRuntime } from '../runtime/ChatRuntime';
+import { forwardOptionalRuntimeMethods } from '../runtime/forwardOptionalRuntimeMethods';
 import type {
   ChatRuntimeEnsureReadyOptions,
   PreparedChatTurn,
@@ -127,27 +128,7 @@ export function withProviderPromptDelivery(
     resolveSessionIdForFork: conversation => base.resolveSessionIdForFork(conversation),
   };
 
-  if (base.steer) {
-    wrapped.steer = turn => base.steer!(turn);
-  }
-  if (base.softSteer) {
-    wrapped.softSteer = turn => base.softSteer!(turn);
-  }
-  if (base.getAuxiliaryModel) {
-    wrapped.getAuxiliaryModel = () => base.getAuxiliaryModel!();
-  }
-  if (base.loadSubagentToolCalls) {
-    wrapped.loadSubagentToolCalls = agentId => base.loadSubagentToolCalls!(agentId);
-  }
-  if (base.loadSubagentFinalResult) {
-    wrapped.loadSubagentFinalResult = agentId => base.loadSubagentFinalResult!(agentId);
-  }
-  if (base.canCancelSubagent) {
-    wrapped.canCancelSubagent = target => base.canCancelSubagent!(target);
-  }
-  if (base.cancelSubagent) {
-    wrapped.cancelSubagent = target => base.cancelSubagent!(target);
-  }
+  forwardOptionalRuntimeMethods(base, wrapped);
 
   return wrapped;
 }

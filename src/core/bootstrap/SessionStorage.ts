@@ -10,7 +10,14 @@ import type {
 } from '../types';
 import type { SubagentInfo } from '../types';
 import { toPersistedMessages, toPersistedSubagent } from './persistedMessages';
-import { LEGACY_SESSIONS_PATH, SESSIONS_INDEX_PATH, SESSIONS_PATH } from './StoragePaths';
+import {
+  CORRUPT_SESSIONS_PATH,
+  LEGACY_SESSIONS_PATH,
+  SESSIONS_INDEX_PATH,
+  SESSIONS_PATH,
+  TRASH_INDEX_PATH,
+  TRASH_PATH,
+} from './StoragePaths';
 
 export {
   LEGACY_SESSIONS_PATH,
@@ -32,17 +39,124 @@ const OVERSIZED_METADATA_BYTES = 512_000;
  */
 const MAX_BACKGROUND_COMPACT_BYTES = 2_000_000;
 
+/** Short stable hash (FNV-1a) of a file's content, for naming its recovery copy. */
+function contentHash(content: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < content.length; i += 1) {
+    hash ^= content.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+/** Enough for every header field of a session file; they are written first. */
+const STUB_HEAD_BYTES = 16_384;
+
 type LightSessionMetadata = SessionMetadata & {
   _messageCount?: number;
   _preview?: string;
   _lazyMessages?: boolean;
+  /** Listed from the file head only; identity fields come from the full file on open. */
+  _stub?: boolean;
 };
+
+export type SessionLoadResult =
+  | { status: 'ok'; metadata: SessionMetadata }
+  | { status: 'missing' }
+  /** Present but unparsable. `backupPath` holds a byte-exact copy. */
+  | { status: 'corrupt'; backupPath: string | null }
+  /** Present but the read itself failed (busy, permissions). Nothing may overwrite it. */
+  | { status: 'unreadable' };
+
+export interface TrashEntry {
+  id: string;
+  title: string;
+  providerId?: string;
+  deletedAt: number;
+}
+
+/**
+ * Reads one top-level field from the head of a session file. Files are written
+ * pretty-printed with the header first, so a two-space-indented key is top
+ * level; the compact form is accepted for files other writers produced.
+ */
+function readHeaderField(head: string, key: string): unknown {
+  const value = '("(?:[^"\\\\]|\\\\.)*"|-?\\d+(?:\\.\\d+)?|true|false|null)';
+  const match = new RegExp(`\\n  "${key}": ${value}`).exec(head)
+    ?? new RegExp(`[{,]"${key}":${value}`).exec(head);
+  if (!match) return undefined;
+  try {
+    return JSON.parse(match[1]) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
+type LazyConversationFlags = { _lazyMessages?: boolean; _stub?: boolean; _messageCount?: number };
+
+/** Fields a large file's listing stub reads from its head; everything else it simply does not know. */
+const STUB_KNOWN_FIELDS = ['title', 'providerId', 'createdAt', 'updatedAt', 'lastResponseAt', 'sessionId', 'pinned'] as const;
+
+/**
+ * A stub never saw the full file, so its empty provider state, goal or usage
+ * are gaps, not changes. Only the fields it read (or that were set on it
+ * since) are laid over the stored file.
+ */
+function mergeStubSave(stored: SessionMetadata, next: SessionMetadata): SessionMetadata {
+  const merged: SessionMetadata = { ...stored };
+  for (const key of STUB_KNOWN_FIELDS) {
+    if (next[key] !== undefined) {
+      (merged as unknown as Record<string, unknown>)[key] = next[key];
+    }
+  }
+  if (next.title) merged.title = next.title;
+  return merged;
+}
+
+/**
+ * Applies a save of a chat whose messages were never loaded onto the file on
+ * disk. Header fields (title, provider state, pin, goal…) come from memory;
+ * everything that only exists in the full file stays: the messages, the search
+ * index built from them, and subagent data that would otherwise be rebuilt
+ * from an empty message list.
+ */
+function mergeUnloadedSave(stored: SessionMetadata, next: SessionMetadata): SessionMetadata {
+  const storedSubagents = stored.providerState?.subagentData;
+  const providerState = next.providerState
+    ? { ...next.providerState, ...(storedSubagents ? { subagentData: storedSubagents } : {}) }
+    : undefined;
+  const providerSessions = next.providerSessions
+    ? Object.fromEntries(Object.entries(next.providerSessions).map(([key, snapshot]) => {
+      const storedSnapshotSubagents = stored.providerSessions?.[key]?.providerState?.subagentData;
+      if (!snapshot?.providerState || !storedSnapshotSubagents) return [key, snapshot];
+      return [key, {
+        ...snapshot,
+        providerState: { ...snapshot.providerState, subagentData: storedSnapshotSubagents },
+      }];
+    }))
+    : undefined;
+  return {
+    ...stored,
+    ...next,
+    providerState,
+    providerSessions,
+    messages: stored.messages,
+    searchIndex: stored.searchIndex ?? next.searchIndex,
+  };
+}
 
 export class SessionStorage {
   private indexCache: Map<string, SessionMetadata> | null = null;
   private indexSaveTimer: number | null = null;
   /** path → size last seen with no reclaimable slack (skip on the next pass). */
   private compactedMinimalSizes = new Map<string, number>();
+  /** Bumped when a write of a path starts and when it lands, so a slow read-modify-write can see it lost the race. */
+  private writeGenerations = new Map<string, number>();
+  private writesInFlight = new Map<string, number>();
+  private backedUpCorruptPaths = new Set<string>();
+  /** Trashed while a save may still be on its way; such a late save must not bring the file back. */
+  private trashedIds = new Set<string>();
+  private trashIndexChain: Promise<unknown> = Promise.resolve();
 
   constructor(private adapter: VaultFileAdapter) {}
 
@@ -85,10 +199,42 @@ export class SessionStorage {
       for (const [id, meta] of this.indexCache.entries()) {
         obj[id] = meta;
       }
-      await this.adapter.write(SESSIONS_INDEX_PATH, JSON.stringify(obj));
+      await this.writeFile(SESSIONS_INDEX_PATH, JSON.stringify(obj));
     } catch {
       // Non-fatal background cache write
     }
+  }
+
+  /** Writes a pending index save now; the debounce timer does not survive unload. */
+  async flushIndex(): Promise<void> {
+    if (this.indexSaveTimer === null) return;
+    const clearTimer = typeof window !== 'undefined' ? window.clearTimeout : clearTimeout;
+    clearTimer(this.indexSaveTimer);
+    this.indexSaveTimer = null;
+    await this.persistIndex();
+  }
+
+  private async writeFile(path: string, content: string): Promise<void> {
+    const bump = () => this.writeGenerations.set(path, (this.writeGenerations.get(path) ?? 0) + 1);
+    bump();
+    this.writesInFlight.set(path, (this.writesInFlight.get(path) ?? 0) + 1);
+    try {
+      if (typeof this.adapter.writeAtomic === 'function') {
+        await this.adapter.writeAtomic(path, content);
+      } else {
+        await this.adapter.write(path, content);
+      }
+    } finally {
+      bump();
+      const remaining = (this.writesInFlight.get(path) ?? 1) - 1;
+      if (remaining > 0) this.writesInFlight.set(path, remaining);
+      else this.writesInFlight.delete(path);
+    }
+  }
+
+  /** A read-modify-write that started at `generation` may still write. */
+  private isUntouchedSince(path: string, generation: number): boolean {
+    return !this.writesInFlight.has(path) && (this.writeGenerations.get(path) ?? 0) === generation;
   }
 
   /**
@@ -142,6 +288,8 @@ export class SessionStorage {
       lastResponseAt,
       sessionId: raw.sessionId,
       goal: raw.goal,
+      goalProviderId: raw.goalProviderId,
+      nativeGoal: raw.nativeGoal,
       workspaceMode: raw.workspaceMode,
       pinned: raw.pinned,
       currentNote: raw.currentNote,
@@ -174,9 +322,10 @@ export class SessionStorage {
   }
 
   async saveMetadata(metadata: SessionMetadata): Promise<void> {
+    if (this.trashedIds.has(metadata.id)) return;
     const filePath = this.getMetadataPath(metadata.id);
     const content = JSON.stringify(metadata, null, 2);
-    await this.adapter.write(filePath, content);
+    await this.writeFile(filePath, content);
     await this.deleteLegacyMetadataIfPresent(metadata.id);
 
     if (this.indexCache) {
@@ -186,27 +335,86 @@ export class SessionStorage {
     }
   }
 
+  /**
+   * The one save path for a conversation. A chat whose messages were never
+   * loaded (startup reconciliation, a pin from the history list) is merged onto
+   * its file instead of replacing it: its in-memory copy has an empty message
+   * list, and saving that as-is is how chats used to come back empty.
+   */
+  async saveConversation(conversation: Conversation): Promise<'saved' | 'skipped'> {
+    const next = this.toSessionMetadata(conversation);
+    if (!(conversation as Conversation & LazyConversationFlags)._lazyMessages) {
+      await this.saveMetadata(next);
+      return 'saved';
+    }
+    const flags = conversation as Conversation & LazyConversationFlags;
+    const stored = await this.loadMetadataDetailed(conversation.id);
+    if (stored.status === 'ok') {
+      await this.saveMetadata(flags._stub
+        ? mergeStubSave(stored.metadata, next)
+        : mergeUnloadedSave(stored.metadata, next));
+      return 'saved';
+    }
+    if (stored.status === 'missing') {
+      // The listing knew messages: the file is only gone for now (a sync
+      // placeholder, a stale index). Writing an empty chat would replace it.
+      if ((flags._messageCount ?? 0) > 0 || flags._stub) return 'skipped';
+      await this.saveMetadata(next);
+      return 'saved';
+    }
+    // corrupt / unreadable: the file is the only copy of those messages.
+    return 'skipped';
+  }
+
   async loadMetadata(id: string): Promise<SessionMetadata | null> {
+    const result = await this.loadMetadataDetailed(id);
+    return result.status === 'ok' ? result.metadata : null;
+  }
+
+  /**
+   * Loads a session file and says why when it cannot. A file that fails to
+   * parse is copied byte for byte to the recovery folder before anything can
+   * save over it.
+   */
+  async loadMetadataDetailed(id: string): Promise<SessionLoadResult> {
     const filePath = await this.getLoadPath(id);
+    if (!filePath) {
+      return { status: 'missing' };
+    }
 
+    let content: string;
     try {
-      if (!filePath) {
-        return null;
+      content = await this.adapter.read(filePath);
+    } catch {
+      return { status: 'unreadable' };
+    }
+
+    let metadata: SessionMetadata;
+    try {
+      metadata = this.withoutUnregisteredProvider(JSON.parse(content) as SessionMetadata);
+    } catch {
+      return { status: 'corrupt', backupPath: await this.backUpCorruptFile(id, filePath, content) };
+    }
+
+    if (filePath !== this.getMetadataPath(id)) {
+      await this.saveMetadata(metadata);
+    }
+    return { status: 'ok', metadata };
+  }
+
+  private async backUpCorruptFile(id: string, filePath: string, content: string): Promise<string | null> {
+    if (this.backedUpCorruptPaths.has(filePath)) return null;
+    // Named by content, so the same broken file is copied once, not at every start.
+    const backupPath = `${CORRUPT_SESSIONS_PATH}/${id}.${contentHash(content)}.meta.json`;
+    try {
+      if (await this.adapter.exists(backupPath)) {
+        this.backedUpCorruptPaths.add(filePath);
+        return backupPath;
       }
-
-      const content = await this.adapter.read(filePath);
-      const metadata = this.withoutUnregisteredProvider(JSON.parse(content) as SessionMetadata);
-
-      if (filePath !== this.getMetadataPath(id)) {
-        await this.saveMetadata(metadata);
-      }
-
-      return metadata;
-    } catch (error) {
-      // A corrupt/truncated meta file would otherwise make the conversation
-      // silently vanish with no trace. Log it so it's diagnosable.
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`[Claudian] failed to load conversation metadata for "${id}":`, message);
+      await this.writeFile(backupPath, content);
+      this.backedUpCorruptPaths.add(filePath);
+      return backupPath;
+    } catch {
       return null;
     }
   }
@@ -222,7 +430,11 @@ export class SessionStorage {
   }
 
   async listMetadata(): Promise<SessionMetadata[]> {
-    const files = await this.listUniqueMetadataFiles();
+    const listed = await this.listUniqueMetadataFiles();
+    if (listed === null) {
+      return this.listFromIndexOnly();
+    }
+    const files = listed;
 
     const returnOrderedFiles = (): SessionMetadata[] => {
       const ordered: SessionMetadata[] = [];
@@ -330,6 +542,29 @@ export class SessionStorage {
     return returnOrderedFiles();
   }
 
+  /**
+   * A folder listing that failed says nothing about which chats exist. Serve
+   * the persisted index untouched rather than pruning every entry from it.
+   */
+  private async listFromIndexOnly(): Promise<SessionMetadata[]> {
+    if (!this.indexCache) {
+      this.indexCache = new Map();
+      try {
+        const parsed = JSON.parse(await this.adapter.read(SESSIONS_INDEX_PATH)) as Record<string, SessionMetadata>;
+        for (const [id, meta] of Object.entries(parsed ?? {})) {
+          if (id && meta?.id) this.indexCache.set(id, meta);
+        }
+      } catch {
+        // No index either: nothing can be listed this time.
+      }
+      const entries = Array.from(this.indexCache.values());
+      // Retry the listing next time instead of trusting this partial state.
+      this.indexCache = null;
+      return entries.map((meta) => this.withoutUnregisteredProvider(meta));
+    }
+    return Array.from(this.indexCache.values()).map((meta) => this.withoutUnregisteredProvider(meta));
+  }
+
   async listAllConversations(): Promise<ConversationMeta[]> {
     const nativeMetas = await this.listMetadata();
 
@@ -365,14 +600,17 @@ export class SessionStorage {
       updatedAt: conversation.updatedAt,
       lastResponseAt: conversation.lastResponseAt,
       sessionId: conversation.sessionId,
+      // Before the bulky provider state: a large file's listing reads only its head.
+      pinned: conversation.pinned || undefined,
       providerState: providerState && Object.keys(providerState).length > 0 ? providerState : undefined,
       providerSessions: conversation.providerSessions && Object.keys(conversation.providerSessions).length > 0
         ? conversation.providerSessions
         : undefined,
       pendingContextBootstrap: conversation.pendingContextBootstrap || undefined,
       goal: conversation.goal ?? undefined,
+      goalProviderId: conversation.goal ? (conversation.goalProviderId ?? undefined) : undefined,
+      nativeGoal: conversation.goal ? (conversation.nativeGoal ?? undefined) : undefined,
       workspaceMode: conversation.workspaceMode,
-      pinned: conversation.pinned || undefined,
       messages: conversation.messages.length > 0
         ? toPersistedMessages(conversation.messages)
         : undefined,
@@ -482,6 +720,8 @@ export class SessionStorage {
           }
         }
 
+        if (this.writesInFlight.has(filePath)) continue;
+        const generationAtRead = this.writeGenerations.get(filePath) ?? 0;
         const content = await this.adapter.read(filePath);
         if (content.length <= OVERSIZED_METADATA_BYTES) {
           this.compactedMinimalSizes.set(filePath, size ?? content.length);
@@ -541,7 +781,11 @@ export class SessionStorage {
           continue;
         }
 
-        await this.adapter.write(filePath, next);
+        // A save that started or landed after the read is newer than this rewrite.
+        if (!this.isUntouchedSince(filePath, generationAtRead)) {
+          continue;
+        }
+        await this.writeFile(filePath, next);
         reclaimed += content.length - next.length;
         options.onProgress?.(content.length - next.length);
         this.compactedMinimalSizes.set(filePath, next.length);
@@ -561,18 +805,39 @@ export class SessionStorage {
     this.scheduleIndexSave();
   }
 
-  private stubOversizedMetadata(id: string, mtime: number): LightSessionMetadata {
-    return {
+  private async stubOversizedMetadata(filePath: string, id: string, mtime: number): Promise<LightSessionMetadata> {
+    let head = '';
+    try {
+      head = typeof this.adapter.readHead === 'function'
+        ? await this.adapter.readHead(filePath, STUB_HEAD_BYTES)
+        : '';
+    } catch {
+      // The stub below still lists the chat; its title fills in on open.
+    }
+    const text = (key: string): string | undefined => {
+      const value = readHeaderField(head, key);
+      return typeof value === 'string' && value ? value : undefined;
+    };
+    const time = (key: string): number | undefined => {
+      const value = readHeaderField(head, key);
+      return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+    };
+    const createdAt = time('createdAt') ?? mtime;
+    return this.withoutUnregisteredProvider({
       id,
-      title: id,
-      createdAt: mtime,
-      updatedAt: mtime,
-      lastResponseAt: mtime,
+      ...(text('providerId') ? { providerId: text('providerId') } : {}),
+      title: text('title') ?? id,
+      createdAt,
+      updatedAt: time('updatedAt') ?? mtime,
+      lastResponseAt: time('lastResponseAt') ?? mtime,
+      ...(text('sessionId') ? { sessionId: text('sessionId') } : {}),
+      ...(readHeaderField(head, 'pinned') === true ? { pinned: true } : {}),
       messages: [],
       _messageCount: 0,
       _preview: '',
       _lazyMessages: true,
-    };
+      _stub: true,
+    });
   }
 
   /**
@@ -588,7 +853,7 @@ export class SessionStorage {
       if (typeof this.adapter.stat === 'function') {
         const st = await this.adapter.stat(filePath);
         if (st && st.size > OVERSIZED_METADATA_BYTES) {
-          return this.stubOversizedMetadata(id, st.mtime);
+          return await this.stubOversizedMetadata(filePath, id, st.mtime);
         }
       }
 
@@ -627,8 +892,14 @@ export class SessionStorage {
     }
   }
 
-  private async listUniqueMetadataFiles(): Promise<string[]> {
-    const preferredFiles = await this.listMetadataFiles(SESSIONS_PATH);
+  /** Null when the session folder could not be listed (as opposed to being empty). */
+  private async listUniqueMetadataFiles(): Promise<string[] | null> {
+    let preferredFiles: string[];
+    try {
+      preferredFiles = await this.listMetadataFilesStrict(SESSIONS_PATH);
+    } catch {
+      return null;
+    }
     const fallbackFiles = await this.listMetadataFiles(LEGACY_SESSIONS_PATH);
     const filesByName = new Map<string, string>();
 
@@ -648,11 +919,160 @@ export class SessionStorage {
 
   private async listMetadataFiles(folderPath: string): Promise<string[]> {
     try {
-      const files = await this.adapter.listFiles(folderPath);
-      return files.filter((filePath) => filePath.endsWith('.meta.json'));
+      return await this.listMetadataFilesStrict(folderPath);
     } catch {
       return [];
     }
+  }
+
+  private async listMetadataFilesStrict(folderPath: string): Promise<string[]> {
+    const files = await this.adapter.listFiles(folderPath);
+    return files.filter((filePath) => filePath.endsWith('.meta.json'));
+  }
+
+  // ── Trash ────────────────────────────────────────────────────────────────
+
+  private trashPathFor(id: string): string {
+    return `${TRASH_PATH}/${id}.meta.json`;
+  }
+
+  private async readTrashIndex(): Promise<Record<string, TrashEntry>> {
+    try {
+      if (!(await this.adapter.exists(TRASH_INDEX_PATH))) return {};
+      const parsed = JSON.parse(await this.adapter.read(TRASH_INDEX_PATH)) as Record<string, TrashEntry>;
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private async writeTrashIndex(index: Record<string, TrashEntry>): Promise<void> {
+    await this.writeFile(TRASH_INDEX_PATH, JSON.stringify(index, null, 2));
+  }
+
+  private async moveFile(from: string, to: string): Promise<void> {
+    if (await this.adapter.exists(to)) {
+      await this.adapter.delete(to);
+    }
+    try {
+      await this.adapter.rename(from, to);
+    } catch {
+      // Some adapters cannot rename across folders; copy, then remove.
+      await this.writeFile(to, await this.adapter.read(from));
+      await this.adapter.delete(from);
+    }
+  }
+
+  /**
+   * Deleting a chat moves its file here instead of removing it. The provider's
+   * own transcript stays until the entry is purged, so a restore is complete.
+   */
+  async moveToTrash(id: string, options: { deletedAt?: number } = {}): Promise<boolean> {
+    this.trashedIds.add(id);
+    const light = this.indexCache?.get(id);
+    if (this.indexCache?.delete(id)) {
+      this.scheduleIndexSave();
+    }
+    // A save already queued for this file lands first; then it moves.
+    await this.adapter.whenWritten?.(this.getMetadataPath(id));
+    const filePath = await this.getLoadPath(id);
+    if (!filePath) return false;
+
+    await this.adapter.ensureFolder?.(TRASH_PATH);
+    await this.moveFile(filePath, this.trashPathFor(id));
+    await this.deleteLegacyMetadataIfPresent(id);
+
+    await this.updateTrashIndex((index) => {
+      index[id] = {
+        id,
+        title: light?.title ?? id,
+        ...(light?.providerId ? { providerId: light.providerId } : {}),
+        deletedAt: options.deletedAt ?? Date.now(),
+      };
+    });
+    return true;
+  }
+
+  /** Serialized read-modify-write of the trash index: two quick deletes must both land. */
+  private updateTrashIndex(change: (index: Record<string, TrashEntry>) => void): Promise<void> {
+    const run = async (): Promise<void> => {
+      const index = await this.readTrashIndex();
+      change(index);
+      await this.writeTrashIndex(index);
+    };
+    const result = this.trashIndexChain.then(run, run);
+    this.trashIndexChain = result.catch(() => undefined);
+    return result;
+  }
+
+  async listTrash(): Promise<TrashEntry[]> {
+    const index = await this.readTrashIndex();
+    return Object.values(index).sort((a, b) => b.deletedAt - a.deletedAt);
+  }
+
+  /** Moves a trashed chat back. Never replaces a live file of the same id. */
+  async restoreFromTrash(id: string): Promise<SessionMetadata | null> {
+    const trashPath = this.trashPathFor(id);
+    const targetPath = this.getMetadataPath(id);
+    if (!(await this.adapter.exists(trashPath)) || await this.adapter.exists(targetPath)) {
+      return null;
+    }
+    this.trashedIds.delete(id);
+    await this.moveFile(trashPath, targetPath);
+
+    await this.updateTrashIndex((index) => {
+      delete index[id];
+    });
+
+    const light = await this.ingestMetadataFile(targetPath);
+    if (light && this.indexCache) {
+      this.indexCache.set(light.id, light);
+      this.scheduleIndexSave();
+    }
+    return light;
+  }
+
+  /**
+   * Removes trash entries past the retention for good. `onPurge` runs first so
+   * the caller can drop the provider's own transcript of that chat.
+   */
+  async purgeTrash(options: {
+    now?: number;
+    maxAgeMs: number;
+    onPurge?: (metadata: SessionMetadata) => Promise<void>;
+  }): Promise<string[]> {
+    const now = options.now ?? Date.now();
+    const index = await this.readTrashIndex();
+    const purged: string[] = [];
+    for (const entry of Object.values(index)) {
+      if (now - entry.deletedAt < options.maxAgeMs) continue;
+      const trashPath = this.trashPathFor(entry.id);
+      try {
+        if (await this.adapter.exists(trashPath)) {
+          // A live file of the same id (restored, or recreated by a late save)
+          // still needs the provider's transcript; only the trashed copy goes.
+          const live = await this.adapter.exists(this.getMetadataPath(entry.id));
+          if (!live) {
+            try {
+              const metadata = JSON.parse(await this.adapter.read(trashPath)) as SessionMetadata;
+              await options.onPurge?.(metadata);
+            } catch {
+              // An unreadable trashed file is still removed once it expired.
+            }
+          }
+          await this.adapter.delete(trashPath);
+        }
+        purged.push(entry.id);
+      } catch {
+        // Try again at the next purge.
+      }
+    }
+    if (purged.length > 0) {
+      await this.updateTrashIndex((current) => {
+        for (const id of purged) delete current[id];
+      });
+    }
+    return purged;
   }
 
   private getFileName(filePath: string): string {

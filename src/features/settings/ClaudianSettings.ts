@@ -420,6 +420,18 @@ export class ClaudianSettingTab extends PluginSettingTab {
           });
       });
 
+    new Setting(layoutCard)
+      .setName('Hinweis aus Hintergrund-Tabs')
+      .setDesc('Zeigt eine kurze Meldung, wenn ein Tab, den du gerade nicht siehst, fertig ist, fehlschlägt oder auf dich wartet. Tab-Leiste und Tab-Übersicht markieren das auch ohne Meldung.')
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.notifyOnBackgroundTabDone ?? false)
+          .onChange(async (value) => {
+            this.plugin.settings.notifyOnBackgroundTabDone = value;
+            await this.plugin.saveSettings();
+          });
+      });
+
     const maxTabsSetting = new Setting(layoutCard)
       .setName(t('settings.maxTabs.name'))
       .setDesc(t('settings.maxTabs.desc'));

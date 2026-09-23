@@ -11,6 +11,10 @@ import type { ProviderCapabilities } from '../../core/providers/types';
  * control; the shared `reasoningControl` enum only allows
  * `'effort' | 'token-budget' | 'none'`, so the on/off toggle is modeled as an
  * `'effort'` control exposing exactly two options (see `KimiChatUIConfig`).
+ *
+ * `supportsMcpTools` is false: print mode passes the fixed `--mcp-config-file`
+ * from settings and ACP mode Claudian's always-on servers per session; neither
+ * can apply the in-chat selector's per-turn choice.
  */
 export const KIMI_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({
   providerId: 'kimi',
@@ -23,8 +27,11 @@ export const KIMI_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object
   supportsProviderCommands: true,
   supportsImageAttachments: true,
   supportsInstructionMode: false,
-  supportsMcpTools: true,
+  supportsMcpTools: false,
   supportsMultiAgent: true,
   supportsTurnSteer: true,
   reasoningControl: 'effort',
+  // kimi-code 2.1 runs `/goal <objective>` headless until complete (exit 0),
+  // blocked (3) or paused (6). Only the print runtime; ACP has no goal command.
+  nativeGoal: { mode: 'slash' as const, canPause: false, persistent: true, resume: 'resend' as const },
 });

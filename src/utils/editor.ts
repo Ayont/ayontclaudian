@@ -104,3 +104,36 @@ export function appendEditorContext(prompt: string, context: EditorSelectionCont
   const formatted = formatEditorContext(context);
   return formatted ? `${prompt}\n\n${formatted}` : prompt;
 }
+
+const EDITOR_SELECTION_ENVELOPE = /<editor_selection path="([^"]*)"(?: lines="(\d+)-(\d+)")?>\n([\s\S]*?)\n<\/editor_selection>/;
+
+function unescapePromptXmlAttribute(value: string): string {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+/**
+ * Reads back the selection a persisted prompt carried, so a resent turn asks
+ * about the same text instead of whatever happens to be selected now.
+ * Inverse of {@link formatEditorContext} for selections.
+ */
+export function parseEditorSelectionContext(prompt: string): EditorSelectionContext | null {
+  const match = EDITOR_SELECTION_ENVELOPE.exec(prompt ?? '');
+  if (!match) return null;
+  const [, rawPath, firstLine, lastLine, body] = match;
+  const selectedText = body.replace(/&lt;\/editor_selection&gt;/gi, '</editor_selection>');
+  const startLine = firstLine ? Number(firstLine) : undefined;
+  const lineCount = startLine !== undefined && lastLine
+    ? Number(lastLine) - startLine + 1
+    : selectedText.split(/\r?\n/).length;
+  return {
+    notePath: unescapePromptXmlAttribute(rawPath),
+    mode: 'selection',
+    selectedText,
+    lineCount,
+    ...(startLine !== undefined ? { startLine } : {}),
+  };
+}

@@ -1,4 +1,7 @@
+import { promises as fsp } from 'fs';
 import type { App } from 'obsidian';
+import * as os from 'os';
+import * as path from 'path';
 
 import { VaultFileAdapter } from '@/core/storage/VaultFileAdapter';
 
@@ -544,6 +547,67 @@ describe('VaultFileAdapter', () => {
       const result = await vaultAdapter.stat('empty.md');
 
       expect(result).toEqual({ mtime: 1234567890, size: 0 });
+    });
+  });
+
+  describe('writeAtomic', () => {
+    let baseDir: string;
+
+    beforeEach(async () => {
+      baseDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'claudian-atomic-'));
+    });
+
+    afterEach(async () => {
+      await fsp.rm(baseDir, { recursive: true, force: true });
+    });
+
+    it('falls back to the plain adapter write where no filesystem path exists', async () => {
+      mockAdapter.exists.mockResolvedValue(true);
+
+      await vaultAdapter.writeAtomic('.claudian/sessions/a.meta.json', '{}');
+
+      expect(mockAdapter.write).toHaveBeenCalledWith('.claudian/sessions/a.meta.json', '{}');
+    });
+
+    it('replaces the file through a temp file and leaves no temp behind', async () => {
+      mockAdapter.getFullPath = (p: string) => path.join(baseDir, p);
+
+      await vaultAdapter.writeAtomic('.claudian/sessions/a.meta.json', '{"v":1}');
+      await vaultAdapter.writeAtomic('.claudian/sessions/a.meta.json', '{"v":2}');
+
+      const folder = path.join(baseDir, '.claudian/sessions');
+      expect(await fsp.readFile(path.join(folder, 'a.meta.json'), 'utf8')).toBe('{"v":2}');
+      expect(await fsp.readdir(folder)).toEqual(['a.meta.json']);
+      expect(mockAdapter.write).not.toHaveBeenCalled();
+    });
+
+    it('applies concurrent writes of one path in call order', async () => {
+      mockAdapter.getFullPath = (p: string) => path.join(baseDir, p);
+
+      await Promise.all([
+        vaultAdapter.writeAtomic('x.json', 'first'),
+        vaultAdapter.writeAtomic('x.json', 'second'),
+        vaultAdapter.writeAtomic('x.json', 'third'),
+      ]);
+
+      expect(await fsp.readFile(path.join(baseDir, 'x.json'), 'utf8')).toBe('third');
+    });
+  });
+
+  describe('readHead', () => {
+    it('reads only the first bytes of a file', async () => {
+      const baseDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'claudian-head-'));
+      try {
+        await fsp.writeFile(path.join(baseDir, 'big.json'), `{"title":"Kopf"}${'x'.repeat(100_000)}`);
+        mockAdapter.getFullPath = (p: string) => path.join(baseDir, p);
+
+        const head = await vaultAdapter.readHead('big.json', 16);
+
+        expect(head).toBe('{"title":"Kopf"}');
+        expect(mockAdapter.read).not.toHaveBeenCalled();
+      } finally {
+        await fsp.rm(baseDir, { recursive: true, force: true });
+      }
     });
   });
 });

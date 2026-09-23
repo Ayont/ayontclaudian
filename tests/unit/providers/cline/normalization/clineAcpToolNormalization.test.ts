@@ -1,12 +1,33 @@
 import {
   TOOL_BASH,
   TOOL_READ,
+  TOOL_TODO_WRITE,
   TOOL_WRITE,
 } from '@/core/tools/toolNames';
 import {
   normalizeClineAcpToolInput,
   normalizeClineAcpToolName,
 } from '@/providers/cline/normalization/clineAcpToolNormalization';
+
+describe('Cline todo_write', () => {
+  it('maps to TodoWrite with canonical todos, not the raw list', () => {
+    expect(normalizeClineAcpToolName('todo_write')).toBe(TOOL_TODO_WRITE);
+
+    const input = normalizeClineAcpToolInput('todo_write', {
+      todos: [
+        { content: 'Recon', status: 'done' },
+        { content: 'Build', status: 'in-progress', priority: 'high' },
+      ],
+    });
+
+    expect(input).toEqual({
+      todos: [
+        { activeForm: 'Recon', content: 'Recon', status: 'completed' },
+        { activeForm: 'Build', content: 'Build', priority: 'high', status: 'in_progress' },
+      ],
+    });
+  });
+});
 
 describe('normalizeClineAcpToolName', () => {
   it('maps Cline 3.x snake_case tools onto the shared renderer names', () => {

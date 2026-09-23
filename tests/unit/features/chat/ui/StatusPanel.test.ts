@@ -358,7 +358,11 @@ describe('StatusPanel', () => {
       panel.updateTodos(todos);
 
       const label = containerEl.querySelector('.claudian-status-panel-label');
-      expect(label?.textContent).toBe('Tasks (1/3)');
+      expect(label?.textContent).toBe('Aufgaben');
+      expect(containerEl.querySelector('.claudian-todo-count')?.textContent).toBe('1/3');
+      const meter = containerEl.querySelector('.claudian-todo-meter');
+      expect(meter?.getAttribute('aria-label')).toBe('1 von 3 erledigt');
+      expect(containerEl.querySelectorAll('.claudian-todo-meter-seg')).toHaveLength(3);
     });
 
     it('should show current task in collapsed header', () => {
@@ -369,8 +373,9 @@ describe('StatusPanel', () => {
 
       panel.updateTodos(todos);
 
-      const current = containerEl.querySelector('.claudian-status-panel-current');
+      const current = containerEl.querySelector('.claudian-todo-current-text');
       expect(current?.textContent).toBe('Working on Task 2');
+      expect(containerEl.querySelector('.claudian-todo-pulse')?.getAttribute('aria-hidden')).toBe('true');
     });
 
     it('should render all todo items in content area', () => {
@@ -426,74 +431,76 @@ describe('StatusPanel', () => {
       ]);
     });
 
+    // The list animates open (grid rows 0fr → 1fr), so collapse is a class,
+    // not display:none.
+    const isCollapsed = () => containerEl.querySelector('.claudian-status-panel-content')!
+      .hasClass('claudian-todo-collapsed');
+
     it('should expand content on header click', () => {
       const header = containerEl.querySelector('.claudian-status-panel-header');
-      const content = containerEl.querySelector('.claudian-status-panel-content');
 
-      expect(content!.style.display).toBe('none');
+      expect(isCollapsed()).toBe(true);
 
       header!.click();
 
-      expect(content!.style.display).toBe('block');
+      expect(isCollapsed()).toBe(false);
     });
 
     it('should collapse content on second click', () => {
       const header = containerEl.querySelector('.claudian-status-panel-header');
-      const content = containerEl.querySelector('.claudian-status-panel-content');
 
       header!.click();
-      expect(content!.style.display).toBe('block');
+      expect(isCollapsed()).toBe(false);
 
       header!.click();
-      expect(content!.style.display).toBe('none');
+      expect(isCollapsed()).toBe(true);
     });
 
-    it('should show list icon in header', () => {
+    it('should show list icon and a chevron in header', () => {
       const icon = containerEl.querySelector('.claudian-status-panel-icon');
       expect(icon).not.toBeNull();
       expect(icon?.getAttribute('data-icon')).toBe('list-checks');
+      expect(containerEl.querySelector('.claudian-todo-chevron')?.getAttribute('data-icon')).toBe('chevron-down');
     });
 
-    it('should hide current task when expanded', () => {
+    it('should mark the section expanded so the header drops its current-task preview', () => {
       const header = containerEl.querySelector('.claudian-status-panel-header');
+      const section = containerEl.querySelector('.claudian-status-panel-todos');
 
-      expect(containerEl.querySelector('.claudian-status-panel-current')).not.toBeNull();
+      expect(section!.hasClass('is-expanded')).toBe(false);
 
       header!.click();
 
-      expect(containerEl.querySelector('.claudian-status-panel-current')).toBeNull();
+      expect(section!.hasClass('is-expanded')).toBe(true);
     });
 
     it('should toggle on Enter key', () => {
       const header = containerEl.querySelector('.claudian-status-panel-header');
-      const content = containerEl.querySelector('.claudian-status-panel-content');
 
       const event = { type: 'keydown', key: 'Enter', preventDefault: jest.fn() };
       header!.dispatchEvent(event);
 
-      expect(content!.style.display).toBe('block');
+      expect(isCollapsed()).toBe(false);
       expect(event.preventDefault).toHaveBeenCalled();
     });
 
     it('should toggle on Space key', () => {
       const header = containerEl.querySelector('.claudian-status-panel-header');
-      const content = containerEl.querySelector('.claudian-status-panel-content');
 
       const event = { type: 'keydown', key: ' ', preventDefault: jest.fn() };
       header!.dispatchEvent(event);
 
-      expect(content!.style.display).toBe('block');
+      expect(isCollapsed()).toBe(false);
       expect(event.preventDefault).toHaveBeenCalled();
     });
 
     it('should not toggle on other keys', () => {
       const header = containerEl.querySelector('.claudian-status-panel-header');
-      const content = containerEl.querySelector('.claudian-status-panel-content');
 
       const event = { type: 'keydown', key: 'Tab', preventDefault: jest.fn() };
       header!.dispatchEvent(event);
 
-      expect(content!.style.display).toBe('none');
+      expect(isCollapsed()).toBe(true);
       expect(event.preventDefault).not.toHaveBeenCalled();
     });
   });
@@ -557,7 +564,8 @@ describe('StatusPanel', () => {
 
       expect(containerEl.querySelector('.claudian-status-panel')).not.toBeNull();
       const label = containerEl.querySelector('.claudian-status-panel-label');
-      expect(label?.textContent).toBe('Tasks (1/2)');
+      expect(label?.textContent).toBe('Aufgaben');
+      expect(containerEl.querySelector('.claudian-todo-count')?.textContent).toBe('1/2');
     });
 
     it('should not throw when called without mount', () => {
@@ -577,7 +585,7 @@ describe('StatusPanel', () => {
       panel.remount();
 
       const content = containerEl.querySelector('.claudian-status-panel-content');
-      expect(content!.style.display).toBe('none');
+      expect(content!.hasClass('claudian-todo-collapsed')).toBe(true);
     });
   });
 
@@ -586,25 +594,25 @@ describe('StatusPanel', () => {
       panel.mount(containerEl as unknown as HTMLElement);
     });
 
-    it('should show check icon when all todos are completed', () => {
+    it('should show a finished state when all todos are completed', () => {
       panel.updateTodos([
         { content: 'Task 1', status: 'completed', activeForm: 'Task 1' },
         { content: 'Task 2', status: 'completed', activeForm: 'Task 2' },
       ]);
 
-      const status = containerEl.querySelector('.status-completed');
-      expect(status).not.toBeNull();
-      expect(status?.getAttribute('data-icon')).toBe('check');
+      expect(containerEl.querySelector('.claudian-status-panel-todos')!.hasClass('is-complete')).toBe(true);
+      expect(containerEl.querySelector('.claudian-todo-done-label')?.textContent).toBe('Alles erledigt');
+      expect(containerEl.querySelector('.claudian-todo-done-icon')?.getAttribute('data-icon')).toBe('check');
     });
 
-    it('should not show check icon when some todos are incomplete', () => {
+    it('should not show the finished state when some todos are incomplete', () => {
       panel.updateTodos([
         { content: 'Task 1', status: 'completed', activeForm: 'Task 1' },
         { content: 'Task 2', status: 'pending', activeForm: 'Task 2' },
       ]);
 
-      const status = containerEl.querySelector('.status-completed');
-      expect(status).toBeNull();
+      expect(containerEl.querySelector('.claudian-status-panel-todos')!.hasClass('is-complete')).toBe(false);
+      expect(containerEl.querySelector('.claudian-todo-done')).toBeNull();
     });
   });
 

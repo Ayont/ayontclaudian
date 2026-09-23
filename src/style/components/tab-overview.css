@@ -1,0 +1,781 @@
+/* ── Tab overview ("Offene Chats") ─────────────────────────────────────────
+   One glass pane above the composer (input mode) or below the header (header
+   mode), anchored like the history popover so it never leaves the pane. Rows
+   put the title first; provider, model and state stay quiet and paired with
+   text, never colour alone. */
+
+.claudian-tab-overview-container {
+  position: static;
+}
+
+/* ── Trigger: list icon plus the open-tab count ─────────────────────────── */
+.claudian-container button.claudian-tab-overview-btn {
+  position: relative;
+  width: auto;
+  min-width: 28px;
+  gap: 5px;
+  padding: 0 7px 0 6px;
+}
+
+.claudian-tab-overview-btn-icon {
+  display: inline-flex;
+}
+
+.claudian-tab-overview-btn-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.claudian-tab-overview-btn-count {
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Something out of sight wants the user: a warning dot, ringed off the button. */
+.claudian-tab-overview-btn.has-attention::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cl-warning);
+  box-shadow: 0 0 0 2px var(--background-primary);
+}
+
+.claudian-container button.claudian-tab-overview-btn[aria-expanded="true"] {
+  color: var(--text-normal);
+  background: var(--cl-accent-soft);
+  border-color: var(--cl-accent-line);
+}
+
+/* ── Panel ─────────────────────────────────────────────────────────────── */
+.claudian-tab-overview {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  margin-bottom: 6px;
+  /* Same inset as the composer column, so the pane lines up with it. */
+  inset-inline-end: max(16px, calc((100% - var(--cl-chat-max)) / 2));
+  width: min(400px, calc(100% - 32px));
+  max-height: min(540px, 72vh);
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--cl-glass-sheen), var(--cl-glass-body-overlay);
+  -webkit-backdrop-filter: var(--cl-glass-filter);
+  backdrop-filter: var(--cl-glass-filter);
+  box-shadow: var(--cl-glass-edge), var(--cl-glass-shadow-pop);
+  z-index: 1000;
+  container-type: inline-size;
+  text-align: start;
+
+  --tab-row-hover: color-mix(in srgb, var(--text-normal) 6%, transparent);
+  --tab-row-current: color-mix(in srgb, var(--interactive-accent) 11%, transparent);
+}
+
+.claudian-container--header-mode .claudian-tab-overview {
+  top: 100%;
+  bottom: auto;
+  margin-top: 4px;
+  margin-bottom: 0;
+  inset-inline-end: 12px;
+  width: min(400px, calc(100% - 24px));
+}
+
+@keyframes cl-tab-overview-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.claudian-tab-overview.visible {
+  display: flex;
+  transform-origin: bottom right;
+  animation: cl-tab-overview-in var(--cl-dur) var(--cl-ease-out);
+}
+
+.claudian-container--header-mode .claudian-tab-overview.visible {
+  transform-origin: top right;
+  animation-name: cl-tab-overview-in-down;
+}
+
+@keyframes cl-tab-overview-in-down {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── Header: title, live summary, filter ───────────────────────────────── */
+.claudian-tab-overview-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid var(--cl-border-subtle);
+  flex-shrink: 0;
+}
+
+.claudian-tab-overview-header-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.claudian-tab-overview-heading {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--text-normal);
+}
+
+.claudian-tab-overview-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.claudian-tab-overview-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: 10px;
+  background: var(--cl-wash, var(--background-primary));
+  transition: border-color var(--cl-dur-fast) var(--cl-ease), box-shadow var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-tab-overview-search:focus-within {
+  border-color: var(--cl-accent-line, var(--interactive-accent));
+  box-shadow: var(--cl-focus-ring);
+}
+
+.claudian-tab-overview-search-icon {
+  display: flex;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.claudian-tab-overview-search-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* One field, one ring: Obsidian styles text inputs with higher specificity. */
+.claudian-tab-overview-search input.claudian-tab-overview-search-input,
+.claudian-tab-overview-search input.claudian-tab-overview-search-input:hover,
+.claudian-tab-overview-search input.claudian-tab-overview-search-input:focus,
+.claudian-tab-overview-search input.claudian-tab-overview-search-input:focus-visible {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+  font-size: 13px;
+  color: var(--text-normal);
+  caret-color: var(--cl-accent);
+}
+
+.claudian-tab-overview-search input.claudian-tab-overview-search-input::placeholder {
+  color: var(--text-faint);
+}
+
+/* ── List ──────────────────────────────────────────────────────────────── */
+.claudian-tab-overview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+  scrollbar-width: thin;
+}
+
+.claudian-tab-overview-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "avatar main side"
+    "confirm confirm confirm";
+  align-items: start;
+  column-gap: 10px;
+  padding: 8px;
+  border-radius: 12px;
+  transition: background var(--cl-dur-fast) var(--cl-ease), box-shadow var(--cl-dur-fast) var(--cl-ease);
+
+  --claudian-tab-provider: var(--text-muted);
+}
+
+.claudian-tab-overview-row:hover,
+.claudian-tab-overview-row:focus-within {
+  background: var(--tab-row-hover);
+}
+
+.claudian-tab-overview-row.is-active {
+  background: var(--tab-row-current);
+}
+
+/* The row reads as the focused control, not the inner button. */
+.claudian-tab-overview-row:has(> .claudian-tab-overview-main:focus-visible) {
+  box-shadow: inset 0 0 0 2px var(--interactive-accent);
+}
+
+/* Provider mark in the provider's own colour: provenance, restrained. */
+.claudian-tab-overview-avatar {
+  grid-area: avatar;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-top: 1px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--claudian-tab-provider) 14%, transparent);
+  color: var(--claudian-tab-provider);
+}
+
+.claudian-tab-overview-row.is-active .claudian-tab-overview-avatar {
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--claudian-tab-provider) 55%, transparent);
+}
+
+.claudian-tab-overview-avatar svg {
+  width: 16px;
+  height: 16px;
+}
+
+.claudian-tab-overview-list .claudian-tab-overview-row button.claudian-tab-overview-main {
+  grid-area: main;
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1px;
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: start;
+}
+
+.claudian-tab-overview-list .claudian-tab-overview-row button.claudian-tab-overview-main:hover,
+.claudian-tab-overview-list .claudian-tab-overview-row button.claudian-tab-overview-main:focus-visible {
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* The whole title, always: this is what the tab bar hides. */
+.claudian-tab-overview-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
+  color: var(--text-normal);
+  overflow-wrap: anywhere;
+}
+
+.claudian-tab-overview-row.is-active .claudian-tab-overview-title {
+  font-weight: 650;
+}
+
+.claudian-tab-overview-model {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.claudian-tab-overview-detail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 4px;
+  min-width: 0;
+}
+
+/* ── Status: mark plus words; attention states become pills ────────────── */
+.claudian-tab-overview-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 560;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+
+  --tab-status: var(--text-faint);
+}
+
+.claudian-tab-overview-status-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tab-status);
+}
+
+.claudian-tab-overview-status-text {
+  white-space: nowrap;
+}
+
+.claudian-tab-overview-row[data-state="streaming"] .claudian-tab-overview-status {
+  color: var(--text-normal);
+
+  --tab-status: var(--claudian-tab-provider);
+}
+
+@keyframes cl-tab-overview-live {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.45;
+    transform: scale(0.72);
+  }
+}
+
+.claudian-tab-overview-row[data-state="streaming"] .claudian-tab-overview-status-mark {
+  animation: cl-tab-overview-live 1.4s ease-in-out infinite;
+}
+
+.claudian-tab-overview-row[data-state="input"] .claudian-tab-overview-status {
+  --tab-status: var(--cl-warning);
+}
+
+.claudian-tab-overview-row[data-state="failed"] .claudian-tab-overview-status {
+  --tab-status: var(--cl-danger);
+}
+
+.claudian-tab-overview-row[data-state="finished"] .claudian-tab-overview-status {
+  --tab-status: var(--cl-success);
+}
+
+/* Text stays near the foreground so the pill keeps AA contrast in both themes. */
+.claudian-tab-overview-row[data-state="input"] .claudian-tab-overview-status,
+.claudian-tab-overview-row[data-state="failed"] .claudian-tab-overview-status,
+.claudian-tab-overview-row[data-state="finished"] .claudian-tab-overview-status {
+  padding: 0 8px 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tab-status) 16%, transparent);
+  color: color-mix(in srgb, var(--tab-status) 38%, var(--text-normal));
+}
+
+.claudian-tab-overview-row[data-state="draft"] .claudian-tab-overview-status-mark {
+  width: 12px;
+  height: 12px;
+  border-radius: 0;
+  background: none;
+  color: var(--cl-draft);
+}
+
+.claudian-tab-overview-status-mark svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.25;
+}
+
+/* ── Meta: context, todos, subagents ───────────────────────────────────── */
+.claudian-tab-overview-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+.claudian-tab-overview-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 520;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.claudian-tab-overview-chip-icon {
+  display: inline-flex;
+  color: var(--text-faint);
+}
+
+.claudian-tab-overview-chip-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.claudian-tab-overview-chip--todos.is-complete .claudian-tab-overview-chip-icon {
+  color: var(--cl-success);
+}
+
+.claudian-tab-overview-meter {
+  position: relative;
+  width: 26px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--cl-ink-deep);
+}
+
+/* Scaled, not resized: the fill moves on the compositor. */
+.claudian-tab-overview-meter-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--claudian-tab-provider);
+  transform: scaleX(var(--claudian-tab-meter, 0));
+  transform-origin: left center;
+  transition: transform var(--cl-dur) var(--cl-ease-out);
+}
+
+.claudian-tab-overview-chip--context.is-high .claudian-tab-overview-meter-fill {
+  background: var(--cl-warning);
+}
+
+.claudian-tab-overview-chip--context.is-high {
+  color: color-mix(in srgb, var(--cl-warning) 45%, var(--text-normal));
+}
+
+/* ── Side: tab number, close ───────────────────────────────────────────── */
+.claudian-tab-overview-side {
+  grid-area: side;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.claudian-tab-overview-key {
+  min-width: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: 5px;
+  background: var(--cl-wash);
+  box-shadow: none;
+  font-family: var(--font-monospace);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.claudian-tab-overview-row.is-active .claudian-tab-overview-key {
+  border-color: color-mix(in srgb, var(--claudian-tab-provider) 45%, var(--cl-border-subtle));
+  color: var(--text-normal);
+}
+
+.claudian-tab-overview-list .claudian-tab-overview-row button.claudian-tab-overview-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity var(--cl-dur-fast) var(--cl-ease),
+    background var(--cl-dur-fast) var(--cl-ease),
+    color var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-tab-overview-close svg {
+  width: 13px;
+  height: 13px;
+}
+
+.claudian-tab-overview-row:hover .claudian-tab-overview-close,
+.claudian-tab-overview-row:focus-within .claudian-tab-overview-close {
+  opacity: 1;
+}
+
+.claudian-tab-overview-list .claudian-tab-overview-row button.claudian-tab-overview-close:hover {
+  background: color-mix(in srgb, var(--cl-danger) 14%, transparent);
+  color: var(--cl-danger);
+}
+
+.claudian-tab-overview-list .claudian-tab-overview-row button.claudian-tab-overview-close:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
+}
+
+/* ── Inline close question for a tab that is still working ─────────────── */
+@keyframes cl-tab-overview-confirm-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.claudian-tab-overview-confirm {
+  grid-area: confirm;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 8px;
+  padding: 7px 8px 7px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--cl-danger) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cl-danger) 26%, transparent);
+  animation: cl-tab-overview-confirm-in 160ms var(--cl-ease-out);
+}
+
+.claudian-tab-overview-confirm-text {
+  flex: 1 1 140px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-normal);
+}
+
+.claudian-tab-overview-confirm button.claudian-tab-overview-confirm-stop,
+.claudian-tab-overview-confirm button.claudian-tab-overview-confirm-keep {
+  height: 26px;
+  margin: 0;
+  padding: 0 10px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: none;
+  transition: background var(--cl-dur-fast) var(--cl-ease), color var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-tab-overview-confirm button.claudian-tab-overview-confirm-stop {
+  border: 0;
+  background: var(--cl-danger);
+  color: var(--text-on-accent, #fbfbfd);
+}
+
+.claudian-tab-overview-confirm button.claudian-tab-overview-confirm-stop:hover {
+  background: color-mix(in srgb, var(--cl-danger) 86%, var(--text-normal));
+}
+
+.claudian-tab-overview-confirm button.claudian-tab-overview-confirm-keep {
+  border: 1px solid var(--cl-border-strong);
+  background: transparent;
+  color: var(--text-normal);
+}
+
+.claudian-tab-overview-confirm button.claudian-tab-overview-confirm-keep:hover {
+  background: var(--tab-row-hover);
+}
+
+.claudian-tab-overview-confirm button:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 1px;
+}
+
+/* ── Empty filter result, footer ───────────────────────────────────────── */
+.claudian-tab-overview-empty {
+  padding: 26px 16px 22px;
+  font-size: 12.5px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.claudian-tab-overview-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 6px 12px 6px 6px;
+  border-top: 1px solid var(--cl-border-subtle);
+}
+
+.claudian-tab-overview-footer button.claudian-tab-overview-new {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 6px;
+  white-space: nowrap;
+  height: 30px;
+  margin: 0;
+  padding: 0 10px 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 560;
+  color: var(--text-normal);
+  cursor: pointer;
+  transition: background var(--cl-dur-fast) var(--cl-ease), color var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-tab-overview-new-icon {
+  display: inline-flex;
+  color: var(--cl-accent);
+}
+
+.claudian-tab-overview-new-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.claudian-tab-overview-footer button.claudian-tab-overview-new:hover {
+  background: var(--tab-row-hover);
+}
+
+.claudian-tab-overview-footer button.claudian-tab-overview-new:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 1px;
+}
+
+.claudian-tab-overview-footer button.claudian-tab-overview-new:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: transparent;
+}
+
+.claudian-tab-overview-hints {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  overflow: hidden;
+  gap: 4px 12px;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.claudian-tab-overview-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.claudian-tab-overview-hint kbd {
+  min-width: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: 5px;
+  background: var(--cl-wash, transparent);
+  box-shadow: none;
+  font-family: var(--font-monospace);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* A sidebar has room for the rows, not for the keyboard legend. */
+@container (max-width: 360px) {
+  .claudian-tab-overview-hints {
+    display: none;
+  }
+
+  .claudian-tab-overview-row {
+    column-gap: 8px;
+    padding: 8px 6px 8px 8px;
+  }
+}
+
+@media (pointer: coarse) {
+  .claudian-tab-overview-hints {
+    display: none;
+  }
+
+  /* No hover on touch: close stays visible and reachable. */
+  .claudian-tab-overview-list .claudian-tab-overview-row button.claudian-tab-overview-close {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    opacity: 1;
+  }
+
+  .claudian-container button.claudian-tab-overview-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .claudian-tab-overview-footer button.claudian-tab-overview-new,
+  .claudian-tab-overview-confirm button.claudian-tab-overview-confirm-stop,
+  .claudian-tab-overview-confirm button.claudian-tab-overview-confirm-keep {
+    min-height: 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-tab-overview.visible,
+  .claudian-tab-overview-confirm,
+  .claudian-tab-overview-row[data-state="streaming"] .claudian-tab-overview-status-mark {
+    animation: none;
+  }
+
+  .claudian-tab-overview-row,
+  .claudian-tab-overview-meter-fill,
+  .claudian-tab-overview-list .claudian-tab-overview-row button.claudian-tab-overview-close {
+    transition: none;
+  }
+}

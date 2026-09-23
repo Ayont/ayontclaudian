@@ -1,6 +1,7 @@
 import {
   buildClaudeWindows,
   parseClaudeUsageLine,
+  toClaudeRateLimitReport,
 } from '@/providers/claude/runtime/rateLimits';
 
 const NOW = Date.parse('2026-08-22T21:00:00.000Z');
@@ -45,5 +46,38 @@ describe('buildClaudeWindows', () => {
 
   it('reports no reset when the window is empty', () => {
     expect(buildClaudeWindows([], NOW).fiveHour.resetAt).toBeNull();
+  });
+});
+
+// Shapes follow SDKRateLimitInfo in sdk.d.ts; the bundled CLI renders
+// `Math.floor(utilization * 100)` and compares `resetsAt * 1000` to Date.now().
+describe('toClaudeRateLimitReport', () => {
+  it('maps the five-hour window from a 0..1 utilization and epoch-second reset', () => {
+    expect(toClaudeRateLimitReport({ status: 'allowed', rateLimitType: 'five_hour', utilization: 0.42, resetsAt: 1_788_000_000 }))
+      .toEqual({
+        window: { usedPercent: 42, windowMinutes: 300, resetsAtEpochSec: 1_788_000_000 },
+        rejected: false,
+        resetsAtEpochSec: 1_788_000_000,
+      });
+  });
+
+  it('maps the account-wide weekly window', () => {
+    expect(toClaudeRateLimitReport({ status: 'allowed_warning', rateLimitType: 'seven_day', utilization: 0.9, resetsAt: 5 })?.window)
+      .toEqual({ usedPercent: 90, windowMinutes: 10080, resetsAtEpochSec: 5 });
+  });
+
+  it('reports a rejection without inventing a percent', () => {
+    expect(toClaudeRateLimitReport({ status: 'rejected', rateLimitType: 'five_hour', resetsAt: 77 }))
+      .toEqual({ window: null, rejected: true, resetsAtEpochSec: 77 });
+  });
+
+  it('keeps per-model weekly limits out of the account-wide 7T chip', () => {
+    const report = toClaudeRateLimitReport({ status: 'allowed', rateLimitType: 'seven_day_opus', utilization: 0.5, resetsAt: 9 });
+    expect(report?.window).toBeNull();
+  });
+
+  it('ignores a malformed payload', () => {
+    expect(toClaudeRateLimitReport(undefined)).toBeNull();
+    expect(toClaudeRateLimitReport({ status: 'bogus' })).toBeNull();
   });
 });

@@ -1,5 +1,9 @@
 import { setIcon } from 'obsidian';
 
+import { describeNativeGoal } from '../../../core/conversation/nativeGoal';
+import type { NativeGoalCapability } from '../../../core/providers/types';
+import type { NativeGoalState } from '../../../core/types';
+
 /**
  * Persistent banner that shows the chat's active "goal" — the standing
  * objective the agent should keep working toward (set via `/goal <text>`).
@@ -22,7 +26,18 @@ export interface GoalBannerOptions {
   onEdit?: (currentGoal: string) => void;
   /** Suspends / resumes the harness loop (`/goal pause` · `/goal resume`). */
   onTogglePause?: (paused: boolean) => void;
+  /** Pauses (true) or resumes a goal the provider runs itself. */
+  onNativeTogglePause?: (pause: boolean) => void;
 }
+
+const NATIVE_STATUS_ICON: Record<NativeGoalState['status'], string> = {
+  active: 'target',
+  paused: 'pause',
+  blocked: 'circle-alert',
+  usage_limited: 'gauge',
+  budget_limited: 'gauge',
+  complete: 'circle-check',
+};
 
 const GOAL_LABEL_ACTIVE = 'Ziel aktiv';
 const GOAL_LABEL_PAUSED = 'Ziel pausiert';
@@ -33,7 +48,11 @@ export class GoalBanner {
   private readonly providerEl: HTMLElement;
   private readonly loopEl: HTMLElement;
   private readonly textEl: HTMLElement;
+  private readonly detailEl: HTMLElement;
+  private readonly iconEl: HTMLElement;
   private readonly pauseEl: HTMLButtonElement | null = null;
+  /** Set while the provider's own goal system runs the goal. */
+  private native: { state: NativeGoalState; capability: NativeGoalCapability | null } | null = null;
   private readonly doneEl: HTMLButtonElement | null = null;
   private currentGoal = '';
   private active = false;
@@ -42,8 +61,8 @@ export class GoalBanner {
   constructor(options: GoalBannerOptions) {
     this.rootEl = options.mountEl.createDiv({ cls: 'claudian-goal-banner claudian-hidden' });
 
-    const iconEl = this.rootEl.createSpan({ cls: 'claudian-goal-banner-icon' });
-    setIcon(iconEl, 'target');
+    this.iconEl = this.rootEl.createSpan({ cls: 'claudian-goal-banner-icon' });
+    setIcon(this.iconEl, 'target');
 
     const bodyEl = this.rootEl.createDiv({ cls: 'claudian-goal-banner-body' });
     const headEl = bodyEl.createDiv({ cls: 'claudian-goal-banner-head' });
@@ -51,6 +70,7 @@ export class GoalBanner {
     this.providerEl = headEl.createSpan({ cls: 'claudian-goal-banner-provider' });
     this.loopEl = headEl.createSpan({ cls: 'claudian-goal-banner-loop claudian-hidden' });
     this.textEl = bodyEl.createDiv({ cls: 'claudian-goal-banner-text' });
+    this.detailEl = bodyEl.createDiv({ cls: 'claudian-goal-banner-detail claudian-hidden' });
 
     // Click the body to edit the goal (prefills the input with /goal <current>).
     if (options.onEdit) {
@@ -69,10 +89,14 @@ export class GoalBanner {
 
     const actionsEl = this.rootEl.createDiv({ cls: 'claudian-goal-banner-actions' });
 
-    if (options.onTogglePause) {
+    if (options.onTogglePause || options.onNativeTogglePause) {
       this.pauseEl = this.createAction(actionsEl, 'pause', 'Zielschleife pausieren');
       this.pauseEl.addEventListener('click', (event) => {
         event.stopPropagation();
+        if (this.native) {
+          options.onNativeTogglePause?.(this.native.state.status === 'active');
+          return;
+        }
         options.onTogglePause?.(!this.paused);
       });
     }
@@ -139,8 +163,53 @@ export class GoalBanner {
     }
   }
 
+  /**
+   * Switches the banner between Claudian's loop (null) and a goal the
+   * provider's own goal system runs, showing its status, round and budget.
+   */
+  setNative(state: NativeGoalState | null, capability: NativeGoalCapability | null): void {
+    this.native = state ? { state, capability } : null;
+    this.rootEl.toggleClass('is-native', Boolean(state));
+    if (!state) {
+      this.rootEl.removeAttribute('data-tone');
+      this.rootEl.removeAttribute('data-status');
+      this.detailEl.setText('');
+      this.detailEl.addClass('claudian-hidden');
+      this.doneEl?.removeClass('claudian-hidden');
+      this.pauseEl?.removeClass('claudian-hidden');
+      setIcon(this.iconEl, 'target');
+      return;
+    }
+
+    const description = describeNativeGoal(state);
+    this.rootEl.setAttribute('data-tone', description.tone);
+    this.rootEl.setAttribute('data-status', state.status);
+    this.rootEl.toggleClass('is-paused', description.tone === 'muted');
+    this.labelEl.setText(description.label);
+    this.loopEl.setText('nativ');
+    this.loopEl.setAttribute('title', 'Läuft im eigenen Ziel-System des Anbieters');
+    this.loopEl.removeClass('claudian-hidden');
+    this.detailEl.setText(description.detail);
+    this.detailEl.toggleClass('claudian-hidden', !description.detail);
+    setIcon(this.iconEl, NATIVE_STATUS_ICON[state.status] ?? 'target');
+
+    // The provider decides when its goal is done; only a pausable one gets pause.
+    this.doneEl?.addClass('claudian-hidden');
+    const canToggle = Boolean(capability?.canPause) && (state.status === 'active' || state.status === 'paused');
+    if (this.pauseEl) {
+      this.pauseEl.toggleClass('claudian-hidden', !canToggle);
+      const paused = state.status === 'paused';
+      const label = paused ? 'Ziel fortsetzen' : 'Ziel pausieren';
+      this.pauseEl.setAttribute('aria-label', label);
+      this.pauseEl.setAttribute('data-tooltip', label);
+      this.pauseEl.toggleClass('is-paused', paused);
+      setIcon(this.pauseEl, paused ? 'play' : 'pause');
+    }
+  }
+
   /** Hides the banner and forgets the rendered goal. */
   clear(): void {
+    this.setNative(null, null);
     this.rootEl.addClass('claudian-hidden');
     this.textEl.setText('');
     this.providerEl.setText('');

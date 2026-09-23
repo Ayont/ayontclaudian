@@ -16,7 +16,9 @@ import type { ProviderCapabilities } from '../../core/providers/types';
  * `--mode` (agy >= 1.1.0: accept-edits, plan) is still not wired: `--mode plan`
  * has no structured "plan proposed, awaiting approval" signal the way
  * `supportsPlanMode` elsewhere assumes, and plan mode is an interactive
- * back-and-forth that does not fit a single-shot `--print` turn. `--effort`
+ * back-and-forth that does not fit a single-shot `--print` turn. The agy 1.2.7
+ * changelog confirms it: headless `-p` runs "proceed through plan review
+ * automatically", so a plan turn would go on to implement. `--effort`
  * (agy >= 1.1.5) stays unused because effort is already encoded in the model
  * name / slug (e.g. "Gemini 3.7 Flash (High)" / `gemini-3.7-flash-high`).
  */

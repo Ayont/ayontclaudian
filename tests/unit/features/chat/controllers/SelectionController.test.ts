@@ -1,6 +1,6 @@
 import { createMockEl } from '@test/helpers/mockElement';
 
-import { SelectionController } from '@/features/chat/controllers/SelectionController';
+import { readEditorSelection, SelectionController } from '@/features/chat/controllers/SelectionController';
 import { hideSelectionHighlight, showSelectionHighlight } from '@/shared/components/SelectionHighlight';
 
 jest.mock('@/shared/components/SelectionHighlight', () => ({
@@ -259,6 +259,40 @@ describe('SelectionController', () => {
     jest.advanceTimersByTime(750);
     expect(controller.hasSelection()).toBe(false);
     expect(hideSelectionHighlight).toHaveBeenCalledWith(editorView);
+  });
+
+  it('reads an editor selection with its range for the highlight', () => {
+    editor.getCursor = jest.fn((which: 'from' | 'to') => (which === 'from' ? { line: 2, ch: 1 } : { line: 3, ch: 5 }));
+    editor.getSelection.mockReturnValue('zwei\nZeilen');
+
+    expect(readEditorSelection(editor, 'notes/x.md')).toEqual({
+      notePath: 'notes/x.md',
+      selectedText: 'zwei\nZeilen',
+      lineCount: 2,
+      startLine: 3,
+      from: 201,
+      to: 305,
+      editorView,
+    });
+    editor.getSelection.mockReturnValue('   ');
+    expect(readEditorSelection(editor, 'notes/x.md')).toBeNull();
+  });
+
+  it('takes over a selection handed in from the editor menu while the chat takes focus', () => {
+    const selection = readEditorSelection(editor, 'notes/test.md')!;
+    controller.start();
+    app.workspace.getActiveViewOfType.mockReturnValue(null);
+    (global as any).document.activeElement = null;
+
+    controller.captureSelection(selection);
+
+    expect(controller.getContext()).toMatchObject({ notePath: 'notes/test.md', selectedText: 'selected text' });
+    expect(indicatorEl.textContent).toBe('1 line selected');
+    // The chat input receives focus after the menu closes.
+    jest.advanceTimersByTime(1000);
+    (global as any).document.activeElement = inputEl;
+    jest.advanceTimersByTime(1000);
+    expect(controller.hasSelection()).toBe(true);
   });
 
   describe('Reading mode (preview)', () => {

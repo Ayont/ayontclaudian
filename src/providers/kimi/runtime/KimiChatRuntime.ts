@@ -58,7 +58,12 @@ import {
 import { getKimiProviderSettings, KIMI_PROVIDER_ID } from '../settings';
 import { buildPersistedKimiState, getKimiState, type KimiProviderState } from '../types';
 import { KIMI_KEEPALIVE_INTERVAL_MS, KIMI_KEEPALIVE_MAX_SILENCE_MS } from './keepalive';
-import { prepareKimiPromptWithGoal } from './KimiGoalPrompt';
+import {
+  buildKimiGoalCreatePrompt,
+  kimiGoalStatusForExit,
+  parseKimiGoalCreate,
+  prepareKimiPromptWithGoal,
+} from './KimiGoalPrompt';
 import { buildKimiLaunchSpec, detectKimiCliFlavor } from './KimiLaunchSpec';
 import { buildKimiRuntimeEnv } from './KimiRuntimeEnvironment';
 
@@ -80,6 +85,8 @@ export class KimiChatRuntime implements ChatRuntime {
 
   private sessionId: string | null = null;
   private goal: string | null = null;
+  /** A headless goal ended paused or blocked; it still exists in the Kimi session. */
+  private nativeGoalOpen = false;
   private forkParentId: string | null = null;
   private sessionInvalidated = false;
   private ready = false;
@@ -152,6 +159,7 @@ export class KimiChatRuntime implements ChatRuntime {
     if (!conversation) {
       this.sessionId = null;
       this.goal = null;
+      this.nativeGoalOpen = false;
       this.sessionInvalidated = false;
       return;
     }
@@ -162,6 +170,7 @@ export class KimiChatRuntime implements ChatRuntime {
     // → start fresh.
     this.sessionId = state.sessionId ?? null;
     this.goal = state.goal ?? null;
+    this.nativeGoalOpen = state.nativeGoalOpen === true;
     this.forkParentId = state.forkParentId ?? null;
     this.sessionInvalidated = false;
   }
@@ -329,6 +338,14 @@ export class KimiChatRuntime implements ChatRuntime {
     const goalResult = prepareKimiPromptWithGoal(promptText, this.goal);
     this.goal = goalResult.nextGoal;
     promptText = goalResult.promptToSend;
+
+    // kimi-code runs `/goal <objective>` headless until the goal is complete,
+    // blocked or paused, and reports which through its exit code.
+    const nativeGoalObjective = this.supportsNativeGoal() ? parseKimiGoalCreate(promptText) : null;
+    if (nativeGoalObjective) {
+      promptText = buildKimiGoalCreatePrompt(nativeGoalObjective, this.nativeGoalOpen);
+      yield { type: 'goal_update', goal: { objective: nativeGoalObjective, status: 'active', round: 1 } };
+    }
 
     // Handle Kimi-native slash commands that should trigger UI actions rather
     // than being sent to the CLI (e.g. /new, /fork, /sessions, /help, /exit).
@@ -513,7 +530,18 @@ export class KimiChatRuntime implements ChatRuntime {
         return;
       }
 
-      if (exitInfo.code !== 0 && exitInfo.code !== null) {
+      // A stopped goal run leaves the goal in the Kimi session, unfinished.
+      const goalStatus = nativeGoalObjective
+        ? (this.cancelled ? 'paused' : kimiGoalStatusForExit(exitInfo.code))
+        : null;
+      if (nativeGoalObjective && goalStatus) {
+        this.nativeGoalOpen = goalStatus !== 'complete';
+        // A finished goal must not ride along as "[Goal: …]" on later turns.
+        if (goalStatus === 'complete') this.goal = null;
+        yield { type: 'goal_update', goal: { objective: nativeGoalObjective, status: goalStatus } };
+      }
+
+      if (exitInfo.code !== 0 && exitInfo.code !== null && !goalStatus) {
         yield {
           type: 'error',
           content: this.formatError(`Kimi CLI exited with code ${exitInfo.code}`, stderr, unparsedStdoutLines),
@@ -592,6 +620,17 @@ export class KimiChatRuntime implements ChatRuntime {
       name: TOOL_TODO_WRITE,
       input: { todos: [...this.currentTodos], __panelOnly: true },
     };
+  }
+
+  /** Headless kimi-code cannot clear a goal; forget Claudian's copy so no `[Goal: …]` rides along. */
+  async clearNativeGoal(): Promise<void> {
+    this.goal = null;
+  }
+
+  /** Headless goals exist only in the modern kimi-code binary; the legacy kimi-cli has none. */
+  supportsNativeGoal(): boolean {
+    const command = this.plugin.getResolvedProviderCliPath(KIMI_PROVIDER_ID);
+    return Boolean(command) && detectKimiCliFlavor(command!) === 'kimi-code';
   }
 
   cancel(): void {
@@ -673,6 +712,7 @@ export class KimiChatRuntime implements ChatRuntime {
       ...(this.sessionId ? { sessionId: this.sessionId } : {}),
       ...(this.goal ? { goal: this.goal } : {}),
       ...(this.forkParentId ? { forkParentId: this.forkParentId } : {}),
+      ...(this.nativeGoalOpen ? { nativeGoalOpen: true } : {}),
     };
     return {
       updates: {

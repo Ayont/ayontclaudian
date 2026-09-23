@@ -84,6 +84,43 @@ describe('CodexConversationHistoryService', () => {
     expect((conversation.providerState as Record<string, unknown>).sessionFilePath).toBe(transcriptPath);
   });
 
+  // A transcript can hold less than the chat showed: after a `compacted`
+  // record it replays only the summary. Replacing the local copy with that
+  // shorter list, then saving, is how Codex chats lost their history.
+  it('keeps the local messages when the transcript parses to fewer of them', async () => {
+    const threadId = 'thread-short';
+    const sessionsDir = path.join(tempHome, '.codex', 'sessions', '2026', '03', '27');
+    fs.mkdirSync(sessionsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(sessionsDir, `rollout-2026-03-27T00-00-00-${threadId}.jsonl`),
+      JSON.stringify({
+        timestamp: '2026-03-27T00:00:00.000Z',
+        type: 'response_item',
+        payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Nur die Zusammenfassung' }] },
+      }),
+      'utf-8',
+    );
+    const local = [
+      { id: 'u1', role: 'user' as const, content: 'Erste Frage', timestamp: 1 },
+      { id: 'a1', role: 'assistant' as const, content: 'Erste Antwort', timestamp: 2 },
+      { id: 'u2', role: 'user' as const, content: 'Zweite Frage', timestamp: 3 },
+    ];
+    const conversation: Conversation = {
+      id: 'conv-short',
+      providerId: 'codex',
+      title: 'Lang',
+      createdAt: 1,
+      updatedAt: 1,
+      sessionId: threadId,
+      providerState: { threadId },
+      messages: local,
+    };
+
+    await new CodexConversationHistoryService().hydrateConversationHistory(conversation, null);
+
+    expect(conversation.messages.map((m) => m.id)).toEqual(['u1', 'a1', 'u2']);
+  });
+
   it('rehydrates when the same conversation id is restored with empty messages', async () => {
     const threadId = 'thread-456';
     const sessionsDir = path.join(tempHome, '.codex', 'sessions', '2026', '03', '27');

@@ -22,6 +22,7 @@ import type {
   ChatTurnMetadata,
   ChatTurnRequest,
   ExitPlanModeCallback,
+  NativeGoalAction,
   PreparedChatTurn,
   SessionUpdateResult,
   SubagentRuntimeState,
@@ -30,6 +31,7 @@ import type {
   ChatMessage,
   Conversation,
   ForkSource,
+  NativeGoalState,
   SlashCommand,
   StreamChunk,
   SubagentCancelTarget,
@@ -67,9 +69,9 @@ import type {
   SkillInput,
   SkillsListResult,
   ThreadCompactStartResult,
+  ThreadForkParams,
   ThreadForkResult,
   ThreadResumeResult,
-  ThreadRollbackResult,
   ThreadStartResult,
   TurnInterruptParams,
   TurnStartedNotification,
@@ -78,6 +80,14 @@ import type {
   UserInput,
 } from './codexAppServerTypes';
 import { CodexChildThreadRelay } from './CodexChildThreadRelay';
+import {
+  type CodexThreadGoal,
+  isCodexThreadGoal,
+  type ThreadGoalClearedNotification,
+  type ThreadGoalSetResult,
+  type ThreadGoalUpdatedNotification,
+  toNativeGoalState,
+} from './codexGoal';
 import type { CodexLaunchSpec } from './codexLaunchTypes';
 import { CodexNotificationRouter } from './CodexNotificationRouter';
 import { CodexRpcTransport } from './CodexRpcTransport';
@@ -158,6 +168,24 @@ export class CodexChatRuntime implements ChatRuntime {
   // Cancellation
   private canceled = false;
   private turnMetadata: ChatTurnMetadata = {};
+
+  /** How long a finished goal round waits for the server to start the next one. */
+  static GOAL_CONTINUATION_GRACE_MS = 15_000;
+
+  // Native goal (thread/goal/*): Codex itself starts the follow-up rounds.
+  private nativeGoal: NativeGoalState | null = null;
+  private goalRound = 0;
+  /** Set when a round finished while the goal stays active: the next server turn joins this answer. */
+  private goalHold: GoalHold | null = null;
+  /**
+   * Thread whose goal was set paused for this turn and is activated when its
+   * first round ends. Active on an idle thread, Codex would start a turn of its
+   * own, racing the one that carries this prompt.
+   */
+  private pendingGoalActivation: string | null = null;
+  /** A pause or clear requested while the thread was not loaded; applied on the next query. */
+  private pendingGoalCommand: 'pause' | 'clear' | null = null;
+  private goalSyncedThreadId: string | null = null;
 
   constructor(plugin: ClaudianPlugin) {
     this.plugin = plugin;
@@ -314,25 +342,24 @@ export class CodexChatRuntime implements ChatRuntime {
       let historyReplayApplied = false;
 
       if (this.pendingFork) {
-        // Pending fork: fork the source thread, optionally roll back, then start a turn
+        // The app-server truncates the fork itself (`lastTurnId`, inclusive);
+        // there is no `thread/rollback` to trim it afterwards.
         const fork = this.pendingFork;
 
-        const forkResult = await this.transport!.request<ThreadForkResult>('thread/fork', {
-          threadId: fork.sessionId,
-        });
+        const forkParams: ThreadForkParams = { threadId: fork.sessionId, lastTurnId: fork.resumeAt };
+        const forkResult = await this.transport!.request<ThreadForkResult>('thread/fork', forkParams);
         threadId = forkResult.thread.id;
         threadTargetPath = forkResult.thread.path ?? null;
         threadPath = this.toHostSessionPath(threadTargetPath);
 
-        // Compute rollback: count turns after the resumeAt checkpoint
+        // Paginated threads may come back without turns; when they are present,
+        // a fork that does not end at the checkpoint would carry later answers.
         const forkTurns = forkResult.thread.turns ?? [];
-        const checkpointIndex = forkTurns.findIndex(t => t.id === fork.resumeAt);
-        if (checkpointIndex < 0) {
+        if (forkTurns.length > 0 && forkTurns[forkTurns.length - 1].id !== fork.resumeAt) {
           throw new Error(`Fork checkpoint not found: ${fork.resumeAt}`);
         }
-        const numTurnsToRollback = forkTurns.length - checkpointIndex - 1;
 
-        // Resume the forked thread (required before rollback and turn/start)
+        // Resume the forked thread (required before turn/start)
         const permissionMode = this.resolveSandboxConfig();
         await this.transport!.request<ThreadResumeResult>('thread/resume', {
           threadId,
@@ -344,13 +371,6 @@ export class CodexChatRuntime implements ChatRuntime {
           experimentalRawEvents: true,
           persistExtendedHistory: true,
         });
-
-        if (numTurnsToRollback > 0) {
-          await this.transport!.request<ThreadRollbackResult>('thread/rollback', {
-            threadId,
-            numTurns: numTurnsToRollback,
-          });
-        }
 
         this.loadedThreadId = threadId;
         completedPendingFork = true;
@@ -436,6 +456,14 @@ export class CodexChatRuntime implements ChatRuntime {
       this.childRelay.setParentThread(threadId);
       if (completedPendingFork) {
         this.pendingFork = null;
+      }
+
+      await this.applyPendingGoalCommand(threadId);
+      const goalAction = turn.isCompact ? null : (turn.request.nativeGoal ?? null);
+      if (goalAction) {
+        await this.armGoalAction(threadId, goalAction, enqueueChunk);
+      } else {
+        await this.syncNativeGoal(threadId, enqueueChunk);
       }
 
       if (turn.isCompact) {
@@ -611,6 +639,18 @@ export class CodexChatRuntime implements ChatRuntime {
 
         while (this.chunkBuffer.length > 0) {
           const chunk = this.chunkBuffer.shift()!;
+          if (chunk.type === 'done' && this.goalHold && !this.canceled) {
+            const hold = this.goalHold;
+            const outcome = await hold.promise;
+            if (this.goalHold === hold) this.goalHold = null;
+            // Codex started the next round: this "done" only ended a round.
+            if (outcome === 'continued' && !this.canceled) continue;
+            if (outcome === 'timeout') this.pauseIdleGoal(enqueueChunk);
+            // What settled the goal (its final status) arrived after the done.
+            for (const trailing of this.chunkBuffer.splice(0)) {
+              if (trailing.type !== 'done') yield trailing;
+            }
+          }
           yield chunk;
           if (chunk.type === 'done') {
             return;
@@ -638,6 +678,8 @@ export class CodexChatRuntime implements ChatRuntime {
       this.notificationRouter?.endTurn();
 
       this.cleanupActiveInputBundles();
+      this.releaseGoalHold('settled');
+      this.pendingGoalActivation = null;
       this.currentTurnId = null;
       this.currentQueryThreadId = null;
       this.pendingTurnNotifications = [];
@@ -707,6 +749,21 @@ export class CodexChatRuntime implements ChatRuntime {
       });
     }
 
+    // Stop means stop: an active goal would otherwise make Codex start the
+    // next round on its own, with no answer open to show it.
+    if (this.pendingGoalActivation) {
+      // Still paused on the server; it just never gets activated.
+      this.pendingGoalActivation = null;
+      if (this.nativeGoal) this.nativeGoal = { ...this.nativeGoal, status: 'paused' };
+    } else if (this.transport && threadId && this.nativeGoal?.status === 'active') {
+      this.nativeGoal = { ...this.nativeGoal, status: 'paused' };
+      this.transport.request('thread/goal/set', { threadId, status: 'paused' }).catch(() => {
+        // Applied on the next query instead.
+        this.pendingGoalCommand = 'pause';
+      });
+    }
+    this.releaseGoalHold('settled');
+
     // Unblock the chunk-wait loop
     if (this.chunkResolve) {
       this.chunkResolve();
@@ -737,6 +794,44 @@ export class CodexChatRuntime implements ChatRuntime {
     } catch {
       this.childRelay.clearCancelRequested(interrupt.threadId);
       return false;
+    }
+  }
+
+  supportsNativeGoal(): boolean {
+    return true;
+  }
+
+  /**
+   * Pauses the thread's goal. A thread this app-server has not loaded yet
+   * cannot take the request; it is applied before the next turn instead.
+   */
+  async pauseNativeGoal(): Promise<NativeGoalState | null> {
+    this.releaseGoalHold('settled');
+    const threadId = this.currentQueryThreadId ?? this.session.getThreadId();
+    if (!threadId) return null;
+    const fallback: NativeGoalState | null = this.nativeGoal ? { ...this.nativeGoal, status: 'paused' } : null;
+    try {
+      await this.ensureReady();
+      const result = await this.transport!.request<ThreadGoalSetResult>('thread/goal/set', { threadId, status: 'paused' });
+      this.nativeGoal = isCodexThreadGoal(result?.goal) ? toNativeGoalState(result.goal, this.goalRound || undefined) : fallback;
+    } catch {
+      this.pendingGoalCommand = 'pause';
+      this.nativeGoal = fallback;
+    }
+    return this.nativeGoal;
+  }
+
+  async clearNativeGoal(): Promise<void> {
+    this.releaseGoalHold('settled');
+    this.pendingGoalActivation = null;
+    this.nativeGoal = null;
+    const threadId = this.currentQueryThreadId ?? this.session.getThreadId();
+    if (!threadId) return;
+    try {
+      await this.ensureReady();
+      await this.transport!.request('thread/goal/clear', { threadId });
+    } catch {
+      this.pendingGoalCommand = 'clear';
     }
   }
 
@@ -1014,12 +1109,16 @@ export class CodexChatRuntime implements ChatRuntime {
           return;
         }
         if (this.routeNotification(method, params)) {
+          if (method === 'turn/completed') this.noteGoalRoundCompleted(params);
           router.handleNotification(method, params);
         }
         // After the router, so a spawn's tool_use precedes its relayed children.
         this.childRelay.observeParentNotification(method, params);
       });
     }
+
+    this.transport.onNotification('thread/goal/updated', (params) => this.handleGoalUpdated(params));
+    this.transport.onNotification('thread/goal/cleared', (params) => this.handleGoalCleared(params));
 
     // Server requests (approvals, ask-user)
     const requestMethods = [
@@ -1174,7 +1273,169 @@ export class CodexChatRuntime implements ChatRuntime {
     if (!this.currentTurnId) {
       this.currentTurnId = turnId;
       this.flushPendingTurnNotifications();
+      return;
     }
+
+    if (this.goalHold && !this.goalHold.settled && turnId !== this.currentTurnId) {
+      this.beginGoalRound(turnId);
+    }
+  }
+
+  /**
+   * Arms this turn's goal action. The goal is set paused and activated when
+   * this turn's first round ends (see pendingGoalActivation), so this prompt,
+   * with its carry and attachments, is the turn that starts the work.
+   */
+  private async armGoalAction(
+    threadId: string,
+    action: NativeGoalAction,
+    enqueue: (chunk: StreamChunk) => void,
+  ): Promise<void> {
+    let goal: CodexThreadGoal | null;
+    if (action.kind === 'set') {
+      const params = {
+        threadId,
+        objective: action.objective,
+        status: 'paused',
+        ...(action.tokenBudget ? { tokenBudget: action.tokenBudget } : {}),
+      };
+      const result = await this.transport!.request<ThreadGoalSetResult>('thread/goal/set', params)
+        .catch(async () => {
+          // An unfinished earlier goal may block setting a new one: end it first.
+          await this.transport!.request('thread/goal/clear', { threadId });
+          return this.transport!.request<ThreadGoalSetResult>('thread/goal/set', params);
+        });
+      goal = isCodexThreadGoal(result?.goal) ? result.goal : null;
+    } else {
+      const result = await this.transport!.request<{ goal?: unknown }>('thread/goal/get', { threadId }).catch(() => null);
+      goal = isCodexThreadGoal(result?.goal) ? result.goal : null;
+      if (!goal) {
+        enqueue({ type: 'notice', level: 'info', content: 'Dieser Codex-Thread hat kein Ziel zum Fortsetzen.' });
+        return;
+      }
+    }
+    this.goalRound = 1;
+    this.goalSyncedThreadId = threadId;
+    this.pendingGoalActivation = threadId;
+    this.nativeGoal = goal
+      ? { ...toNativeGoalState(goal, 1), status: 'active' }
+      : { objective: action.kind === 'set' ? action.objective : '', status: 'active', round: 1 };
+    enqueue({ type: 'goal_update', goal: this.nativeGoal });
+  }
+
+  /** After a restart the thread may still hold an active goal; show it and follow its rounds. */
+  private async syncNativeGoal(threadId: string, enqueue: (chunk: StreamChunk) => void): Promise<void> {
+    if (this.goalSyncedThreadId === threadId) return;
+    this.goalSyncedThreadId = threadId;
+    const result = await this.transport!.request<{ goal?: unknown }>('thread/goal/get', { threadId }).catch(() => null);
+    if (!isCodexThreadGoal(result?.goal)) return;
+    this.nativeGoal = toNativeGoalState(result.goal);
+    enqueue({ type: 'goal_update', goal: this.nativeGoal });
+  }
+
+  private async applyPendingGoalCommand(threadId: string): Promise<void> {
+    const command = this.pendingGoalCommand;
+    if (!command) return;
+    this.pendingGoalCommand = null;
+    await (command === 'clear'
+      ? this.transport!.request('thread/goal/clear', { threadId })
+      : this.transport!.request('thread/goal/set', { threadId, status: 'paused' })
+    ).catch(() => undefined);
+  }
+
+  /** A round ended while the goal is still active: wait for Codex's next round. */
+  private noteGoalRoundCompleted(params: unknown): void {
+    const status = (params as { turn?: { status?: string } } | null)?.turn?.status;
+    if (status !== 'completed' || this.canceled || this.nativeGoal?.status !== 'active') {
+      this.pendingGoalActivation = null;
+      return;
+    }
+    this.releaseGoalHold('settled');
+    let resolveHold!: (outcome: GoalHoldOutcome) => void;
+    const hold: GoalHold = {
+      settled: false,
+      promise: new Promise<GoalHoldOutcome>((resolve) => { resolveHold = resolve; }),
+      resolve: (outcome) => {
+        if (hold.settled) return;
+        hold.settled = true;
+        window.clearTimeout(hold.timer);
+        resolveHold(outcome);
+      },
+      timer: 0,
+    };
+    hold.timer = window.setTimeout(() => hold.resolve('timeout'), CodexChatRuntime.GOAL_CONTINUATION_GRACE_MS);
+    this.goalHold = hold;
+
+    const activateThreadId = this.pendingGoalActivation;
+    this.pendingGoalActivation = null;
+    if (activateThreadId && this.transport) {
+      // From here Codex starts the rounds itself.
+      this.transport.request<ThreadGoalSetResult>('thread/goal/set', { threadId: activateThreadId, status: 'active' })
+        .then((result) => {
+          if (!isCodexThreadGoal(result?.goal)) return;
+          this.nativeGoal = toNativeGoalState(result.goal, this.goalRound || undefined);
+          if (this.nativeGoal.status !== 'active') hold.resolve('settled');
+        })
+        .catch(() => hold.resolve('settled'));
+    }
+  }
+
+  /**
+   * No next round came within the grace period. A round Codex started later
+   * would run with no answer open, so the goal is paused instead.
+   */
+  private pauseIdleGoal(enqueue: (chunk: StreamChunk) => void): void {
+    const threadId = this.currentQueryThreadId ?? this.session.getThreadId();
+    if (!threadId || this.nativeGoal?.status !== 'active') return;
+    this.nativeGoal = { ...this.nativeGoal, status: 'paused' };
+    enqueue({ type: 'goal_update', goal: this.nativeGoal });
+    enqueue({ type: 'notice', level: 'info', content: 'Codex hat keine weitere Runde gestartet; das Ziel ist pausiert. /goal resume setzt es fort.' });
+    this.transport?.request('thread/goal/set', { threadId, status: 'paused' }).catch(() => {
+      this.pendingGoalCommand = 'pause';
+    });
+  }
+
+  private beginGoalRound(turnId: string): void {
+    this.goalRound += 1;
+    this.currentTurnId = turnId;
+    this.notificationRouter?.beginTurn({ isPlanTurn: false });
+    if (this.nativeGoal) {
+      this.nativeGoal = { ...this.nativeGoal, round: this.goalRound };
+    }
+    this.activeChunkSink?.({ type: 'goal_update', goal: this.nativeGoal, round: this.goalRound });
+    this.flushPendingTurnNotifications();
+    this.goalHold?.resolve('continued');
+  }
+
+  private releaseGoalHold(outcome: GoalHoldOutcome): void {
+    this.goalHold?.resolve(outcome);
+  }
+
+  private isOwnThread(threadId: unknown): boolean {
+    return typeof threadId === 'string'
+      && threadId === (this.currentQueryThreadId ?? this.session.getThreadId());
+  }
+
+  private handleGoalUpdated(params: unknown): void {
+    const notification = params as ThreadGoalUpdatedNotification | null;
+    if (!notification || !this.isOwnThread(notification.threadId) || !isCodexThreadGoal(notification.goal)) return;
+    const state = toNativeGoalState(notification.goal, this.goalRound || undefined);
+    // Paused by armGoalAction for this turn only; for the user it is running.
+    if (this.pendingGoalActivation === notification.threadId && state.status === 'paused') {
+      state.status = 'active';
+    }
+    this.nativeGoal = state;
+    this.activeChunkSink?.({ type: 'goal_update', goal: this.nativeGoal });
+    if (this.nativeGoal.status !== 'active') this.releaseGoalHold('settled');
+  }
+
+  private handleGoalCleared(params: unknown): void {
+    const notification = params as ThreadGoalClearedNotification | null;
+    if (!notification || !this.isOwnThread(notification.threadId)) return;
+    this.pendingGoalActivation = null;
+    this.nativeGoal = null;
+    this.activeChunkSink?.({ type: 'goal_update', goal: null });
+    this.releaseGoalHold('settled');
   }
 
   private validateCompactTurn(turn: PreparedChatTurn): string | null {
@@ -1474,4 +1735,13 @@ export function mapCodexAbortReasonToInterruptKind(reason: string): CodexInterru
   }
 
   return undefined;
+}
+
+type GoalHoldOutcome = 'continued' | 'settled' | 'timeout';
+
+interface GoalHold {
+  settled: boolean;
+  promise: Promise<GoalHoldOutcome>;
+  resolve: (outcome: GoalHoldOutcome) => void;
+  timer: number;
 }

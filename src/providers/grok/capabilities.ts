@@ -6,9 +6,12 @@ import type { ProviderCapabilities } from '../../core/providers/types';
  * Grok CLI supports true line-delimited JSON streaming
  * (`--print --output-format stream-json`), native session resume
  * (`--session` / `--continue`), real model selection (`-m`), plan mode
- * (`--plan`), MCP bridging (`--mcp-config-file`), and vision-capable models
- * (config caps `image_in`). Reasoning effort is `--reasoning-effort`
+ * (`--permission-mode plan`), and vision-capable models (config caps
+ * `image_in`). Reasoning effort is `--reasoning-effort`
  * (`low` | `medium` | `high` | `xhigh`); the shared control is `'effort'`.
+ *
+ * `supportsMcpTools` is false: grok reads MCP servers from its own config, and
+ * the runtime never passes the in-chat selector's choice on.
  */
 export const GROK_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({
   providerId: 'grok',
@@ -21,7 +24,7 @@ export const GROK_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object
   supportsProviderCommands: true,
   supportsImageAttachments: true,
   supportsInstructionMode: false,
-  supportsMcpTools: true,
+  supportsMcpTools: false,
   supportsMultiAgent: true,
   supportsTurnSteer: true,
   reasoningControl: 'effort',

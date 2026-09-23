@@ -22,6 +22,7 @@ import { renderStoredAsyncSubagent, renderStoredSubagent } from '@/features/chat
 import { renderStoredThinkingBlock } from '@/features/chat/rendering/ThinkingBlockRenderer';
 import { renderStoredToolCall } from '@/features/chat/rendering/ToolCallRenderer';
 import { renderStoredWriteEdit } from '@/features/chat/rendering/WriteEditRenderer';
+import { setLocale } from '@/i18n/i18n';
 
 jest.mock('@/features/chat/rendering/SubagentRenderer', () => ({
   renderStoredAsyncSubagent: jest.fn().mockReturnValue({ wrapperEl: {}, cleanup: jest.fn() }),
@@ -151,6 +152,48 @@ describe('MessageRenderer', () => {
     expect(renderStoredSpy).toHaveBeenCalledTimes(1);
     expect(welcomeEl.hasClass('claudian-welcome')).toBe(true);
     expect(welcomeEl.children[0].textContent).toBe('Hello');
+  });
+
+  describe('fresh-session boundary', () => {
+    afterEach(() => setLocale('en'));
+
+    const boundaries = (el: any) => el.querySelectorAll('.claudian-session-boundary');
+
+    it('draws a divider after the message where a condensed session started', () => {
+      const { renderer, messagesEl } = createRenderer();
+      jest.spyOn(renderer, 'renderStoredMessage').mockImplementation(() => {});
+      renderer.renderMessages([
+        { id: 'u1', role: 'user', content: 'alt', timestamp: 1 },
+        { id: 'a1', role: 'assistant', content: 'antwort', timestamp: 2, sessionBoundary: 'condensed' },
+        { id: 'u2', role: 'user', content: 'neu', timestamp: 3 },
+      ], () => 'Hi');
+
+      expect(boundaries(messagesEl)).toHaveLength(1);
+      const children = messagesEl.children;
+      expect(children[children.length - 1].hasClass('claudian-session-boundary')).toBe(true);
+    });
+
+    it('keeps the marker when the marked reply is coalesced into its turn', () => {
+      const { renderer, messagesEl } = createRenderer();
+      jest.spyOn(renderer, 'renderStoredMessage').mockImplementation(() => {});
+      renderer.renderMessages([
+        { id: 'u1', role: 'user', content: 'alt', timestamp: 1 },
+        { id: 'a1', role: 'assistant', content: 'teil 1', timestamp: 2 },
+        { id: 'a2', role: 'assistant', content: 'teil 2', timestamp: 3, sessionBoundary: 'condensed' },
+      ], () => 'Hi');
+      expect(boundaries(messagesEl)).toHaveLength(1);
+    });
+
+    it('appends a live divider in the selected language', () => {
+      setLocale('de');
+      const { renderer, messagesEl } = createRenderer();
+      const divider = renderer.renderSessionBoundary();
+      expect(divider.getAttribute('role')).toBe('separator');
+      expect(divider.querySelector('.claudian-session-boundary-text')?.textContent)
+        .toBe('Neue Sitzung mit verdichtetem Kontext');
+      expect(divider.getAttribute('aria-label')).toBe('Neue Sitzung mit verdichtetem Kontext');
+      expect(boundaries(messagesEl)).toHaveLength(1);
+    });
   });
 
   it('renders empty messages list with just welcome element', () => {
@@ -2714,5 +2757,122 @@ describe('MessageRenderer', () => {
         expect.any(Function)
       );
     });
+  });
+});
+
+describe('MessageRenderer - regenerate affordances', () => {
+  function rendererWithRegenerate(messagesEl: any, regenerate: jest.Mock) {
+    return new MessageRenderer(
+      { app: {}, settings: { mediaFolder: '' } } as any,
+      createMockComponent() as any,
+      messagesEl,
+      undefined,
+      undefined,
+      mockCapabilities(),
+      undefined,
+      regenerate,
+    );
+  }
+
+  function assistantTextEl(messagesEl: any, id: string) {
+    const msgEl = messagesEl.createDiv({ cls: 'claudian-message claudian-message-assistant' });
+    msgEl.setAttribute('data-message-id', id);
+    const contentEl = msgEl.createDiv({ cls: 'claudian-message-content' });
+    return contentEl.createDiv({ cls: 'claudian-text-block' });
+  }
+
+  it('offers "Erneut versuchen" on a retryable error card and regenerates that answer', async () => {
+    const regenerate = jest.fn();
+    const messagesEl = createMockEl();
+    const renderer = rendererWithRegenerate(messagesEl, regenerate);
+    const textEl = assistantTextEl(messagesEl, 'a1');
+
+    await renderer.renderContent(textEl, '❌ **Error:** fetch failed: ECONNRESET');
+
+    const retry = textEl.querySelector('.claudian-status-card-retry');
+    expect(retry).not.toBeNull();
+    expect(retry.querySelector('.claudian-status-card-retry-label').textContent).toBe('Erneut versuchen');
+    retry.click();
+    expect(regenerate).toHaveBeenCalledWith({ id: 'a1' });
+  });
+
+  it('offers no retry for errors that a retry cannot fix', async () => {
+    const messagesEl = createMockEl();
+    const renderer = rendererWithRegenerate(messagesEl, jest.fn());
+    const textEl = assistantTextEl(messagesEl, 'a1');
+
+    await renderer.renderContent(textEl, '❌ **Error:** Invalid API key');
+
+    expect(textEl.querySelector('.claudian-status-card')).not.toBeNull();
+    expect(textEl.querySelector('.claudian-status-card-retry')).toBeNull();
+  });
+
+  it('offers no retry for a card outside an answer', async () => {
+    const messagesEl = createMockEl();
+    const renderer = rendererWithRegenerate(messagesEl, jest.fn());
+    const el = messagesEl.createDiv();
+
+    await renderer.renderContent(el, '❌ **Error:** fetch failed');
+
+    expect(el.querySelector('.claudian-status-card-retry')).toBeNull();
+  });
+
+  it('renders a superseded answer collapsed behind a toggle', () => {
+    const messagesEl = createMockEl();
+    const renderer = rendererWithRegenerate(messagesEl, jest.fn());
+    jest.spyOn(renderer, 'renderContent').mockResolvedValue(undefined);
+
+    renderer.renderStoredMessage({ id: 'a1', role: 'assistant', content: 'Alt', timestamp: 1, isSuperseded: true });
+
+    const msgEl = messagesEl.children[0];
+    expect(msgEl.hasClass('claudian-message--superseded')).toBe(true);
+    const toggle = msgEl.querySelector('.claudian-superseded-toggle');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    toggle.click();
+    expect(msgEl.hasClass('is-expanded')).toBe(true);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(toggle.textContent).toBe('Ausblenden');
+  });
+
+  it('collapses and restores a mounted answer by id', () => {
+    const messagesEl = createMockEl();
+    const renderer = rendererWithRegenerate(messagesEl, jest.fn());
+    jest.spyOn(renderer, 'renderContent').mockResolvedValue(undefined);
+    renderer.renderStoredMessage({ id: 'a1', role: 'assistant', content: 'Antwort', timestamp: 1 });
+    const msgEl = messagesEl.children[0];
+    // The element mock drops createDiv's `attr`; Obsidian sets it.
+    msgEl.setAttribute('data-message-id', 'a1');
+
+    renderer.setMessagesSuperseded(['a1'], true);
+    expect(msgEl.hasClass('claudian-message--superseded')).toBe(true);
+    expect(msgEl.querySelector('.claudian-superseded-bar')).not.toBeNull();
+
+    renderer.setMessagesSuperseded(['a1'], false);
+    expect(msgEl.hasClass('claudian-message--superseded')).toBe(false);
+    expect(msgEl.querySelector('.claudian-superseded-bar')).toBeNull();
+  });
+
+  it('copies only what the user typed from a history-loaded prompt', async () => {
+    const writeText = jest.fn().mockResolvedValue(undefined);
+    const originalNavigator = globalThis.navigator;
+    Object.defineProperty(globalThis, 'navigator', { value: { clipboard: { writeText } }, writable: true, configurable: true });
+    try {
+      const messagesEl = createMockEl();
+      const renderer = rendererWithRegenerate(messagesEl, jest.fn());
+      jest.spyOn(renderer, 'renderContent').mockResolvedValue(undefined);
+
+      renderer.renderStoredMessage({
+        id: 'u1',
+        role: 'user',
+        content: '<standing_goal>\nZiel\n</standing_goal>\nFrage?\n\n<current_note>\na.md\n</current_note>',
+        timestamp: 1,
+      });
+      const copyBtn = messagesEl.children[0].querySelector('.claudian-user-msg-copy-btn');
+      await copyBtn._eventListeners.get('click')[0]({ stopPropagation: jest.fn() });
+
+      expect(writeText).toHaveBeenCalledWith('Frage?');
+    } finally {
+      Object.defineProperty(globalThis, 'navigator', { value: originalNavigator, writable: true, configurable: true });
+    }
   });
 });

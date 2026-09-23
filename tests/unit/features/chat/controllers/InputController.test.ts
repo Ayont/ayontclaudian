@@ -2814,6 +2814,84 @@ describe('InputController - Message Queue', () => {
     });
   });
 
+  describe('turn failing before the stream starts', () => {
+    it('keeps the answer as a retryable error instead of an empty, dropped placeholder', async () => {
+      const finalizeLiveAssistantMessage = jest.fn();
+      deps = createSendableDeps({ ensureServiceInitialized: jest.fn().mockResolvedValue(false) });
+      (deps.renderer as any).finalizeLiveAssistantMessage = finalizeLiveAssistantMessage;
+      inputEl = deps.getInputEl() as ReturnType<typeof createMockInputEl>;
+      inputEl.value = 'test message';
+      controller = new InputController(deps);
+
+      await controller.sendMessage();
+
+      const assistant = deps.state.messages.find((message) => message.role === 'assistant')!;
+      expect(deps.streamController.appendText).toHaveBeenCalledWith(
+        '❌ **Error:** Agent-Dienst konnte nicht gestartet werden. Bitte erneut versuchen.',
+      );
+      expect(deps.streamController.finalizeCurrentTextBlock).toHaveBeenCalledWith(assistant);
+      expect(finalizeLiveAssistantMessage).toHaveBeenCalledWith(assistant);
+      expect(deps.state.currentContentEl).toBeNull();
+      expect(deps.conversationController.save).toHaveBeenCalledTimes(2);
+      expect(deps.state.isStreaming).toBe(false);
+    });
+
+    it('does the same when the runtime is missing', async () => {
+      deps = createSendableDeps({ getAgentService: () => null });
+      inputEl = deps.getInputEl() as ReturnType<typeof createMockInputEl>;
+      inputEl.value = 'test message';
+      controller = new InputController(deps);
+
+      await controller.sendMessage();
+
+      expect(deps.streamController.appendText).toHaveBeenCalledWith(
+        '❌ **Error:** Agent-Dienst nicht verfügbar. Bitte das Plugin neu laden.',
+      );
+      expect(deps.state.isStreaming).toBe(false);
+    });
+  });
+
+  describe('programmatic resend', () => {
+    it('sends override attachments without reading or clearing the composer', async () => {
+      deps = createSendableDeps();
+      let textReachingProvider = '';
+      (deps as any).mockAgentService.query = jest.fn().mockImplementation((turn: any) => {
+        textReachingProvider = turn.request.text;
+        return createMockStream([{ type: 'done' }]);
+      });
+      const imageContextManager = deps.getImageContextManager()!;
+      inputEl = deps.getInputEl() as ReturnType<typeof createMockInputEl>;
+      inputEl.value = 'ungesendeter Entwurf';
+      controller = new InputController(deps);
+
+      await controller.sendMessage({
+        content: 'Fasse zusammen',
+        attachments: [{ name: 'brief.pdf', relPath: '.claudian/attachments/brief.pdf' }],
+      });
+
+      expect(textReachingProvider).toContain('Fasse zusammen\n\n@.claudian/attachments/brief.pdf');
+      expect(deps.state.messages[0].attachments).toEqual([{ name: 'brief.pdf', relPath: '.claudian/attachments/brief.pdf' }]);
+      expect(inputEl.value).toBe('ungesendeter Entwurf');
+      expect(imageContextManager.getStagedAttachments).not.toHaveBeenCalled();
+      expect(imageContextManager.clearImages).not.toHaveBeenCalled();
+    });
+
+    it('queues a programmatic send with the selection it was given', async () => {
+      deps = createMockDeps();
+      deps.state.isStreaming = true;
+      const selection = { notePath: 'a.md', mode: 'selection' as const, selectedText: 'Absatz', lineCount: 1 };
+      (deps.selectionController.getContext as jest.Mock).mockReturnValue({
+        notePath: 'b.md', mode: 'selection', selectedText: 'etwas anderes', lineCount: 1,
+      });
+      controller = new InputController(deps);
+
+      await controller.sendMessage({ content: 'Erkläre das', editorContextOverride: selection });
+
+      expect(deps.state.queuedMessage?.editorContext).toEqual(selection);
+      expect(deps.state.queuedMessage?.turnRequest?.editorSelection).toEqual(selection);
+    });
+  });
+
   describe('Streaming error handling', () => {
     it('should catch errors and forward them to the stream controller', async () => {
       deps = createSendableDeps();
@@ -3265,6 +3343,29 @@ describe('InputController - Message Queue', () => {
 
       const result = await approvalPromise;
       expect(result).toBe('cancel');
+    });
+
+    // A hidden tab blocked on a prompt used to look idle until opened.
+    it('asks for the user whenever an approval, question or plan prompt appears', async () => {
+      const parentEl = createMockEl();
+      const inputContainerEl = createMockEl();
+      (inputContainerEl as any).parentElement = parentEl;
+      deps.getInputContainerEl = () => inputContainerEl as any;
+      const onAttentionRequested = jest.fn();
+      deps.state.callbacks = { ...deps.state.callbacks, onAttentionRequested };
+      controller = new InputController(deps);
+
+      const approval = controller.handleApprovalRequest('bash', { command: 'ls' }, 'Run shell command');
+      controller.dismissPendingApproval();
+      await approval;
+      const question = controller.handleAskUserQuestion({ questions: [{ question: 'Welche Datei?', options: [] }] });
+      controller.dismissPendingApproval();
+      await question;
+      const plan = controller.handleExitPlanMode({ plan: 'Schritt 1' });
+      controller.dismissPendingApproval();
+      await plan;
+
+      expect(onAttentionRequested.mock.calls).toEqual([['input'], ['input'], ['input']]);
     });
 
     it('should throw when input container has no parent', async () => {

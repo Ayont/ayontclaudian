@@ -428,15 +428,15 @@ describe('ToolCallRenderer', () => {
 
     it('should label TodoWrite with completion count', () => {
       const todos = [
-        { status: 'completed' },
-        { status: 'completed' },
-        { status: 'pending' },
+        { content: 'A', status: 'completed' },
+        { content: 'B', status: 'done' },
+        { content: 'C', status: 'pending' },
       ];
-      expect(getToolLabel('TodoWrite', { todos })).toBe('Tasks (2/3)');
+      expect(getToolLabel('TodoWrite', { todos })).toBe('Aufgaben (2/3)');
     });
 
     it('should label TodoWrite without array', () => {
-      expect(getToolLabel('TodoWrite', {})).toBe('Tasks');
+      expect(getToolLabel('TodoWrite', {})).toBe('Aufgaben');
     });
 
     it('should label Skill tool', () => {
@@ -468,14 +468,14 @@ describe('ToolCallRenderer', () => {
       expect(getToolName('Glob', {})).toBe('Glob');
     });
 
-    it('should return Tasks with count for TodoWrite', () => {
+    it('should name TodoWrite "Aufgaben"; the count lives in the progress meter', () => {
       const todos = [
-        { status: 'completed' },
-        { status: 'completed' },
-        { status: 'pending' },
+        { content: 'A', status: 'completed' },
+        { content: 'B', status: 'completed' },
+        { content: 'C', status: 'pending' },
       ];
-      expect(getToolName('TodoWrite', { todos })).toBe('Tasks 2/3');
-      expect(getToolName('TodoWrite', {})).toBe('Tasks');
+      expect(getToolName('TodoWrite', { todos })).toBe('Aufgaben');
+      expect(getToolName('TodoWrite', {})).toBe('Aufgaben');
     });
 
     it('should return plan mode labels', () => {
@@ -976,7 +976,9 @@ describe('ToolCallRenderer', () => {
   });
 
   describe('renderTodoWriteResult', () => {
-    it('should render todo items', () => {
+    const body = (container: any) => container.querySelector('claudian-todo-collapse-inner');
+
+    it('should render todo items into an animated collapse body', () => {
       const container = createMockEl();
       const input = {
         todos: [
@@ -985,20 +987,69 @@ describe('ToolCallRenderer', () => {
         ],
       };
       renderTodoWriteResult(container as unknown as HTMLElement, input);
-      expect(container.hasClass('claudian-todo-panel-content')).toBe(true);
-      expect(container.hasClass('claudian-todo-list-container')).toBe(true);
+      expect(container.hasClass('claudian-tool-content-todo')).toBe(true);
+      expect(container.hasClass('claudian-todo-collapse')).toBe(true);
+      expect(body(container).hasClass('claudian-todo-list-container')).toBe(true);
+      expect(container.querySelectorAll('claudian-todo-item')).toHaveLength(2);
+    });
+
+    it('should render raw provider lists without activeForm', () => {
+      const container = createMockEl();
+      renderTodoWriteResult(container as unknown as HTMLElement, {
+        todos: [{ content: 'Recon', status: 'in-progress' }, { content: 'Build', status: 'pending' }],
+      });
+      const items = container.querySelectorAll('claudian-todo-item');
+      expect(items).toHaveLength(2);
+      expect(items[0].hasClass('claudian-todo-in_progress')).toBe(true);
     });
 
     it('should show fallback text when no todos array', () => {
       const container = createMockEl();
       renderTodoWriteResult(container as unknown as HTMLElement, {});
-      expect(container._children[0].textContent).toBe('Aufgaben aktualisiert');
+      expect(body(container)._children[0].textContent).toBe('Aufgaben aktualisiert');
     });
 
     it('should show fallback text for non-array todos', () => {
       const container = createMockEl();
       renderTodoWriteResult(container as unknown as HTMLElement, { todos: 'invalid' });
-      expect(container._children[0].textContent).toBe('Aufgaben aktualisiert');
+      expect(body(container)._children[0].textContent).toBe('Aufgaben aktualisiert');
+    });
+  });
+
+  describe('TodoWrite card', () => {
+    const todoCall = (todos: unknown[]) => createToolCall({ id: 'todo-1', input: { todos }, name: 'TodoWrite' });
+
+    it('shows progress in the header and animates the body instead of hiding it', () => {
+      const parentEl = createMockEl();
+      const toolEl = renderToolCall(parentEl, todoCall([
+        { content: 'A', status: 'completed' },
+        { content: 'B', status: 'in_progress', activeForm: 'B läuft' },
+      ]), new Map());
+
+      expect(toolEl.hasClass('claudian-tool-call--todo')).toBe(true);
+      expect(toolEl.querySelector('claudian-tool-name')?.textContent).toBe('Aufgaben');
+      expect(toolEl.querySelector('claudian-todo-count')?.textContent).toBe('1/2');
+      expect(toolEl.querySelector('claudian-todo-current-text')?.textContent).toBe('B läuft');
+
+      const header = toolEl.querySelector('claudian-tool-header') as HTMLElement;
+      const content = toolEl.querySelector('claudian-tool-content')!;
+      expect(content.hasClass('claudian-todo-collapsed')).toBe(true);
+      expect(content.hasClass('claudian-hidden')).toBe(false);
+      expect(header.getAttribute('aria-label')).toBe('Aufgabenliste ausklappen – 1 von 2 erledigt');
+
+      header.click();
+
+      expect(content.hasClass('claudian-todo-collapsed')).toBe(false);
+      expect(header.getAttribute('aria-expanded')).toBe('true');
+      expect(header.getAttribute('aria-label')).toBe('Aufgabenliste einklappen – 1 von 2 erledigt');
+    });
+
+    it('renders stored cards the same way', () => {
+      const toolEl = renderStoredToolCall(createMockEl(), todoCall([{ content: 'A', status: 'done' }]));
+
+      expect(toolEl.hasClass('claudian-tool-call--todo')).toBe(true);
+      expect(toolEl.querySelector('claudian-todo-done-label')?.textContent).toBe('Alles erledigt');
+      expect(toolEl.querySelector('claudian-tool-content')!.hasClass('claudian-todo-collapsed')).toBe(true);
     });
   });
 
@@ -1028,6 +1079,11 @@ describe('ToolCallRenderer', () => {
 
       const statusEl = parentEl.querySelector('.claudian-tool-status');
       expect(statusEl?.hasClass('status-completed')).toBe(true);
+      expect(parentEl.querySelector('claudian-todo-count')?.textContent).toBe('1/1');
+      expect(parentEl.querySelector('claudian-todo-summary')?.hasClass('is-complete')).toBe(true);
+      expect(parentEl.querySelector('claudian-todo-completed')).not.toBeNull();
+      expect(parentEl.querySelector('claudian-tool-header')?.getAttribute('aria-label'))
+        .toBe('Aufgabenliste ausklappen – 1 von 1 erledigt');
     });
 
     it('should do nothing for non-existent tool id', () => {

@@ -138,3 +138,73 @@ describe('GoalBanner actions', () => {
     expect(actions[0].hasClass('is-paused')).toBe(true);
   });
 });
+
+describe('GoalBanner with a provider-owned goal', () => {
+  const CODEX = { mode: 'rpc' as const, canPause: true, persistent: true, resume: 'rpc' as const };
+  const CLAUDE = { mode: 'slash' as const, canPause: false, persistent: false, clearCommand: '/goal clear', resume: 'next-turn' as const };
+
+  function nativeBanner() {
+    const mount = createMockEl();
+    const onNativeTogglePause = jest.fn();
+    const onTogglePause = jest.fn();
+    const banner = new GoalBanner({ mountEl: mount as any, onClear: jest.fn(), onDone: jest.fn(), onTogglePause, onNativeTogglePause });
+    banner.setGoal('Alle Tests grün', 'Codex');
+    const root = mount.querySelector('.claudian-goal-banner')!;
+    const pause = mount.querySelector('.claudian-goal-banner-action')!;
+    const done = mount.querySelector('.claudian-goal-banner-action--done')!;
+    return { banner, mount, root, pause, done, onNativeTogglePause, onTogglePause };
+  }
+
+  it('shows the provider\'s status, round and reason, and marks it native', () => {
+    const { banner, mount, root } = nativeBanner();
+
+    banner.setNative({ objective: 'Alle Tests grün', status: 'active', round: 2, lastReason: 'Test 4 rot' }, CODEX);
+
+    expect(root.hasClass('is-native')).toBe(true);
+    expect(root.getAttribute('data-tone')).toBe('live');
+    expect(mount.querySelector('.claudian-goal-banner-label')?.textContent).toBe('Ziel aktiv · Runde 2');
+    expect(mount.querySelector('.claudian-goal-banner-loop')?.textContent).toBe('nativ');
+    const detail = mount.querySelector('.claudian-goal-banner-detail')!;
+    expect(detail.textContent).toBe('Noch nicht erfüllt: Test 4 rot');
+    expect(detail.hasClass('claudian-hidden')).toBe(false);
+  });
+
+  it('pauses a pausable provider goal through its own callback', () => {
+    const { banner, pause, onNativeTogglePause, onTogglePause } = nativeBanner();
+    banner.setNative({ objective: 'Alle Tests grün', status: 'active' }, CODEX);
+
+    pause.click();
+
+    expect(onNativeTogglePause).toHaveBeenCalledWith(true);
+    expect(onTogglePause).not.toHaveBeenCalled();
+  });
+
+  it('offers no pause or done where the provider decides alone', () => {
+    const { banner, pause, done } = nativeBanner();
+
+    banner.setNative({ objective: 'Alle Tests grün', status: 'active' }, CLAUDE);
+
+    expect(pause.hasClass('claudian-hidden')).toBe(true);
+    expect(done.hasClass('claudian-hidden')).toBe(true);
+  });
+
+  it('turns semantic when the goal settles', () => {
+    const { banner, root, mount } = nativeBanner();
+
+    banner.setNative({ objective: 'Alle Tests grün', status: 'complete' }, CODEX);
+
+    expect(root.getAttribute('data-tone')).toBe('success');
+    expect(mount.querySelector('.claudian-goal-banner-label')?.textContent).toBe('Ziel erreicht');
+  });
+
+  it('returns to Claudian\'s loop controls when the goal is no longer provider-owned', () => {
+    const { banner, root, pause, done } = nativeBanner();
+    banner.setNative({ objective: 'Alle Tests grün', status: 'active' }, CLAUDE);
+
+    banner.setNative(null, null);
+
+    expect(root.hasClass('is-native')).toBe(false);
+    expect(pause.hasClass('claudian-hidden')).toBe(false);
+    expect(done.hasClass('claudian-hidden')).toBe(false);
+  });
+});

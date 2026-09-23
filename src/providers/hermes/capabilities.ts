@@ -25,4 +25,7 @@ export const HERMES_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Obje
   supportsMultiAgent: true,
   supportsTurnSteer: true,
   reasoningControl: 'none',
+  // `/compress` is an advertised ACP command (acp_adapter/commands.py, v0.21.4).
+  // Hermes intercepts it only when the prompt text starts with `/`.
+  compact: Object.freeze({ command: '/compress', availability: 'advertised' }),
 });

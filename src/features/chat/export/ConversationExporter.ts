@@ -1,4 +1,6 @@
 import type { ChatMessage, Conversation } from '../../../core/types/chat';
+import { assistantMessageText, userMessageText } from '../utils/messageText';
+import { withoutSupersededTurns } from '../utils/supersededTurns';
 
 /**
  * Pure Markdown formatter for a chat conversation. No Obsidian imports so it is
@@ -41,10 +43,18 @@ function resolveName(
   return resolver ? resolver(providerId) : providerId;
 }
 
+/**
+ * The visible text of a turn. A user message's `content` is the transport
+ * prompt with note, selection, RAG, goal and contract envelopes.
+ */
+function exportText(message: ChatMessage): string {
+  return message.role === 'user' ? userMessageText(message) : assistantMessageText(message);
+}
+
 /** True for messages that should never appear in an export (internal/hidden). */
 function isExportable(message: ChatMessage): boolean {
   if (message.isRebuiltContext) return false;
-  const hasText = (message.content ?? '').trim().length > 0;
+  const hasText = exportText(message).length > 0;
   const hasBlocks = (message.contentBlocks?.length ?? 0) > 0;
   const hasTools = (message.toolCalls?.length ?? 0) > 0;
   return hasText || hasBlocks || hasTools;
@@ -71,7 +81,7 @@ export function formatConversationMarkdown(
   const includeToolCalls = opts.includeToolCalls ?? true;
   const resolver = opts.providerDisplayName;
 
-  const messages = (conversation.messages ?? []).filter(isExportable);
+  const messages = withoutSupersededTurns(conversation.messages ?? []).filter(isExportable);
   const providerName = resolver ? resolver(conversation.providerId) : conversation.providerId;
   const models = uniqueModels(conversation.messages ?? []);
 
@@ -125,7 +135,7 @@ export function formatConversationMarkdown(
       }
     }
 
-    const body = (message.content ?? '').trim();
+    const body = exportText(message);
     if (body) {
       lines.push(body);
       lines.push('');

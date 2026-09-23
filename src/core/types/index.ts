@@ -9,6 +9,8 @@ export {
   type ImageMediaType,
   type MessageAttachment,
   type MessageAttachmentTableSummary,
+  type NativeGoalState,
+  type NativeGoalStatus,
   type OutputSurface,
   type SessionMetadata,
   type StreamChunk,

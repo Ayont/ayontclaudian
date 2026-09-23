@@ -1,4 +1,4 @@
-import type { App } from 'obsidian';
+import type { App, Editor } from 'obsidian';
 import { MarkdownView } from 'obsidian';
 
 import { hideSelectionHighlight, showSelectionHighlight } from '../../../shared/components/SelectionHighlight';
@@ -9,6 +9,27 @@ import { updateContextRowHasContent } from './contextRowVisibility';
 const SELECTION_POLL_INTERVAL = 250;
 const INPUT_HANDOFF_GRACE_MS = 1500;
 const HIGHLIGHT_KEY = 'claudian-selection';
+
+/**
+ * The current editor selection as the chat stores it, or null when nothing is
+ * selected. Read synchronously: once the chat takes focus the editor is no
+ * longer the active view.
+ */
+export function readEditorSelection(editor: Editor, notePath: string): StoredSelection | null {
+  const selectedText = editor.getSelection();
+  if (!selectedText.trim()) return null;
+  const fromPos = editor.getCursor('from');
+  const toPos = editor.getCursor('to');
+  return {
+    notePath,
+    selectedText,
+    lineCount: selectedText.split(/\r?\n/).length,
+    startLine: fromPos.line + 1, // 1-indexed for display
+    from: editor.posToOffset(fromPos),
+    to: editor.posToOffset(toPos),
+    editorView: getEditorView(editor),
+  };
+}
 
 type CustomHighlightRegistry = {
   delete: (name: string) => boolean;
@@ -98,40 +119,43 @@ export class SelectionController {
       return;
     }
 
-    const selectedText = editor.getSelection();
+    const next = readEditorSelection(editor, view.file?.path || 'unknown');
 
-    if (selectedText.trim()) {
+    if (next) {
       this.inputHandoffGraceUntil = null;
-      const fromPos = editor.getCursor('from');
-      const toPos = editor.getCursor('to');
-      const from = editor.posToOffset(fromPos);
-      const to = editor.posToOffset(toPos);
-      const startLine = fromPos.line + 1; // 1-indexed for display
-
-      const notePath = view.file?.path || 'unknown';
-      const lineCount = selectedText.split(/\r?\n/).length;
-
       const s = this.storedSelection;
       const sameRange = s
-        && s.editorView === editorView
-        && s.from === from
-        && s.to === to
-        && s.notePath === notePath;
+        && s.editorView === next.editorView
+        && s.from === next.from
+        && s.to === next.to
+        && s.notePath === next.notePath;
       const unchanged = sameRange
-        && s.selectedText === selectedText
-        && s.lineCount === lineCount
-        && s.startLine === startLine;
+        && s.selectedText === next.selectedText
+        && s.lineCount === next.lineCount
+        && s.startLine === next.startLine;
 
       if (!unchanged) {
         if (s && !sameRange) {
           this.clearHighlight();
         }
-        this.storedSelection = { notePath, selectedText, lineCount, startLine, from, to, editorView };
+        this.storedSelection = next;
         this.updateIndicator();
       }
     } else {
       this.handleDeselection();
     }
+  }
+
+  /**
+   * Takes over a selection handed in from outside the polling loop (the
+   * editor context menu). The handoff grace keeps it while the chat input is
+   * still receiving focus.
+   */
+  captureSelection(selection: StoredSelection): void {
+    this.clearHighlight();
+    this.storedSelection = selection;
+    this.inputHandoffGraceUntil = Date.now() + INPUT_HANDOFF_GRACE_MS;
+    this.updateIndicator();
   }
 
   private pollReadingMode(view: MarkdownView): void {

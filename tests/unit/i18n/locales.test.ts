@@ -125,6 +125,27 @@ describe('locale files', () => {
     }
   });
 
+  it('translates the context-pressure warning and keeps its placeholders', () => {
+    const contextKeys = Object.keys(english).filter((key) => (
+      key.startsWith('chat.contextPressure.') || key.startsWith('chat.contextMeter.')
+    ));
+    expect(contextKeys.length).toBeGreaterThanOrEqual(20);
+    const placeholders = (text: string) => (text.match(/\{\w+\}/g) ?? []).sort();
+    // Percent formatting may legitimately match English ("{percent}%").
+    const translatedKeys = contextKeys.filter((key) => key !== 'chat.contextPressure.percent');
+
+    for (const translations of Object.values(locales)) {
+      const locale = flattenTranslations(translations as unknown as TranslationTree);
+      for (const key of contextKeys) {
+        expect(locale[key]?.trim()).toBeTruthy();
+        expect(placeholders(locale[key])).toEqual(placeholders(english[key]));
+      }
+      for (const key of translatedKeys) {
+        expect(locale[key]).not.toBe(english[key]);
+      }
+    }
+  });
+
   it('uses commands-and-skills copy for hidden Claude entries', () => {
     expect(english['settings.hiddenSlashCommands.name']).toBe('Hidden Commands and Skills');
     expect(english['settings.hiddenSlashCommands.desc']).toBe(

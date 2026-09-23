@@ -574,6 +574,26 @@ describe('StreamController - Text Content', () => {
 
       expect(deps.state.currentTextContent).toContain('Blocked');
     });
+
+    it('shows a transient notice only in the live status line, never in the answer', async () => {
+      const msg = createTestMessage();
+      deps.state.currentTextEl = createMockEl();
+      deps.updateLiveActivity = jest.fn();
+      controller = new StreamController(deps);
+
+      await controller.handleStreamChunk(
+        { type: 'notice', content: 'Anthropic-API überlastet – neuer Versuch 2/10 in 8 s', level: 'info', transient: true },
+        msg,
+      );
+
+      expect(deps.state.currentTextContent).toBe('');
+      expect(msg.contentBlocks ?? []).toEqual([]);
+      expect(deps.updateLiveActivity).toHaveBeenCalledWith({
+        primary: 'Neuer Versuch',
+        meta: 'Anthropic-API überlastet – neuer Versuch 2/10 in 8 s',
+        phrase: 'wartet auf API',
+      });
+    });
   });
 
   describe('context_compacted handling', () => {
@@ -583,6 +603,31 @@ describe('StreamController - Text Content', () => {
       await controller.handleStreamChunk({ type: 'context_compacted' }, msg);
 
       expect(msg.contentBlocks).toContainEqual({ type: 'context_compacted' });
+    });
+  });
+
+  describe('provider goal updates', () => {
+    it('reports the goal state to the tab without touching the transcript', async () => {
+      const msg = createTestMessage();
+      const onNativeGoalUpdate = jest.fn();
+      (deps as { onNativeGoalUpdate?: jest.Mock }).onNativeGoalUpdate = onNativeGoalUpdate;
+      const goal = { objective: 'Alle Tests grün', status: 'active' as const, round: 1 };
+
+      await controller.handleStreamChunk({ type: 'goal_update', goal }, msg);
+
+      expect(onNativeGoalUpdate).toHaveBeenCalledWith(goal);
+      expect(msg.contentBlocks ?? []).toEqual([]);
+    });
+
+    it('marks the start of a new goal round in the answer and keeps it on reload', async () => {
+      const msg = createTestMessage();
+      deps.state.currentContentEl = createMockEl();
+      const goal = { objective: 'Alle Tests grün', status: 'active' as const, round: 2, lastReason: 'Test 4 rot' };
+
+      await controller.handleStreamChunk({ type: 'goal_update', goal, round: 2 }, msg);
+
+      expect(msg.contentBlocks).toContainEqual({ type: 'goal_round', round: 2, reason: 'Test 4 rot' });
+      expect(deps.state.currentContentEl?.querySelector('.claudian-goal-round')).not.toBeNull();
     });
   });
 
@@ -1166,6 +1211,15 @@ describe('StreamController - Text Content', () => {
 
       expect(deps.state.pendingTools.size).toBe(0);
       expect(renderToolCall).toHaveBeenCalled();
+    });
+
+    it('marks the running turn as failed so a hidden tab reports "Fehlgeschlagen"', async () => {
+      const msg = createTestMessage();
+      deps.state.currentContentEl = createMockEl();
+
+      await controller.handleStreamChunk({ type: 'error', content: 'Rate limit' }, msg);
+
+      expect(deps.state.turnFailed).toBe(true);
     });
 
     it('should flush pending tools before Task tool renders', async () => {

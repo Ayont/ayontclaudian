@@ -62,6 +62,8 @@ describe('ChatState', () => {
       expect(state.ignoreUsageUpdates).toBe(false);
       expect(state.currentTodos).toBeNull();
       expect(state.needsAttention).toBe(false);
+      expect(state.attentionReason).toBeNull();
+      expect(state.turnFailed).toBe(false);
       expect(state.autoScrollEnabled).toBe(true);
       expect(state.responseStartTime).toBeNull();
       expect(state.flavorTimerInterval).toBeNull();
@@ -331,6 +333,90 @@ describe('ChatState', () => {
       chatState.needsAttention = true;
 
       expect(onAttentionChanged).toHaveBeenCalledWith(true);
+    });
+
+    it('keeps the reason a tab wants the user back until it is cleared', () => {
+      const onAttentionChanged = jest.fn();
+      const chatState = new ChatState({ onAttentionChanged });
+
+      chatState.setAttention('input');
+      expect(chatState.needsAttention).toBe(true);
+      expect(chatState.attentionReason).toBe('input');
+
+      chatState.setAttention('failed');
+      expect(chatState.attentionReason).toBe('failed');
+      expect(onAttentionChanged).toHaveBeenCalledTimes(2);
+
+      chatState.needsAttention = false;
+      expect(chatState.attentionReason).toBeNull();
+      expect(onAttentionChanged).toHaveBeenLastCalledWith(false);
+    });
+
+    it('does not re-announce an unchanged attention state', () => {
+      const onAttentionChanged = jest.fn();
+      const chatState = new ChatState({ onAttentionChanged });
+
+      chatState.setAttention(null);
+      chatState.setAttention('finished');
+      chatState.setAttention('finished');
+
+      expect(onAttentionChanged).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // The tab manager decides whether a request becomes visible attention; the
+  // state only reports why a turn may need the user.
+  describe('attention requests', () => {
+    it('requests attention when a turn settles on its own', () => {
+      const onAttentionRequested = jest.fn();
+      const chatState = new ChatState({ onAttentionRequested });
+
+      chatState.isStreaming = true;
+      chatState.isStreaming = false;
+
+      expect(onAttentionRequested).toHaveBeenCalledWith('finished');
+    });
+
+    it('reports a failed turn as failed and forgets the failure for the next turn', () => {
+      const onAttentionRequested = jest.fn();
+      const chatState = new ChatState({ onAttentionRequested });
+
+      chatState.isStreaming = true;
+      chatState.markTurnFailed();
+      chatState.isStreaming = false;
+      chatState.isStreaming = true;
+      chatState.isStreaming = false;
+
+      expect(onAttentionRequested.mock.calls).toEqual([['failed'], ['finished']]);
+    });
+
+    it('stays silent when the user cancelled the turn', () => {
+      const onAttentionRequested = jest.fn();
+      const chatState = new ChatState({ onAttentionRequested });
+
+      chatState.isStreaming = true;
+      chatState.cancelRequested = true;
+      chatState.isStreaming = false;
+
+      expect(onAttentionRequested).not.toHaveBeenCalled();
+    });
+
+    it('ignores a stop that was never a running turn', () => {
+      const onAttentionRequested = jest.fn();
+      const chatState = new ChatState({ onAttentionRequested });
+
+      chatState.isStreaming = false;
+
+      expect(onAttentionRequested).not.toHaveBeenCalled();
+    });
+
+    it('forwards explicit requests such as a pending approval', () => {
+      const onAttentionRequested = jest.fn();
+      const chatState = new ChatState({ onAttentionRequested });
+
+      chatState.requestAttention('input');
+
+      expect(onAttentionRequested).toHaveBeenCalledWith('input');
     });
   });
 

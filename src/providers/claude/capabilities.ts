@@ -16,4 +16,10 @@ export const CLAUDE_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Obje
   supportsTurnSteer: true,
   reasoningControl: 'effort',
   planPathPrefix: '/.claude/plans/',
+  // Claude Code 2.1.280: `/goal` is a non-interactive built-in; its Stop hook
+  // keeps the answer going until the condition holds. It has no pause.
+  nativeGoal: { mode: 'slash' as const, canPause: false, persistent: false, clearCommand: '/goal clear', resume: 'next-turn' as const },
+  // Built-in SDK slash command; the turn ends in a `compact_boundary` system
+  // message (sdk.d.ts), which the runtime maps to `context_compacted`.
+  compact: Object.freeze({ command: '/compact', availability: 'builtin' }),
 });

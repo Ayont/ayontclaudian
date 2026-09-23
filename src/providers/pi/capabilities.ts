@@ -15,4 +15,6 @@ export const PI_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object.f
   supportsMultiAgent: true,
   supportsTurnSteer: true,
   reasoningControl: 'effort',
+  // PiChatRuntime sends the RPC `compact` command (pi docs/rpc.md, modes/rpc/rpc-mode.js).
+  compact: Object.freeze({ command: '/compact', availability: 'builtin' }),
 });

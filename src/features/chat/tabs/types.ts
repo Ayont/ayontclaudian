@@ -2,9 +2,11 @@ import type { Component, WorkspaceLeaf } from 'obsidian';
 
 import type { InstructionRefineService, ProviderId, TitleGenerationService } from '../../../core/providers/types';
 import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
+import type { NativeGoalState } from '../../../core/types';
 import type { SlashCommandDropdown } from '../../../shared/components/SlashCommandDropdown';
 import type { BrowserSelectionController } from '../controllers/BrowserSelectionController';
 import type { CanvasSelectionController } from '../controllers/CanvasSelectionController';
+import type { ContextPressureController } from '../controllers/ContextPressureController';
 import type { ConversationController } from '../controllers/ConversationController';
 import type { InputController } from '../controllers/InputController';
 import type { NavigationController } from '../controllers/NavigationController';
@@ -14,6 +16,7 @@ import type { MessageRenderer } from '../rendering/MessageRenderer';
 import type { SwarmPanel } from '../rendering/SwarmPanel';
 import type { SubagentManager } from '../services/SubagentManager';
 import type { ChatState } from '../state/ChatState';
+import type { AttentionReason } from '../state/types';
 import type { SubagentActionController } from '../subagents/SubagentActionController';
 import type { BangBashModeManager } from '../ui/BangBashModeManager';
 import type { ChatSearchController } from '../ui/ChatSearch';
@@ -70,6 +73,9 @@ export interface TabManagerViewHost extends Component {
 
   /** Gets the tab manager instance (used for cross-view coordination). */
   getTabManager(): TabManagerInterface | null;
+
+  /** The chat pane is on screen; a hidden pane makes even its active tab unseen. */
+  isChatVisible?(): boolean;
 }
 
 /**
@@ -135,6 +141,8 @@ export interface TabUIComponents {
   instructionModeManager: InstructionModeManager | null;
   bangBashModeManager: BangBashModeManager | null;
   contextUsageMeter: ContextUsageMeter | null;
+  /** Context-pressure warning above the composer (compact / continue with less context). */
+  contextPressure?: ContextPressureController | null;
   statusPanel: StatusPanel | null;
   navigationSidebar: NavigationSidebar | null;
   /** Floating in-chat search bar (Cmd/Ctrl+F) over the transcript. */
@@ -163,6 +171,8 @@ export interface TabDOMElements {
   statusPanelContainerEl: HTMLElement;
 
   inputContainerEl: HTMLElement;
+  /** Host above the composer that the context-pressure warning mounts into. */
+  contextPressureHostEl?: HTMLElement;
   queueIndicatorEl: HTMLElement;
   inputWrapper: HTMLElement;
   inputEl: HTMLTextAreaElement;
@@ -248,6 +258,10 @@ export interface TabData {
 
   /** Standing goal for this tab (mirrors the bound conversation's `goal`). */
   goal?: string | null;
+  /** Provider whose own goal system owns `goal` (mirrors the conversation). */
+  goalProviderId?: ProviderId | null;
+  /** Last state that provider reported for the goal. */
+  nativeGoal?: NativeGoalState | null;
 
   /** Per-tab chat runtime instance for independent streaming. */
   service: ChatRuntime | null;
@@ -336,6 +350,8 @@ export interface TabBarItem {
   isActive: boolean;
   isStreaming: boolean;
   needsAttention: boolean;
+  /** Why it needs attention; null when it does not. */
+  attentionReason: AttentionReason | null;
   canClose: boolean;
   /** The tab's chat holds an unsent draft (pencil, as in T3 Code). */
   hasDraft: boolean;

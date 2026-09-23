@@ -72,13 +72,21 @@
   transition: color 0.3s ease;
 }
 
-/* Warning state (> 80%) - pale red */
+/* Pressure levels share the banner's thresholds (core/conversation/contextPressure). */
 .claudian-context-meter.warning .claudian-meter-fill {
-  stroke: #E57373;
+  stroke: var(--cl-warning);
 }
 
 .claudian-context-meter.warning .claudian-context-meter-percent {
-  color: #E57373;
+  color: var(--cl-warning);
+}
+
+.claudian-context-meter.critical .claudian-meter-fill {
+  stroke: var(--cl-danger);
+}
+
+.claudian-context-meter.critical .claudian-context-meter-percent {
+  color: var(--cl-danger);
 }
 
 /* Estimated usage (Kimi/Antigravity report no exact token counts): muted to

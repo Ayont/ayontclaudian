@@ -457,22 +457,11 @@ export type ThreadResumeResult = ThreadStartResult;
 
 export interface ThreadForkParams {
   threadId: string;
+  /** Inclusive: turns after it are omitted from the fork. Must not be in progress. */
+  lastTurnId?: string;
 }
 
 export type ThreadForkResult = ThreadStartResult;
-
-// ---------------------------------------------------------------------------
-// thread/rollback
-// ---------------------------------------------------------------------------
-
-export interface ThreadRollbackParams {
-  threadId: string;
-  numTurns: number;
-}
-
-export interface ThreadRollbackResult {
-  thread: Thread;
-}
 
 // ---------------------------------------------------------------------------
 // thread/compact/start

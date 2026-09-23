@@ -136,6 +136,28 @@ describe('normalizeHermesToolInput', () => {
     const input = { board: 'main', title: 'Ship it' };
     expect(normalizeHermesToolInput('kanban_create', input)).toBe(input);
   });
+
+  it('turns the todo list (id/content/status, cancelled) into canonical todos', () => {
+    // Shape from tools/todo_tool.py: `{id, content, status, parent?}` + `merge`.
+    expect(normalizeHermesToolInput('todo', {
+      merge: false,
+      todos: [
+        { content: 'Recon', id: '1', status: 'completed' },
+        { content: 'Build', id: '2', status: 'in_progress' },
+        { content: 'Legacy path', id: '3', status: 'cancelled' },
+      ],
+    })).toEqual({
+      todos: [
+        { activeForm: 'Recon', content: 'Recon', id: '1', status: 'completed' },
+        { activeForm: 'Build', content: 'Build', id: '2', status: 'in_progress' },
+        { activeForm: 'Legacy path', content: 'Legacy path', id: '3', status: 'completed' },
+      ],
+    });
+  });
+
+  it('keeps a read-only todo call (no list) as it is', () => {
+    expect(normalizeHermesToolInput('todo', {})).toEqual({});
+  });
 });
 
 describe('normalizeHermesToolUseResult', () => {

@@ -8,15 +8,128 @@
   overflow: hidden;
 }
 
+/* The strip scrolls; the "+N" chip sits beside it. Block padding keeps the
+   corner marks (live beacon, attention dot) from being clipped by the scroller. */
 .claudian-tab-badges {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
+  flex: 0 1 auto;
   min-width: 0;
   max-width: 100%;
+  padding-block: 4px;
+  padding-inline: 3px;
   overflow-x: auto;
+  scroll-padding-inline: 16px;
+  scroll-behavior: smooth;
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+
+/* Edge fades say "more this way" without a scrollbar. */
+.claudian-tab-badges.has-overflow-end {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+}
+
+.claudian-tab-badges.has-overflow-start {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 22px);
+  mask-image: linear-gradient(to right, transparent, #000 22px);
+}
+
+.claudian-tab-badges.has-overflow-start.has-overflow-end {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 22px, #000 calc(100% - 22px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 22px, #000 calc(100% - 22px), transparent);
+}
+
+/* "+N": tabs scrolled out of view, one click from the overview. */
+.claudian-container button.claudian-tab-overflow-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 30px;
+  height: 26px;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid var(--cl-border-subtle);
+  border-radius: 6px;
+  background: var(--cl-wash);
+  box-shadow: none;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    color var(--cl-dur-fast) var(--cl-ease),
+    background var(--cl-dur-fast) var(--cl-ease),
+    border-color var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-container button.claudian-tab-overflow-chip:hover {
+  color: var(--text-normal);
+  border-color: var(--cl-border-strong);
+  background: var(--background-modifier-hover);
+}
+
+.claudian-container button.claudian-tab-overflow-chip:focus-visible {
+  outline: 2px solid var(--cl-accent);
+  outline-offset: 1px;
+}
+
+/* A hidden tab wants the user: the chip carries its dot. */
+.claudian-container button.claudian-tab-overflow-chip.has-attention {
+  color: var(--text-normal);
+  border-color: color-mix(in srgb, var(--cl-warning) 50%, var(--cl-border-subtle));
+}
+
+.claudian-tab-overflow-chip.has-attention::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cl-warning);
+  box-shadow: 0 0 0 2px var(--background-primary);
+}
+
+@media (pointer: coarse) {
+  .claudian-container button.claudian-tab-overflow-chip {
+    min-width: 40px;
+    height: 34px;
+  }
+}
+
+/* The header buttons are fixed-width; in a narrow sidebar or on a phone they
+   leave the strip less than one badge plus the chip. Then the strip steps
+   aside and the overview button, which shows the count and the attention dot,
+   is the tab switcher. Containment is safe here: nothing inside positions a
+   popover against this element. */
+.claudian-tab-bar-container {
+  container: claudian-tabs / inline-size;
+}
+
+@container claudian-tabs (max-width: 88px) {
+  .claudian-tab-badges,
+  .claudian-container button.claudian-tab-overflow-chip {
+    display: none;
+  }
+}
+
+@media (pointer: coarse) {
+  @container claudian-tabs (max-width: 112px) {
+    .claudian-tab-badges,
+    .claudian-container button.claudian-tab-overflow-chip {
+      display: none;
+    }
+  }
 }
 
 .claudian-tab-badges::-webkit-scrollbar {
@@ -33,6 +146,9 @@
   gap: 5px !important;
   min-width: 26px !important;
   height: 26px !important;
+  /* Scroll, never squash: shrinking nine badges to 26px overlapped their
+     content and collapsed the active tab's title. */
+  flex-shrink: 0 !important;
   margin: 0 !important;
   padding: 0 8px !important;
   border-radius: 6px !important;
@@ -178,7 +294,8 @@ body.theme-light .claudian-tab-badge:hover {
 
 .claudian-tab-badge-active .claudian-tab-badge-title {
   display: inline-block;
-  max-width: 130px;
+  /* A share of the strip, so the active tab always fits on screen whole. */
+  max-width: min(130px, 28cqw);
   margin-left: 5px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -374,8 +491,52 @@ body.theme-light .claudian-tab-badge:hover {
   border-color: var(--claudian-brand-zcode, #2B5BF7);
 }
 
-.claudian-tab-badge-attention {
-  border-color: var(--text-error);
+/* Attention: tinted by why the tab wants the user back (reason also in the
+   tooltip, never colour alone): unread answer, failure, or a pending prompt. */
+.claudian-tab-badge[data-attention="finished"] {
+  --claudian-tab-attention: var(--cl-success);
+}
+
+.claudian-tab-badge[data-attention="failed"] {
+  --claudian-tab-attention: var(--cl-danger);
+}
+
+.claudian-tab-badge[data-attention="input"] {
+  --claudian-tab-attention: var(--cl-warning);
+}
+
+.claudian-tab-badge-attention,
+.claudian-container button.claudian-tab-badge-attention,
+body.theme-light .claudian-tab-badge-attention {
+  color: var(--text-normal) !important;
+  border-color: color-mix(in srgb, var(--claudian-tab-attention, var(--cl-warning)) 55%, var(--cl-border-subtle)) !important;
+  background: color-mix(in srgb, var(--claudian-tab-attention, var(--cl-warning)) 12%, var(--cl-surface-sunken)) !important;
+}
+
+@keyframes cl-tab-attention-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.claudian-tab-attention-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--claudian-tab-attention, var(--cl-warning));
+  box-shadow: 0 0 0 2px var(--background-primary);
+  pointer-events: none;
+  z-index: 3;
+  animation: cl-tab-attention-in 200ms var(--cl-ease-out);
 }
 
 .claudian-tab-badge-idle {

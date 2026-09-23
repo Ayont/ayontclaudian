@@ -2001,7 +2001,7 @@ describe('CodexChatRuntime', () => {
       expect(runtime.getSessionId()).toBeNull();
     });
 
-    it('first query with pending fork issues fork + resume + rollback + turn/start', async () => {
+    it('first query with pending fork forks through the checkpoint, resumes, then starts a turn', async () => {
       runtime.syncConversationState({
         sessionId: null,
         providerState: { forkSource: { sessionId: 'source-thread', resumeAt: 'turn-uuid-2' } },
@@ -2012,18 +2012,16 @@ describe('CodexChatRuntime', () => {
           case 'initialize':
             return { userAgent: 'test/0.1', codexHome: '/tmp', platformFamily: 'unix', platformOs: 'macos' };
           case 'thread/fork': {
+            // codex 0.156 truncates the fork itself when `lastTurnId` is given.
             const resp = threadStartResponse('fork-thread-1');
             resp.thread.turns = [
               { id: 'turn-uuid-1', items: [], status: 'completed', error: null },
               { id: 'turn-uuid-2', items: [], status: 'completed', error: null },
-              { id: 'turn-uuid-3', items: [], status: 'completed', error: null },
             ];
             return resp;
           }
           case 'thread/resume':
             return threadStartResponse('fork-thread-1');
-          case 'thread/rollback':
-            return { thread: { ...threadStartResponse('fork-thread-1').thread, turns: [] } };
           case 'turn/start':
             setTimeout(() => {
               emitNotification('item/agentMessage/delta', {
@@ -2043,25 +2041,19 @@ describe('CodexChatRuntime', () => {
       captureHandlers();
       const chunks = await collectChunks(runtime.query(createTurn('forked input')));
 
-      // Verify request sequence: fork, resume, rollback, turn/start
       const calls = mockTransportRequest.mock.calls.map((c: any[]) => c[0]);
       const lifecycle = calls.filter((m: string) =>
-        ['thread/fork', 'thread/resume', 'thread/rollback', 'turn/start'].includes(m),
+        ['thread/fork', 'thread/resume', 'turn/start'].includes(m),
       );
-      expect(lifecycle).toEqual(['thread/fork', 'thread/resume', 'thread/rollback', 'turn/start']);
+      expect(lifecycle).toEqual(['thread/fork', 'thread/resume', 'turn/start']);
+      // The installed app-server has no `thread/rollback`; calling it fails the fork.
+      expect(calls).not.toContain('thread/rollback');
 
-      // Verify fork params
       const forkCall = findCall('thread/fork');
-      expect(forkCall[1].threadId).toBe('source-thread');
+      expect(forkCall[1]).toEqual({ threadId: 'source-thread', lastTurnId: 'turn-uuid-2' });
 
-      // Verify resume params
       const resumeCall = findCall('thread/resume');
       expect(resumeCall[1].threadId).toBe('fork-thread-1');
-
-      // Verify rollback params (1 turn after checkpoint: turn-uuid-3)
-      const rollbackCall = findCall('thread/rollback');
-      expect(rollbackCall[1].threadId).toBe('fork-thread-1');
-      expect(rollbackCall[1].numTurns).toBe(1);
 
       expect(chunks).toContainEqual({ type: 'text', content: 'Forked reply' });
       expect(chunks).toContainEqual({ type: 'done' });
@@ -2070,10 +2062,10 @@ describe('CodexChatRuntime', () => {
       expect(runtime.getSessionId()).toBe('fork-thread-1');
     });
 
-    it('skips rollback when resumeAt is the last turn', async () => {
+    it('rejects a fork that still carries turns after the checkpoint', async () => {
       runtime.syncConversationState({
         sessionId: null,
-        providerState: { forkSource: { sessionId: 'source-thread-2', resumeAt: 'turn-uuid-last' } },
+        providerState: { forkSource: { sessionId: 'source-thread-2', resumeAt: 'turn-uuid-2' } },
       });
 
       const requestSequence: string[] = [];
@@ -2083,33 +2075,63 @@ describe('CodexChatRuntime', () => {
           case 'initialize':
             return { userAgent: 'test/0.1', codexHome: '/tmp', platformFamily: 'unix', platformOs: 'macos' };
           case 'thread/fork': {
-            const resp = threadStartResponse('fork-no-rb');
+            const resp = threadStartResponse('fork-untruncated');
             resp.thread.turns = [
-              { id: 'turn-uuid-first', items: [], status: 'completed', error: null },
-              { id: 'turn-uuid-last', items: [], status: 'completed', error: null },
+              { id: 'turn-uuid-1', items: [], status: 'completed', error: null },
+              { id: 'turn-uuid-2', items: [], status: 'completed', error: null },
+              { id: 'turn-uuid-3', items: [], status: 'completed', error: null },
             ];
             return resp;
           }
-          case 'thread/resume':
-            return threadStartResponse('fork-no-rb');
-          case 'turn/start':
-            setTimeout(() => {
-              emitNotification('turn/completed', {
-                threadId: 'fork-no-rb',
-                turn: { id: 'fork-turn-nr', items: [], status: 'completed', error: null },
-              });
-            }, 0);
-            return turnStartResponse('fork-turn-nr');
           default:
             return {};
         }
       });
 
       captureHandlers();
-      await collectChunks(runtime.query(createTurn('no rollback needed')));
+      const chunks = await collectChunks(runtime.query(createTurn('fork must not keep later turns')));
 
-      // Should NOT have called thread/rollback
+      expect(chunks).toContainEqual({ type: 'error', content: 'Fork checkpoint not found: turn-uuid-2' });
       expect(requestSequence).not.toContain('thread/rollback');
+      expect(requestSequence).not.toContain('turn/start');
+      expect(runtime.getSessionId()).toBeNull();
+    });
+
+    it('trusts the server truncation when the fork response omits turns', async () => {
+      runtime.syncConversationState({
+        sessionId: null,
+        providerState: { forkSource: { sessionId: 'source-thread-3', resumeAt: 'turn-uuid-2' } },
+      });
+
+      mockTransportRequest.mockImplementation(async (method: string) => {
+        switch (method) {
+          case 'initialize':
+            return { userAgent: 'test/0.1', codexHome: '/tmp', platformFamily: 'unix', platformOs: 'macos' };
+          case 'thread/fork': {
+            const resp = threadStartResponse('fork-paginated');
+            resp.thread.turns = [];
+            return resp;
+          }
+          case 'thread/resume':
+            return threadStartResponse('fork-paginated');
+          case 'turn/start':
+            setTimeout(() => {
+              emitNotification('turn/completed', {
+                threadId: 'fork-paginated',
+                turn: { id: 'fork-turn-p', items: [], status: 'completed', error: null },
+              });
+            }, 0);
+            return turnStartResponse('fork-turn-p');
+          default:
+            return {};
+        }
+      });
+
+      captureHandlers();
+      const chunks = await collectChunks(runtime.query(createTurn('paginated fork')));
+
+      expect(chunks).not.toContainEqual(expect.objectContaining({ type: 'error' }));
+      expect(runtime.getSessionId()).toBe('fork-paginated');
     });
 
     it('retries the pending fork instead of starting a fresh thread after a fork failure', async () => {

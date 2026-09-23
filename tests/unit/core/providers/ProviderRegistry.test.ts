@@ -155,6 +155,32 @@ describe('ProviderRegistry', () => {
     }
   });
 
+  it('hands out an isolated aux runner with the provider chat model for hidden calls', () => {
+    const fakeRunner = { query: jest.fn(), reset: jest.fn() };
+    const registration = ProviderRegistry.getProviderRegistration('codex');
+    const factory = jest.spyOn(registration, 'createAuxQueryRunner').mockReturnValue(fakeRunner);
+    const plugin = {
+      settings: { providerConfigs: { codex: { enabled: true } }, savedProviderModel: { codex: 'gpt-test' } },
+    } as any;
+
+    const aux = ProviderRegistry.createAuxQueryRunner(plugin, 'codex');
+
+    expect(factory).toHaveBeenCalledWith(plugin);
+    expect(aux?.runner).toBe(fakeRunner);
+    expect(aux).toHaveProperty('model');
+  });
+
+  it('returns null when a provider registers no aux runner', () => {
+    const registration = ProviderRegistry.getProviderRegistration('codex');
+    const original = registration.createAuxQueryRunner;
+    registration.createAuxQueryRunner = undefined;
+    try {
+      expect(ProviderRegistry.createAuxQueryRunner({ settings: {} } as any, 'codex')).toBeNull();
+    } finally {
+      registration.createAuxQueryRunner = original;
+    }
+  });
+
   it('filters enabled provider ids using registration metadata', () => {
     expect(ProviderRegistry.getEnabledProviderIds({
       providerConfigs: {

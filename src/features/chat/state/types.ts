@@ -15,6 +15,12 @@ import type { EditorSelectionContext } from '../../../utils/editor';
 import type { ThinkingBlockState } from '../rendering/ThinkingBlockRenderer';
 import type { WriteEditState } from '../rendering/WriteEditRenderer';
 
+/**
+ * Why a tab wants the user back: its answer arrived, it failed, or it is
+ * blocked on an approval or question.
+ */
+export type AttentionReason = 'finished' | 'failed' | 'input';
+
 /** Queued message waiting to be sent after current streaming completes. */
 export interface QueuedMessage {
   content: string;
@@ -94,6 +100,9 @@ export interface ChatStateData {
 
   // Attention state (approval pending, error, etc.)
   needsAttention: boolean;
+  attentionReason: AttentionReason | null;
+  /** The running turn hit an error; decides how its end is reported. */
+  turnFailed: boolean;
 
   // Auto-scroll control during streaming
   autoScrollEnabled: boolean;
@@ -123,6 +132,8 @@ export interface ChatStateCallbacks {
   onUsageChanged?: (usage: UsageInfo | null) => void;
   onTodosChanged?: (todos: TodoItem[] | null) => void;
   onAttentionChanged?: (needsAttention: boolean) => void;
+  /** A settled turn or a pending prompt may need the user; the owner decides. */
+  onAttentionRequested?: (reason: AttentionReason) => void;
   onAutoScrollChanged?: (enabled: boolean) => void;
   onBookmarksChanged?: (ids: string[]) => void;
 }

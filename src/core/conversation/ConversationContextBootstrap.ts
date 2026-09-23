@@ -11,7 +11,7 @@
  * past that window is omitted.
  */
 
-import { buildBoundedContextFromHistory } from '../../utils/session';
+import { buildBoundedContextFromHistory, buildContextFromHistory } from '../../utils/session';
 import type { ChatMessage } from '../types';
 
 /**
@@ -208,4 +208,84 @@ function shrinkCarryInner(inner: string, maxChars: number): string {
   const tailBudget = room - CARRY_OMISSION.length;
   const tail = body.length > tailBudget ? body.slice(-tailBudget).trimStart() : body;
   return goal + CARRY_OMISSION + tail;
+}
+
+/**
+ * Share of the window a condensed carry may use when a conversation continues
+ * in a fresh native session. A provider switch carries up to the whole window;
+ * the point of starting over is to leave most of it free.
+ */
+export const CONDENSED_CARRY_WINDOW_SHARE = 0.18;
+
+/** Largest part of the condensed budget a model-written summary may take. */
+const CONDENSED_SUMMARY_BUDGET_SHARE = 0.45;
+
+const CONDENSED_HISTORY_OPTIONS = { includeSuccessfulOutcomes: true } as const;
+
+export function computeCondensedCarryCharBudget(contextWindowTokens?: number): number {
+  if (!contextWindowTokens || contextWindowTokens <= 0 || !Number.isFinite(contextWindowTokens)) {
+    return CONTEXT_BOOTSTRAP_CHAR_CAP / 2;
+  }
+  return Math.round(computeBootstrapCharCap(contextWindowTokens) * CONDENSED_CARRY_WINDOW_SHARE);
+}
+
+/** Character budget a summary may take inside the condensed carry. */
+export function computeCondensedSummaryCharBudget(contextWindowTokens?: number): number {
+  return Math.floor(computeCondensedCarryCharBudget(contextWindowTokens) * CONDENSED_SUMMARY_BUDGET_SHARE);
+}
+
+export interface CondensedContextCarryInput {
+  messages: ChatMessage[];
+  contextWindowTokens?: number;
+  goal?: string | null;
+  /** Optional model-written digest of the whole transcript. */
+  summary?: string | null;
+}
+
+/**
+ * Carry for a fresh native session in the same conversation. The goal comes
+ * first (the shrink step never cuts it), then the optional summary, then the
+ * newest turns verbatim in whatever budget remains.
+ */
+export function buildCondensedContextCarry(input: CondensedContextCarryInput): string {
+  const budget = computeCondensedCarryCharBudget(input.contextWindowTokens);
+  const goal = input.goal?.trim() ?? '';
+  const goalBlock = goal ? `<standing_goal>\n${goal}\n</standing_goal>` : '';
+  const summaryText = clipText(
+    input.summary?.trim() ?? '',
+    computeCondensedSummaryCharBudget(input.contextWindowTokens),
+  );
+  const summaryBlock = summaryText ? `<condensed_summary>\n${summaryText}\n</condensed_summary>` : '';
+
+  const fixedParts = [goalBlock, summaryBlock].filter(Boolean);
+  const fixedLength = CARRY_OPEN.length + CARRY_CLOSE.length
+    + fixedParts.reduce((total, part) => total + part.length + 2, 0);
+  const transcriptBudget = budget - fixedLength;
+  const transcript = transcriptBudget > 0
+    ? buildBoundedContextFromHistory(input.messages, transcriptBudget, CONDENSED_HISTORY_OPTIONS).trim()
+    : '';
+
+  const parts = [...fixedParts, transcript].filter(Boolean);
+  if (parts.length === 0) {
+    return '';
+  }
+  return limitSwitchCarry(`${CARRY_OPEN}${parts.join('\n\n')}${CARRY_CLOSE}`, budget);
+}
+
+/** True when the condensed carry cannot hold the whole visible transcript. */
+export function condensedCarryOmitsTurns(messages: ChatMessage[], contextWindowTokens?: number): boolean {
+  const full = buildContextFromHistory(messages, CONDENSED_HISTORY_OPTIONS).trim();
+  const room = computeCondensedCarryCharBudget(contextWindowTokens) - CARRY_OPEN.length - CARRY_CLOSE.length;
+  return full.length > room;
+}
+
+function clipText(text: string, maxChars: number): string {
+  if (maxChars <= 0) {
+    return '';
+  }
+  if (text.length <= maxChars) {
+    return text;
+  }
+  const marker = ' […]';
+  return `${text.slice(0, Math.max(0, maxChars - marker.length)).trimEnd()}${marker}`;
 }

@@ -39,6 +39,14 @@ export function attachmentPromptReferences(attachments: readonly ComposerAttachm
   return attachments.map(attachmentPromptReference).join('\n');
 }
 
+/**
+ * Bubble text of an attachment-only send. A resend recognizes it by this exact
+ * label and does not mistake it for something the user typed.
+ */
+export function attachmentOnlyDisplayContent(attachments: ReadonlyArray<Pick<ComposerAttachment, 'name'>>): string {
+  return attachments.length > 0 ? `📎 ${attachments.map((att) => att.name).join(', ')}` : '';
+}
+
 /** Composer chip meta: "CSV · 2.277 Zeilen · 9 Spalten" for tables, "PDF · 1.2 MB" otherwise. */
 export function composerChipMeta(attachment: Pick<ComposerAttachment, 'name' | 'size' | 'table'>): string {
   const size = formatFileSize(attachment.size ?? 0);

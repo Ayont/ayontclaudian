@@ -1,4 +1,5 @@
 import type { CodexRateLimitSnapshot } from '../../providers/codex/runtime/rateLimits';
+import type { NativeRateLimitSnapshot } from './nativeRateLimits';
 
 /** One compact status-bar chip: what is limited, how full, when it frees. */
 export interface RateLimitChip {
@@ -69,6 +70,8 @@ export interface ClaudeTokenBudgets {
 export interface RateLimitChipInputs {
   codex: CodexRateLimitSnapshotInput | null;
   claude?: ClaudeWindowsInput | null;
+  /** Live windows a runtime reported (Claude's rate_limit_event), per provider. */
+  native?: Record<string, NativeRateLimitSnapshot | null | undefined>;
   trackerWindows: ProviderWindowInput[];
   /** Configured token budgets unlock real percentages for native windows. */
   budgets?: Record<string, ClaudeTokenBudgets>;
@@ -102,8 +105,25 @@ export function buildRateLimitChips(inputs: RateLimitChipInputs): RateLimitChip[
       });
     }
   }
+  // A reported percentage beats the token-sum estimate for the same window; a
+  // window past its reset has already emptied, so its percentage is stale.
+  const nativeLabels = new Set<string>();
+  for (const [providerId, native] of Object.entries(inputs.native ?? {})) {
+    for (const window of native?.windows ?? []) {
+      const resetsAtMs = window.resetsAtEpochSec * 1000;
+      if (resetsAtMs <= inputs.now) continue;
+      const label = windowLabel(window.windowMinutes);
+      nativeLabels.add(`${providerId}:${label}`);
+      chips.push({
+        providerId,
+        label,
+        percent: Math.round(window.usedPercent),
+        resetIn: formatResetIn(resetsAtMs, inputs.now),
+      });
+    }
+  }
   const claude = inputs.claude;
-  if (claude && claude.fiveHour.tokens > 0) {
+  if (claude && claude.fiveHour.tokens > 0 && !nativeLabels.has(`claude:${windowLabel(DEFAULT_TRACKER_WINDOW_MINUTES)}`)) {
     const budget = inputs.budgets?.claude?.fiveHour ?? 0;
     chips.push({
       providerId: 'claude',
@@ -113,7 +133,7 @@ export function buildRateLimitChips(inputs: RateLimitChipInputs): RateLimitChip[
       resetIn: claude.fiveHour.resetAt === null ? '' : formatResetIn(claude.fiveHour.resetAt, inputs.now),
     });
   }
-  if (claude && claude.weekly.tokens > 0) {
+  if (claude && claude.weekly.tokens > 0 && !nativeLabels.has(`claude:${windowLabel(SEVEN_DAY_MINUTES)}`)) {
     const budget = inputs.budgets?.claude?.weekly ?? 0;
     chips.push({
       providerId: 'claude',

@@ -1,6 +1,7 @@
 import type { Vault } from 'obsidian';
 
 import type { ChatMessage } from '../../../core/types';
+import { assistantMessageText } from '../utils/messageText';
 
 export const RESPONSE_EXPORT_FOLDER = 'Claudian/Antworten';
 
@@ -41,7 +42,7 @@ export function buildResponseExportMarkdown(message: ChatMessage): string {
     `erstellt: ${JSON.stringify(created)}`,
     '---',
     '',
-    message.content.trim(),
+    assistantMessageText(message),
     '',
   ].join('\n');
 }
@@ -59,7 +60,7 @@ async function ensureFolder(vault: Vault, folder: string): Promise<void> {
 /** Writes an assistant response to a visible, Obsidian-indexed note without overwriting. */
 export async function exportAssistantResponse(vault: Vault, message: ChatMessage): Promise<string> {
   await ensureFolder(vault, RESPONSE_EXPORT_FOLDER);
-  const baseName = buildResponseExportBaseName(message.content, message.timestamp);
+  const baseName = buildResponseExportBaseName(assistantMessageText(message), message.timestamp);
   let suffix = 0;
   let path = `${RESPONSE_EXPORT_FOLDER}/${baseName}.md`;
   while (await vault.adapter.exists(path)) {

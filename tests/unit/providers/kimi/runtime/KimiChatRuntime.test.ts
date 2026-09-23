@@ -138,3 +138,24 @@ describe('KimiChatRuntime slash command interception', () => {
     await generator.return?.(undefined);
   });
 });
+
+describe('KimiChatRuntime headless goals', () => {
+  it('forgets its goal copy on clear, so no [Goal: …] rides on later prompts', async () => {
+    const runtime = new KimiChatRuntime(makePlugin());
+    runtime.syncConversationState({ sessionId: null, providerState: { sessionId: 's1', goal: 'Alle Tests grün' } });
+
+    await runtime.clearNativeGoal();
+
+    const { updates } = runtime.buildSessionUpdates({ conversation: null, sessionInvalidated: false });
+    expect(updates.providerState).toEqual({ sessionId: 's1' });
+  });
+
+  it('remembers across a reload that the session still holds an unfinished goal', () => {
+    const runtime = new KimiChatRuntime(makePlugin());
+    runtime.syncConversationState({ sessionId: null, providerState: { sessionId: 's1', nativeGoalOpen: true } });
+
+    const { updates } = runtime.buildSessionUpdates({ conversation: null, sessionInvalidated: false });
+
+    expect(updates.providerState).toEqual({ sessionId: 's1', nativeGoalOpen: true });
+  });
+});

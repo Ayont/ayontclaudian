@@ -172,6 +172,7 @@ const createMockThinkingBudgetSelector = () => ({
 const createMockContextUsageMeter = () => ({
   update: jest.fn(),
   setVisible: jest.fn(),
+  setCompactCommand: jest.fn(),
 });
 
 const createMockExternalContextSelector = () => ({
@@ -1005,6 +1006,31 @@ describe('Tab - Service Initialization', () => {
       expect(createTitleGenerationServiceSpy).not.toHaveBeenCalledWith(plugin, 'codex');
     });
 
+    // The selector used to keep the manager of the provider the tab was created
+    // with, so after a switch it offered Claude's servers to a provider that
+    // never receives them.
+    it('hands the MCP selector the new provider\'s server list on a provider switch', () => {
+      jest.spyOn(ProviderRegistry, 'createInstructionRefineService')
+        .mockReturnValue({ cancel: jest.fn(), resetConversation: jest.fn() } as any);
+      jest.spyOn(ProviderRegistry, 'createTitleGenerationService').mockReturnValue({ cancel: jest.fn() } as any);
+      jest.spyOn(ProviderRegistry, 'getTaskResultInterpreter').mockReturnValue({} as any);
+
+      const plugin = createMockPlugin();
+      plugin.settings.model = DEFAULT_CODEX_PRIMARY_MODEL;
+      plugin.settings.providerConfigs = { codex: { enabled: false } };
+      const tab = createTab(createMockOptions({ plugin }));
+      initializeTabUI(tab, plugin);
+      expect(tab.providerId).toBe('claude');
+      expect(mockMcpServerSelector.setMcpManager).toHaveBeenLastCalledWith(plugin.mcpManager);
+
+      plugin.settings.providerConfigs = { codex: { enabled: true } };
+      onProviderAvailabilityChanged(tab, plugin);
+
+      expect(tab.providerId).toBe('codex');
+      expect(mockMcpServerSelector.setMcpManager).toHaveBeenLastCalledWith(null);
+      expect(mockMcpServerSelector.setVisible).toHaveBeenLastCalledWith(false);
+    });
+
     it('surfaces provider-scoped model settings for inactive-provider tabs and saves back to that provider snapshot', async () => {
       const plugin = createMockPlugin({
         settings: {
@@ -1538,6 +1564,30 @@ describe('Tab - Service Callbacks', () => {
       expect(addMessageSpy).not.toHaveBeenCalled();
       expect(addMessage).not.toHaveBeenCalled();
       expect(scrollToBottom).not.toHaveBeenCalled();
+    });
+
+    it('reports a visible background answer like a finished turn', async () => {
+      const { tab, handleStreamChunk, autoTurnCallback } = setupAutoTurnTest();
+      handleStreamChunk.mockImplementation(async (chunk: { content?: string }, msg: { content: string }) => {
+        msg.content += chunk.content ?? '';
+      });
+      const requestAttention = jest.spyOn(tab.state, 'requestAttention');
+
+      await autoTurnCallback({ chunks: [{ type: 'text', content: 'Hintergrund fertig' }], metadata: {} });
+
+      expect(requestAttention).toHaveBeenCalledWith('finished');
+    });
+
+    it('stays quiet when a background event adds nothing visible', async () => {
+      const { tab, autoTurnCallback } = setupAutoTurnTest();
+      const requestAttention = jest.spyOn(tab.state, 'requestAttention');
+
+      await autoTurnCallback({
+        chunks: [{ type: 'async_subagent_result', agentId: 'agent-1', status: 'completed', result: 'Done' }],
+        metadata: {},
+      });
+
+      expect(requestAttention).not.toHaveBeenCalled();
     });
 
     it('skips auto-triggered rendering after the tab DOM is detached', async () => {
@@ -4910,5 +4960,118 @@ describe('syncComposerModeClasses', () => {
     syncComposerModeClasses(tab, plugin);
 
     expect(tab.dom.inputWrapper.hasClass('claudian-input-speed-mode')).toBe(false);
+  });
+});
+
+describe('Tab - Context pressure', () => {
+  const highUsage = {
+    inputTokens: 0,
+    contextTokens: 176_000,
+    contextWindow: 200_000,
+    percentage: 88,
+  };
+
+  function history() {
+    return [
+      { id: 'u1', role: 'user' as const, content: 'Baue das Release', timestamp: 1 },
+      { id: 'a1', role: 'assistant' as const, content: 'Release gebaut', timestamp: 2 },
+    ];
+  }
+
+  function setupBoundTab() {
+    const conversation = {
+      id: 'conv-pressure',
+      providerId: 'claude',
+      sessionId: 'claude-session-1',
+      providerState: { providerSessionId: 'claude-session-1' },
+      goal: 'Release 2.6',
+      messages: history(),
+    };
+    const plugin = createMockPlugin({
+      getConversationSync: jest.fn().mockReturnValue(conversation),
+      updateConversation: jest.fn().mockResolvedValue(undefined),
+      recordAuxiliaryUsage: jest.fn(),
+    });
+    const tab = createTab(createMockOptions({ plugin }));
+    initializeTabUI(tab, plugin);
+    tab.conversationId = conversation.id;
+    tab.lifecycleState = 'bound_active';
+    tab.providerId = 'claude';
+    const service = createMockClaudianService();
+    // Real runtimes (and both wrappers) forward the provider's own capabilities.
+    service.getCapabilities.mockReturnValue(ProviderRegistry.getCapabilities('claude'));
+    tab.service = service as any;
+    tab.serviceInitialized = true;
+    tab.renderer = { renderSessionBoundary: jest.fn() } as any;
+    tab.state.messages = history();
+    return { tab, plugin, service, conversation };
+  }
+
+  it('mounts the warning host above the queue row and the composer', () => {
+    const options = createMockOptions();
+    const tab = createTab(options);
+    initializeTabUI(tab, options.plugin);
+
+    const children = tab.dom.inputContainerEl.children as unknown as unknown[];
+    const hostIndex = children.indexOf(tab.dom.contextPressureHostEl);
+    expect(hostIndex).toBeGreaterThanOrEqual(0);
+    expect(hostIndex).toBeLessThan(children.indexOf(tab.dom.queueIndicatorEl));
+    expect(hostIndex).toBeLessThan(children.indexOf(tab.dom.inputWrapper));
+    expect(tab.ui.contextPressure).toBeTruthy();
+  });
+
+  it('shows the warning from the tab usage and tells the meter which compact command applies', () => {
+    const { tab } = setupBoundTab();
+    tab.state.usage = highUsage;
+    const banner = (tab.dom.contextPressureHostEl as any).querySelector('.claudian-context-pressure');
+    expect(banner.hasClass('claudian-hidden')).toBe(false);
+    expect(mockContextUsageMeter.setCompactCommand).toHaveBeenCalledWith('/compact');
+  });
+
+  it('sends a bare compact command through the normal send path', async () => {
+    const { tab } = setupBoundTab();
+    const sendMessage = jest.fn().mockResolvedValue(undefined);
+    tab.controllers.inputController = { sendMessage } as any;
+    tab.state.usage = highUsage;
+
+    await tab.ui.contextPressure!.compact();
+
+    expect(sendMessage).toHaveBeenCalledWith({ content: '/compact', turnRequestOverride: { text: '/compact' } });
+  });
+
+  it('continues with less context: fresh session for this provider only, transcript kept, carry seeded', async () => {
+    const { tab, plugin, service } = setupBoundTab();
+    tab.state.usage = highUsage;
+
+    await tab.ui.contextPressure!.continueWithLessContext();
+
+    expect(service.cleanup).toHaveBeenCalled();
+    expect(tab.service).toBeNull();
+    expect(tab.serviceInitialized).toBe(false);
+    expect(tab.state.messages.map((message) => message.id)).toEqual(['u1', 'a1']);
+    expect(tab.state.messages[1].sessionBoundary).toBe('condensed');
+    expect(tab.state.usage).toBeNull();
+    expect(tab.pendingContextBootstrap).toContain('<standing_goal>\nRelease 2.6\n</standing_goal>');
+    expect(tab.pendingContextBootstrap).toContain('Release gebaut');
+
+    expect(plugin.updateConversation).toHaveBeenCalledWith('conv-pressure', expect.objectContaining({
+      sessionId: null,
+      providerState: undefined,
+      pendingContextBootstrap: tab.pendingContextBootstrap,
+    }));
+    const updates = plugin.updateConversation.mock.calls[0][1];
+    expect(updates).not.toHaveProperty('providerSessions');
+    expect(updates).not.toHaveProperty('providerId');
+    expect(tab.renderer!.renderSessionBoundary).toHaveBeenCalled();
+  });
+
+  it('never warns for a desktop relay tab', () => {
+    const { tab, conversation } = setupBoundTab();
+    conversation.providerId = 'grok-bot';
+    tab.providerId = 'grok-bot';
+    tab.service = null;
+    tab.state.usage = { ...highUsage, percentage: 97 };
+    const banner = (tab.dom.contextPressureHostEl as any).querySelector('.claudian-context-pressure');
+    expect(banner.hasClass('claudian-hidden')).toBe(true);
   });
 });

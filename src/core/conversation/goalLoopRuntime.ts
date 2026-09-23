@@ -1,6 +1,7 @@
 import { buildAuxiliaryUsageReport } from '../auxiliary/AuxiliaryUsageAccounting';
 import type { AuxQueryRunner } from '../auxiliary/AuxQueryRunner';
 import type { ChatRuntime } from '../runtime/ChatRuntime';
+import { forwardOptionalRuntimeMethods } from '../runtime/forwardOptionalRuntimeMethods';
 import type {
   ChatRuntimeEnsureReadyOptions,
   ChatRuntimeQueryOptions,
@@ -315,29 +316,7 @@ export function withGoalLoop(base: ChatRuntime, options: GoalLoopWrapperOptions)
     resolveSessionIdForFork: (conversation) => base.resolveSessionIdForFork(conversation),
   };
 
-  // Keep optional capabilities genuinely optional while preserving provider
-  // implementations that depend on their runtime instance as `this`.
-  if (base.steer) {
-    wrapped.steer = (turn) => base.steer!.call(base, turn);
-  }
-  if (base.softSteer) {
-    wrapped.softSteer = (turn) => base.softSteer!.call(base, turn);
-  }
-  if (base.getAuxiliaryModel) {
-    wrapped.getAuxiliaryModel = () => base.getAuxiliaryModel!.call(base);
-  }
-  if (base.loadSubagentToolCalls) {
-    wrapped.loadSubagentToolCalls = (agentId) => base.loadSubagentToolCalls!.call(base, agentId);
-  }
-  if (base.loadSubagentFinalResult) {
-    wrapped.loadSubagentFinalResult = (agentId) => base.loadSubagentFinalResult!.call(base, agentId);
-  }
-  if (base.canCancelSubagent) {
-    wrapped.canCancelSubagent = (target) => base.canCancelSubagent!.call(base, target);
-  }
-  if (base.cancelSubagent) {
-    wrapped.cancelSubagent = (target) => base.cancelSubagent!.call(base, target);
-  }
+  forwardOptionalRuntimeMethods(base, wrapped);
 
   return wrapped;
 }

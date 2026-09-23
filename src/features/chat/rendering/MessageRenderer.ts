@@ -26,7 +26,7 @@ import { getLocale, t } from '../../../i18n/i18n';
 import type ClaudianPlugin from '../../../main';
 import { isBenignSdkDiagnostic } from '../../../providers/claude/stream/transformClaudeMessage';
 import { createProviderIconSvg } from '../../../shared/icons';
-import { extractInjectedContextPrompt, extractUserDisplayContent, stripInternalImageTags, stripInternalPromptEnvelopes } from '../../../utils/context';
+import { extractInjectedContextPrompt } from '../../../utils/context';
 import { formatDurationMmSs } from '../../../utils/date';
 import { processFileLinks, registerFileLinkHandler } from '../../../utils/fileLink';
 import { replaceImageEmbedsWithHtml } from '../../../utils/imageEmbed';
@@ -45,6 +45,7 @@ import {
 } from '../ui/file-drop/attachmentMeta';
 import { isRasterPeekSrc } from '../ui/file-drop/pdfPeek';
 import { formatTableSummary } from '../ui/file-drop/tableProfile';
+import { assistantMessageText, userMessageText } from '../utils/messageText';
 import {
   buildActivityLabels,
   foldDownActivity,
@@ -58,6 +59,7 @@ import {
 } from './DisplayOnlyCodeFences';
 import { renderEmailTemplates } from './EmailTemplateRenderer';
 import { detectStatusCard } from './errorClassification';
+import { renderGoalRoundBoundary } from './goalRoundBoundary';
 import { renderInlineImages } from './InlineImageRenderer';
 import {
   type LiveDocument,
@@ -324,7 +326,7 @@ export class MessageRenderer {
   private getCapabilities: () => ProviderCapabilities;
   private forkCallback?: (messageId: string) => Promise<void>;
   private switchModelCallback?: () => void;
-  private regenerateCallback?: (msg: ChatMessage) => void;
+  private regenerateCallback?: (msg: Pick<ChatMessage, 'id'>) => void;
   private liveMessageEls = new Map<string, HTMLElement>();
   /**
    * Provider used as a fallback for messages persisted before `agentProvider`
@@ -356,7 +358,7 @@ export class MessageRenderer {
     forkCallback?: (messageId: string) => Promise<void>,
     getCapabilities?: () => ProviderCapabilities,
     switchModelCallback?: () => void,
-    regenerateCallback?: (msg: ChatMessage) => void,
+    regenerateCallback?: (msg: Pick<ChatMessage, 'id'>) => void,
   ) {
     this.app = plugin.app;
     this.plugin = plugin;
@@ -485,18 +487,7 @@ export class MessageRenderer {
   } {
     const injectedFromContent = extractInjectedContextPrompt(msg.content);
     const injectedFromDisplay = msg.displayContent ? extractInjectedContextPrompt(msg.displayContent) : undefined;
-    const injectedContext = injectedFromContent || injectedFromDisplay;
-
-    const displayCandidate = msg.displayContent
-      ? extractUserDisplayContent(msg.displayContent) ?? msg.displayContent
-      : undefined;
-
-    const rawText = displayCandidate
-      ?? injectedContext?.userContent
-      ?? extractUserDisplayContent(msg.content)
-      ?? msg.content;
-
-    const text = stripInternalPromptEnvelopes(stripInternalImageTags(rawText));
+    const text = userMessageText(msg);
 
     const vaultContext = injectedFromContent?.vaultContext ?? injectedFromDisplay?.vaultContext;
     const memoryContext = injectedFromContent?.memoryContext ?? injectedFromDisplay?.memoryContext;
@@ -894,7 +885,7 @@ export class MessageRenderer {
     // `allMessages` and the index stay absolute so rewind and fork keep
     // addressing the whole conversation, not just the mounted window.
     for (let i = this.mountedHistoryFrom; i < coalescedMessages.length; i++) {
-      this.renderStoredMessage(coalescedMessages[i], coalescedMessages, i);
+      this.renderStoredMessageWithBoundary(coalescedMessages[i], coalescedMessages, i);
     }
 
     this.scrollToBottom();
@@ -935,7 +926,7 @@ export class MessageRenderer {
     this.lastRenderedProviderId = null;
 
     for (let i = nextFrom; i < this.mountedHistoryFrom; i++) {
-      this.renderStoredMessage(this.coalescedHistory[i], this.coalescedHistory, i);
+      this.renderStoredMessageWithBoundary(this.coalescedHistory[i], this.coalescedHistory, i);
     }
 
     this.lastRenderedProviderId = providerCursor;
@@ -993,12 +984,40 @@ export class MessageRenderer {
         if (msg.assistantMessageId) {
           prev.assistantMessageId = msg.assistantMessageId;
         }
+        if (msg.sessionBoundary) {
+          prev.sessionBoundary = msg.sessionBoundary;
+        }
       } else {
         result.push({ ...msg });
       }
     }
 
     return result;
+  }
+
+  private renderStoredMessageWithBoundary(msg: ChatMessage, allMessages: ChatMessage[], index: number): void {
+    this.renderStoredMessage(msg, allMessages, index);
+    if (msg.sessionBoundary === 'condensed') {
+      this.renderSessionBoundary();
+    }
+  }
+
+  /**
+   * Divider where the conversation continued in a fresh native session with
+   * condensed context. Appended live by the tab and re-drawn from the message
+   * marker on every full render.
+   */
+  renderSessionBoundary(): HTMLElement {
+    const dividerEl = this.messagesEl.createDiv({ cls: 'claudian-session-boundary' });
+    dividerEl.setAttribute('role', 'separator');
+    const labelEl = dividerEl.createSpan({ cls: 'claudian-session-boundary-label' });
+    const iconEl = labelEl.createSpan({ cls: 'claudian-session-boundary-icon' });
+    iconEl.setAttribute('aria-hidden', 'true');
+    setIcon(iconEl, 'rotate-ccw');
+    const label = t('chat.contextPressure.freshSessionDivider');
+    labelEl.createSpan({ cls: 'claudian-session-boundary-text', text: label });
+    dividerEl.setAttribute('aria-label', label);
+    return dividerEl;
   }
 
   renderStoredMessage(msg: ChatMessage, allMessages?: ChatMessage[], index?: number): void {
@@ -1079,6 +1098,7 @@ export class MessageRenderer {
         this.appendInterruptIndicator(contentEl);
       }
       this.renderAssistantHeader(msg, msgEl, false);
+      if (msg.isSuperseded) this.applySupersededState(msgEl, true);
     }
   }
 
@@ -1189,6 +1209,7 @@ export class MessageRenderer {
         if (block.type === 'thinking' && block.content.trim().length > 0) return true;
         if (block.type === 'text' && block.content.trim().length > 0) return true;
         if (block.type === 'context_compacted') return true;
+        if (block.type === 'goal_round') return true;
         if (block.type === 'subagent') return true;
         if (block.type === 'tool_use') {
           const toolCall = msg.toolCalls?.find(tc => tc.id === block.toolId);
@@ -1237,6 +1258,12 @@ export class MessageRenderer {
         if (block.type === 'context_compacted') {
           const boundaryEl = contentEl.createDiv({ cls: 'claudian-compact-boundary' });
           boundaryEl.createSpan({ cls: 'claudian-compact-boundary-label', text: 'Unterhaltung verdichtet' });
+          blockIndex += 1;
+          continue;
+        }
+
+        if (block.type === 'goal_round') {
+          renderGoalRoundBoundary(contentEl, block.round, block.reason);
           blockIndex += 1;
           continue;
         }
@@ -1330,12 +1357,7 @@ export class MessageRenderer {
   }
 
   private getAssistantCopyContent(msg: ChatMessage): string {
-    if (msg.content.trim()) return msg.content.trim();
-    return msg.contentBlocks
-      ?.filter((block): block is Extract<NonNullable<ChatMessage['contentBlocks']>[number], { type: 'text' }> => block.type === 'text')
-      .map((block) => block.content.trim())
-      .filter(Boolean)
-      .join('\n\n') ?? '';
+    return assistantMessageText(msg);
   }
 
   private renderAssistantFooter(msg: ChatMessage, contentEl: HTMLElement): void {
@@ -1427,9 +1449,54 @@ export class MessageRenderer {
     this.addMoreActionsMenu(actionsEl, msg, copyContent);
   }
 
+  /**
+   * A retry on an error card is a regenerate of the answer that holds it. The
+   * answer is resolved from the DOM because the card is rendered from markdown
+   * alone, during streaming and history replay alike.
+   */
+  private statusCardRetryFor(el: HTMLElement): (() => void) | undefined {
+    if (!this.regenerateCallback) return undefined;
+    const messageId = el.closest<HTMLElement>('.claudian-message-assistant')?.getAttribute('data-message-id');
+    if (!messageId) return undefined;
+    return () => this.regenerateCallback?.({ id: messageId });
+  }
+
+  /** Collapses (or restores) answers that a regenerated turn replaced. */
+  setMessagesSuperseded(messageIds: string[], superseded: boolean): void {
+    const ids = new Set(messageIds);
+    const answers = this.messagesEl.querySelectorAll<HTMLElement>('.claudian-message-assistant');
+    for (let i = 0; i < answers.length; i++) {
+      const id = answers[i].getAttribute('data-message-id');
+      if (id && ids.has(id)) this.applySupersededState(answers[i], superseded);
+    }
+  }
+
+  private applySupersededState(msgEl: HTMLElement, superseded: boolean): void {
+    msgEl.querySelector('.claudian-superseded-bar')?.remove();
+    msgEl.removeClass('is-expanded');
+    msgEl.toggleClass('claudian-message--superseded', superseded);
+    if (!superseded) return;
+
+    const bar = msgEl.createDiv({ cls: 'claudian-superseded-bar' });
+    setIcon(bar.createSpan({ cls: 'claudian-superseded-icon' }), 'history');
+    bar.createSpan({ cls: 'claudian-superseded-label', text: 'Ersetzte Antwort' });
+    const toggle = bar.createEl('button', {
+      cls: 'claudian-superseded-toggle',
+      text: 'Anzeigen',
+      attr: { type: 'button', 'aria-expanded': 'false' },
+    });
+    toggle.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const expanded = !msgEl.hasClass('is-expanded');
+      msgEl.toggleClass('is-expanded', expanded);
+      toggle.setAttribute('aria-expanded', String(expanded));
+      toggle.setText(expanded ? 'Ausblenden' : 'Anzeigen');
+    });
+  }
+
   /** "Erneut generieren": re-send the prompt that produced this answer. */
   private addRegenerateButton(actionsEl: HTMLElement, msg: ChatMessage): void {
-    if (!this.regenerateCallback) return;
+    if (!this.regenerateCallback || msg.isSuperseded) return;
     const btn = actionsEl.createEl('button', { cls: 'claudian-response-action' });
     btn.setAttribute('type', 'button');
     btn.setAttribute('aria-label', 'Prompt erneut ausführen');
@@ -2260,7 +2327,7 @@ export class MessageRenderer {
     // red line. Same path serves live streaming and reloaded history.
     const statusCard = detectStatusCard(markdown);
     if (statusCard) {
-      renderStatusCard(el, statusCard);
+      renderStatusCard(el, statusCard, { onRetry: this.statusCardRetryFor(el) });
       this.contentRenderSignatures.set(el, renderSignature);
       return;
     }

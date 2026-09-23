@@ -1056,6 +1056,80 @@ describe('ClaudianService', () => {
     });
   });
 
+  // sdk.d.ts: a queued user message is "folded into the running turn between
+  // tool rounds"; the bundled CLI drains `priority: 'next'` mid-turn.
+  describe('Steering a running turn', () => {
+    async function startActiveTurn(): Promise<{
+      channel: MessageChannel;
+      iterator: AsyncIterator<any>;
+      onChunk: jest.Mock;
+      interrupt: jest.Mock;
+    }> {
+      const channel = new MessageChannel();
+      const iterator = channel[Symbol.asyncIterator]();
+      const first = iterator.next();
+      channel.enqueue({ type: 'user', message: { role: 'user', content: 'first' }, parent_tool_use_id: null, session_id: '' });
+      await first;
+      const onChunk = jest.fn();
+      const interrupt = jest.fn().mockResolvedValue(undefined);
+      (service as any).messageChannel = channel;
+      (service as any).persistentQuery = { interrupt };
+      (service as any).shuttingDown = false;
+      (service as any).responseHandlers = [
+        createResponseHandler({ id: 'turn-1', onChunk, onDone: jest.fn(), onError: jest.fn() }),
+      ];
+      return { channel, iterator, onChunk, interrupt };
+    }
+
+    const flushMacrotask = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+    it('folds the message into the running turn with priority next instead of cancelling', async () => {
+      const { iterator, onChunk, interrupt } = await startActiveTurn();
+      const delivered = iterator.next();
+
+      const accepted = await service.steer(service.prepareTurn({ text: 'also check the tests' }));
+
+      expect(accepted).toBe(true);
+      const { value } = await delivered;
+      expect(value.priority).toBe('next');
+      expect(value.message.content).toBe('also check the tests');
+      expect(interrupt).not.toHaveBeenCalled();
+
+      await flushMacrotask();
+      // The chat swallows a turn's first boundary as the initial prompt's echo.
+      expect(onChunk.mock.calls.map(([chunk]) => chunk)).toEqual([
+        { type: 'user_message_start', content: '' },
+        { type: 'user_message_start', content: 'also check the tests' },
+      ]);
+    });
+
+    it('emits the initial boundary only once per turn', async () => {
+      const { onChunk } = await startActiveTurn();
+
+      await service.steer(service.prepareTurn({ text: 'one' }));
+      await service.steer(service.prepareTurn({ text: 'two' }));
+      await flushMacrotask();
+
+      expect(onChunk.mock.calls.map(([chunk]) => chunk.content)).toEqual(['', 'one', 'two']);
+    });
+
+    it('declines without a running persistent turn so the chat keeps the message queued', async () => {
+      (service as any).responseHandlers = [];
+      (service as any).messageChannel = new MessageChannel();
+      (service as any).persistentQuery = { interrupt: jest.fn() };
+
+      await expect(service.steer(service.prepareTurn({ text: 'later' }))).resolves.toBe(false);
+    });
+
+    it('declines slash commands, which the CLI never drains mid-turn', async () => {
+      const { onChunk } = await startActiveTurn();
+
+      await expect(service.steer(service.prepareTurn({ text: '/compact' }))).resolves.toBe(false);
+      await flushMacrotask();
+      expect(onChunk).not.toHaveBeenCalled();
+    });
+  });
+
   // Verified live against Claude Code 2.1.280: stopTask(task_id) stops that
   // one agent (and the commands it runs); the parent turn continues.
   describe('Stopping a single subagent', () => {
@@ -1197,6 +1271,25 @@ describe('ClaudianService', () => {
       await (service as any).routeMessage(message);
 
       expect(service.getSessionId()).toBe('new-session-42');
+    });
+
+    it('hands a rate_limit_event to the plugin as a real window instead of the chat', async () => {
+      const recordProviderRateLimit = jest.fn();
+      (mockPlugin as any).recordProviderRateLimit = recordProviderRateLimit;
+
+      await (service as any).routeMessage({
+        type: 'rate_limit_event',
+        rate_limit_info: { status: 'allowed_warning', rateLimitType: 'five_hour', utilization: 0.3, resetsAt: 1_788_000_000 },
+        uuid: 'rl-1',
+        session_id: 'session-1',
+      });
+
+      expect(recordProviderRateLimit).toHaveBeenCalledWith('claude', {
+        window: { usedPercent: 30, windowMinutes: 300, resetsAtEpochSec: 1_788_000_000 },
+        rejected: false,
+        resetsAtEpochSec: 1_788_000_000,
+      });
+      expect(onChunk).not.toHaveBeenCalled();
     });
 
     it('should route stream chunks to handler', async () => {

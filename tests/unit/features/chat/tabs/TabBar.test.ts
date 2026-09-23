@@ -1,5 +1,6 @@
 import { createMockEl } from '@test/helpers/mockElement';
 
+import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { TabBar, type TabBarCallbacks } from '@/features/chat/tabs/TabBar';
 import type { TabBarItem } from '@/features/chat/tabs/types';
 
@@ -22,6 +23,7 @@ function createTabBarItem(overrides: Partial<TabBarItem> = {}): TabBarItem {
     isActive: false,
     isStreaming: false,
     needsAttention: false,
+    attentionReason: null,
     canClose: true,
     hasDraft: false,
     ...overrides,
@@ -155,7 +157,7 @@ describe('TabBar', () => {
 
       const badge = containerEl._children[0];
       expect(badge._children.some((c: any) => c._classList?.has('claudian-tab-streaming-indicator'))).toBe(true);
-      expect(badge.getAttribute('aria-label')).toBe('Analysis (arbeitet…)');
+      expect(badge.getAttribute('aria-label')).toBe('Analysis · Arbeitet');
     });
 
     it('marks a tab whose chat holds an unsent draft with a pencil', () => {
@@ -167,7 +169,7 @@ describe('TabBar', () => {
       const badge = containerEl._children[0];
       expect(badge._children.some((c: any) => c._classList?.has('claudian-tab-draft-indicator'))).toBe(true);
       expect(badge._classList.has('claudian-tab-badge--draft')).toBe(true);
-      expect(badge.getAttribute('aria-label')).toBe('Angebot CERTUSS (Entwurf)');
+      expect(badge.getAttribute('aria-label')).toBe('Angebot CERTUSS · Entwurf');
     });
 
     it('shows no pencil when the chat has no draft', () => {
@@ -286,6 +288,20 @@ describe('TabBar', () => {
       expect(callbacks.onTabClose).toHaveBeenCalledWith('closeable-tab');
     });
 
+    // A right-click used to close the tab at once, even mid-answer.
+    it('opens the tab menu on right-click instead of closing when a menu handler exists', () => {
+      const containerEl = createMockEl();
+      const callbacks = { ...createMockCallbacks(), onTabContextMenu: jest.fn() };
+      const tabBar = new TabBar(containerEl, callbacks);
+
+      tabBar.update([createTabBarItem({ id: 'closeable-tab', canClose: true })]);
+      const mockEvent = { preventDefault: jest.fn() };
+      containerEl._children[0].dispatchEvent('contextmenu', mockEvent);
+
+      expect(callbacks.onTabContextMenu).toHaveBeenCalledWith('closeable-tab', mockEvent);
+      expect(callbacks.onTabClose).not.toHaveBeenCalled();
+    });
+
     it('lets keyboard users close a closeable tab with Delete', () => {
       const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
@@ -368,5 +384,140 @@ describe('TabBar incremental updates', () => {
     bar.update([item('tab-1')] as never);
 
     expect(containerEl.children).toHaveLength(1);
+  });
+});
+
+describe('TabBar legibility with many tabs', () => {
+  const item = (id: string, overrides: Partial<TabBarItem> = {}): TabBarItem => ({
+    id, index: Number(id.slice(-1)), title: `Chat ${id}`, providerId: 'claude',
+    isActive: false, isStreaming: false, needsAttention: false, attentionReason: null, canClose: true, hasDraft: false,
+    ...overrides,
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  function withProviderName(name: string): void {
+    jest.spyOn(ProviderRegistry, 'getProviderRegistrationSafe').mockReturnValue({
+      displayName: name,
+      chatUIConfig: { getProviderIcon: () => null },
+    } as never);
+  }
+
+  /** Lays the badges out like a 6px-gap strip of 40px badges. */
+  function layOut(containerEl: any, clientWidth: number, scrollLeft = 0): void {
+    containerEl.children.forEach((badge: any, position: number) => {
+      badge.offsetLeft = position * 46;
+      badge.offsetWidth = 40;
+    });
+    containerEl.clientWidth = clientWidth;
+    containerEl.scrollWidth = containerEl.children.length * 46 - 6;
+    containerEl.scrollLeft = scrollLeft;
+  }
+
+  it('names title, provider and state in the tooltip', () => {
+    withProviderName('Claude');
+    const containerEl = createMockEl();
+    const tabBar = new TabBar(containerEl, createMockCallbacks());
+
+    tabBar.update([
+      item('tab-1', { title: 'Firewall CERTUSS', isStreaming: true }),
+      item('tab-2', { title: 'New Chat' }),
+    ]);
+
+    expect(containerEl.children[0].getAttribute('aria-label')).toBe('Firewall CERTUSS · Claude · Arbeitet');
+    expect(containerEl.children[1].getAttribute('aria-label')).toBe('Neuer Chat · Claude');
+  });
+
+  it('marks a tab that wants the user back with a reason-coloured dot and says why', () => {
+    const containerEl = createMockEl();
+    const tabBar = new TabBar(containerEl, createMockCallbacks());
+
+    tabBar.update([item('tab-1', { title: 'Angebot', needsAttention: true, attentionReason: 'finished' })]);
+
+    const badge = containerEl.children[0];
+    const dot = badge.children.find((child: any) => child.hasClass('claudian-tab-attention-dot'));
+    expect(badge.hasClass('claudian-tab-badge-attention')).toBe(true);
+    expect(dot?.getAttribute('data-reason')).toBe('finished');
+    expect(badge.getAttribute('aria-label')).toBe('Angebot · Neue Antwort');
+  });
+
+  it('shows the attention dot instead of the live beacon while a turn waits for approval', () => {
+    const containerEl = createMockEl();
+    const tabBar = new TabBar(containerEl, createMockCallbacks());
+
+    tabBar.update([item('tab-1', { isStreaming: true, needsAttention: true, attentionReason: 'input' })]);
+
+    const classes = containerEl.children[0].children.map((child: any) => child.className);
+    expect(classes.some((cls: string) => cls.includes('claudian-tab-attention-dot'))).toBe(true);
+    expect(classes.some((cls: string) => cls.includes('claudian-tab-streaming-indicator'))).toBe(false);
+  });
+
+  it('redraws a badge when only the attention reason changes', () => {
+    const containerEl = createMockEl();
+    const tabBar = new TabBar(containerEl, createMockCallbacks());
+    tabBar.update([item('tab-1', { needsAttention: true, attentionReason: 'finished' })]);
+    const before = containerEl.children[0];
+
+    tabBar.update([item('tab-1', { needsAttention: true, attentionReason: 'failed' })]);
+
+    expect(containerEl.children[0]).not.toBe(before);
+  });
+
+  it('counts scrolled-out tabs in a "+N" chip that opens the overview', () => {
+    const containerEl = createMockEl();
+    const overflowHostEl = createMockEl();
+    const onOpenOverview = jest.fn();
+    const tabBar = new TabBar(containerEl, { ...createMockCallbacks(), onOpenOverview }, { overflowHostEl });
+    const chip = overflowHostEl.querySelector('.claudian-tab-overflow-chip');
+    expect(chip?.hasClass('claudian-hidden')).toBe(true);
+
+    tabBar.update(['tab-1', 'tab-2', 'tab-3', 'tab-4', 'tab-5', 'tab-6'].map((id) => item(id, { isActive: id === 'tab-1' })));
+    layOut(containerEl, 150);
+    tabBar.refreshOverflow();
+
+    expect(chip?.hasClass('claudian-hidden')).toBe(false);
+    expect(chip?.textContent).toBe('+3');
+    expect(chip?.getAttribute('aria-label')).toBe('3 weitere Tabs – Übersicht öffnen');
+    expect(containerEl.hasClass('has-overflow-end')).toBe(true);
+    expect(containerEl.hasClass('has-overflow-start')).toBe(false);
+
+    chip?.click();
+    expect(onOpenOverview).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets the chip carry the attention of tabs the user cannot see', () => {
+    const containerEl = createMockEl();
+    const overflowHostEl = createMockEl();
+    const tabBar = new TabBar(containerEl, createMockCallbacks(), { overflowHostEl });
+
+    tabBar.update([
+      item('tab-1', { isActive: true }), item('tab-2'), item('tab-3'),
+      item('tab-4'), item('tab-5', { needsAttention: true, attentionReason: 'input' }),
+    ]);
+    layOut(containerEl, 150);
+    tabBar.refreshOverflow();
+
+    const chip = overflowHostEl.querySelector('.claudian-tab-overflow-chip');
+    expect(chip?.hasClass('has-attention')).toBe(true);
+    expect(chip?.getAttribute('aria-label')).toBe('2 weitere Tabs, 1 wartet auf dich – Übersicht öffnen');
+  });
+
+  it('scrolls a newly active tab into view', () => {
+    const containerEl = createMockEl();
+    const tabBar = new TabBar(containerEl, createMockCallbacks(), { overflowHostEl: createMockEl() });
+    const ids = ['tab-1', 'tab-2', 'tab-3', 'tab-4', 'tab-5', 'tab-6'];
+    tabBar.update(ids.map((id) => item(id, { isActive: id === 'tab-1' })));
+    layOut(containerEl, 150);
+    tabBar.refreshOverflow();
+    expect(containerEl.scrollLeft).toBe(0);
+
+    tabBar.update(ids.map((id) => item(id, { isActive: id === 'tab-6' })));
+    layOut(containerEl, 150);
+    tabBar.refreshOverflow();
+
+    // The last badge ends at 270; the strip scrolls to its maximum.
+    expect(containerEl.scrollLeft).toBe(270 - 150);
   });
 });

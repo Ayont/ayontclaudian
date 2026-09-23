@@ -285,3 +285,118 @@
     animation: none;
   }
 }
+
+/* ---- Native goals: the provider's own goal system runs the goal ----
+   Status tones are semantic (DESIGN.md): success, warning and danger never
+   inherit the provider accent, so the banner re-tints its accent locally. */
+.claudian-goal-banner[data-tone="success"] {
+  --cl-accent: var(--cl-success);
+  --cl-accent-rgb: var(--color-green-rgb, 84, 168, 107);
+  --cl-accent-line: rgba(var(--color-green-rgb, 84, 168, 107), 0.34);
+}
+
+.claudian-goal-banner[data-tone="warning"] {
+  --cl-accent: var(--cl-warning);
+  --cl-accent-rgb: var(--color-orange-rgb, 212, 154, 69);
+  --cl-accent-line: rgba(var(--color-orange-rgb, 212, 154, 69), 0.34);
+}
+
+.claudian-goal-banner[data-tone="danger"] {
+  --cl-accent: var(--cl-danger);
+  --cl-accent-rgb: var(--color-red-rgb, 211, 95, 95);
+  --cl-accent-line: rgba(var(--color-red-rgb, 211, 95, 95), 0.34);
+}
+
+/* Only a running goal pulses; a settled one holds still. */
+.claudian-goal-banner.is-native:not([data-tone="live"]) .claudian-goal-banner-icon::after,
+.claudian-goal-banner.is-native:not([data-tone="live"]) .claudian-goal-banner-loop {
+  animation: none;
+}
+
+.claudian-goal-banner-detail {
+  font-family: var(--cl-font-ui);
+  font-size: var(--cl-text-xs);
+  line-height: 1.4;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.claudian-goal-banner[data-status="complete"] .claudian-goal-banner-text {
+  color: var(--text-muted);
+}
+
+/* ---- Goal round divider: the provider re-checked its goal and kept going ---- */
+.claudian-goal-round {
+  display: flex;
+  align-items: center;
+  gap: var(--cl-space-3);
+  margin: var(--cl-space-4) 0 var(--cl-space-3);
+  animation: cl-goal-rise var(--cl-dur) var(--cl-ease-out) both;
+}
+
+.claudian-goal-round::before,
+.claudian-goal-round::after {
+  content: '';
+  flex: 1;
+  min-width: 16px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--cl-accent-line));
+}
+
+.claudian-goal-round::after {
+  background: linear-gradient(90deg, var(--cl-accent-line), transparent);
+}
+
+.claudian-goal-round-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: min(80%, 520px);
+  padding: 3px 10px 3px 8px;
+  border-radius: var(--cl-radius-pill);
+  border: 1px solid var(--cl-accent-line);
+  background: rgba(var(--cl-accent-rgb), 0.08);
+  font-family: var(--cl-font-ui);
+  font-size: var(--cl-text-xs);
+  color: var(--text-muted);
+}
+
+.claudian-goal-round-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--cl-accent);
+}
+
+.claudian-goal-round-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.claudian-goal-round-label {
+  flex-shrink: 0;
+  font-weight: 650;
+  color: var(--cl-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.claudian-goal-round-reason {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claudian-goal-round-reason::before {
+  content: '·';
+  margin-inline-end: 6px;
+  color: var(--text-faint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-goal-round { animation: none; }
+}

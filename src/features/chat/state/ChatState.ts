@@ -1,5 +1,6 @@
 import type { UsageInfo } from '../../../core/types';
 import type {
+  AttentionReason,
   ChatMessage,
   ChatStateCallbacks,
   ChatStateData,
@@ -35,6 +36,8 @@ function createInitialState(): ChatStateData {
     ignoreUsageUpdates: false,
     currentTodos: null,
     needsAttention: false,
+    attentionReason: null,
+    turnFailed: false,
     autoScrollEnabled: true, // Default; controllers will override based on settings
     responseStartTime: null,
     flavorTimerInterval: null,
@@ -113,8 +116,25 @@ export class ChatState {
   }
 
   set isStreaming(value: boolean) {
+    const wasStreaming = this.state.isStreaming;
     this.state.isStreaming = value;
+    if (value && !wasStreaming) {
+      this.state.turnFailed = false;
+    }
     this._callbacks.onStreamingStateChanged?.(value);
+    // Teardown and user stops set cancelRequested first; only a turn that ended
+    // on its own is news to someone looking at another tab.
+    if (wasStreaming && !value && !this.state.cancelRequested) {
+      this.requestAttention(this.state.turnFailed ? 'failed' : 'finished');
+    }
+  }
+
+  get turnFailed(): boolean {
+    return this.state.turnFailed;
+  }
+
+  markTurnFailed(): void {
+    this.state.turnFailed = true;
   }
 
   get cancelRequested(): boolean {
@@ -305,8 +325,25 @@ export class ChatState {
   }
 
   set needsAttention(value: boolean) {
-    this.state.needsAttention = value;
-    this._callbacks.onAttentionChanged?.(value);
+    this.setAttention(value ? (this.state.attentionReason ?? 'input') : null);
+  }
+
+  get attentionReason(): AttentionReason | null {
+    return this.state.attentionReason;
+  }
+
+  setAttention(reason: AttentionReason | null): void {
+    const needsAttention = reason !== null;
+    if (needsAttention === this.state.needsAttention && reason === this.state.attentionReason) {
+      return;
+    }
+    this.state.needsAttention = needsAttention;
+    this.state.attentionReason = reason;
+    this._callbacks.onAttentionChanged?.(needsAttention);
+  }
+
+  requestAttention(reason: AttentionReason): void {
+    this._callbacks.onAttentionRequested?.(reason);
   }
 
   // ============================================

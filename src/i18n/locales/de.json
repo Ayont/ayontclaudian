@@ -67,6 +67,33 @@
       "expandOutput": "Befehlsausgabe ausklappen",
       "running": "Wird ausgeführt...",
       "copyFailed": "Kopieren in die Zwischenablage fehlgeschlagen"
+    },
+    "contextPressure": {
+      "titleHigh": "Kontext wird knapp",
+      "titleCritical": "Kontext fast voll",
+      "percent": "{percent} %",
+      "usage": "{used} von {total} Tokens",
+      "usageEstimated": "≈ {used} von {total} Tokens (geschätzt)",
+      "bodyHigh": "Das Gespräch belegt den Großteil des Kontextfensters, frühe Details können verloren gehen.",
+      "bodyCritical": "Die nächste lange Antwort kann das Limit überschreiten. Jetzt Kontext freimachen.",
+      "compact": "Kompaktieren",
+      "compactHint": "Der Provider verdichtet den Verlauf dieser Sitzung ({command})",
+      "continueFresh": "Mit weniger Kontext fortsetzen",
+      "continueFreshHint": "Startet eine neue Sitzung mit einer verdichteten Zusammenfassung. Der Chatverlauf bleibt sichtbar.",
+      "condensing": "Verlauf wird verdichtet…",
+      "streamingNote": "Verfügbar, sobald die aktuelle Antwort fertig ist.",
+      "dismiss": "Hinweis ausblenden",
+      "regionLabel": "Warnung zur Kontextauslastung",
+      "freshSessionDivider": "Neue Sitzung mit verdichtetem Kontext",
+      "freshSessionBusy": "Eine Antwort läuft noch. Bitte nach dem Ende erneut versuchen.",
+      "freshSessionAborted": "Abgebrochen: Das Gespräch hat sich beim Verdichten geändert.",
+      "freshSessionFailed": "Neue Sitzung konnte nicht gestartet werden: {error}",
+      "freshSessionUnsaved": "Die neue Sitzung konnte nicht gespeichert werden: {error}"
+    },
+    "contextMeter": {
+      "estimatedPrefix": "Geschätzt · ",
+      "nearLimitCompact": "Limit fast erreicht – mit {command} verdichten",
+      "nearLimit": "Limit fast erreicht – mit weniger Kontext fortsetzen"
     }
   },
   "settings": {

@@ -80,4 +80,24 @@ describe('renderStatusCard', () => {
     expect(body.textContent).toBe('<img src=x onerror=alert(1)>');
     expect(body.children.length).toBe(0);
   });
+
+  it('offers "Erneut versuchen" on a retryable card when a retry handler is given', () => {
+    const onRetry = jest.fn();
+    renderStatusCard(parent, classified({ retryable: true }), { onRetry });
+
+    const retry = parent.querySelector('.claudian-status-card-retry');
+    expect(retry.getAttribute('type')).toBe('button');
+    expect(retry.querySelector('.claudian-status-card-retry-label').textContent).toBe('Erneut versuchen');
+    retry.click();
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows no retry button for non-retryable cards or without a handler', () => {
+    renderStatusCard(parent, classified({ retryable: false }), { onRetry: jest.fn() });
+    expect(parent.querySelector('.claudian-status-card-retry')).toBeNull();
+
+    const other = createMockEl('div');
+    renderStatusCard(other, classified({ retryable: true }));
+    expect(other.querySelector('.claudian-status-card-retry')).toBeNull();
+  });
 });

@@ -17,7 +17,7 @@ export async function readJsonFile(filePath: string): Promise<unknown> {
   }
 }
 
-async function writeTextFileAtomic(filePath: string, text: string): Promise<void> {
+export async function writeTextFileAtomic(filePath: string, text: string): Promise<void> {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   const temporary = `${filePath}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
   try {

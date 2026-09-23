@@ -46,6 +46,7 @@ export class Plugin {
   saveData = jest.fn().mockResolvedValue(undefined);
   registerInterval = jest.fn((id: number) => id);
   unregisterInterval = jest.fn();
+  registerEvent = jest.fn();
 }
 
 export class PluginSettingTab {

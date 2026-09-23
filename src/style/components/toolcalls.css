@@ -474,17 +474,6 @@
   text-overflow: ellipsis;
 }
 
-.claudian-tool-current {
-  font-family: var(--cl-font-mono);
-  font-size: var(--cl-text-md);
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-.claudian-tool-current:empty {
-  display: none;
-}
-
 .claudian-tool-status {
   display: inline-flex;
   align-items: center;

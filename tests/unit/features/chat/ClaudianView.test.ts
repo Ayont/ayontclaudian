@@ -3,6 +3,10 @@ import { Menu, Modal, Platform, Scope } from 'obsidian';
 
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ClaudianView } from '@/features/chat/ClaudianView';
+import { sendTabInputMessageFromExplicitEnterShortcut } from '@/features/chat/tabs/Tab';
+import { type ChatKeyBindingId, chatKeyBindingScopeModifiers } from '@/features/chat/ui/chatKeyBindings';
+import { bindChatSearchShortcut } from '@/features/chat/ui/ChatSearch';
+import { CHAT_SHORTCUTS } from '@/features/chat/ui/ShortcutOverlay';
 
 const MockScope = Scope as typeof Scope & { instances: Scope[] };
 const MockMenu = Menu as typeof Menu & {
@@ -79,7 +83,8 @@ describe('ClaudianView tab controls', () => {
     const nav = view.buildNavRowContent();
     const buttons = Array.from(nav.querySelectorAll('.claudian-header-btn')) as HTMLElement[];
 
-    expect(buttons).toHaveLength(5);
+    expect(buttons).toHaveLength(6);
+    expect(buttons.some((button) => button.hasClass('claudian-tab-overview-btn'))).toBe(true);
     for (const button of buttons) {
       expect(button.tagName).toBe('BUTTON');
       expect(button.getAttribute('type')).toBe('button');
@@ -88,6 +93,67 @@ describe('ClaudianView tab controls', () => {
     }
     const historyButton = buttons.find((button) => button.getAttribute('aria-label') === 'Chat-Verlauf');
     expect(historyButton?.getAttribute('aria-expanded')).toBe('false');
+  });
+});
+
+describe('ClaudianView tab navigation', () => {
+  function createNavHarness(tabIds: string[], activeId: string) {
+    const view = Object.create(ClaudianView.prototype) as any;
+    const inputEl = createMockEl('textarea');
+    const switchToTab = jest.fn().mockResolvedValue(undefined);
+    view.app = { workspace: { revealLeaf: jest.fn().mockResolvedValue(undefined) } };
+    view.leaf = { id: 'leaf' };
+    view.containerEl = createMockEl();
+    view.tabManager = {
+      getTabCount: () => tabIds.length,
+      getTabIdAt: (position: number) => tabIds[position - 1] ?? null,
+      getAdjacentTabId: (delta: number) => tabIds[(tabIds.indexOf(activeId) + delta + tabIds.length) % tabIds.length],
+      switchToTab,
+      getActiveTab: () => ({ dom: { inputEl } }),
+    };
+    view.tabOverview = { open: jest.fn(), close: jest.fn() };
+    return { inputEl, switchToTab, view };
+  }
+
+  it('opens the numbered tab and puts the cursor into its composer', async () => {
+    const { inputEl, switchToTab, view } = createNavHarness(['tab-a', 'tab-b', 'tab-c'], 'tab-a');
+    const focus = jest.spyOn(inputEl, 'focus');
+
+    view.switchToTabNumber(3);
+    for (let i = 0; i < 4; i++) await Promise.resolve();
+
+    expect(switchToTab).toHaveBeenCalledWith('tab-c');
+    expect(focus).toHaveBeenCalled();
+    expect(view.app.workspace.revealLeaf).toHaveBeenCalledWith(view.leaf);
+  });
+
+  it('cycles through tabs in both directions', () => {
+    const { switchToTab, view } = createNavHarness(['tab-a', 'tab-b', 'tab-c'], 'tab-a');
+
+    view.switchToAdjacentTab(-1);
+    view.switchToAdjacentTab(1);
+
+    expect(switchToTab.mock.calls).toEqual([['tab-c'], ['tab-b']]);
+  });
+
+  it('reveals the chat before opening the overview', async () => {
+    const { view } = createNavHarness(['tab-a', 'tab-b'], 'tab-a');
+
+    view.openTabOverview();
+
+    expect(view.app.workspace.revealLeaf).toHaveBeenCalled();
+    expect(view.tabOverview.open).toHaveBeenCalled();
+    expect(view.getOpenTabCount()).toBe(2);
+  });
+
+  it('treats a collapsed pane as not visible, so its finished tab still gets marked', () => {
+    const view = Object.create(ClaudianView.prototype) as any;
+    view.containerEl = createMockEl();
+    view.containerEl.isShown = () => false;
+    expect(view.isChatVisible()).toBe(false);
+
+    view.containerEl.isShown = () => true;
+    expect(view.isChatVisible()).toBe(true);
   });
 });
 
@@ -486,6 +552,104 @@ describe('ClaudianView Escape handling', () => {
   });
 });
 
+// The shortcut overlay once promised ⌘N, ⌘⇧H and ⌘K although nothing was
+// bound to them. Every key row now has to reach the handler that implements it.
+describe('ClaudianView shortcut overlay keys', () => {
+  beforeEach(() => {
+    MockScope.instances.length = 0;
+  });
+
+  function keyEvent(overrides: Record<string, unknown>) {
+    return {
+      key: '',
+      code: '',
+      metaKey: false,
+      ctrlKey: false,
+      shiftKey: false,
+      altKey: false,
+      isComposing: false,
+      defaultPrevented: false,
+      target: null,
+      preventDefault: jest.fn(),
+      stopPropagation: jest.fn(),
+      ...overrides,
+    } as unknown as KeyboardEvent & { preventDefault: jest.Mock };
+  }
+
+  function createKeyHarness() {
+    const view = Object.create(ClaudianView.prototype) as any;
+    view.app = { scope: new Scope() };
+    view.containerEl = createMockEl();
+    view.historyDropdown = createMockEl();
+    view.registerDomEvent = jest.fn();
+    view.registerEvent = jest.fn();
+    view.eventRefs = [];
+    view.shortcutOverlay = { toggle: jest.fn(), isOpen: jest.fn().mockReturnValue(false), close: jest.fn() };
+    view.plugin = {
+      app: {
+        vault: { on: jest.fn(() => ({})) },
+        workspace: { on: jest.fn(() => ({})) },
+      },
+    };
+    view.tabManager = { getActiveTab: jest.fn().mockReturnValue(null) };
+    view.wireEventHandlers();
+    const viewKeydown = view.registerDomEvent.mock.calls
+      .find((call: unknown[]) => call[0] === view.containerEl && call[1] === 'keydown')?.[2] as (event: KeyboardEvent) => void;
+    const scopeHandler = (id: ChatKeyBindingId, key: string) => view.scope.handlers.find((handler: any) =>
+      handler.key === key && JSON.stringify(handler.modifiers) === JSON.stringify(chatKeyBindingScopeModifiers(id)));
+    return { scopeHandler, view, viewKeydown };
+  }
+
+  const checks: Record<ChatKeyBindingId, () => void> = {
+    send: () => {
+      expect(createKeyHarness().scopeHandler('send', 'Enter')).toBeDefined();
+    },
+    stop: () => {
+      expect(createKeyHarness().scopeHandler('stop', 'Escape')).toBeDefined();
+    },
+    shortcuts: () => {
+      const { view, viewKeydown } = createKeyHarness();
+      viewKeydown(keyEvent({ key: '/', code: 'Slash', metaKey: true }));
+      expect(view.shortcutOverlay.toggle).toHaveBeenCalledTimes(1);
+    },
+    'plan-mode': () => {
+      const { viewKeydown } = createKeyHarness();
+      const event = keyEvent({ key: 'Tab', shiftKey: true });
+      viewKeydown(event);
+      expect(event.preventDefault).toHaveBeenCalled();
+    },
+    search: () => {
+      const scopeEl = createMockEl();
+      const open = jest.fn();
+      bindChatSearchShortcut(scopeEl, open);
+      scopeEl.dispatchEvent({ ...keyEvent({ key: 'f', metaKey: true }), type: 'keydown' });
+      expect(open).toHaveBeenCalledTimes(1);
+    },
+    // No handler of its own: Shift+Enter is the textarea's newline because
+    // every send path refuses it.
+    newline: () => {
+      const tab = { dom: { inputEl: createMockEl('textarea') }, controllers: { inputController: { sendMessage: jest.fn() } } };
+      const event = keyEvent({ key: 'Enter', shiftKey: true, metaKey: true });
+      expect(sendTabInputMessageFromExplicitEnterShortcut(tab as never, event)).toBe(false);
+      expect(tab.controllers.inputController.sendMessage).not.toHaveBeenCalled();
+    },
+  };
+
+  const keyRows = CHAT_SHORTCUTS.flatMap((entry) => (entry.trigger.kind === 'key' ? [[entry.label, entry.trigger.binding] as const] : []));
+
+  it.each(keyRows)('„%s“ reaches its real handler', (_label, binding) => {
+    expect(checks[binding]).toBeDefined();
+    checks[binding]();
+  });
+
+  it('leaves Ctrl+Shift+Tab to Obsidian instead of toggling plan mode', () => {
+    const { viewKeydown } = createKeyHarness();
+    const event = keyEvent({ key: 'Tab', shiftKey: true, ctrlKey: true });
+    viewKeydown(event);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+});
+
 /**
  * Obsidian reveals a leaf only after the view's `onOpen()` resolves, and
  * `setViewState()` is what the ribbon click awaits. Restoring the previously
@@ -541,6 +705,27 @@ describe('ClaudianView tab restore', () => {
 
     expect(view.restoreOrCreateTabs).not.toHaveBeenCalled();
     expect(onLayoutReady).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets an action that just opened the pane wait for the restored tabs', async () => {
+    let release: () => void = () => {};
+    const view = createRestoreHarness(() => new Promise<void>((resolve) => { release = resolve; }));
+    let restored = false;
+
+    view.startTabRestore();
+    const waiting = view.whenTabsRestored().then(() => { restored = true; });
+    await Promise.resolve();
+    expect(restored).toBe(false);
+
+    release();
+    await waiting;
+    expect(restored).toBe(true);
+  });
+
+  it('does not block callers of a pane that never started a restore', async () => {
+    const view = Object.create(ClaudianView.prototype) as any;
+
+    await expect(view.whenTabsRestored()).resolves.toBeUndefined();
   });
 });
 
@@ -676,5 +861,73 @@ describe('ClaudianView lazy tab refresh', () => {
     view.historyDropdown.addClass('visible');
     view.refreshHistoryIfOpen();
     expect(view.updateHistoryDropdown).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ClaudianView closing tabs', () => {
+  function closeHarness(isStreaming: boolean) {
+    const view = Object.create(ClaudianView.prototype) as any;
+    view.app = {};
+    view.tabManager = {
+      getTab: jest.fn().mockReturnValue({ state: { isStreaming } }),
+      closeTab: jest.fn().mockResolvedValue(true),
+    };
+    view.updateTabBarVisibility = jest.fn();
+    return view;
+  }
+
+  function answerConfirm(confirmed: boolean): void {
+    const modal = MockModal.instances[MockModal.instances.length - 1] as unknown as {
+      resolve: (value: boolean) => void;
+    };
+    if (confirmed) {
+      modal.resolve(true);
+      return;
+    }
+    // The mock's instance `onClose` shadows the dialog's own; run the real one.
+    (Object.getPrototypeOf(modal) as { onClose: () => void }).onClose.call(modal);
+  }
+
+  it('closes a running tab after the user confirms', async () => {
+    const view = closeHarness(true);
+
+    const closing = view.handleTabClose('tab-1');
+    await Promise.resolve();
+    answerConfirm(true);
+    await closing;
+
+    expect(view.tabManager.closeTab).toHaveBeenCalledWith('tab-1', true);
+  });
+
+  it('closes an idle tab right away', async () => {
+    const view = closeHarness(false);
+
+    await view.handleTabClose('tab-1');
+
+    expect(view.tabManager.closeTab).toHaveBeenCalledWith('tab-1', true);
+  });
+
+  it('asks before cutting off a running answer, and keeps the tab when declined', async () => {
+    const view = closeHarness(true);
+    const before = MockModal.instances.length;
+
+    const closing = view.handleTabClose('tab-1');
+    await Promise.resolve();
+    expect(MockModal.instances.length).toBe(before + 1);
+    answerConfirm(false);
+    await closing;
+
+    expect(view.tabManager.closeTab).not.toHaveBeenCalled();
+  });
+
+  it('opens a menu on right-click instead of closing', () => {
+    const view = closeHarness(false);
+    view.tabOverview = { open: jest.fn() };
+    const before = MockMenu.instances.length;
+
+    view.showTabContextMenu('tab-1', {} as MouseEvent);
+
+    expect(MockMenu.instances.length).toBe(before + 1);
+    expect(view.tabManager.closeTab).not.toHaveBeenCalled();
   });
 });

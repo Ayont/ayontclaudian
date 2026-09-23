@@ -72,4 +72,21 @@ describe('buildGrokLaunchSpec', () => {
 
     expect(flagValue(spec.args, '--cwd')).toBe('/vault');
   });
+
+  // `grok --help`: --permission-mode <MODE>, possible values:
+  // default, acceptEdits, auto, dontAsk, bypassPermissions, plan.
+  it('passes the plan toggle to the CLI instead of dropping it', () => {
+    const spec = buildGrokLaunchSpec({ ...base, permissionMode: 'plan' });
+
+    expect(flagValue(spec.args, '--permission-mode')).toBe('plan');
+    expect(spec.args).not.toContain('--always-approve');
+    expect(spec.args.slice(-2)).toEqual(['-p', 'Hallo']);
+  });
+
+  it('keeps yolo on --always-approve and normal on the CLI default', () => {
+    expect(buildGrokLaunchSpec({ ...base, permissionMode: 'yolo' }).args).toContain('--always-approve');
+    const normal = buildGrokLaunchSpec(base).args;
+    expect(normal).not.toContain('--permission-mode');
+    expect(normal).not.toContain('--always-approve');
+  });
 });

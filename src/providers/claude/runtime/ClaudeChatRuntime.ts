@@ -74,6 +74,7 @@ import { encodeClaudeTurn } from '../prompt/ClaudeTurnEncoder';
 import { isContextWindowEvent, isSessionInitEvent, isStreamChunk } from '../sdk/typeGuards';
 import type { TransformEvent } from '../sdk/types';
 import { getClaudeProviderSettings } from '../settings';
+import { ClaudeGoalTracker, parseGoalCommandPrompt } from '../stream/claudeGoalTracker';
 import {
   createTransformStreamState,
   createTransformUsageState,
@@ -96,6 +97,7 @@ import {
   buildClaudePromptWithImages,
   buildClaudeSDKUserMessage,
 } from './ClaudeUserMessageFactory';
+import { toClaudeRateLimitReport } from './rateLimits';
 import {
   type ClaudeEnsureReadyOptions,
   type ClosePersistentQueryOptions,
@@ -180,6 +182,7 @@ export class ClaudianService implements ChatRuntime {
   private lastSentQueryOptions: QueryOptions | null = null;
   private crashRecoveryAttempted = false;
   private coldStartInProgress = false;  // Prevent consumer error restarts during cold-start
+  private steerBoundaryHandlerId: string | null = null;
 
   // SDK command cache — populated on system/init, cleared on persistent query close
   private cachedSdkCommands: SlashCommand[] = [];
@@ -198,6 +201,8 @@ export class ClaudianService implements ChatRuntime {
   private turnMetadata: ChatTurnMetadata = {};
   private bufferedUsageChunk: StreamChunk & { type: 'usage' } | null = null;
   private streamTransformState = createTransformStreamState();
+  /** Claude Code runs `/goal` itself (a Stop hook); this follows its rounds for the banner. */
+  private readonly goalTracker = new ClaudeGoalTracker();
   private usageTransformState = createTransformUsageState();
 
   private getLegacyPluginDeps(): ClaudianPlugin & {
@@ -829,6 +834,7 @@ export class ClaudianService implements ChatRuntime {
       customContextLimits: settings.customContextLimits,
       streamState,
       usageState,
+      goalTracker: this.goalTracker,
     };
   }
 
@@ -847,6 +853,7 @@ export class ClaudianService implements ChatRuntime {
     // Keep Claude Code local workflows visible after the foreground turn ends,
     // and resume the model automatically once the whole workflow batch settles.
     this.trackWorkflowContinuation(message);
+    this.reportRateLimit(message);
 
     // Safe to use last handler - design guarantees single handler at a time
     const handler = this.responseHandlers[this.responseHandlers.length - 1];
@@ -987,6 +994,13 @@ export class ClaudianService implements ChatRuntime {
     } catch {
       new Notice('Hintergrundaufgabe fertig, aber das Ergebnis ließ sich nicht anzeigen.');
     }
+  }
+
+  /** Live plan-limit state is account-wide, so it goes to the plugin, not the chat. */
+  private reportRateLimit(message: SDKMessage): void {
+    if (message.type !== 'rate_limit_event') return;
+    const report = toClaudeRateLimitReport(message.rate_limit_info);
+    if (report) this.plugin.recordProviderRateLimit('claude', report);
   }
 
   /** Tracks local workflow batches and schedules a hidden continuation turn. */
@@ -1219,6 +1233,14 @@ export class ClaudianService implements ChatRuntime {
     if (missingNodeError) {
       yield { type: 'error', content: missingNodeError };
       return;
+    }
+
+    const goalCommand = parseGoalCommandPrompt(prompt);
+    if (goalCommand?.kind === 'set') {
+      yield { type: 'goal_update', goal: this.goalTracker.begin(goalCommand.condition) };
+    } else if (goalCommand?.kind === 'clear') {
+      this.goalTracker.clear();
+      yield { type: 'goal_update', goal: null };
     }
 
     // Rebuild history if needed before choosing persistent vs cold-start
@@ -1663,6 +1685,7 @@ export class ClaudianService implements ChatRuntime {
           await response.interrupt();
           break;
         }
+        this.reportRateLimit(message);
 
         for (const event of transformSDKMessage(message, this.getTransformOptions(selectedModel, streamState, usageState))) {
           this.noteVisibleStreamContent(message, event, {
@@ -1726,6 +1749,7 @@ export class ClaudianService implements ChatRuntime {
 
   cancel() {
     this.approvalDismisser?.();
+    this.goalTracker.markInterrupted();
 
     if (this.abortController) {
       this.abortController.abort();
@@ -1740,6 +1764,38 @@ export class ClaudianService implements ChatRuntime {
     }
   }
 
+  /**
+   * Adds the message to the running turn without cancelling it: in-flight tool
+   * work finishes and the model reads the message at the next tool round.
+   * Declining keeps the message queued in the chat until the turn ends.
+   */
+  async steer(turn: PreparedChatTurn): Promise<boolean> {
+    const handler = this.responseHandlers[this.responseHandlers.length - 1];
+    const channel = this.messageChannel;
+    // The CLI never drains slash commands mid-turn; they would run as a turn of
+    // their own with no handler behind it.
+    if (!handler || !channel || !this.persistentQuery || this.shuttingDown || turn.prompt.trimStart().startsWith('/')) {
+      return false;
+    }
+    const message = this.buildSDKUserMessage(turn.prompt, turn.request.images);
+    message.priority = 'next';
+    if (!channel.injectIntoActiveTurn(message)) {
+      return false;
+    }
+
+    // The chat reads a turn's first boundary as the echo of its initial prompt,
+    // and ordinary Claude turns emit none, so one is sent before the first steer.
+    const needsInitialBoundary = this.steerBoundaryHandlerId !== handler.id;
+    this.steerBoundaryHandlerId = handler.id;
+    // One macrotask later: the chat records the steered bubble's content right
+    // after steer() resolves, and the boundary must not overtake it.
+    window.setTimeout(() => {
+      if (needsInitialBoundary) handler.onChunk({ type: 'user_message_start', content: '' });
+      handler.onChunk({ type: 'user_message_start', content: turn.request.text });
+    }, 0);
+    return true;
+  }
+
   async softSteer(_turn: PreparedChatTurn): Promise<boolean> {
     this.cancel();
     return true;
@@ -1747,6 +1803,12 @@ export class ClaudianService implements ChatRuntime {
 
   canCancelSubagent(target: SubagentCancelTarget): boolean {
     return Boolean(this.persistentQuery && !this.shuttingDown && resolveStopTaskId(target));
+  }
+
+  /** `/goal` is a Claude Code built-in (2.1.280 lists it in non-interactive mode); older CLIs lack it. */
+  supportsNativeGoal(): boolean {
+    if (this.cachedSdkCommands.length === 0) return true;
+    return this.cachedSdkCommands.some((command) => command.name === 'goal');
   }
 
   async cancelSubagent(target: SubagentCancelTarget): Promise<boolean> {

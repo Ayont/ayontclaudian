@@ -1,5 +1,7 @@
 import * as path from 'node:path';
 
+import { Notice } from 'obsidian';
+
 import { appendImagePathReferences } from '../../../core/providers/imagePathFallback';
 import { getRuntimeEnvironmentText } from '../../../core/providers/providerEnvironment';
 import type { ProviderCapabilities } from '../../../core/providers/types';
@@ -35,6 +37,7 @@ import {
   type AcpClientConnectionDelegate,
   type AcpContentBlock,
   AcpJsonRpcTransport,
+  AcpPlanTodoBridge,
   type AcpRequestPermissionRequest,
   type AcpRequestPermissionResponse,
   type AcpSessionModeId,
@@ -42,6 +45,7 @@ import {
   AcpSessionUpdateNormalizer,
   AcpSubprocess,
 } from '../../acp';
+import { openWithMcpFallback, resolveClaudianAcpMcpServers } from '../../acp/acpMcpServers';
 import { KIMI_PROVIDER_CAPABILITIES } from '../capabilities';
 import { createKimiAcpToolStreamAdapter } from '../normalization/kimiAcpToolNormalization';
 import { getKimiProviderSettings, KIMI_PROVIDER_ID } from '../settings';
@@ -115,6 +119,7 @@ export class KimiAcpChatRuntime implements ChatRuntime {
   private sessionId: string | null = null;
   private sessionInvalidated = false;
   private readonly sessionUpdateNormalizer = new AcpSessionUpdateNormalizer();
+  private readonly planTodos = new AcpPlanTodoBridge();
   private readonly supportedCommands: SlashCommand[] = [];
   private readonly toolStreamAdapter = createKimiAcpToolStreamAdapter();
   private transport: AcpJsonRpcTransport | null = null;
@@ -348,6 +353,11 @@ export class KimiAcpChatRuntime implements ChatRuntime {
     return Promise.resolve(false);
   }
 
+  /** Kimi's ACP server has no goal command (its built-ins: compact, status, usage, mcp, tasks, help). */
+  supportsNativeGoal(): boolean {
+    return false;
+  }
+
   cancel(): void {
     if (this.connection && this.sessionId) {
       this.connection.cancel({ sessionId: this.sessionId });
@@ -518,7 +528,11 @@ export class KimiAcpChatRuntime implements ChatRuntime {
     }
     try {
       const cwd = getVaultPath(this.plugin.app) ?? process.cwd();
-      const response = await this.connection.newSession({ cwd, mcpServers: [] });
+      const response = await openWithMcpFallback(
+        resolveClaudianAcpMcpServers(this.connection.negotiatedAgentCapabilities?.mcpCapabilities),
+        (mcpServers) => this.connection!.newSession({ cwd, mcpServers }),
+        () => new Notice('MCP-Server konnten für diese Sitzung nicht geladen werden; sie läuft ohne sie. Prüfe .claude/mcp.json.'),
+      );
       const sessionId = response.sessionId ?? null;
       if (sessionId) {
         this.sessionId = sessionId;
@@ -536,7 +550,11 @@ export class KimiAcpChatRuntime implements ChatRuntime {
     }
     try {
       const cwd = getVaultPath(this.plugin.app) ?? process.cwd();
-      await this.connection.loadSession({ cwd, mcpServers: [], sessionId });
+      await openWithMcpFallback(
+        resolveClaudianAcpMcpServers(this.connection.negotiatedAgentCapabilities?.mcpCapabilities),
+        (mcpServers) => this.connection!.loadSession({ cwd, mcpServers, sessionId }),
+        () => new Notice('MCP-Server konnten für diese Sitzung nicht geladen werden; sie läuft ohne sie. Prüfe .claude/mcp.json.'),
+      );
       this.sessionId = sessionId;
       this.loadedSessionId = sessionId;
       return true;
@@ -622,8 +640,11 @@ export class KimiAcpChatRuntime implements ChatRuntime {
         break;
       }
       case 'plan': {
-        // Plan updates are forwarded as stream chunks so the UI can render them.
-        break;
+        // Kimi's TodoList tool reaches the client only as an ACP plan.
+        for (const chunk of this.planTodos.fromPlan(activeTurn, normalized.plan)) {
+          activeTurn.queue.push(chunk);
+        }
+        return;
       }
       case 'tool_call':
       case 'tool_call_update': {
@@ -634,6 +655,7 @@ export class KimiAcpChatRuntime implements ChatRuntime {
                 normalized.toolCallUpdate,
                 normalized.streamChunks,
               );
+        this.planTodos.observe(activeTurn, streamChunks);
         for (const chunk of streamChunks) {
           activeTurn.queue.push(chunk);
         }

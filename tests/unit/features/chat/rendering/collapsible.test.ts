@@ -131,6 +131,29 @@ describe('collapsible', () => {
 
       expect(header.getAttribute('aria-label')).toBeNull();
     });
+
+    it('should collapse with a custom class so a surface can animate instead of display:none', () => {
+      setupCollapsible(wrapper, header, content, state, { hiddenClass: 'claudian-todo-collapsed' });
+
+      expect(content.hasClass('claudian-todo-collapsed')).toBe(true);
+      expect(content.hasClass('claudian-hidden')).toBe(false);
+
+      header.click();
+
+      expect(content.hasClass('claudian-todo-collapsed')).toBe(false);
+      expect(content.hasClass('claudian-hidden')).toBe(false);
+    });
+
+    it('should prefer a per-state aria-label over the English base label', () => {
+      setupCollapsible(wrapper, header, content, state, {
+        baseAriaLabel: 'Tool',
+        getAriaLabel: (expanded) => (expanded ? 'Liste einklappen' : 'Liste ausklappen'),
+      });
+
+      expect(header.getAttribute('aria-label')).toBe('Liste ausklappen');
+      header.click();
+      expect(header.getAttribute('aria-label')).toBe('Liste einklappen');
+    });
   });
 
   describe('collapseElement', () => {

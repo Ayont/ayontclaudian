@@ -1,5 +1,5 @@
 import type { ProviderCapabilities, ProviderId } from '../providers/types';
-import type { ChatMessage, Conversation, SlashCommand, StreamChunk, SubagentCancelTarget, ToolCallInfo } from '../types';
+import type { ChatMessage, Conversation, NativeGoalState, SlashCommand, StreamChunk, SubagentCancelTarget, ToolCallInfo } from '../types';
 import type {
   ApprovalCallback,
   AskUserQuestionCallback,
@@ -82,4 +82,15 @@ export interface ChatRuntime {
   canCancelSubagent?(target: SubagentCancelTarget): boolean;
   /** Resolves true once the stop request was delivered to the provider. */
   cancelSubagent?(target: SubagentCancelTarget): Promise<boolean>;
+
+  /**
+   * Confirms at runtime that the provider's goal system is usable (e.g. the
+   * CLI build lists `/goal`). Absent means the static capability decides.
+   */
+  supportsNativeGoal?(): boolean;
+  pauseNativeGoal?(): Promise<NativeGoalState | null>;
+  /** Ends the goal inside the provider (and forgets any local copy of it). */
+  clearNativeGoal?(): Promise<void>;
 }
+
+export type { NativeGoalAction } from './types';

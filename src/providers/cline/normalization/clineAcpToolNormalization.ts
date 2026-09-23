@@ -1,3 +1,4 @@
+import { normalizeTodoItems } from '../../../core/tools/todo';
 import {
   TOOL_AGENT_OUTPUT,
   TOOL_ASK_USER_QUESTION,
@@ -111,6 +112,10 @@ export function normalizeClineAcpToolInput(
   input: Record<string, unknown>,
 ): Record<string, unknown> {
   const key = String(rawName ?? '').trim().toLowerCase().replace(/[_-\s]/g, '');
+  if (TOOL_NAME_MAP[key] === TOOL_TODO_WRITE && Array.isArray(input.todos)) {
+    return { todos: normalizeTodoItems(input.todos) };
+  }
+
   const next: Record<string, unknown> = { ...input };
 
   const filePath = firstString(input.file_path)

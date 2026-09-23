@@ -11,7 +11,7 @@
  * | `assistant/chunk`           | `text-delta`, `reasoning-delta`, `usage`     |
  * | `tool/code-dispatch-start`  | inner tool name + arguments                  |
  * | `tool/code-dispatch`        | inner tool result + `isError`                |
- * | `todo/write`                | the agent's todo list                        |
+ * | `todo/write`                | mirror of the `todo_write` dispatch (skipped) |
  * | `llm/retry`                 | provider retry with a failure code           |
  * | `compaction/start` / `/end` | context compaction                           |
  * | `session/title`             | the session's own title                      |
@@ -22,9 +22,12 @@
  * `bash` / `read` / `edit` / `write` / …; the INNER dispatches are the useful
  * unit of visibility, so those become the tool calls the chat renders. The
  * outer `tool/call` is deliberately skipped — surfacing both would show every
- * action twice.
+ * action twice. `todo/write` is skipped for the same reason: dsh writes it right
+ * after every `todo_write` dispatch with the same list, and the dispatch pair
+ * already carries the call id the card needs.
  */
 
+import { normalizeTodoItems } from '../../../core/tools/todo';
 import {
   TOOL_BASH,
   TOOL_EDIT,
@@ -130,6 +133,9 @@ function normalizeDispatchInput(
   if (toolName === TOOL_READ || toolName === TOOL_WRITE || toolName === TOOL_EDIT) {
     const filePath = asString(args.file_path) ?? asString(args.path);
     return { ...args, ...(filePath ? { file_path: filePath } : {}) };
+  }
+  if (toolName === TOOL_TODO_WRITE && Array.isArray(args.todos)) {
+    return { todos: normalizeTodoItems(args.todos) };
   }
   return args;
 }

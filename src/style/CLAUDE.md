@@ -5,7 +5,7 @@
 ```
 src/style/
 ├── base/           # container, animations (@keyframes), variables
-├── components/     # header, history, messages, code, thinking, toolcalls, status-panel, subagent, input, context-footer, tabs, nav-sidebar
+├── components/     # header, history, messages, code, thinking, toolcalls, status-panel, todo-list (status panel + TodoWrite card), subagent, input, context-footer, tabs, nav-sidebar
 ├── toolbar/        # model-selector, thinking-selector, permission-toggle, service-tier-toggle, external-context, mcp-selector
 ├── features/       # file-context, image-context, image-modal, inline-edit, diff, slash-commands, file-link, image-embed, plan-mode, ask-user-question, resume-session
 ├── modals/         # instruction, mcp-modal, fork-target

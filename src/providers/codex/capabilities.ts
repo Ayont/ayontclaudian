@@ -15,4 +15,8 @@ export const CODEX_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Objec
   supportsMultiAgent: true,
   supportsTurnSteer: true,
   reasoningControl: 'effort',
+  // codex-cli 0.156: `features list` → goals stable; app-server thread/goal/set|get|clear.
+  nativeGoal: { mode: 'rpc' as const, canPause: true, persistent: true, resume: 'rpc' as const },
+  // CodexChatRuntime routes a bare `/compact` to app-server `thread/compact/start`.
+  compact: Object.freeze({ command: '/compact', availability: 'builtin' }),
 });

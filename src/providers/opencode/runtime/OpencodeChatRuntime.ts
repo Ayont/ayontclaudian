@@ -1,6 +1,8 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
+import { Notice } from 'obsidian';
+
 import {
   computeSystemPromptKey,
   type SystemPromptSettings,
@@ -43,6 +45,7 @@ import { getVaultPath } from '../../../utils/path';
 import {
   AcpClientConnection,
   AcpJsonRpcTransport,
+  AcpPlanTodoBridge,
   type AcpReadTextFileRequest,
   type AcpRequestPermissionRequest,
   type AcpRequestPermissionResponse,
@@ -60,6 +63,7 @@ import {
   extractAcpSessionModeState,
   extractAcpSessionThoughtLevelState,
 } from '../../acp';
+import { openWithMcpFallback, resolveClaudianAcpMcpServers } from '../../acp/acpMcpServers';
 import { ACP_KEEPALIVE_INTERVAL_MS, ACP_KEEPALIVE_MAX_SILENCE_MS } from '../../acp/keepalive';
 import { OPENCODE_PROVIDER_CAPABILITIES } from '../capabilities';
 import { updateOpencodeDiscoveryState } from '../discoveryState';
@@ -169,6 +173,7 @@ export class OpencodeChatRuntime implements ChatRuntime {
   /** Last real wire activity; caps keepalive heartbeats (see acp/keepalive). */
   private lastNotificationAt = 0;
   private readonly sessionUpdateNormalizer = new AcpSessionUpdateNormalizer();
+  private readonly planTodos = new AcpPlanTodoBridge();
   private readonly toolStreamAdapter = createOpencodeToolStreamAdapter();
   private transport: AcpJsonRpcTransport | null = null;
   private unregisterTransportClose: (() => void) | null = null;
@@ -1103,10 +1108,14 @@ export class OpencodeChatRuntime implements ChatRuntime {
 
     try {
       this.setSupportedCommands([]);
-      const response = await this.connection.newSession({
+      const response = await openWithMcpFallback(
+        resolveClaudianAcpMcpServers(this.connection.negotiatedAgentCapabilities?.mcpCapabilities),
+        (mcpServers) => this.connection!.newSession({
         cwd,
-        mcpServers: [],
-      });
+        mcpServers,
+      }),
+        () => new Notice('MCP-Server konnten für diese Sitzung nicht geladen werden; sie läuft ohne sie. Prüfe .claude/mcp.json.'),
+      );
       this.loadedSessionId = response.sessionId;
       this.sessionId = response.sessionId;
       this.sessionCwds.set(response.sessionId, cwd);
@@ -1131,11 +1140,15 @@ export class OpencodeChatRuntime implements ChatRuntime {
 
     try {
       this.setSupportedCommands([]);
-      const response = await this.connection.loadSession({
+      const response = await openWithMcpFallback(
+        resolveClaudianAcpMcpServers(this.connection.negotiatedAgentCapabilities?.mcpCapabilities),
+        (mcpServers) => this.connection!.loadSession({
         cwd,
-        mcpServers: [],
+        mcpServers,
         sessionId,
-      });
+      }),
+        () => new Notice('MCP-Server konnten für diese Sitzung nicht geladen werden; sie läuft ohne sie. Prüfe .claude/mcp.json.'),
+      );
       this.sessionInvalidated = false;
       this.loadedSessionId = response.sessionId;
       this.sessionId = response.sessionId;
@@ -1208,7 +1221,14 @@ export class OpencodeChatRuntime implements ChatRuntime {
           ? this.toolStreamAdapter.normalizeToolCall(normalized.toolCall, normalized.streamChunks)
           : this.toolStreamAdapter.normalizeToolCallUpdate(normalized.toolCallUpdate, normalized.streamChunks);
 
+        this.planTodos.observe(this.activeTurn, streamChunks);
         for (const chunk of streamChunks) {
+          this.activeTurn.queue.push(chunk);
+        }
+        return;
+      }
+      case 'plan': {
+        for (const chunk of this.planTodos.fromPlan(this.activeTurn, normalized.plan)) {
           this.activeTurn.queue.push(chunk);
         }
         return;

@@ -91,6 +91,22 @@ describe('transformSDKMessage', () => {
       ]);
     });
 
+    it('turns an api_retry into a transient status notice instead of silence', () => {
+      const message = msg({
+        type: 'system',
+        subtype: 'api_retry',
+        attempt: 2,
+        max_retries: 10,
+        retry_delay_ms: 8000,
+        error_status: 529,
+        error: 'overloaded',
+      } as never);
+
+      expect([...transformSDKMessage(message)]).toEqual([
+        { type: 'notice', level: 'info', transient: true, content: 'Anthropic-API überlastet – neuer Versuch 2/10 in 8 s' },
+      ]);
+    });
+
     it('captures agents from init message', () => {
       const message = msg({
         type: 'system',

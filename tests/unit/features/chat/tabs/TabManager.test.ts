@@ -1,4 +1,5 @@
 import { createMockEl } from '@test/helpers/mockElement';
+import { Notice } from 'obsidian';
 
 import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceRegistry';
 import { ComposerDraftStore, conversationDraftKey, tabDraftKey } from '@/features/chat/services/ComposerDraftStore';
@@ -36,6 +37,8 @@ jest.mock('@/features/chat/tabs/Tab', () => ({
   setupServiceCallbacks: (...args: any[]) => mockSetupServiceCallbacks(...args),
   wireTabInputEvents: (...args: any[]) => mockWireTabInputEvents(...args),
   getTabTitle: (...args: any[]) => mockGetTabTitle(...args),
+  adoptTabGoalIntoConversation: jest.fn(),
+  resetTabGoalMirror: jest.fn(),
 }));
 
 const mockChooseForkTarget = jest.fn();
@@ -71,6 +74,7 @@ jest.mock('@/core/providers/ProviderRegistry', () => ({
       buildForkProviderState: mockBuildForkProviderState,
     }),
     getCapabilities: (...args: any[]) => mockGetCapabilities(...args),
+    getProviderRegistrationSafe: (providerId: string) => ({ displayName: providerId === 'codex' ? 'Codex' : 'Claude' }),
     resolveProviderForModel: (model: string) => (
       model.startsWith('opencode:') ? 'opencode'
         : model.startsWith('gpt-') || /^o\d/.test(model) ? 'codex' : 'claude'
@@ -799,6 +803,21 @@ describe('TabManager - Persistence', () => {
       await manager.restoreState(persistedState);
 
       expect(mockCreateTab).toHaveBeenCalledTimes(2);
+    });
+
+    // A lowered tab limit (or reset settings) used to drop every saved tab
+    // above it, and the next layout save made that permanent.
+    it('restores every saved tab even above the tab limit', async () => {
+      let n = 0;
+      const limitedManager = createManager({
+        plugin: createMockPlugin({ settings: { maxTabs: 3 } }),
+        tabFactory: () => createMockTabData({ id: `tab-${++n}` }),
+      });
+      const openTabs = Array.from({ length: 5 }, (_, i) => ({ tabId: `saved-${i}`, conversationId: null }));
+
+      await limitedManager.restoreState({ openTabs, activeTabId: 'saved-0' });
+
+      expect(limitedManager.getAllTabs()).toHaveLength(5);
     });
 
     it('defers hydration during restore (metadata sync lookup, no eager getConversationById)', async () => {
@@ -3108,5 +3127,180 @@ describe('TabManager idle runtimes', () => {
     expect(service.cleanup).toHaveBeenCalled();
     expect(hidden?.service).toBeNull();
     expect(hidden?.serviceInitialized).toBe(false);
+  });
+});
+
+// needsAttention had a setter but nothing ever set it: finished, failed or
+// blocked tabs looked exactly like idle ones.
+describe('TabManager - attention', () => {
+  function attentionTab(n: number, stateOverrides: Record<string, unknown> = {}): any {
+    const state: any = {
+      isStreaming: false,
+      needsAttention: false,
+      attentionReason: null,
+      messages: [],
+      currentConversationId: null,
+      ...stateOverrides,
+    };
+    // createMockTabData copies the state object; write through `this`.
+    state.setAttention = jest.fn(function setAttention(this: any, reason: string | null) {
+      this.needsAttention = reason !== null;
+      this.attentionReason = reason;
+    });
+    return createMockTabData({ id: `tab-${n}`, conversationId: `conv-${n}`, state });
+  }
+
+  async function setUp(options: { chatVisible?: boolean; notify?: boolean } = {}) {
+    const captured: any[] = [];
+    let counter = 0;
+    mockCreateTab.mockImplementation((opts: any) => {
+      captured.push(opts);
+      counter++;
+      return attentionTab(counter);
+    });
+    const view = { ...createMockView(), isChatVisible: jest.fn(() => options.chatVisible ?? true) };
+    const plugin = createMockPlugin({ settings: { maxTabs: 5, notifyOnBackgroundTabDone: options.notify ?? false } });
+    const manager = new TabManager(plugin, createMockMcpManager(), createMockEl(), view as any, {});
+    await manager.createTab();
+    await manager.createTab({ activate: false } as never);
+    await manager.switchToTab('tab-1');
+    return { captured, manager, plugin, view };
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockGetTabTitle.mockReturnValue('Firewall CERTUSS');
+  });
+
+  it('raises attention on a hidden tab whose answer arrived', async () => {
+    const { captured, manager } = await setUp();
+
+    captured[1].onAttentionRequested('finished');
+
+    expect(manager.getTab('tab-2')?.state.attentionReason).toBe('finished');
+    expect(manager.getTabBarItems()[1]).toEqual(expect.objectContaining({ needsAttention: true, attentionReason: 'finished' }));
+  });
+
+  it('stays quiet for the tab the user is looking at', async () => {
+    const { captured, manager } = await setUp();
+
+    captured[0].onAttentionRequested('finished');
+
+    expect(manager.getTab('tab-1')?.state.setAttention).not.toHaveBeenCalled();
+  });
+
+  it('marks even the active tab while the whole chat pane is hidden', async () => {
+    const { captured, manager } = await setUp({ chatVisible: false });
+
+    captured[0].onAttentionRequested('input');
+
+    expect(manager.getTab('tab-1')?.state.attentionReason).toBe('input');
+  });
+
+  it('clears attention when the tab is opened', async () => {
+    const { captured, manager } = await setUp();
+    captured[1].onAttentionRequested('failed');
+
+    await manager.switchToTab('tab-2');
+
+    expect(manager.getTab('tab-2')?.state.needsAttention).toBe(false);
+  });
+
+  it('clears the active tab once the user interacts with a pane that was hidden', async () => {
+    const { captured, manager } = await setUp({ chatVisible: false });
+    captured[0].onAttentionRequested('finished');
+
+    manager.acknowledgeActiveTabAttention();
+
+    expect(manager.getTab('tab-1')?.state.needsAttention).toBe(false);
+  });
+
+  it('announces a background result only when the setting asks for it', async () => {
+    const quiet = await setUp();
+    quiet.captured[1].onAttentionRequested('finished');
+    expect(Notice).not.toHaveBeenCalled();
+
+    const loud = await setUp({ notify: true });
+    loud.captured[1].onAttentionRequested('finished');
+    loud.captured[1].onAttentionRequested('finished');
+    expect(Notice).toHaveBeenCalledTimes(1);
+    expect(Notice).toHaveBeenCalledWith('„Firewall CERTUSS“ ist fertig');
+  });
+});
+
+describe('TabManager - tab overview and cycling', () => {
+  function overviewTab(n: number, overrides: Record<string, any> = {}): any {
+    return createMockTabData({
+      id: `tab-${n}`,
+      conversationId: `conv-${n}`,
+      ui: {
+        externalContextSelector: null,
+        slashCommandDropdown: null,
+        modelSelector: { getCurrentModelLabel: () => 'Opus 4.7' },
+      },
+      services: { subagentManager: { getAllSubagents: () => [], hasRunningSubagents: () => false } },
+      ...overrides,
+    });
+  }
+
+  async function managerWith(count: number, factory: (n: number) => any = overviewTab, pluginOverrides: Record<string, any> = {}) {
+    const manager = createManager({
+      plugin: createMockPlugin({ settings: { maxTabs: 10 }, ...pluginOverrides }),
+      tabFactory: factory,
+    });
+    for (let i = 0; i < count; i++) await manager.createTab();
+    return manager;
+  }
+
+  it('describes each tab from cheap in-memory state', async () => {
+    const running = { id: 'a', status: 'running', startedAt: 1, toolCalls: [], isExpanded: false, description: 'x' };
+    const done = { id: 'b', status: 'completed', startedAt: 2, toolCalls: [], isExpanded: false, description: 'y' };
+    const getConversationById = jest.fn();
+    const manager = await managerWith(2, (n) => overviewTab(n, n === 2 ? {
+      providerId: 'codex',
+      state: {
+        isStreaming: true,
+        responseStartTime: 1234,
+        usage: { percentage: 41.6 },
+        currentTodos: [{ status: 'completed' }, { status: 'in_progress' }, { status: 'pending' }],
+        needsAttention: false,
+      },
+      services: { subagentManager: { getAllSubagents: () => [running, done], hasRunningSubagents: () => true } },
+    } : {}), {
+      getConversationById,
+      getConversationSync: jest.fn((id: string) => ({ id, providerId: id === 'conv-2' ? 'codex' : 'claude', lastResponseAt: 5000, updatedAt: 4000 })),
+      composerDrafts: { has: (key: string) => key.includes('conv-1') },
+    });
+
+    // Tab creation may hydrate; only the overview itself is under test.
+    getConversationById.mockClear();
+    const [first, second] = manager.getTabOverviewItems();
+
+    expect(first).toEqual(expect.objectContaining({
+      index: 1, isActive: false, hasDraft: true, lastActivityAt: 5000, isStreaming: false, isEmpty: false,
+      providerName: 'Claude', modelLabel: 'Opus 4.7', contextPercent: null, todos: null, runningSubagents: 0,
+    }));
+    expect(second).toEqual(expect.objectContaining({
+      index: 2, isActive: true, providerId: 'codex', providerName: 'Codex', streamingSince: 1234,
+      contextPercent: 41.6, todos: { done: 1, total: 3 }, runningSubagents: 1,
+    }));
+    // Hidden tabs must never be hydrated for an overview (startup trap 13).
+    expect(getConversationById).not.toHaveBeenCalled();
+  });
+
+  it('cycles to the next and previous tab, wrapping at both ends', async () => {
+    const manager = await managerWith(3);
+    await manager.switchToTab('tab-3');
+
+    expect(manager.getAdjacentTabId(1)).toBe('tab-1');
+    expect(manager.getAdjacentTabId(-1)).toBe('tab-2');
+  });
+
+  it('finds a tab by its 1-based number', async () => {
+    const manager = await managerWith(3);
+
+    expect(manager.getTabIdAt(2)).toBe('tab-2');
+    expect(manager.getTabIdAt(4)).toBeNull();
+    expect(manager.getTabIdAt(0)).toBeNull();
   });
 });

@@ -418,4 +418,51 @@ describe('MessageChannel', () => {
       expect(channel.isTurnActive()).toBe(false);
     });
   });
+
+  // Steering: the SDK keeps reading the input stream during a turn, and the CLI
+  // folds `priority: 'next'` input into the running turn between tool rounds.
+  describe('injectIntoActiveTurn', () => {
+    it('refuses when no turn is running, so the caller keeps the message queued', () => {
+      expect(channel.injectIntoActiveTurn(createTextUserMessage('steer'))).toBe(false);
+    });
+
+    it('hands the message to the waiting consumer at once instead of holding it behind the turn', async () => {
+      const iterator = channel[Symbol.asyncIterator]();
+      const firstPromise = iterator.next();
+      channel.enqueue(createTextUserMessage('first'));
+      await firstPromise;
+
+      const waiting = iterator.next();
+      const steer = { ...createTextUserMessage('steer'), priority: 'next' as const };
+      expect(channel.injectIntoActiveTurn(steer)).toBe(true);
+
+      await expect(waiting).resolves.toEqual({ value: steer, done: false });
+      expect(channel.isTurnActive()).toBe(true);
+      expect(channel.getQueueLength()).toBe(0);
+    });
+
+    it('delivers an injected message before queued follow-ups when the consumer is not waiting yet', async () => {
+      const iterator = channel[Symbol.asyncIterator]();
+      const firstPromise = iterator.next();
+      channel.enqueue(createTextUserMessage('first'));
+      await firstPromise;
+
+      channel.enqueue(createTextUserMessage('after the turn'));
+      const steer = createTextUserMessage('steer');
+      expect(channel.injectIntoActiveTurn(steer)).toBe(true);
+
+      await expect(iterator.next()).resolves.toEqual({ value: steer, done: false });
+      expect(channel.getQueueLength()).toBe(1);
+    });
+
+    it('refuses once the channel is closed', async () => {
+      const iterator = channel[Symbol.asyncIterator]();
+      const firstPromise = iterator.next();
+      channel.enqueue(createTextUserMessage('first'));
+      await firstPromise;
+      channel.close();
+
+      expect(channel.injectIntoActiveTurn(createTextUserMessage('steer'))).toBe(false);
+    });
+  });
 });
