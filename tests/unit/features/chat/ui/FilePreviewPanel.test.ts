@@ -425,3 +425,66 @@ describe('FilePreviewPanel search', () => {
     expect(openSpy).toHaveBeenCalled();
   });
 });
+
+// The library and the live-work overview share the chat's top-right corner.
+// Where the drawer leaves no room, the overview steps back and the drawer
+// says what is running instead.
+describe('FilePreviewPanel live work', () => {
+  function liveSource(initial: number) {
+    let running = initial;
+    const listeners = new Set<() => void>();
+    return {
+      source: {
+        subscribe: (listener: () => void) => {
+          listeners.add(listener);
+          return () => listeners.delete(listener);
+        },
+        runningCount: () => running,
+      },
+      set(value: number) {
+        running = value;
+        listeners.forEach(listener => listener());
+      },
+      listeners,
+    };
+  }
+
+  it('names how many subagents are running', () => {
+    const { container, panel } = mountPanel();
+    const live = liveSource(2);
+
+    panel.connectLiveWork(live.source, jest.fn());
+
+    const chip = container.querySelector('.claudian-preview-live') as any;
+    expect(chip.hasClass('claudian-hidden')).toBe(false);
+    expect(chip.querySelector('.claudian-preview-live-label').textContent).toBe('2 Subagents aktiv');
+
+    live.set(1);
+    expect(chip.querySelector('.claudian-preview-live-label').textContent).toBe('1 Subagent aktiv');
+
+    live.set(0);
+    expect(chip.hasClass('claudian-hidden')).toBe(true);
+  });
+
+  it('closes the library and hands over to the live overview on click', () => {
+    const { container, panel } = mountPanel();
+    const onShow = jest.fn();
+    panel.connectLiveWork(liveSource(1).source, onShow);
+    panel.open();
+
+    (container.querySelector('.claudian-preview-live') as any).click();
+
+    expect(onShow).toHaveBeenCalled();
+    expect(container.hasClass('claudian-preview-open')).toBe(false);
+  });
+
+  it('stops listening when the library is destroyed', () => {
+    const { panel } = mountPanel();
+    const live = liveSource(1);
+    panel.connectLiveWork(live.source, jest.fn());
+
+    panel.destroy();
+
+    expect(live.listeners.size).toBe(0);
+  });
+});

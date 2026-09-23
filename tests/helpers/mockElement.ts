@@ -287,9 +287,19 @@ export function createMockEl(tag = 'div'): any {
       children.push(child);
       return child;
     },
-    insertBefore(el: MockElement, _ref: MockElement | null) {
+    insertBefore(el: MockElement, ref: MockElement | null) {
+      // DOM semantics: moving a node takes it out of its old position first.
+      const current = children.indexOf(el);
+      if (current !== -1) children.splice(current, 1);
       (el as any)._parent = element;
-      children.unshift(el);
+      const at = ref ? children.indexOf(ref) : -1;
+      if (at === -1) {
+        // Old behaviour kept for callers without a reference node.
+        if (ref === undefined) children.unshift(el);
+        else children.push(el);
+      } else {
+        children.splice(at, 0, el);
+      }
     },
     prepend(el: MockElement) {
       const idx = children.indexOf(el);
@@ -298,7 +308,12 @@ export function createMockEl(tag = 'div'): any {
       children.unshift(el);
     },
     get firstChild() { return children[0] || null; },
-    remove() {},
+    remove() {
+      const parent = (element as any)._parent;
+      const siblings: MockElement[] | undefined = parent?.children;
+      const index = siblings ? siblings.indexOf(element) : -1;
+      if (siblings && index !== -1) siblings.splice(index, 1);
+    },
     empty() {
       children.length = 0;
       element.innerHTML = '';

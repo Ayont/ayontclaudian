@@ -1359,3 +1359,59 @@ body.theme-light .claudian-response-provider-pill {
   color: var(--text-normal) !important;
   border-color: var(--claudian-brand, var(--interactive-accent)) !important;
 }
+
+/* ── Transcript skeleton ──────────────────────────────────────────────────
+   Placeholder while a tab's conversation loads from disk (transcriptSkeleton.ts).
+   Shaped like the transcript it stands for: short user bubbles on the trailing
+   edge, longer open assistant text. Opacity-only pulse, still under reduced
+   motion. */
+.claudian-transcript-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 16px 4px;
+  animation: cl-skeleton-in var(--cl-dur) var(--cl-ease-out) both;
+}
+
+.claudian-transcript-skeleton-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.claudian-transcript-skeleton-row.is-user {
+  align-items: flex-end;
+}
+
+.claudian-transcript-skeleton-line {
+  height: 12px;
+  border-radius: 6px;
+  background: var(--cl-wash-strong);
+  animation: cl-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.claudian-transcript-skeleton-row.is-user .claudian-transcript-skeleton-line {
+  width: min(46%, 260px);
+  height: 34px;
+  border-radius: 14px;
+}
+
+.claudian-transcript-skeleton-row.is-assistant .claudian-transcript-skeleton-line:nth-child(1) { width: 92%; }
+.claudian-transcript-skeleton-row.is-assistant .claudian-transcript-skeleton-line:nth-child(2) { width: 78%; animation-delay: 0.12s; }
+.claudian-transcript-skeleton-row.is-assistant .claudian-transcript-skeleton-line:nth-child(3) { width: 54%; animation-delay: 0.24s; }
+
+@keyframes cl-skeleton-in {
+  from { opacity: 0; }
+}
+
+@keyframes cl-skeleton-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-transcript-skeleton,
+  .claudian-transcript-skeleton-line {
+    animation: none;
+  }
+}

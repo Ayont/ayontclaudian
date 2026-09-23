@@ -284,3 +284,20 @@ describe('SwarmPanel actions', () => {
     expect(mountEl.querySelector('.claudian-swarm-agent').hasClass('status-cancelled')).toBe(true);
   });
 });
+
+describe('SwarmPanel reveal', () => {
+  it('opens a collapsed overview and focuses it', () => {
+    const mountEl = createMockEl('div');
+    const fake = fakeManager(() => [makeAgent({ id: 'a' })]);
+    const panel = new SwarmPanel({ manager: fake.manager as never, mountEl, getMessagesEl: () => createMockEl('div') });
+    const toggle = mountEl.querySelector('.claudian-swarm-toggle');
+    toggle.click();
+    const focus = jest.spyOn(toggle, 'focus');
+
+    panel.reveal();
+
+    expect(mountEl.querySelector('.claudian-swarm-panel').hasClass('is-open')).toBe(true);
+    expect(focus).toHaveBeenCalled();
+    panel.destroy();
+  });
+});

@@ -18,6 +18,8 @@ const SECTIONS = [
   'library-thumbnails',
   'library-no-results',
   'chat-end-pill',
+  'library-live-wide',
+  'library-live-narrow',
 ] as const;
 
 const LIGHT_SECTIONS = ['library-arrows', 'chat-end-pill'] as const;
@@ -186,3 +188,23 @@ for (const section of LIGHT_SECTIONS) {
     await expect(el).toHaveScreenshot(`${section}-light-${testInfo.project.name}.png`, { maxDiffPixelRatio: 0.01 });
   });
 }
+
+// The library and the live-work overview used to cover each other in the
+// chat's top-right corner.
+test('the live-work overview never overlaps the open library', async ({ page }) => {
+  for (const section of ['library-live-wide', 'library-live-narrow']) {
+    const geometry = await page.locator(`[data-vis="${section}"]`).evaluate((root) => {
+      const swarm = root.querySelector('.claudian-swarm-panel') as HTMLElement;
+      const drawer = root.querySelector('.claudian-preview-panel') as HTMLElement;
+      const chip = root.querySelector('.claudian-preview-live') as HTMLElement;
+      const a = swarm.getBoundingClientRect();
+      const b = drawer.getBoundingClientRect();
+      const visible = getComputedStyle(swarm).display !== 'none' && a.width > 0;
+      const overlaps = visible && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+      return { visible, overlaps, chipShown: getComputedStyle(chip).display !== 'none' };
+    });
+    expect(geometry.overlaps).toBe(false);
+    // Exactly one of the two tells the user about running agents.
+    expect(geometry.visible !== geometry.chipShown).toBe(true);
+  }
+});

@@ -183,6 +183,15 @@ Each of these has cost a real debugging session. They are not theoretical.
     copy silently disappears. Per-subagent stop (`canCancelSubagent` /
     `cancelSubagent`) was implemented and tested in two providers and still
     never reached the chat until both wrappers forwarded it.
+13. **Nothing at startup may touch every tab or the whole RAG index.** Provider
+    warmup built its context with `getConversationById` (full hydration) before
+    checking whether the tab was visible, so nine restored tabs parsed ~45 MB of
+    session files and transcripts on the main thread at every start; the RAG
+    index (~20 MB JSON) was parsed 2.5 s after start. Hidden tabs now read only
+    in-memory state (`getConversationSync`), idle hidden tabs release their CLI
+    (`TabManager.releaseIdleRuntimes`), and the index loads on first use or when
+    idle (`VaultRAGService.ready`). `.claudian/perf/last-startup.json` records
+    what each start cost.
 
 ## Commands
 

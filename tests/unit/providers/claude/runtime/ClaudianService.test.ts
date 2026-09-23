@@ -1577,7 +1577,7 @@ describe('ClaudianService', () => {
       });
 
       expect(Notice).toHaveBeenCalledWith(
-        expect.stringContaining('Background task completed')
+        expect.stringContaining('Hintergrundaufgabe fertig')
       );
     });
 

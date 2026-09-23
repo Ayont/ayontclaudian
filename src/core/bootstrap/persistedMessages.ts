@@ -32,6 +32,17 @@ export function truncateResult(result: string, maxChars: number = MAX_PERSISTED_
   return result.slice(0, maxChars) + TRUNCATION_NOTICE;
 }
 
+/**
+ * Cap for the text of a persisted user message. Pasted tables made single
+ * session files 10 MB (content plus the same text again as displayContent),
+ * and every tab load parses the file. The provider's own session keeps the
+ * full prompt; Claudian's copy is what the transcript shows.
+ */
+export const MAX_PERSISTED_USER_TEXT_CHARS = 64_000;
+/** A subagent's child tools keep a short preview each; the newest ones only. */
+export const MAX_PERSISTED_SUBAGENT_TOOL_RESULT_CHARS = 2_000;
+export const MAX_PERSISTED_SUBAGENT_TOOLS = 80;
+
 /** Timeline entries kept per subagent on disk (the newest ones). */
 export const MAX_PERSISTED_SUBAGENT_TIMELINE_ENTRIES = 120;
 /** Text the persisted timeline may carry in total; older text goes first. */
@@ -72,10 +83,10 @@ export function toPersistedSubagent(subagent: SubagentInfo): SubagentInfo {
     ? truncateResult(subagent.prompt)
     : subagent.prompt;
 
-  const toolCalls = subagent.toolCalls?.map((tc: ToolCallInfo) => ({
+  const toolCalls = subagent.toolCalls?.slice(-MAX_PERSISTED_SUBAGENT_TOOLS).map((tc: ToolCallInfo) => ({
     ...tc,
-    result: typeof tc.result === 'string' && tc.result.length > MAX_PERSISTED_TOOL_RESULT_CHARS
-      ? truncateResult(tc.result)
+    result: typeof tc.result === 'string' && tc.result.length > MAX_PERSISTED_SUBAGENT_TOOL_RESULT_CHARS
+      ? truncateResult(tc.result, MAX_PERSISTED_SUBAGENT_TOOL_RESULT_CHARS)
       : tc.result,
   }));
 
@@ -94,8 +105,13 @@ export function toPersistedSubagent(subagent: SubagentInfo): SubagentInfo {
  * Immutable: returns new objects and leaves the in-memory message untouched, so
  * the running session keeps its full tool output on screen.
  */
+function capUserText(text: string): string {
+  return text.length > MAX_PERSISTED_USER_TEXT_CHARS ? truncateResult(text, MAX_PERSISTED_USER_TEXT_CHARS) : text;
+}
+
 export function toPersistedMessage(message: ChatMessage): ChatMessage {
   const images = message.images?.map((image) => ({ ...image, data: '' }));
+  const userText = message.role === 'user' ? toPersistedUserText(message) : null;
 
   const toolCalls = message.toolCalls?.map((toolCall) => {
     let result = toolCall.result;
@@ -113,11 +129,26 @@ export function toPersistedMessage(message: ChatMessage): ChatMessage {
     };
   });
 
-  return {
+  const persisted: ChatMessage = {
     ...message,
     ...(images ? { images } : {}),
     ...(toolCalls ? { toolCalls } : {}),
+    ...(userText ? { content: userText.content } : {}),
   };
+  if (userText) {
+    if (userText.displayContent === undefined) delete persisted.displayContent;
+    else persisted.displayContent = userText.displayContent;
+  }
+  return persisted;
+}
+
+/** Every reader falls back to `content` when `displayContent` is absent. */
+function toPersistedUserText(message: ChatMessage): { content: string; displayContent?: string } {
+  const content = capUserText(message.content ?? '');
+  if (message.displayContent === undefined || message.displayContent === message.content) {
+    return { content };
+  }
+  return { content, displayContent: capUserText(message.displayContent) };
 }
 
 /** Applies {@link toPersistedMessage} across a transcript. */

@@ -130,7 +130,7 @@ describe('SubagentManager', () => {
       expect(manager.getByTaskId('task-parse-fail')).toBeUndefined();
       const last = updates[updates.length - 1];
       expect(last.asyncStatus).toBe('error');
-      expect(last.result).toContain('Failed to parse agent_id');
+      expect(last.result).toContain('Agent-ID nicht erkannt');
     });
 
     it('moves to error when Task tool_result itself is an error', () => {
@@ -899,7 +899,7 @@ Only this is the final result.
       manager.handleTaskToolResult('task-1', '{"foo": "bar"}');
       const last = updates[updates.length - 1];
       expect(last.asyncStatus).toBe('error');
-      expect(last.result).toContain('Failed to parse agent_id');
+      expect(last.result).toContain('Agent-ID nicht erkannt');
     });
   });
 

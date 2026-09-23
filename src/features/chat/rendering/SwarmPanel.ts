@@ -88,6 +88,7 @@ export class SwarmPanel {
   private isOpen = true;
   private readonly expandedWorkflowIds = new Set<string>();
   private readonly armedStops = new Set<string>();
+  private readonly armTimers = new Map<string, number>();
   private renderScheduled = false;
   private disposed = false;
   private readonly flashTimers = new Set<number>();
@@ -108,7 +109,7 @@ export class SwarmPanel {
     this.countEl = this.toggleEl.createSpan({ cls: 'claudian-swarm-count' });
     this.autoContinueEl = this.toggleEl.createSpan({
       cls: 'claudian-swarm-auto-continue claudian-hidden',
-      text: 'Auto-continue',
+      text: 'Fährt automatisch fort',
     });
     const chevronEl = this.toggleEl.createSpan({ cls: 'claudian-swarm-chevron' });
     setIcon(chevronEl, 'chevron-down');
@@ -118,6 +119,13 @@ export class SwarmPanel {
 
     this.unsubscribe = options.manager.onSwarmChange(() => this.scheduleRender());
     this.render();
+  }
+
+  /** Opens the overview and moves focus to it (hand-over from the library). */
+  public reveal(): void {
+    this.isOpen = true;
+    this.applyOpenState();
+    this.toggleEl.focus();
   }
 
   private toggleOpen(): void {
@@ -165,11 +173,15 @@ export class SwarmPanel {
     );
     this.applyOpenState();
 
+    // Rows are rebuilt on every change; keep keyboard focus on the same control
+    // so an armed Stop can still be confirmed with Enter.
+    const focus = this.captureFocus();
     this.listEl.empty();
     this.liveDurations.clear();
     for (const info of agents) {
       this.renderAgentRow(info);
     }
+    this.restoreFocus(focus);
     this.syncTicker();
   }
 
@@ -196,6 +208,7 @@ export class SwarmPanel {
     const status = resolveStatusVisual(info);
     const row = this.listEl.createDiv({ cls: `claudian-swarm-agent status-${status.cls}` });
     row.dataset.kind = info.kind ?? 'agent';
+    row.dataset.agentId = info.id;
     if (info.providerId) row.dataset.provider = info.providerId;
 
     // The row's main area is one button; its actions are siblings, never nested.
@@ -313,19 +326,46 @@ export class SwarmPanel {
         stop.setAttribute('aria-label', `${stopConfirmLabel(scope)} Zum Bestätigen erneut klicken.`);
         const timer = window.setTimeout(() => {
           this.armedStops.delete(info.id);
-          this.flashTimers.delete(timer);
+          this.armTimers.delete(info.id);
           this.scheduleRender();
         }, STOP_ARM_MS);
-        this.flashTimers.add(timer);
+        this.armTimers.set(info.id, timer);
         return;
       }
-      this.armedStops.delete(info.id);
+      this.disarmStop(info.id);
       this.options.onStop?.(info.id);
     });
     if (this.armedStops.has(info.id)) {
       stop.addClass('is-armed');
       label.setText(stopConfirmLabel(scope));
     }
+  }
+
+  private disarmStop(id: string): void {
+    const timer = this.armTimers.get(id);
+    if (timer !== undefined) window.clearTimeout(timer);
+    this.armTimers.delete(id);
+    this.armedStops.delete(id);
+  }
+
+  private captureFocus(): { id: string; control: string } | null {
+    const active = this.listEl.ownerDocument?.activeElement as HTMLElement | null | undefined;
+    if (!active || !this.listEl.contains(active)) return null;
+    const row = active.closest?.('.claudian-swarm-agent') as HTMLElement | null;
+    const id = row?.dataset.agentId;
+    const control = ['claudian-swarm-agent-stop', 'claudian-swarm-agent-locate', 'claudian-swarm-agent-open']
+      .find(cls => active.classList.contains(cls));
+    return id && control ? { id, control } : null;
+  }
+
+  private restoreFocus(focus: { id: string; control: string } | null): void {
+    if (!focus) return;
+    const row = Array.from(this.listEl.children).find(
+      child => (child as HTMLElement).dataset?.agentId === focus.id,
+    ) as HTMLElement | undefined;
+    const target = row?.querySelector(`.${focus.control}`) as HTMLElement | null
+      ?? row?.querySelector('.claudian-swarm-agent-open') as HTMLElement | null;
+    target?.focus();
   }
 
   /** Total runtime for finished agents (running agents tick live instead). */
@@ -361,6 +401,8 @@ export class SwarmPanel {
     }
     this.liveDurations.clear();
     this.expandedWorkflowIds.clear();
+    for (const timer of this.armTimers.values()) window.clearTimeout(timer);
+    this.armTimers.clear();
     for (const timer of this.flashTimers) {
       window.clearTimeout(timer);
     }

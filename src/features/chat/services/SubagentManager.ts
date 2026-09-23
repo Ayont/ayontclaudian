@@ -600,7 +600,7 @@ export class SubagentManager {
     const resultText = extractToolResultContent(result, { fallbackIndent: 2 });
 
     if (isError) {
-      this.transitionToError(subagent, taskToolId, resultText || 'Task failed to start');
+      this.transitionToError(subagent, taskToolId, resultText || 'Der Subagent konnte nicht starten.');
       return;
     }
 
@@ -608,7 +608,7 @@ export class SubagentManager {
 
     if (!agentId) {
       const truncatedResult = resultText.length > 100 ? resultText.substring(0, 100) + '...' : resultText;
-      this.transitionToError(subagent, taskToolId, `Failed to parse agent_id. Result: ${truncatedResult}`);
+      this.transitionToError(subagent, taskToolId, `Agent-ID nicht erkannt. Antwort: ${truncatedResult}`);
       return;
     }
 
@@ -706,7 +706,7 @@ export class SubagentManager {
     subagent.agentId = subagent.agentId || agentId;
     subagent.asyncStatus = status;
     subagent.status = status;
-    subagent.result = result?.trim() || (status === 'error' ? 'Background task failed.' : 'Background task completed.');
+    subagent.result = result?.trim() || (status === 'error' ? 'Hintergrund-Subagent fehlgeschlagen.' : 'Hintergrund-Subagent fertig.');
     subagent.completedAt = Date.now();
 
     this.activeAsyncSubagents.delete(agentId);
@@ -794,7 +794,7 @@ export class SubagentManager {
     info.status = succeeded ? 'completed' : 'error';
     info.asyncStatus = succeeded ? 'completed' : 'error';
     info.result = result.summary?.trim()
-      || (result.status === 'stopped' ? 'Workflow stopped.' : succeeded ? 'Workflow completed.' : 'Workflow failed.');
+      || (result.status === 'stopped' ? 'Workflow gestoppt.' : succeeded ? 'Workflow abgeschlossen.' : 'Workflow fehlgeschlagen.');
     info.progressSummary = info.result;
     info.completedAt = Date.now();
     if (result.usage) {

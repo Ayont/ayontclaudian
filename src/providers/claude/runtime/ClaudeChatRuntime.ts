@@ -949,7 +949,9 @@ export class ClaudianService implements ChatRuntime {
       await this.flushAutoTurnBuffer();
     }
 
-    if (message.type === 'assistant' && message.uuid) {
+    // Forwarded subagent messages (forwardSubagentText) carry a parent id; they
+    // are not the answer's own message and must not become its rewind point.
+    if (message.type === 'assistant' && message.uuid && !message.parent_tool_use_id) {
       this.recordTurnMetadata({ assistantMessageId: message.uuid });
     }
 
@@ -983,14 +985,15 @@ export class ClaudianService implements ChatRuntime {
     try {
       await this._autoTurnCallback?.({ chunks, metadata });
     } catch {
-      new Notice('Background task completed, but the result could not be rendered.');
+      new Notice('Hintergrundaufgabe fertig, aber das Ergebnis ließ sich nicht anzeigen.');
     }
   }
 
   /** Tracks local workflow batches and schedules a hidden continuation turn. */
   private trackWorkflowContinuation(message: SDKMessage): void {
-    // If the SDK already continues by itself, cancel our delayed fallback.
-    if (message.type === 'assistant' && this.workflowContinuationTimer !== null) {
+    // If the SDK already continues by itself, cancel our delayed fallback. A
+    // subagent's own message is not that continuation.
+    if (message.type === 'assistant' && !message.parent_tool_use_id && this.workflowContinuationTimer !== null) {
       window.clearTimeout(this.workflowContinuationTimer);
       this.workflowContinuationTimer = null;
       this.workflowBatchNeedsContinuation = false;

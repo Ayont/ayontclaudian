@@ -43,7 +43,7 @@ import {
 import { buildConversationSearchIndex, type ConversationSearchIndex } from './core/conversation/conversationSearchIndex';
 import { buildDiagnosticsMarkdown } from './core/diagnostics/buildDiagnostics';
 import { getErrorHistory } from './core/diagnostics/errorHistory';
-import { perfMark, perfSince } from './core/diagnostics/perfLog';
+import { buildStartupProfile, perfMark, perfSince } from './core/diagnostics/perfLog';
 import {
   firstOutputLine,
   formatHealthReportMarkdown,
@@ -925,8 +925,31 @@ export default class ClaudianPlugin extends Plugin {
     // One-time repair for session files written before tool results were capped.
     this.scheduleSessionCompaction();
     this.scheduleSearchIndexBackfill();
+    this.scheduleStartupProfile(onloadStart);
 
     perfSince(onloadStart, 'onload-total');
+  }
+
+  /**
+   * Writes what this start cost to `.claudian/perf/last-startup.json`, so a
+   * slow start can be diagnosed from the file instead of devtools.
+   */
+  private scheduleStartupProfile(onloadStart: number): void {
+    if (typeof this.app.workspace?.onLayoutReady !== 'function') return;
+    this.app.workspace.onLayoutReady(() => {
+      perfSince(onloadStart, 'startup-until-layout-ready');
+      window.setTimeout(() => {
+        if (this.unloaded) return;
+        const profile = buildStartupProfile();
+        void (async () => {
+          const adapter = this.app.vault.adapter;
+          if (!(await adapter.exists('.claudian/perf'))) await adapter.mkdir('.claudian/perf');
+          await adapter.write('.claudian/perf/last-startup.json', `${JSON.stringify(profile, null, 2)}\n`);
+        })().catch(() => {
+          // Diagnostics only; a failed write must not surface.
+        });
+      }, 25_000);
+    });
   }
 
   /**
@@ -1014,45 +1037,49 @@ export default class ClaudianPlugin extends Plugin {
       window.setTimeout(() => {
         if (this.unloaded) return;
         void (async () => {
-          // Probe/swap to Ollama embeddings here (off the onload critical path)
-          // before the index is loaded, so the dimension guard below sees the
-          // final provider's dimension and rebuilds once if it changed.
+          // Probe/swap to Ollama embeddings before anything reads the index, so
+          // the dimension guard in loadRAGIndex sees the final provider.
           await this.upgradeEmbeddingProviderIfConfigured();
 
-          await this.loadRAGIndex();
-
-          // If the embedding model changed since the index was built (e.g. keyword
-          // 256-dim → Ollama 768-dim), the stored vectors are incompatible and
-          // every query would silently return nothing. Drop them and re-index.
-          const storedDim = this.vectorStore.dimension();
-          const currentDim = this.embeddingService.getDimension();
-          if (storedDim > 0 && storedDim !== currentDim) {
-            console.warn(`[Claudian] RAG embedding dimension changed (${storedDim} → ${currentDim}); rebuilding index.`);
-            this.vectorStore.clear();
-          }
-
-          // Listeners first: they only cover files that change from now on, so
-          // registering them before the full pass means nothing edited during
-          // indexing is missed.
+          // Listeners first: they only cover files that change from now on. An
+          // edit waits for the index inside indexFile, so nothing is lost.
           this.registerVaultRAGListeners();
 
-          // An empty index (fresh install, or a rebuild forced above) has to be
-          // filled once — without it every RAG query silently returns nothing
-          // and only notes the user happens to edit ever become searchable.
-          // `indexVault` awaits a macrotask between files, so this stays a
-          // background trickle rather than a startup stall.
-          if (this.vectorStore.size() === 0 && !this.vaultRAGService.indexing) {
-            try {
-              await this.vaultRAGService.indexVault({ limit: 1000 });
-              await this.saveRAGIndex();
-            } catch (error) {
-              const message = error instanceof Error ? error.message : String(error);
-              console.warn('[Claudian] background RAG index failed:', message);
-            }
-          }
+          // The persisted index is tens of MB of JSON. Parsing it here froze
+          // Obsidian seconds after start; it now loads on first use, or while
+          // the app is idle, and fills itself once when it turns out empty.
+          this.whenIdle(() => {
+            if (this.unloaded) return;
+            void this.vaultRAGService.ready().then(() => this.fillEmptyRAGIndex());
+          });
         })();
       }, 2500);
     });
+  }
+
+  /** An empty index has to be filled once, or every RAG query returns nothing. */
+  private async fillEmptyRAGIndex(): Promise<void> {
+    if (this.unloaded || this.vectorStore.size() > 0 || this.vaultRAGService.indexing) return;
+    try {
+      await this.vaultRAGService.indexVault({ limit: 1000 });
+      await this.saveRAGIndex();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn('[Claudian] background RAG index failed:', message);
+    }
+  }
+
+  /** Runs `task` once the app is idle (or after at most a minute). */
+  private whenIdle(task: () => void): void {
+    const idle = (window as unknown as {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+    }).requestIdleCallback;
+    const start = (): void => {
+      if (idle) idle(task, { timeout: 60_000 });
+      else task();
+    };
+    // Give the workspace and the first chat time to settle before idle work.
+    window.setTimeout(start, 15_000);
   }
 
   /** Debounced incremental index updates as markdown files change. */
@@ -1072,14 +1099,19 @@ export default class ClaudianPlugin extends Plugin {
     }));
     this.registerEvent(this.app.vault.on('delete', (file) => {
       if (file instanceof TFile && file.extension === 'md') {
-        this.vaultRAGService.removeFile(file.path);
-        this.scheduleRAGSave();
+        // Before the lazy index loaded, a removal would be undone by the load.
+        void this.vaultRAGService.ready().then(() => {
+          this.vaultRAGService.removeFile(file.path);
+          this.scheduleRAGSave();
+        });
       }
     }));
     this.registerEvent(this.app.vault.on('rename', (file, oldPath) => {
       if (file instanceof TFile && file.extension === 'md') {
-        this.vaultRAGService.removeFile(oldPath);
-        reindex(file);
+        void this.vaultRAGService.ready().then(() => {
+          this.vaultRAGService.removeFile(oldPath);
+          reindex(file);
+        });
       }
     }));
   }
@@ -1097,6 +1129,9 @@ export default class ClaudianPlugin extends Plugin {
   /** Persists the vector store so the index survives restarts. */
   private async saveRAGIndex(): Promise<void> {
     this.ragDirty = false;
+    // Writing before the lazy load finished would replace the index on disk
+    // with an empty store.
+    await this.vaultRAGService.ready();
     try {
       const adapter = this.app.vault.adapter;
       const folder = '.claudian/rag';
@@ -1112,15 +1147,26 @@ export default class ClaudianPlugin extends Plugin {
 
   /** Restores a persisted vector store, if present. */
   private async loadRAGIndex(): Promise<void> {
+    const loadStart = perfMark();
     try {
       const adapter = this.app.vault.adapter;
       if (await adapter.exists(this.RAG_INDEX_PATH)) {
         const raw = await adapter.read(this.RAG_INDEX_PATH);
         this.vectorStore.load(raw);
+        perfSince(loadStart, 'rag-index-load', `${this.vectorStore.size()} chunks, ${Math.round(raw.length / 1024)} KB`);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.warn('[Claudian] failed to load RAG index:', message);
+    }
+    // If the embedding model changed since the index was built (e.g. keyword
+    // 256-dim → Ollama 768-dim), the stored vectors are incompatible and every
+    // query would silently return nothing. Drop them; the fill pass re-indexes.
+    const storedDim = this.vectorStore.dimension();
+    const currentDim = this.embeddingService.getDimension();
+    if (storedDim > 0 && storedDim !== currentDim) {
+      console.warn(`[Claudian] RAG embedding dimension changed (${storedDim} → ${currentDim}); rebuilding index.`);
+      this.vectorStore.clear();
     }
   }
 
@@ -1972,8 +2018,11 @@ export default class ClaudianPlugin extends Plugin {
 
   private async revealSubagentCard(view: ClaudianView, tab: LocatableTab, subagentId: string): Promise<void> {
     await revealWorkspaceLeaf(this.app.workspace, view.leaf);
-    await view.getTabManager()?.switchToTab(tab.id);
-    const card = view.containerEl.querySelector<HTMLElement>(
+    const tabManager = view.getTabManager();
+    await tabManager?.switchToTab(tab.id);
+    // Forks copy tool ids into other tabs; look only in the tab that runs it.
+    const scope = tabManager?.getTab(tab.id)?.dom.messagesEl ?? view.containerEl;
+    const card = scope.querySelector<HTMLElement>(
       `[data-subagent-card-id="${CSS.escape(subagentId)}"]`,
     );
     if (!card) return;
@@ -2100,6 +2149,7 @@ export default class ClaudianPlugin extends Plugin {
       new Notice('Aktiviere „Memory/RAG" in den Claudian-Einstellungen, um verwandte Notizen zu finden.');
       return;
     }
+    await this.vaultRAGService.ready();
     if (this.vectorStore.size() === 0) {
       new Notice(this.vaultRAGService.indexing
         ? 'Der Vault-Index wird gerade aufgebaut — versuche es gleich erneut.'
@@ -2124,7 +2174,9 @@ export default class ClaudianPlugin extends Plugin {
    * for an empty note or empty index — callers render their own guidance.
    */
   async computeRelatedNotes(file: TFile): Promise<RelatedNote[]> {
-    if (this.settings.memoryEnabled === false || this.vectorStore.size() === 0) {
+    if (this.settings.memoryEnabled === false) return [];
+    await this.vaultRAGService.ready();
+    if (this.vectorStore.size() === 0) {
       return [];
     }
     const content = await this.app.vault.cachedRead(file);
@@ -2602,7 +2654,14 @@ export default class ClaudianPlugin extends Plugin {
     // before the index is loaded — the existing dimension guard then rebuilds
     // the vectors if the embedding dimension changed.
     this.embeddingService = new KeywordEmbeddingProvider();
-    this.vaultRAGService = new VaultRAGService(this.app.vault, this.embeddingService, this.vectorStore);
+    this.vaultRAGService = this.createVaultRAGService();
+  }
+
+  /** The index loads on first use (see VaultRAGOptions.ensureLoaded), never at startup. */
+  private createVaultRAGService(): VaultRAGService {
+    return new VaultRAGService(this.app.vault, this.embeddingService, this.vectorStore, {
+      ensureLoaded: () => this.loadRAGIndex(),
+    });
   }
 
   /**
@@ -2625,7 +2684,7 @@ export default class ClaudianPlugin extends Plugin {
         // Rebuild the RAG service around the new provider, reusing the same
         // vector store; the dimension guard in setupVaultRAGAutoIndex re-indexes
         // if keyword (256-dim) → Ollama (768-dim) invalidated the stored vectors.
-        this.vaultRAGService = new VaultRAGService(this.app.vault, this.embeddingService, this.vectorStore);
+        this.vaultRAGService = this.createVaultRAGService();
       }
     } catch {
       // isAvailable is defensive, but keep the keyword fallback on any error.
@@ -2974,11 +3033,21 @@ export default class ClaudianPlugin extends Plugin {
    * one. This used to return the literal 'New conversation' for every unloaded
    * chat, which also blocked the stored-preview fallback, so every row read that.
    */
+  /**
+   * The history list asks for every conversation's index on each render and
+   * tab switch; rebuilding it walked every loaded message of every open tab.
+   * A messages array only grows or is replaced, so identity plus length says
+   * whether the cached index is current.
+   */
+  private readonly searchIndexMemo = new WeakMap<ChatMessage[], { length: number; index: ConversationSearchIndex | undefined }>();
+
   private getConversationSearchIndex(conv: Conversation): ConversationSearchIndex | undefined {
-    if (conv.messages.length > 0) {
-      return buildConversationSearchIndex(conv.messages) ?? conv.searchIndex;
-    }
-    return conv.searchIndex;
+    if (conv.messages.length === 0) return conv.searchIndex;
+    const memo = this.searchIndexMemo.get(conv.messages);
+    if (memo && memo.length === conv.messages.length) return memo.index ?? conv.searchIndex;
+    const index = buildConversationSearchIndex(conv.messages);
+    this.searchIndexMemo.set(conv.messages, { length: conv.messages.length, index });
+    return index ?? conv.searchIndex;
   }
 
   private async loadSdkMessagesForConversation(conversation: Conversation): Promise<void> {
@@ -3003,8 +3072,9 @@ export default class ClaudianPlugin extends Plugin {
     await this.restoreConversationImageData(conversation, cachedMessages);
     // Chats whose messages live only in the provider's transcript (most Claude
     // chats) get their history preview and search text the first time they load.
-    const searchIndex = buildConversationSearchIndex(conversation.messages);
-    if (searchIndex) {
+    const alreadyIndexed = this.searchIndexMemo.get(conversation.messages)?.length === conversation.messages.length;
+    const searchIndex = this.getConversationSearchIndex(conversation);
+    if (searchIndex && !alreadyIndexed) {
       conversation.searchIndex = searchIndex;
       this.storage.sessions.rememberSearchIndex?.(conversation.id, searchIndex);
     }
@@ -3079,6 +3149,7 @@ export default class ClaudianPlugin extends Plugin {
     };
 
     this.conversations.unshift(conversation);
+    this.conversationIndex = null;
     await this.storage.sessions.saveMetadata(
       this.storage.sessions.toSessionMetadata(conversation)
     );
@@ -3128,6 +3199,7 @@ export default class ClaudianPlugin extends Plugin {
 
     const conversation = this.conversations[index];
     this.conversations.splice(index, 1);
+    this.conversationIndex = null;
 
     await ProviderRegistry
       .getConversationHistoryService(conversation.providerId)
@@ -3211,8 +3283,23 @@ export default class ClaudianPlugin extends Plugin {
     return conversation;
   }
 
+  /**
+   * The tab bar resolves every tab's title on each update; a linear find over
+   * hundreds of conversations per tab added up. The list is only replaced,
+   * unshifted or spliced (all in this file); those sites drop the index.
+   */
+  private conversationIndex: { source: Conversation[]; length: number; byId: Map<string, Conversation> } | null = null;
+
   getConversationSync(id: string): Conversation | null {
-    return this.conversations.find(c => c.id === id) || null;
+    const index = this.conversationIndex;
+    if (!index || index.source !== this.conversations || index.length !== this.conversations.length) {
+      this.conversationIndex = {
+        source: this.conversations,
+        length: this.conversations.length,
+        byId: new Map(this.conversations.map(conversation => [conversation.id, conversation])),
+      };
+    }
+    return this.conversationIndex!.byId.get(id) ?? null;
   }
 
   getConversationSnapshots(): Conversation[] {

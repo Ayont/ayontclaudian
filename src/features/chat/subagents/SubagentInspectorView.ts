@@ -1,9 +1,9 @@
-import { ItemView, MarkdownRenderer, type ViewStateResult, type WorkspaceLeaf } from 'obsidian';
+import { ItemView, MarkdownRenderer, Notice, TFile, type ViewStateResult, type WorkspaceLeaf } from 'obsidian';
 
 import { ProviderRegistry } from '../../../core/providers/ProviderRegistry';
 import type ClaudianPlugin from '../../../main';
 import { getVaultPath } from '../../../utils/path';
-import { openInDefaultApp } from '../services/FileActionService';
+import { revealInSystemFileManager } from '../services/FileActionService';
 import { SubagentInspectorPanel } from './SubagentInspectorPanel';
 import type { SubagentSource } from './subagentLocator';
 import { subagentTitle } from './subagentPresentation';
@@ -37,7 +37,12 @@ export class SubagentInspectorView extends ItemView {
   private panel: SubagentInspectorPanel | null = null;
   private renderScheduled = false;
   private reconnecting = false;
+  private closed = false;
+  /** Bumped on every connect so a slower, older connect cannot win. */
+  private connectGeneration = 0;
   private lastTitle = '';
+  /** Until the first lookup finished, "not available" would be a false claim. */
+  private resolved = false;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: ClaudianPlugin) {
     super(leaf);
@@ -88,11 +93,14 @@ export class SubagentInspectorView extends ItemView {
       },
     });
     this.registerInterval(window.setInterval(() => this.panel?.tick(), 1000));
+    if (!this.state) this.resolved = true;
     if (this.state && !this.source) await this.connect();
     this.renderNow();
   }
 
   async onClose(): Promise<void> {
+    this.closed = true;
+    this.connectGeneration++;
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.panel?.destroy();
@@ -100,13 +108,15 @@ export class SubagentInspectorView extends ItemView {
   }
 
   private async connect(): Promise<void> {
-    if (!this.state) return;
+    if (!this.state || this.closed) return;
+    const generation = ++this.connectGeneration;
+    const { subagentId, conversationId } = this.state;
+    const source = await this.plugin.resolveSubagentSource(subagentId, conversationId);
+    if (generation !== this.connectGeneration || this.closed) return;
     this.unsubscribe?.();
-    this.unsubscribe = null;
-    this.source = await this.plugin.resolveSubagentSource(this.state.subagentId, this.state.conversationId);
-    if (this.source) {
-      this.unsubscribe = this.source.subscribe(() => this.scheduleRender());
-    }
+    this.source = source;
+    this.unsubscribe = source ? source.subscribe(() => this.scheduleRender()) : null;
+    this.resolved = true;
     this.renderNow();
   }
 
@@ -120,7 +130,7 @@ export class SubagentInspectorView extends ItemView {
   }
 
   private renderNow(): void {
-    if (!this.panel) return;
+    if (!this.panel || !this.resolved) return;
     const info = this.source?.getInfo();
     // The chat tab cleared or switched its conversation: read the saved run.
     if (!info && this.source?.live && !this.reconnecting) {
@@ -145,18 +155,24 @@ export class SubagentInspectorView extends ItemView {
     }
   }
 
+  /**
+   * The file list comes from paths the agent wrote. Only an existing vault
+   * file opens; anything else is at most shown in the file manager, never
+   * opened with its default app (a written `~/x.command` must not run).
+   */
   private async openFile(path: string): Promise<void> {
-    const vaultPath = getVaultPath(this.app);
-    const normalizedVault = vaultPath ? vaultPath.replace(/\\/g, '/').replace(/\/$/, '') : '';
     const normalized = path.replace(/\\/g, '/');
-    if (normalizedVault && normalized.startsWith(`${normalizedVault}/`)) {
-      await this.app.workspace.openLinkText(normalized.slice(normalizedVault.length + 1), '', 'tab');
+    const vaultPath = (getVaultPath(this.app) ?? '').replace(/\\/g, '/').replace(/\/$/, '');
+    const relative = vaultPath && normalized.startsWith(`${vaultPath}/`)
+      ? normalized.slice(vaultPath.length + 1)
+      : normalized.replace(/^\.\//, '');
+    const file = this.app.vault.getAbstractFileByPath(relative);
+    if (file instanceof TFile) {
+      await this.app.workspace.getLeaf('tab').openFile(file);
       return;
     }
-    if (!normalized.startsWith('/')) {
-      await this.app.workspace.openLinkText(normalized, '', 'tab');
-      return;
-    }
-    await openInDefaultApp(this.app, path);
+    const isAbsolute = normalized.startsWith('/') || /^[a-zA-Z]:\//.test(normalized);
+    if (isAbsolute && await revealInSystemFileManager(this.app, path)) return;
+    new Notice(`Datei nicht gefunden: ${path}`);
   }
 }

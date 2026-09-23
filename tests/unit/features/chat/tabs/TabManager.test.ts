@@ -1257,38 +1257,16 @@ describe('TabManager - SDK Commands', () => {
       reasoningControl: providerId === 'opencode' ? 'effort' : 'none',
     }));
     const resetSdkSkillsCache = jest.fn();
+    // Keyed on state, not call order: how often warmup loads a conversation is
+    // an implementation detail (hidden tabs no longer load at all).
+    let savedSessionId = 'session-1';
     const plugin = createMockPlugin({
-      getConversationById: jest.fn()
-        .mockResolvedValueOnce({
-          id: 'conv-opencode',
-          messages: [{ id: 'm1' }],
-          providerState: { databasePath: '/persisted/opencode.db' },
-          sessionId: 'session-1',
-        })
-        .mockResolvedValueOnce({
-          id: 'conv-opencode',
-          messages: [{ id: 'm1' }],
-          providerState: { databasePath: '/persisted/opencode.db' },
-          sessionId: 'session-1',
-        })
-        .mockResolvedValueOnce({
-          id: 'conv-opencode',
-          messages: [{ id: 'm1' }],
-          providerState: { databasePath: '/persisted/opencode.db' },
-          sessionId: 'session-1',
-        })
-        .mockResolvedValueOnce({
-          id: 'conv-opencode',
-          messages: [{ id: 'm1' }],
-          providerState: { databasePath: '/persisted/opencode.db' },
-          sessionId: 'session-1',
-        })
-        .mockResolvedValueOnce({
-          id: 'conv-opencode',
-          messages: [{ id: 'm1' }],
-          providerState: { databasePath: '/persisted/opencode.db' },
-          sessionId: 'session-2',
-        }),
+      getConversationById: jest.fn().mockImplementation(async () => ({
+        id: 'conv-opencode',
+        messages: [{ id: 'm1' }],
+        providerState: { databasePath: '/persisted/opencode.db' },
+        sessionId: savedSessionId,
+      })),
     });
     const manager = createManager({
       plugin,
@@ -1321,6 +1299,7 @@ describe('TabManager - SDK Commands', () => {
     await expect(manager.getSdkCommands(tab!.id)).resolves.toEqual(firstCommands);
     await expect(manager.getSdkCommands(tab!.id)).resolves.toEqual(firstCommands);
 
+    savedSessionId = 'session-2';
     await expect(manager.getSdkCommands(tab!.id)).resolves.toEqual(secondCommands);
     expect(runtimeCommandLoader.loadCommands).toHaveBeenCalledTimes(2);
     expect(resetSdkSkillsCache).not.toHaveBeenCalled();
@@ -3039,5 +3018,95 @@ describe('TabManager composer drafts', () => {
 
     expect(composerDrafts.get(tabDraftKey(blank!.id))).toBeNull();
     expect(composerDrafts.get(conversationDraftKey('conv-2'))?.text).toBe('bleibt');
+  });
+});
+
+// With nine restored tabs, warming every provider used to load every tab's full
+// history (tens of MB of transcripts) on Obsidian's main thread at startup,
+// although only the visible tab can use a warm runtime.
+describe('TabManager warmup stays lazy', () => {
+  it('never loads the history of a hidden tab that has no running runtime', async () => {
+    const plugin = createMockPlugin();
+    const manager = createManager({
+      plugin,
+      tabFactory: (n: number) => createMockTabData({ id: `tab-${n}`, conversationId: `conv-${n}` }),
+    });
+    await manager.createTab();
+    await manager.createTab();
+    plugin.getConversationById.mockClear();
+
+    manager.primeProviderRuntime();
+    await flushMicrotasks(8);
+
+    const loaded = plugin.getConversationById.mock.calls.map((call: unknown[]) => call[0]);
+    expect(loaded).not.toContain('conv-1');
+  });
+});
+
+// Every tab you once looked at kept its CLI process alive until it was closed;
+// with many tabs that was many idle processes. Hidden tabs now let theirs go
+// and start it again when they are shown.
+describe('TabManager idle runtimes', () => {
+  function readyService() {
+    return {
+      providerId: 'claude',
+      isReady: jest.fn().mockReturnValue(true),
+      cleanup: jest.fn(),
+      syncConversationState: jest.fn(),
+      ensureReady: jest.fn().mockResolvedValue(true),
+    };
+  }
+
+  function managerWithTabs(count: number, overrides: (n: number) => Record<string, any> = () => ({})) {
+    const manager = createManager({
+      plugin: createMockPlugin({ settings: { maxTabs: count + 2 } }),
+      tabFactory: (n: number) => createMockTabData({
+        id: `tab-${n}`,
+        service: readyService(),
+        serviceInitialized: true,
+        services: { subagentManager: { hasRunningSubagents: () => false } },
+        ...overrides(n),
+      }),
+    });
+    return manager;
+  }
+
+  it('keeps only the two most recently hidden runtimes warm', async () => {
+    const manager = managerWithTabs(4);
+    // Each new tab becomes the visible one; tab-1 is the longest hidden.
+    for (let i = 0; i < 4; i++) await manager.createTab();
+
+    expect(manager.getTab('tab-1')?.service).toBeNull();
+    expect(manager.getTab('tab-2')?.service).not.toBeNull();
+    expect(manager.getTab('tab-3')?.service).not.toBeNull();
+    expect(manager.getTab('tab-4')?.service).not.toBeNull();
+  });
+
+  it('never releases a tab that is streaming or still has running subagents', async () => {
+    const manager = managerWithTabs(5, (n) => (
+      n === 1 ? { state: { isStreaming: true } }
+        : n === 2 ? { services: { subagentManager: { hasRunningSubagents: () => true } } }
+          : {}
+    ));
+    for (let i = 0; i < 5; i++) await manager.createTab();
+
+    expect(manager.getTab('tab-1')?.service).not.toBeNull();
+    expect(manager.getTab('tab-2')?.service).not.toBeNull();
+  });
+
+  it('releases a hidden runtime after it sat idle for ten minutes', async () => {
+    const manager = managerWithTabs(2);
+    await manager.createTab();
+    await manager.createTab();
+    await manager.switchToTab('tab-1');
+    await manager.switchToTab('tab-2');
+    const hidden = manager.getTab('tab-1');
+    const service = hidden?.service as unknown as { cleanup: jest.Mock };
+
+    manager.releaseIdleRuntimes(Date.now() + 10 * 60_000 + 1);
+
+    expect(service.cleanup).toHaveBeenCalled();
+    expect(hidden?.service).toBeNull();
+    expect(hidden?.serviceInitialized).toBe(false);
   });
 });

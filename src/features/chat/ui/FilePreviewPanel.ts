@@ -32,6 +32,24 @@ function isChatImageUpload(upload: LibraryUpload): boolean {
   return attachmentTypeMeta(upload.name).kind === 'image';
 }
 
+export interface LiveWorkSource {
+  subscribe: (listener: () => void) => () => void;
+  runningCount: () => number;
+}
+
+function createLiveChip(header: HTMLElement, before: HTMLElement | null): HTMLButtonElement {
+  const chip = header.createEl('button', {
+    cls: 'claudian-preview-live claudian-hidden',
+    attr: { type: 'button' },
+  }) as HTMLButtonElement;
+  chip.createSpan({ cls: 'claudian-preview-live-dot' }).setAttribute('aria-hidden', 'true');
+  chip.createSpan({ cls: 'claudian-preview-live-label' });
+  // Narrow drawers show only the number; the label stays in aria-label.
+  chip.createSpan({ cls: 'claudian-preview-live-count' }).setAttribute('aria-hidden', 'true');
+  if (before) header.insertBefore(chip, before);
+  return chip;
+}
+
 export interface LibraryUpload {
   name: string;
   relPath: string;
@@ -45,6 +63,11 @@ export class FilePreviewPanel {
   private closeBtn: HTMLButtonElement | null = null;
   private titleEl: HTMLElement | null = null;
   private countEl: HTMLElement | null = null;
+  private headerEl: HTMLElement | null = null;
+  private liveEl: HTMLButtonElement | null = null;
+  private liveLabelEl: HTMLElement | null = null;
+  private liveUnsubscribe: (() => void) | null = null;
+  private liveOnShow: (() => void) | null = null;
   private contentEl: HTMLElement | null = null;
   private searchEl: HTMLElement | null = null;
   private searchInput: HTMLInputElement | null = null;
@@ -96,6 +119,7 @@ export class FilePreviewPanel {
     this.panelEl.addEventListener('keydown', this.handlePanelKeydown);
 
     const header = this.panelEl.createDiv({ cls: 'claudian-preview-header' });
+    this.headerEl = header;
     const brand = header.createDiv({ cls: 'claudian-preview-brand' });
     setIcon(brand.createSpan({ cls: 'claudian-preview-header-icon' }), 'library');
     const titles = brand.createDiv({ cls: 'claudian-preview-titles' });
@@ -606,8 +630,41 @@ export class FilePreviewPanel {
     }
   }
 
+  /**
+   * The library and the live-work overview share the chat's top-right corner.
+   * Where the drawer leaves no room beside it (CSS decides by chat width), the
+   * overview steps back and this chip says what is still running; a click
+   * hands over to the overview.
+   */
+  connectLiveWork(source: LiveWorkSource, onShow: () => void): void {
+    this.liveUnsubscribe?.();
+    if (!this.headerEl) return;
+    if (!this.liveEl) {
+      this.liveEl = createLiveChip(this.headerEl, this.countEl);
+      this.liveLabelEl = this.liveEl.querySelector('.claudian-preview-live-label');
+      this.liveEl.addEventListener('click', () => {
+        this.close(false);
+        this.liveOnShow?.();
+      });
+    }
+    const chip = this.liveEl;
+    this.liveOnShow = onShow;
+    const update = (): void => {
+      const running = source.runningCount();
+      chip.toggleClass('claudian-hidden', running === 0);
+      const label = `${running} ${running === 1 ? 'Subagent' : 'Subagents'} aktiv`;
+      this.liveLabelEl?.setText(label);
+      chip.querySelector('.claudian-preview-live-count')?.setText(String(running));
+      chip.setAttribute('aria-label', `${label} – Live-Arbeit anzeigen`);
+    };
+    update();
+    this.liveUnsubscribe = source.subscribe(update);
+  }
+
   destroy(): void {
     this.destroyed = true;
+    this.liveUnsubscribe?.();
+    this.liveUnsubscribe = null;
     this.close(false);
     this.releaseFullscreenMode();
     this.panelEl?.removeEventListener('keydown', this.handlePanelKeydown);

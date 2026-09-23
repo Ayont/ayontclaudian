@@ -20,9 +20,18 @@ export interface TabBarCallbacks {
 /**
  * TabBar renders minimal numbered badge navigation.
  */
+function badgeSignature(item: TabBarItem): string {
+  return [
+    item.index, item.title, item.providerId, item.isActive, item.isStreaming,
+    item.needsAttention, item.canClose, item.hasDraft,
+  ].join('\u0001');
+}
+
 export class TabBar {
   private containerEl: HTMLElement;
   private callbacks: TabBarCallbacks;
+  /** Badges by tab, with the state they were drawn for. */
+  private rendered = new Map<TabId, { el: HTMLElement; signature: string }>();
 
   constructor(containerEl: HTMLElement, callbacks: TabBarCallbacks) {
     this.containerEl = containerEl;
@@ -41,17 +50,32 @@ export class TabBar {
    * @param items Tab items to render.
    */
   update(items: TabBarItem[]): void {
-    // Clear existing badges
-    this.containerEl.empty();
-
-    // Render badges
-    for (const item of items) {
-      this.renderBadge(item);
+    // Streaming, title, draft and attention changes all land here; redrawing
+    // every badge (icons, listeners) for each of them added up with many tabs.
+    // Only badges whose visible state changed are rebuilt.
+    const next = new Map<TabId, { el: HTMLElement; signature: string }>();
+    items.forEach((item, position) => {
+      const signature = badgeSignature(item);
+      const existing = this.rendered.get(item.id);
+      let el: HTMLElement;
+      if (existing && existing.signature === signature) {
+        el = existing.el;
+      } else {
+        existing?.el.remove();
+        el = this.renderBadge(item);
+      }
+      next.set(item.id, { el, signature });
+      const atPosition = this.containerEl.children[position] ?? null;
+      if (atPosition !== el) this.containerEl.insertBefore(el, atPosition);
+    });
+    for (const [id, entry] of this.rendered) {
+      if (!next.has(id)) entry.el.remove();
     }
+    this.rendered = next;
   }
 
   /** Renders a single tab badge. */
-  private renderBadge(item: TabBarItem): void {
+  private renderBadge(item: TabBarItem): HTMLElement {
     // Determine state class (priority: active > attention > streaming > idle)
     let stateClass = 'claudian-tab-badge-idle';
     if (item.isActive) {
@@ -159,10 +183,12 @@ export class TabBar {
         this.callbacks.onTabClose(item.id);
       });
     }
+    return badgeEl;
   }
 
   /** Destroys the tab bar. */
   destroy(): void {
+    this.rendered.clear();
     this.containerEl.empty();
     this.containerEl.removeClass('claudian-tab-badges');
   }

@@ -450,6 +450,43 @@
   color: var(--text-faint);
 }
 
+/* ── Library open: never under the drawer ───────────────────────────────
+   With room beside the drawer, the overview docks to its outer edge, past the
+   arrow rail, so all three read as one instrument. Where the drawer leaves no
+   room it steps back, and the drawer's live chip names what is still running
+   (file-preview.css) and hands back on click. */
+.claudian-preview-open > .claudian-swarm-panel {
+  --swarm-dock: calc(var(--claudian-library-width) + var(--claudian-library-inset) + var(--claudian-nav-gap) * 2 + 34px);
+  inset-inline-end: var(--swarm-dock);
+  width: min(340px, calc(100% - var(--swarm-dock) - var(--cl-space-2)));
+  animation: cl-swarm-dock var(--cl-dur) var(--cl-ease-out);
+}
+
+@keyframes cl-swarm-dock {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}
+
+@media (pointer: coarse) {
+  .claudian-preview-open > .claudian-swarm-panel {
+    --swarm-dock: calc(var(--claudian-library-width) + var(--claudian-library-inset) + var(--claudian-nav-gap) * 2 + 50px);
+  }
+}
+
+@container claudian-chat (max-width: 699.98px) {
+  .claudian-preview-open > .claudian-swarm-panel {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .claudian-preview-open > .claudian-swarm-panel {
+    display: none;
+  }
+}
+
 /* Jumped-to card: one accent pulse around the plate. */
 .claudian-swarm-flash {
   animation: cl-swarm-flash 1.6s var(--cl-ease-out);
@@ -470,6 +507,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .claudian-swarm-panel,
+  .claudian-preview-open > .claudian-swarm-panel,
   .claudian-swarm-flash,
   .claudian-swarm-agent-duration.is-live::before,
   .claudian-swarm-agent.status-running .claudian-swarm-agent-status svg,

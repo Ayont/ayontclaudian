@@ -90,6 +90,12 @@ type ProviderCommandWarmupEntry = {
   promise: Promise<SlashCommand[]>;
 };
 
+/** Hidden tabs that may keep a live provider process; older ones release theirs. */
+export const MAX_WARM_HIDDEN_RUNTIMES = 2;
+/** A hidden tab idle this long releases its provider process. */
+export const HIDDEN_RUNTIME_IDLE_MS = 10 * 60_000;
+const IDLE_SWEEP_INTERVAL_MS = 60_000;
+
 /**
  * TabManager coordinates multiple chat tabs.
  */
@@ -107,6 +113,12 @@ export class TabManager implements TabManagerInterface {
 
   /** Guard to prevent concurrent tab switches. */
   private isSwitchingTab = false;
+
+  /** When each hidden tab was hidden (idle time) and in which order (recency). */
+  private hiddenSince = new Map<TabId, number>();
+  private hiddenOrder = new Map<TabId, number>();
+  private hideSequence = 0;
+  private idleSweepTimer: number | null = null;
 
   /**
    * Gets the current max tabs limit from settings.
@@ -199,7 +211,10 @@ export class TabManager implements TabManagerInterface {
       defaultProviderId,
       onStreamingChanged: (isStreaming) => {
         this.callbacks.onTabStreamingChanged?.(tab.id, isStreaming);
-        this.plugin.updateProviderStatusBar();
+        // The status bar reflects only the visible tab.
+        if (tab.id === this.activeTabId) {
+          this.plugin.updateProviderStatusBar();
+        }
       },
       onTitleChanged: (title) => {
         this.callbacks.onTabTitleChanged?.(tab.id, title);
@@ -281,11 +296,16 @@ export class TabManager implements TabManagerInterface {
         const currentTab = this.tabs.get(previousTabId);
         if (currentTab) {
           deactivateTab(currentTab);
+          this.hiddenSince.set(previousTabId, Date.now());
+          this.hiddenOrder.set(previousTabId, ++this.hideSequence);
         }
       }
 
       // Activate new tab
       this.activeTabId = tabId;
+      this.hiddenSince.delete(tabId);
+      this.hiddenOrder.delete(tabId);
+      this.releaseIdleRuntimes();
       activateTab(tab);
       this.plugin.updateProviderStatusBar();
 
@@ -858,11 +878,15 @@ export class TabManager implements TabManagerInterface {
 
   private async prewarmProviderTab(tab: TabData): Promise<void> {
     const providerId = tab.service?.providerId ?? tab.providerId;
-    const context = await this.buildProviderWarmupContext(tab, providerId);
     const hasReadyRuntime = tab.service?.providerId === providerId && tab.service.isReady();
-    if (!hasReadyRuntime && tab.id !== this.activeTabId) {
+    const isActive = tab.id === this.activeTabId;
+    // Decide before loading anything: building the context hydrates the whole
+    // conversation, and doing that for every restored tab parsed tens of MB of
+    // transcripts on the main thread at startup for tabs nobody was looking at.
+    if (!hasReadyRuntime && !isActive) {
       return;
     }
+    const context = await this.buildProviderWarmupContext(tab, providerId, { hydrate: isActive });
 
     switch (context.warmupMode) {
       case 'commands':
@@ -901,10 +925,15 @@ export class TabManager implements TabManagerInterface {
   private async buildProviderWarmupContext(
     tab: TabData,
     providerId: ProviderId,
+    options: { hydrate?: boolean } = {},
   ): Promise<ProviderWarmupContext> {
-    const conversation = tab.conversationId
-      ? await this.plugin.getConversationById(tab.conversationId)
-      : null;
+    // A hidden tab with a live runtime was loaded when it was last visible; its
+    // in-memory conversation is current and needs no disk read.
+    const conversation = !tab.conversationId
+      ? null
+      : options.hydrate === false
+        ? this.plugin.getConversationSync(tab.conversationId)
+        : await this.plugin.getConversationById(tab.conversationId);
     const hasConversationContext = (conversation?.messages.length ?? 0) > 0;
     const externalContextPaths = tab.ui.externalContextSelector?.getExternalContexts()
       ?? (hasConversationContext
@@ -1075,7 +1104,66 @@ export class TabManager implements TabManagerInterface {
     }
   }
 
+  /**
+   * Every tab once shown used to keep its CLI process until it was closed;
+   * with many tabs that was many idle processes and their output handling.
+   * Hidden tabs now let theirs go (the runtime starts again on the next show or
+   * send): beyond the most recent few, and any left idle for a while. A tab
+   * that streams, still saves, or has background subagents keeps its process,
+   * because releasing it would end that work.
+   */
+  releaseIdleRuntimes(now: number = Date.now()): void {
+    const hidden = [...this.tabs.values()]
+      .filter(tab => tab.id !== this.activeTabId && tab.service && this.canReleaseRuntime(tab))
+      .sort((a, b) => (this.hiddenOrder.get(b.id) ?? 0) - (this.hiddenOrder.get(a.id) ?? 0));
+
+    hidden.forEach((tab, index) => {
+      const idleFor = now - (this.hiddenSince.get(tab.id) ?? now);
+      if (index >= MAX_WARM_HIDDEN_RUNTIMES || idleFor >= HIDDEN_RUNTIME_IDLE_MS) {
+        this.releaseRuntime(tab);
+      }
+    });
+    this.scheduleIdleSweep();
+  }
+
+  private canReleaseRuntime(tab: TabData): boolean {
+    if (tab.lifecycleState === 'closing') return false;
+    if (tab.state.isStreaming || tab.state.hasPendingConversationSave) return false;
+    return !tab.services?.subagentManager?.hasRunningSubagents?.();
+  }
+
+  private releaseRuntime(tab: TabData): void {
+    const service = tab.service;
+    tab.service = null;
+    tab.serviceInitialized = false;
+    this.providerCommandWarmups.delete(tab.id);
+    try {
+      service?.cleanup();
+    } catch {
+      // A runtime that fails to clean up is dropped anyway.
+    }
+  }
+
+  /** Re-checks while hidden tabs still hold a process, so idle ones time out. */
+  private scheduleIdleSweep(): void {
+    const warmHidden = [...this.tabs.values()].some(tab => tab.id !== this.activeTabId && tab.service);
+    if (!warmHidden) {
+      if (this.idleSweepTimer !== null) window.clearTimeout(this.idleSweepTimer);
+      this.idleSweepTimer = null;
+      return;
+    }
+    if (this.idleSweepTimer !== null) return;
+    this.idleSweepTimer = window.setTimeout(() => {
+      this.idleSweepTimer = null;
+      this.releaseIdleRuntimes();
+    }, IDLE_SWEEP_INTERVAL_MS);
+    // Never keep a test process (or a closing window) alive for the sweep.
+    (this.idleSweepTimer as unknown as { unref?: () => void }).unref?.();
+  }
+
   async destroy(): Promise<void> {
+    if (this.idleSweepTimer !== null) window.clearTimeout(this.idleSweepTimer);
+    this.idleSweepTimer = null;
     this.flushComposerDrafts();
     // Save all conversations in parallel (independent per-tab)
     await Promise.all(

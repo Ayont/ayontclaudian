@@ -100,6 +100,8 @@ export class RelatedNotesView extends ItemView {
       this.renderMessage('Aktiviere „Memory/RAG" in den Claudian-Einstellungen.');
       return;
     }
+    // The index loads lazily; the first panel open is what may trigger it.
+    await this.plugin.vaultRAGService.ready();
     if (this.plugin.vectorStore.size() === 0) {
       this.renderMessage(this.plugin.vaultRAGService.indexing
         ? 'Der Vault-Index wird gerade aufgebaut …'

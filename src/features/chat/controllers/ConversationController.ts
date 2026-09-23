@@ -1,5 +1,6 @@
 import { Menu, Notice, Platform, setIcon } from 'obsidian';
 
+import { perfMark, perfSince } from '../../../core/diagnostics/perfLog';
 import { ProviderRegistry } from '../../../core/providers/ProviderRegistry';
 import type { TitleGenerationService } from '../../../core/providers/types';
 import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
@@ -13,6 +14,7 @@ import { confirm } from '../../../shared/modals/ConfirmModal';
 import { extractUserDisplayContent } from '../../../utils/context';
 import type { MessageRenderer } from '../rendering/MessageRenderer';
 import { cleanupThinkingBlock } from '../rendering/ThinkingBlockRenderer';
+import { scheduleTranscriptSkeleton } from '../rendering/transcriptSkeleton';
 import { renderWelcomeContent } from '../rendering/welcome';
 import { findRewindContext } from '../rewind';
 import type { SubagentManager } from '../services/SubagentManager';
@@ -271,6 +273,10 @@ export class ConversationController {
     if (state.isCreatingConversation) return;
 
     state.isSwitchingConversation = true;
+    // First load of a long chat reads it from disk; show that it is loading.
+    const finishSkeleton = state.messages.length === 0
+      ? scheduleTranscriptSkeleton(this.deps.getMessagesEl())
+      : null;
 
     try {
       this.deps.dismissPendingInlinePrompts?.();
@@ -281,10 +287,12 @@ export class ConversationController {
       // deleted in another tab); orphaning/clearing first would destroy the
       // still-visible current conversation's swarm state for a switch that never
       // happens.
+      const loadStart = perfMark();
       const conversation = await plugin.switchConversation(id);
       if (!conversation) {
         return;
       }
+      perfSince(loadStart, 'conversation-load', `${conversation.messages.length} messages`);
 
       subagentManager.orphanAllActive();
       subagentManager.clear();
@@ -294,13 +302,16 @@ export class ConversationController {
       this.deps.getInputEl().value = '';
       this.deps.clearQueuedMessage();
 
+      const renderStart = perfMark();
       this.restoreConversation(conversation);
+      perfSince(renderStart, 'conversation-render', `${conversation.messages.length} messages`);
 
       this.deps.getHistoryDropdown()?.removeClass('visible');
       this.updateWelcomeVisibility();
 
       this.callbacks.onConversationSwitched?.();
     } finally {
+      finishSkeleton?.();
       state.isSwitchingConversation = false;
     }
   }

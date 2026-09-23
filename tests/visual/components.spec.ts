@@ -22,7 +22,7 @@ const LEGACY_SECTIONS = [
   'usage-sparkline',
 ] as const;
 
-const CONTROL_SECTIONS = ['fast-chip', 'model-picker', 'composer-toolbar', 'browser-activity', 'history-panel', 'history-search', 'subagent-cards', 'subagent-swarm', 'subagent-inspector'] as const;
+const CONTROL_SECTIONS = ['fast-chip', 'model-picker', 'composer-toolbar', 'browser-activity', 'history-panel', 'history-search', 'subagent-cards', 'subagent-swarm', 'subagent-inspector', 'transcript-skeleton'] as const;
 
 test.beforeEach(async ({ page }) => {
   await page.goto(HARNESS_URL);

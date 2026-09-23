@@ -72,3 +72,20 @@ export async function perfAsync<T>(key: string, fn: () => Promise<T>, detail?: s
   }
 }
 
+
+export interface StartupProfile {
+  writtenAt: number;
+  marks: Array<{ key: string; ms: number; detail?: string }>;
+}
+
+/**
+ * Everything measured so far, slowest first. Claudian writes this after each
+ * start (`.claudian/perf/last-startup.json`) so a slow start can be read back
+ * without devtools.
+ */
+export function buildStartupProfile(writtenAt: number = Date.now()): StartupProfile {
+  const marks = [...recentPerf.entries()]
+    .map(([key, record]) => ({ key, ms: Math.round(record.ms * 10) / 10, ...(record.detail ? { detail: record.detail } : {}) }))
+    .sort((a, b) => b.ms - a.ms);
+  return { writtenAt, marks };
+}

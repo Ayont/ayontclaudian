@@ -88,3 +88,38 @@ describe('VaultRAGService', () => {
     await expect(rag.indexVault()).resolves.toBe(0);
   });
 });
+
+// The persisted index is ~20 MB of JSON; parsing it 2.5 s after start froze
+// Obsidian right when the user began to work. It now loads on first use.
+describe('VaultRAGService lazy index', () => {
+  it('loads the persisted index once, before the first query or update', async () => {
+    const vault = createVault([{ path: 'obsidian.md', content: 'Obsidian notes.' }]);
+    const store = new VectorStore();
+    const ensureLoaded = jest.fn(async () => {
+      store.upsert({ id: 'old.md#chunk-0', text: 'Obsidian base', embedding: [1, 0, 0], metadata: { path: 'old.md', index: 0 }, mtime: 1 });
+    });
+    const rag = new VaultRAGService(vault, new FakeEmbeddingService(), store, { ensureLoaded });
+
+    const results = await rag.query('obsidian');
+    await rag.query('obsidian again');
+
+    expect(ensureLoaded).toHaveBeenCalledTimes(1);
+    expect(results[0].path).toBe('old.md');
+  });
+
+  it('applies an edit made before the index loaded on top of it, not under it', async () => {
+    const vault = createVault([{ path: 'plugin.md', content: 'A plugin note.' }]);
+    const store = new VectorStore();
+    let release!: () => void;
+    const ensureLoaded = jest.fn(() => new Promise<void>((resolve) => { release = resolve; }));
+    const rag = new VaultRAGService(vault, new FakeEmbeddingService(), store, { ensureLoaded });
+
+    const pending = rag.indexFile({ path: 'plugin.md', extension: 'md', stat: { mtime: 2 } } as never);
+    for (let i = 0; i < 5 && !release; i++) await Promise.resolve();
+    expect(store.size()).toBe(0);
+    release();
+    await pending;
+
+    expect(store.getAll().map(record => record.metadata.path)).toEqual(['plugin.md']);
+  });
+});

@@ -43,7 +43,7 @@ function normalizeTaskNotificationResult(status: AsyncSubagentResultStatus, summ
   if (typeof summary === 'string' && summary.trim().length > 0) {
     return summary.trim();
   }
-  return status === 'completed' ? 'Background task completed.' : 'Background task failed.';
+  return status === 'completed' ? 'Hintergrund-Subagent fertig.' : 'Hintergrund-Subagent fehlgeschlagen.';
 }
 
 function transformTaskNotification(message: SDKMessage): StreamChunk | null {

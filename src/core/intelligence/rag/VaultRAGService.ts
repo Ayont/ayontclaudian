@@ -14,6 +14,11 @@ export interface VaultRAGOptions {
   chunkSize?: number;
   chunkOverlap?: number;
   maxChunksPerFile?: number;
+  /**
+   * Loads the persisted index; awaited once before any use. The index is large
+   * (tens of MB of JSON), so it is not parsed at startup but on first need.
+   */
+  ensureLoaded?: () => Promise<void>;
 }
 
 /**
@@ -32,6 +37,7 @@ export class VaultRAGService {
   private isIndexing = false;
   /** Per-path serialization so concurrent re-indexes of one file can't interleave. */
   private readonly indexQueue = new Map<string, Promise<number>>();
+  private loaded: Promise<void> | null = null;
 
   constructor(
     private readonly vault: Vault,
@@ -39,6 +45,16 @@ export class VaultRAGService {
     private readonly vectorStore: VectorStore,
     private readonly options: VaultRAGOptions = {},
   ) {}
+
+  /** Resolves once the persisted index is in memory (loads it on first call). */
+  ready(): Promise<void> {
+    if (!this.loaded) {
+      this.loaded = (this.options.ensureLoaded?.() ?? Promise.resolve()).catch(() => {
+        // An unreadable index behaves like an empty one; the next full pass refills it.
+      });
+    }
+    return this.loaded;
+  }
 
   /**
    * Embeds every markdown file into the vector store.
@@ -52,6 +68,7 @@ export class VaultRAGService {
    * marginally longer in wall-clock terms and costs nothing in responsiveness.
    */
   async indexVault(options: { limit?: number; onProgress?: (count: number) => void } = {}): Promise<number> {
+    await this.ready();
     if (this.isIndexing) return 0;
     this.isIndexing = true;
 
@@ -117,6 +134,8 @@ export class VaultRAGService {
   }
 
   private async doIndexFile(file: TFile): Promise<number> {
+    // Loading after an edit would overwrite the fresh chunks with stale ones.
+    await this.ready();
     this.removeFile(file.path);
 
     const content = await this.vault.cachedRead(file).catch(() => '');
@@ -164,6 +183,7 @@ export class VaultRAGService {
 
   async query(question: string, options: { limit?: number; timeoutMs?: number } = {}): Promise<RAGChunk[]> {
     const timeoutMs = options.timeoutMs ?? 800;
+    await this.ready();
     try {
       const embedPromise = this.embeddingService.embed([question]);
       const [embedding] = await Promise.race([

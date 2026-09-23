@@ -52,6 +52,7 @@ import { BangBashService } from '../services/BangBashService';
 import { SubagentManager } from '../services/SubagentManager';
 import { ChatState } from '../state/ChatState';
 import { SubagentActionController } from '../subagents/SubagentActionController';
+import { isLiveSubagentPhase, resolveSubagentPhase } from '../subagents/subagentPresentation';
 import { BangBashModeManager as BangBashModeManagerClass } from '../ui/BangBashModeManager';
 import { ChatSearchController } from '../ui/ChatSearch';
 import { CommitBar } from '../ui/CommitBar';
@@ -1784,6 +1785,13 @@ export function initializeTabUI(
       plugin,
     );
     tab.ui.filePreviewPanel.render();
+    // Where the library leaves no room for the live-work overview, it shows
+    // what is running and hands over on click (see swarm-panel.css).
+    tab.ui.filePreviewPanel.connectLiveWork({
+      subscribe: (listener) => tab.services.subagentManager.onSwarmChange(listener),
+      runningCount: () => tab.services.subagentManager.getAllSubagents()
+        .filter(info => isLiveSubagentPhase(resolveSubagentPhase(info))).length,
+    }, () => tab.ui.swarmPanel?.reveal());
 
     // Floating in-chat search (Cmd/Ctrl+F while focus is inside this tab).
     tab.ui.chatSearch = new ChatSearchController(
@@ -1815,7 +1823,11 @@ export function initializeTabUI(
     ...state.callbacks,
     onUsageChanged: (usage) => {
       tab.ui.contextUsageMeter?.update(usage);
-      plugin.updateProviderStatusBar();
+      // The status bar shows the visible tab only; a background stream must not
+      // recompute it on every usage report.
+      if (!tab.dom.contentEl.hasClass('claudian-hidden')) {
+        plugin.updateProviderStatusBar();
+      }
     },
     onTodosChanged: (todos) => tab.ui.statusPanel?.updateTodos(todos),
     onAutoScrollChanged: () => tab.ui.navigationSidebar?.updateVisibility(),

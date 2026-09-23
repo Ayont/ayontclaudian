@@ -54,6 +54,7 @@
     /* The user's real case: an Obsidian sidebar ~420px wide inside a wide window. */
     .harness-chat { width: min(100%, 420px); height: 560px; border: 1px solid var(--background-modifier-border); border-radius: 12px; }
     .harness-chat--wide { width: min(100%, 560px); }
+    .harness-chat--dock { width: min(100%, 920px); }
     /* Obsidian's generic control chrome, slightly more specific than the real
        `button:not(.clickable-icon)` / `input[type='text']:focus`, so the product
        selectors must neutralize it. */
@@ -142,6 +143,50 @@
           <div class="claudian-mode-quick-row"><div class="claudian-mode-quick-group"><button class="claudian-mode-quick-chip clickable-icon" type="button">Zusammenfassen</button></div></div>
           <div class="harness-composer">Nachricht an Claude …</div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. Library open beside live work: the overview docks to the drawer's edge. -->
+  <div class="harness-section" data-vis="library-live-wide">
+    <div class="harness-label">Bibliothek + Live-Arbeit · breiter Chat</div>
+    <div class="claudian-container harness-chat harness-chat--dock">
+      <div class="claudian-tab-content">
+        <div class="claudian-messages-wrapper claudian-preview-open" data-chat>
+          <div class="claudian-messages" data-transcript></div>
+          <div class="claudian-nav-sidebar visible is-away" role="navigation" aria-label="Chat-Navigation" data-rail></div>
+          <div class="claudian-swarm-panel has-running is-open" data-swarm>
+            <button class="claudian-swarm-toggle" type="button" aria-expanded="true"><span class="claudian-swarm-toggle-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg></span><span class="claudian-swarm-toggle-label">Live-Arbeit</span><span class="claudian-swarm-count">2</span><span class="claudian-swarm-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></span></button>
+            <div class="claudian-swarm-list">
+              <div class="claudian-swarm-agent status-running" data-kind="agent"><button class="claudian-swarm-agent-open" type="button"><span class="claudian-swarm-agent-status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg></span><div class="claudian-swarm-agent-main"><div class="claudian-swarm-agent-name-row"><span class="claudian-swarm-agent-name">Firewall-Regeln prüfen</span><span class="claudian-swarm-agent-type">Explore</span></div><div class="claudian-swarm-agent-activity"><span class="claudian-swarm-agent-activity-text">Liest die FortiGate-Richtlinien</span></div></div><div class="claudian-swarm-agent-meta"><span class="claudian-swarm-agent-tools">4 Werkzeuge</span><span class="claudian-swarm-agent-duration is-live">1m 12s</span></div></button><div class="claudian-swarm-agent-actions"></div></div>
+              <div class="claudian-swarm-agent status-running" data-kind="agent"><button class="claudian-swarm-agent-open" type="button"><span class="claudian-swarm-agent-status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg></span><div class="claudian-swarm-agent-main"><div class="claudian-swarm-agent-name-row"><span class="claudian-swarm-agent-name">Tests schreiben</span><span class="claudian-swarm-agent-mode mode-async">Hintergrund</span></div><div class="claudian-swarm-agent-activity"><span class="claudian-swarm-agent-activity-text">npm test -- --selectProjects unit</span></div></div><div class="claudian-swarm-agent-meta"><span class="claudian-swarm-agent-tools">7 Werkzeuge</span><span class="claudian-swarm-agent-duration is-live">3m 40s</span></div></button><div class="claudian-swarm-agent-actions"></div></div>
+            </div>
+          </div>
+          <section class="claudian-preview-panel is-open" role="region" aria-label="Dokumentbibliothek" data-panel data-query="" data-rows="default" data-live="2"></section>
+        </div>
+        <div class="claudian-input-container"><div class="harness-composer">Nachricht an Claude …</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. Narrow sidebar: no room beside the drawer, so the drawer names the live work. -->
+  <div class="harness-section" data-vis="library-live-narrow">
+    <div class="harness-label">Bibliothek + Live-Arbeit · schmale Seitenleiste</div>
+    <div class="claudian-container harness-chat">
+      <div class="claudian-tab-content">
+        <div class="claudian-messages-wrapper claudian-preview-open" data-chat>
+          <div class="claudian-messages" data-transcript></div>
+          <div class="claudian-nav-sidebar visible is-away" role="navigation" aria-label="Chat-Navigation" data-rail></div>
+          <div class="claudian-swarm-panel has-running is-open" data-swarm>
+            <button class="claudian-swarm-toggle" type="button" aria-expanded="true"><span class="claudian-swarm-toggle-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg></span><span class="claudian-swarm-toggle-label">Live-Arbeit</span><span class="claudian-swarm-count">2</span><span class="claudian-swarm-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></span></button>
+            <div class="claudian-swarm-list">
+              <div class="claudian-swarm-agent status-running" data-kind="agent"><button class="claudian-swarm-agent-open" type="button"><span class="claudian-swarm-agent-status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg></span><div class="claudian-swarm-agent-main"><div class="claudian-swarm-agent-name-row"><span class="claudian-swarm-agent-name">Firewall-Regeln prüfen</span><span class="claudian-swarm-agent-type">Explore</span></div><div class="claudian-swarm-agent-activity"><span class="claudian-swarm-agent-activity-text">Liest die FortiGate-Richtlinien</span></div></div><div class="claudian-swarm-agent-meta"><span class="claudian-swarm-agent-tools">4 Werkzeuge</span><span class="claudian-swarm-agent-duration is-live">1m 12s</span></div></button><div class="claudian-swarm-agent-actions"></div></div>
+              <div class="claudian-swarm-agent status-running" data-kind="agent"><button class="claudian-swarm-agent-open" type="button"><span class="claudian-swarm-agent-status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg></span><div class="claudian-swarm-agent-main"><div class="claudian-swarm-agent-name-row"><span class="claudian-swarm-agent-name">Tests schreiben</span><span class="claudian-swarm-agent-mode mode-async">Hintergrund</span></div><div class="claudian-swarm-agent-activity"><span class="claudian-swarm-agent-activity-text">npm test -- --selectProjects unit</span></div></div><div class="claudian-swarm-agent-meta"><span class="claudian-swarm-agent-tools">7 Werkzeuge</span><span class="claudian-swarm-agent-duration is-live">3m 40s</span></div></button><div class="claudian-swarm-agent-actions"></div></div>
+            </div>
+          </div>
+          <section class="claudian-preview-panel is-open" role="region" aria-label="Dokumentbibliothek" data-panel data-query="" data-rows="default" data-live="2"></section>
+        </div>
+        <div class="claudian-input-container"><div class="harness-composer">Nachricht an Claude …</div></div>
       </div>
     </div>
   </div>
@@ -247,7 +292,10 @@
     const list = rows.length > 0
       ? `<div class="claudian-preview-library" role="list" aria-label="Bibliothekseinträge">${rows.map(rowHtml).join('')}</div>`
       : `<div class="claudian-preview-no-results"><p class="claudian-preview-no-results-title">Keine Treffer für „${esc(query)}“</p><p class="claudian-preview-no-results-hint">Tipp: Nach Typ suchen, etwa „pdf“, „bild“ oder „tabelle“.</p><button class="claudian-preview-no-results-reset" type="button">Suche zurücksetzen</button></div>`;
-    return `<div class="claudian-preview-header"><div class="claudian-preview-brand"><span class="claudian-preview-header-icon">${icon('library')}</span><div class="claudian-preview-titles"><span class="claudian-preview-title">Bibliothek</span><span class="claudian-preview-subtitle">Dokumente &amp; Uploads</span></div></div><span class="claudian-preview-count">${total}</span><button class="claudian-preview-close clickable-icon" type="button" aria-label="Dokumentbibliothek schließen">${icon('x')}</button></div>`
+    const live = panel.dataset.live
+      ? `<button class="claudian-preview-live" type="button" aria-label="${panel.dataset.live} Subagents aktiv – Live-Arbeit anzeigen"><span class="claudian-preview-live-dot" aria-hidden="true"></span><span class="claudian-preview-live-label">${panel.dataset.live} Subagents aktiv</span><span class="claudian-preview-live-count" aria-hidden="true">${panel.dataset.live}</span></button>`
+      : '';
+    return `<div class="claudian-preview-header"><div class="claudian-preview-brand"><span class="claudian-preview-header-icon">${icon('library')}</span><div class="claudian-preview-titles"><span class="claudian-preview-title">Bibliothek</span><span class="claudian-preview-subtitle">Dokumente &amp; Uploads</span></div></div>${live}<span class="claudian-preview-count">${total}</span><button class="claudian-preview-close clickable-icon" type="button" aria-label="Dokumentbibliothek schließen">${icon('x')}</button></div>`
       + `<div class="claudian-preview-search" role="search"><span class="claudian-preview-search-icon">${icon('search')}</span><input type="text" class="claudian-preview-search-input" aria-label="Bibliothek durchsuchen" placeholder="Name, Ordner oder Typ …" value="${esc(query)}" autocomplete="off" spellcheck="false"><span class="claudian-preview-search-count" aria-live="polite">${count}</span><button class="claudian-preview-search-clear clickable-icon${clear}" type="button" aria-label="Suche leeren">${icon('x')}</button></div>`
       + `<div class="claudian-preview-content">${list}</div>`;
   }

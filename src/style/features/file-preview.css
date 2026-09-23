@@ -187,6 +187,97 @@ body.theme-light .claudian-preview-panel {
   letter-spacing: 0.02em;
 }
 
+/* Live-work hand-over: shown only where the drawer leaves the live overview
+   no room beside it (see swarm-panel.css); a click swaps back to it. */
+.claudian-preview-header button.claudian-preview-live {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 24px;
+  min-height: 0;
+  margin: 0 0 0 auto;
+  padding: 0 9px 0 8px;
+  line-height: 1;
+  border: 0;
+  border-radius: var(--cl-radius-pill);
+  background: var(--cl-accent-soft);
+  box-shadow: none;
+  color: var(--cl-accent);
+  font-size: 11.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--cl-dur-fast) var(--cl-ease);
+}
+
+.claudian-preview-header button.claudian-preview-live:hover {
+  background: color-mix(in srgb, var(--cl-accent) 20%, transparent);
+}
+
+.claudian-preview-header button.claudian-preview-live:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+
+.claudian-preview-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: cl-subagent-step-live 1.4s ease-in-out infinite;
+}
+
+.claudian-preview-header button.claudian-preview-live + .claudian-preview-count {
+  margin-inline-start: 0;
+}
+
+.claudian-preview-live-count {
+  display: none;
+}
+
+/* A drawer this narrow needs its title; the chip keeps the dot and the number. */
+@container claudian-chat (max-width: 379.98px) {
+  .claudian-preview-live-label {
+    display: none;
+  }
+
+  .claudian-preview-live-count {
+    display: inline;
+  }
+
+  .claudian-preview-header button.claudian-preview-live {
+    padding: 0 8px 0 7px;
+  }
+}
+
+@container claudian-chat (max-width: 699.98px) {
+  .claudian-preview-header button.claudian-preview-live:not(.claudian-hidden) {
+    display: inline-flex;
+  }
+}
+
+@media (max-width: 768px) {
+  .claudian-preview-header button.claudian-preview-live:not(.claudian-hidden) {
+    display: inline-flex;
+  }
+}
+
+@media (pointer: coarse) {
+  .claudian-preview-header button.claudian-preview-live {
+    justify-content: center;
+    min-width: 44px;
+    height: 36px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claudian-preview-live-dot {
+    animation: none;
+  }
+}
+
 .claudian-preview-count {
   min-width: 22px;
   height: 22px;

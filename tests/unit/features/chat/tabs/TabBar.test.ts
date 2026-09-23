@@ -338,3 +338,35 @@ describe('TabBar', () => {
     });
   });
 });
+
+// Every streaming, title, draft or attention change rebuilt all badges.
+describe('TabBar incremental updates', () => {
+  const item = (id: string, overrides: Record<string, unknown> = {}) => ({
+    id, index: Number(id.slice(-1)), title: `Chat ${id}`, providerId: 'claude',
+    isActive: false, isStreaming: false, needsAttention: false, canClose: true, hasDraft: false,
+    ...overrides,
+  });
+
+  it('keeps unchanged badges and redraws only the changed one', () => {
+    const containerEl = createMockEl();
+    const bar = new TabBar(containerEl as never, { onTabClick: jest.fn(), onTabClose: jest.fn(), onNewTab: jest.fn() });
+    bar.update([item('tab-1', { isActive: true }), item('tab-2')] as never);
+    const [first, second] = containerEl.children;
+
+    bar.update([item('tab-1', { isActive: true }), item('tab-2', { isStreaming: true })] as never);
+
+    expect(containerEl.children[0]).toBe(first);
+    expect(containerEl.children[1]).not.toBe(second);
+    expect(containerEl.children).toHaveLength(2);
+  });
+
+  it('drops badges of closed tabs', () => {
+    const containerEl = createMockEl();
+    const bar = new TabBar(containerEl as never, { onTabClick: jest.fn(), onTabClose: jest.fn(), onNewTab: jest.fn() });
+    bar.update([item('tab-1'), item('tab-2')] as never);
+
+    bar.update([item('tab-1')] as never);
+
+    expect(containerEl.children).toHaveLength(1);
+  });
+});

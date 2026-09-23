@@ -2,6 +2,7 @@ import type { EventRef, WorkspaceLeaf } from 'obsidian';
 import { ItemView, Menu, Notice, Scope, setIcon } from 'obsidian';
 
 import { runSerializedSettingsMutation } from '../../app/settings/SettingsMutationQueue';
+import { perfMark, perfSince } from '../../core/diagnostics/perfLog';
 import { getHiddenProviderCommandSet } from '../../core/providers/commands/hiddenCommands';
 import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '../../core/providers/ProviderSettingsCoordinator';
@@ -130,38 +131,62 @@ export class ClaudianView extends ItemView {
     return 'bot';
   }
 
-  /** Refreshes model-dependent UI across all tabs (used after settings/env changes). */
+  /**
+   * Hidden tabs whose model UI is out of date. Settings and environment
+   * changes used to redraw the selectors of every open tab; only the visible
+   * one needs it now, the rest catch up when they are switched to.
+   */
+  private readonly tabsNeedingModelRefresh = new Set<string>();
+
+  /** Refreshes model-dependent UI (used after settings/env changes). */
   refreshModelSelector(): void {
+    const activeId = this.tabManager?.getActiveTabId() ?? null;
     for (const tab of this.tabManager?.getAllTabs() ?? []) {
-      onProviderAvailabilityChanged(tab, this.plugin);
-      const providerId = getTabProviderId(tab, this.plugin);
-      const providerSettings = ProviderSettingsCoordinator.getProviderSettingsSnapshot(
-        this.plugin.settings,
-        providerId,
-      );
-      const model = providerSettings.model;
-      const uiConfig = ProviderRegistry.getChatUIConfig(providerId);
-      const contextWindow = uiConfig.getContextWindowSize(
-        model,
-        providerSettings.customContextLimits,
-        providerSettings,
-      );
-
-      if (tab.state.usage) {
-        tab.state.usage = recalculateUsageForModel(tab.state.usage, model, contextWindow);
+      if (tab.id === activeId) {
+        this.tabsNeedingModelRefresh.delete(tab.id);
+        this.refreshTabModelUI(tab);
+      } else {
+        this.tabsNeedingModelRefresh.add(tab.id);
       }
-
-      tab.ui.modelSelector?.updateDisplay();
-      tab.ui.modelSelector?.renderOptions();
-      tab.ui.modeSelector?.updateDisplay();
-      tab.ui.modeSelector?.renderOptions();
-      tab.ui.thinkingBudgetSelector?.updateDisplay();
-      tab.ui.permissionToggle?.updateDisplay();
-      tab.ui.serviceTierToggle?.updateDisplay();
-      syncComposerModeClasses(tab, this.plugin);
     }
 
     this.tabManager?.primeProviderRuntime();
+  }
+
+  private refreshTabModelUI(tab: TabData): void {
+    onProviderAvailabilityChanged(tab, this.plugin);
+    const providerId = getTabProviderId(tab, this.plugin);
+    const providerSettings = ProviderSettingsCoordinator.getProviderSettingsSnapshot(
+      this.plugin.settings,
+      providerId,
+    );
+    const model = providerSettings.model;
+    const uiConfig = ProviderRegistry.getChatUIConfig(providerId);
+    const contextWindow = uiConfig.getContextWindowSize(
+      model,
+      providerSettings.customContextLimits,
+      providerSettings,
+    );
+
+    if (tab.state.usage) {
+      tab.state.usage = recalculateUsageForModel(tab.state.usage, model, contextWindow);
+    }
+
+    tab.ui.modelSelector?.updateDisplay();
+    tab.ui.modelSelector?.renderOptions();
+    tab.ui.modeSelector?.updateDisplay();
+    tab.ui.modeSelector?.renderOptions();
+    tab.ui.thinkingBudgetSelector?.updateDisplay();
+    tab.ui.permissionToggle?.updateDisplay();
+    tab.ui.serviceTierToggle?.updateDisplay();
+    syncComposerModeClasses(tab, this.plugin);
+  }
+
+  /** The history list is rebuilt whenever it opens; while closed, redrawing it is waste. */
+  private refreshHistoryIfOpen(): void {
+    if (this.historyDropdown?.hasClass('visible')) {
+      this.updateHistoryDropdown();
+    }
   }
 
   invalidateProviderCommandCaches(providerIds?: ProviderId[]): void {
@@ -220,9 +245,13 @@ export class ClaudianView extends ItemView {
           // New tab DOM gets the mode placeholder + classes of the active mode.
           this.applyWorkspaceMode();
         },
-        onTabSwitched: () => {
+        onTabSwitched: (_previousTabId, tabId) => {
+          const switched = this.tabManager?.getTab(tabId);
+          if (switched && this.tabsNeedingModelRefresh.delete(tabId)) {
+            this.refreshTabModelUI(switched);
+          }
           this.updateTabBar();
-          this.updateHistoryDropdown();
+          this.refreshHistoryIfOpen();
           this.updateNavRowLocation();
           this.persistTabState();
           this.syncProviderBrandColor();
@@ -266,8 +295,10 @@ export class ClaudianView extends ItemView {
    */
   private startTabRestore(): void {
     const restoreTabs = async () => {
+      const restoreStart = perfMark();
       try {
         await this.restoreOrCreateTabs();
+        perfSince(restoreStart, 'startup-tab-restore', `${this.tabManager?.getTabCount() ?? 0} tabs`);
       } catch {
         new Notice('Der zuletzt offene Chat konnte nicht wiederhergestellt werden.');
       } finally {
@@ -584,7 +615,7 @@ export class ClaudianView extends ItemView {
     newBtn.addEventListener('click', () => {
       void (async () => {
         await this.tabManager?.createNewConversation();
-        this.updateHistoryDropdown();
+        this.refreshHistoryIfOpen();
       })().catch(() => new Notice('Unterhaltung konnte nicht erstellt werden.'));
     });
 
@@ -857,9 +888,7 @@ export class ClaudianView extends ItemView {
     // when a chat gains or loses its draft, not on every keystroke.
     this.unsubscribeDrafts = this.plugin.composerDrafts?.subscribe(() => {
       this.updateTabBar();
-      if (this.historyDropdown?.hasClass('visible')) {
-        this.updateHistoryDropdown();
-      }
+      this.refreshHistoryIfOpen();
     }) ?? null;
   }
 

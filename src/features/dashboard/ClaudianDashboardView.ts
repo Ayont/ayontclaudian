@@ -74,6 +74,9 @@ export class ClaudianDashboardView extends ItemView {
     container.empty();
     container.addClass('claudian-dashboard');
     this.lastCardValues.clear();
+    // The RAG index loads lazily; opening the dashboard is reason enough, and
+    // its 5 s refresh shows the real count once it is in memory.
+    void this.plugin.vaultRAGService?.ready?.();
 
     // Tint the whole dashboard with the active provider's brand color so it
     // feels like one cohesive, intentional surface per provider.

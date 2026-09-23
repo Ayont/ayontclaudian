@@ -638,3 +638,43 @@ describe('ClaudianView tab layout saving', () => {
     expect(view.getSavableTabState()).toEqual(layout([{ tabId: 'tab-1', conversationId: 'conv-1' }]));
   });
 });
+
+// Settings and environment changes used to redraw the model UI of every open
+// tab; with many tabs that was the lag after each change.
+describe('ClaudianView lazy tab refresh', () => {
+  function harness() {
+    const view = Object.create(ClaudianView.prototype) as any;
+    const tabs = [{ id: 'tab-1' }, { id: 'tab-2' }];
+    view.tabsNeedingModelRefresh = new Set<string>();
+    view.tabManager = {
+      getActiveTabId: jest.fn().mockReturnValue('tab-1'),
+      getAllTabs: jest.fn().mockReturnValue(tabs),
+      primeProviderRuntime: jest.fn(),
+    };
+    view.refreshTabModelUI = jest.fn();
+    return { view, tabs };
+  }
+
+  it('redraws only the visible tab and remembers the hidden ones', () => {
+    const { view, tabs } = harness();
+
+    view.refreshModelSelector();
+
+    expect(view.refreshTabModelUI).toHaveBeenCalledTimes(1);
+    expect(view.refreshTabModelUI).toHaveBeenCalledWith(tabs[0]);
+    expect([...view.tabsNeedingModelRefresh]).toEqual(['tab-2']);
+  });
+
+  it('does not rebuild the history list while it is closed', () => {
+    const view = Object.create(ClaudianView.prototype) as any;
+    view.historyDropdown = createMockEl();
+    view.updateHistoryDropdown = jest.fn();
+
+    view.refreshHistoryIfOpen();
+    expect(view.updateHistoryDropdown).not.toHaveBeenCalled();
+
+    view.historyDropdown.addClass('visible');
+    view.refreshHistoryIfOpen();
+    expect(view.updateHistoryDropdown).toHaveBeenCalledTimes(1);
+  });
+});
