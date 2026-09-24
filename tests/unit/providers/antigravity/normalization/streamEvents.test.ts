@@ -117,9 +117,33 @@ describe('usageFromAgyStream', () => {
     expect(usage.inputTokens).toBe(27168);
     expect(usage.outputTokens).toBe(24);
     expect(usage.cacheReadInputTokens).toBe(0);
-    expect(usage.contextTokens).toBe(27192);
+    // The window holds the prompt; output and thinking still count as consumption.
+    expect(usage.contextTokens).toBe(27168);
+    expect(usage.processedTokens).toBe(27192);
     expect(usage.contextWindow).toBe(1_000_000);
     expect(usage.contextWindowIsAuthoritative).toBe(false);
     expect(usage.percentage).toBe(3);
+  });
+});
+
+describe('Antigravity window fill vs consumption', () => {
+  it('reads the window fill from the latest step, the consumption from the turn result', () => {
+    const holder = { latest: null } as { latest: null | { inputTokens: number; outputTokens: number; thinkingTokens: number; cacheReadTokens: number; totalTokens: number } };
+    const step = parseAgyStreamLine('{"event":"step_update","step_update":{"conversation_id":"c","step_index":9,"state":"DONE","step_type":"agent_response","usage":{"input_tokens":40000,"output_tokens":300,"thinking_tokens":0,"cache_read_tokens":160000,"total_tokens":200300}}}');
+    const result = parseAgyStreamLine('{"event":"result","result":{"conversation_id":"c","status":"SUCCESS","response":"ok","usage":{"input_tokens":7893554,"output_tokens":9000,"thinking_tokens":0,"cache_read_tokens":36199658,"total_tokens":44102212}}}');
+
+    mapAgyStreamEventToChunks(step!, { contextWindow: 1_000_000, stepUsage: holder });
+    const [chunk] = mapAgyStreamEventToChunks(result!, { contextWindow: 1_000_000, stepUsage: holder });
+
+    expect(chunk).toEqual(expect.objectContaining({
+      type: 'usage',
+      usage: expect.objectContaining({ contextTokens: 200_000, processedTokens: 44_102_212, percentage: 20 }),
+    }));
+  });
+
+  it('uses the result itself for a single-step turn without step usage', () => {
+    const usage = usageFromAgyStream({ inputTokens: 27168, outputTokens: 24, thinkingTokens: 20, cacheReadTokens: 0, totalTokens: 27192 }, 1_000_000);
+
+    expect(usage.contextTokens).toBe(27168);
   });
 });

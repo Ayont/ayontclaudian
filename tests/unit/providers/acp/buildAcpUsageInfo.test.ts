@@ -57,3 +57,15 @@ describe('buildAcpUsageInfo', () => {
     })).toMatchObject({ reportType: 'snapshot' });
   });
 });
+
+describe('buildAcpUsageInfo consumption', () => {
+  it('keeps the agent\'s window fill and books the turn total separately', () => {
+    const usage = buildAcpUsageInfo({
+      contextWindow: { used: 120_000, size: 400_000 } as never,
+      promptUsage: { totalTokens: 2_400_000, inputTokens: 2_300_000, outputTokens: 100_000 } as never,
+      reportType: 'final',
+    });
+
+    expect(usage).toEqual(expect.objectContaining({ contextTokens: 120_000, processedTokens: 2_400_000, percentage: 30 }));
+  });
+});

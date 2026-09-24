@@ -76,6 +76,7 @@
       "usageEstimated": "≈ {used} von {total} Tokens (geschätzt)",
       "bodyHigh": "Das Gespräch belegt den Großteil des Kontextfensters, frühe Details können verloren gehen.",
       "bodyCritical": "Die nächste lange Antwort kann das Limit überschreiten. Jetzt Kontext freimachen.",
+      "bodyAutoCompact": "Der Anbieter verdichtet den Verlauf automatisch, bevor das Limit erreicht ist. Du kannst jetzt selbst kompaktieren oder mit weniger Kontext fortsetzen.",
       "compact": "Kompaktieren",
       "compactHint": "Der Provider verdichtet den Verlauf dieser Sitzung ({command})",
       "continueFresh": "Mit weniger Kontext fortsetzen",

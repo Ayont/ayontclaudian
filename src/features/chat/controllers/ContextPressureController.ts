@@ -6,6 +6,7 @@ import {
 } from '../../../core/conversation/contextPressure';
 import { resolveCompactCommand } from '../../../core/providers/compactSupport';
 import type { ProviderCompactSupport, ProviderId } from '../../../core/providers/types';
+import { isPlausibleContextUsage } from '../../../core/providers/usage/consumedTokens';
 import type { UsageInfo } from '../../../core/types';
 import type { ContextPressureViewState } from '../ui/ContextPressureBanner';
 
@@ -25,6 +26,8 @@ export interface ContextPressureControllerDeps {
   sendCompact(command: string): Promise<void> | void;
   continueWithLessContext(): Promise<void>;
   notifyError?(message: string): void;
+  /** The provider compacts on its own before the window overflows (capabilities.autoCompact). */
+  getAutoCompacts?(): boolean;
 }
 
 /**
@@ -51,7 +54,7 @@ export class ContextPressureController {
   refresh(): void {
     const providerId = this.deps.getProviderId();
     const usage = this.deps.getUsage();
-    if (DESKTOP_RELAY_PROVIDERS.has(providerId) || !usage || usage.contextTokens <= 0 || usage.contextWindow <= 0) {
+    if (DESKTOP_RELAY_PROVIDERS.has(providerId) || !usage || !isPlausibleContextUsage(usage)) {
       this.deps.view.render(null);
       return;
     }
@@ -59,6 +62,13 @@ export class ContextPressureController {
     const level = resolveContextPressureLevel(usage.percentage);
     if (level === 'normal') {
       this.setDismissal(null);
+      this.deps.view.render(null);
+      return;
+    }
+    // A provider that compacts by itself handles "high" on its own; near the
+    // limit the banner only says so, in the calm style, actions kept.
+    const autoCompact = this.deps.getAutoCompacts?.() === true;
+    if (autoCompact && level === 'high' && !this.condensing) {
       this.deps.view.render(null);
       return;
     }
@@ -70,7 +80,8 @@ export class ContextPressureController {
     }
 
     this.deps.view.render({
-      level,
+      level: autoCompact ? 'high' : level,
+      ...(autoCompact ? { autoCompact } : {}),
       percentage: usage.percentage,
       contextTokens: usage.contextTokens,
       contextWindow: usage.contextWindow,

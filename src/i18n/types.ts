@@ -31,6 +31,7 @@ export type TranslationKey =
   | 'chat.contextPressure.usageEstimated'
   | 'chat.contextPressure.bodyHigh'
   | 'chat.contextPressure.bodyCritical'
+  | 'chat.contextPressure.bodyAutoCompact'
   | 'chat.contextPressure.compact'
   | 'chat.contextPressure.compactHint'
   | 'chat.contextPressure.continueFresh'

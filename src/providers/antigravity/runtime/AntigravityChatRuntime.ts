@@ -54,6 +54,7 @@ import {
   splitTranscriptLines,
 } from '../history/AntigravityBrainStore';
 import {
+  type AgyStreamUsage,
   createAgyNdjsonBuffer,
   mapAgyStreamEventToChunks,
 } from '../normalization/streamEvents';
@@ -359,6 +360,7 @@ export class AntigravityChatRuntime implements ChatRuntime {
     let lastStreamError: string | null = null;
     const contextWindow = getAntigravityContextWindow(selectedModel ?? '');
     const streamToolUseEmitted = new Set<number>();
+    const streamStepUsage: { latest: AgyStreamUsage | null } = { latest: null };
     // Keeps transcript `thinking` out of the middle of a streaming text step.
     const thinkingSequencer = createAgyThinkingSequencer();
 
@@ -379,6 +381,7 @@ export class AntigravityChatRuntime implements ChatRuntime {
         const mappedStreamChunks = mapAgyStreamEventToChunks(event, {
           contextWindow,
           toolUseEmitted: streamToolUseEmitted,
+          stepUsage: streamStepUsage,
         });
         if (event.kind === 'step_update' && mappedStreamChunks.some((chunk) => chunk.type === 'text')) {
           thinkingSequencer.noteStreamText(event.stepIndex);

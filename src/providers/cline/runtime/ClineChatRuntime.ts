@@ -60,6 +60,7 @@ import {
 } from '../normalization/jsonEvents';
 import { CLINE_PROVIDER_ID, getClineProviderSettings } from '../settings';
 import { buildPersistedClineState, type ClineProviderState,getClineState, isClineNativeSessionId } from '../types';
+import { ClineCallFill } from './callFill';
 import { ClineAuxQueryRunner } from './ClineAuxQueryRunner';
 import {
   repairClineCompiledBinary,
@@ -321,6 +322,7 @@ export class ClineChatRuntime implements ChatRuntime {
     let lastActivity = Date.now();
     const replay = createClineReplayState();
     let reportedUsage: StreamChunk | null = null;
+    const callFill = new ClineCallFill();
     const signal = (): void => {
       if (wake) {
         const resume = wake;
@@ -342,6 +344,14 @@ export class ClineChatRuntime implements ChatRuntime {
         pendingChunks.push({ type: 'error', content: event.text });
         return;
       }
+      if (event.kind === 'iteration_start') {
+        callFill.startCall();
+        return;
+      }
+      if (event.kind === 'call_usage') {
+        if (event.usage) callFill.addUsage(event.usage);
+        return;
+      }
       if (event.kind === 'usage') {
         if (shouldEmitClineText(event, replay)) {
           pendingChunks.push({ type: 'text', content: event.text as string });
@@ -349,8 +359,10 @@ export class ClineChatRuntime implements ChatRuntime {
         const inputTokens = event.usage?.inputTokens ?? 0;
         const cacheRead = event.usage?.cacheReadTokens ?? 0;
         const cacheWrite = event.usage?.cacheWriteTokens ?? 0;
-        const contextTokens = inputTokens + cacheRead + cacheWrite;
+        const processedTokens = inputTokens + cacheRead + cacheWrite;
         const contextWindow = getClineModelContextWindow(model);
+        // Without per-call reports the fill is estimated at yield time (0 marks it).
+        const contextTokens = callFill.latest();
         reportedUsage = {
           type: 'usage',
           sessionId: this.sessionId,
@@ -360,8 +372,9 @@ export class ClineChatRuntime implements ChatRuntime {
             cacheReadInputTokens: cacheRead,
             cacheCreationInputTokens: cacheWrite,
             contextTokens,
+            ...(processedTokens > contextTokens ? { processedTokens } : {}),
             contextWindow,
-            contextWindowIsAuthoritative: true,
+            contextWindowIsAuthoritative: contextTokens > 0,
             percentage: contextWindow > 0
               ? Math.min(100, Math.max(0, Math.round((contextTokens / contextWindow) * 100)))
               : 0,
@@ -569,14 +582,30 @@ export class ClineChatRuntime implements ChatRuntime {
       }
 
       this.currentTurnMetadata.wasSent = true;
-      if (reportedUsage) {
-        yield reportedUsage;
+      const estimateFill = () => estimateTokensForTexts([
+        ...(conversationHistory ?? []).map((message) => message.content ?? ''),
+        promptText,
+        responseText,
+      ]);
+      // Assigned inside consumeLine; TypeScript cannot see that and narrows to null.
+      let finalUsage = reportedUsage as StreamChunk | null;
+      if (finalUsage?.type === 'usage' && finalUsage.usage.contextTokens <= 0) {
+        const contextTokens = estimateFill();
+        const window = finalUsage.usage.contextWindow;
+        finalUsage = {
+          ...finalUsage,
+          usage: {
+            ...finalUsage.usage,
+            contextTokens,
+            processedTokens: Math.max(finalUsage.usage.processedTokens ?? 0, contextTokens),
+            percentage: window > 0 ? Math.min(100, Math.max(0, Math.round((contextTokens / window) * 100))) : 0,
+          },
+        };
+      }
+      if (finalUsage) {
+        yield finalUsage;
       } else {
-        const contextTokens = estimateTokensForTexts([
-          ...(conversationHistory ?? []).map((message) => message.content ?? ''),
-          promptText,
-          responseText,
-        ]);
+        const contextTokens = estimateFill();
         yield {
           type: 'usage',
           usage: buildEstimatedUsageInfo({

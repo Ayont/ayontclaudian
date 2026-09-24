@@ -2934,6 +2934,48 @@ describe('InputController - Message Queue', () => {
   });
 
   describe('Watchdog retry boundaries', () => {
+    it('continues to the provider when the undo baseline never settles', async () => {
+      jest.useFakeTimers();
+      try {
+        deps = createSendableDeps();
+        (deps.plugin as any).turnUndoService = {
+          begin: jest.fn(() => new Promise(() => {})),
+          finish: jest.fn(),
+        };
+        const service = (deps as any).mockAgentService;
+        service.query.mockReturnValue(createMockStream([{ type: 'text', content: 'ready' }, { type: 'done' }]));
+        inputEl = deps.getInputEl() as ReturnType<typeof createMockInputEl>;
+        inputEl.value = 'test';
+        controller = new InputController(deps);
+
+        const send = controller.sendMessage();
+        await jest.advanceTimersByTimeAsync(5_000);
+        await send;
+
+        expect(service.query).toHaveBeenCalledTimes(1);
+        expect(deps.state.isStreaming).toBe(false);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('does not treat keepalives as provider progress forever', () => {
+      jest.useFakeTimers();
+      try {
+        deps = createSendableDeps();
+        controller = new InputController(deps);
+        (controller as any).startStreamWatchdog(deps.state);
+        for (let elapsed = 0; elapsed < 360_000; elapsed += 15_000) {
+          jest.advanceTimersByTime(15_000);
+          (controller as any).pingStreamWatchdog(true);
+        }
+        expect((deps as any).mockAgentService.cancel).toHaveBeenCalledTimes(1);
+      } finally {
+        (controller as any).stopStreamWatchdog();
+        jest.useRealTimers();
+      }
+    });
+
     it.each([['claude', 2], ['grok-bot', 1], ['perplexity-chat', 1]])('respects %s watchdog resend safety', async (providerId, expectedAttempts) => {
       jest.useFakeTimers();
       try {

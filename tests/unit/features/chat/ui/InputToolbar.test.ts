@@ -1215,9 +1215,16 @@ describe('ContextUsageMeter', () => {
   });
 
   it('should format million-scale token counts as M', () => {
-    meter.update(makeUsage({ contextTokens: 1_500_000, contextWindow: 1_000_000, percentage: 75 }));
+    meter.update(makeUsage({ contextTokens: 1_500_000, contextWindow: 2_000_000, percentage: 75 }));
     const container = parentEl.querySelector('.claudian-context-meter');
-    expect(container?.getAttribute('data-tooltip')).toBe('1.5M / 1M');
+    expect(container?.getAttribute('data-tooltip')).toBe('1.5M / 2M');
+  });
+
+  // Older builds stored a turn-wide sum as the fill (30M of a 1M window).
+  it('hides a reading above its window instead of showing it as fill', () => {
+    meter.update(makeUsage({ contextTokens: 30_688_792, contextWindow: 1_000_000, percentage: 100 }));
+    const container = parentEl.querySelector('.claudian-context-meter');
+    expect(container?.hasClass('claudian-hidden')).toBe(true);
   });
 
   it('should format sub-thousand token counts as fractional k', () => {

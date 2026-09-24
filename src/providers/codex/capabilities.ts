@@ -19,4 +19,6 @@ export const CODEX_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Objec
   nativeGoal: { mode: 'rpc' as const, canPause: true, persistent: true, resume: 'rpc' as const },
   // CodexChatRuntime routes a bare `/compact` to app-server `thread/compact/start`.
   compact: Object.freeze({ command: '/compact', availability: 'builtin' }),
+  // Codex emits contextCompaction items on its own (model_auto_compact_token_limit).
+  autoCompact: true,
 });

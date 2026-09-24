@@ -22,4 +22,6 @@ export const CLAUDE_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Obje
   // Built-in SDK slash command; the turn ends in a `compact_boundary` system
   // message (sdk.d.ts), which the runtime maps to `context_compacted`.
   compact: Object.freeze({ command: '/compact', availability: 'builtin' }),
+  // sdk.d.ts: compact_boundary carries trigger 'manual' | 'auto'.
+  autoCompact: true,
 });

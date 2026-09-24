@@ -29,6 +29,14 @@ export const FAST_TIER_CODEX_MODELS = new Set<CodexModel>([
 // GPT-6, GPT-5.6 and GPT-5.5. The 1,050,000 once assumed for GPT-5.6 was never
 // in it. Live usage takes precedence after the first turn.
 export const CODEX_CATALOG_CONTEXT_WINDOW = 258_400;
+// The same catalog (models_cache.json, fetched 2026-09-24 from codex-cli
+// 0.156.1) lists max_context_window 872,000 for GPT-6 and GPT-5.6, 272,000
+// for GPT-5.5. Codex takes it via the `model_context_window` config key.
+const CODEX_MAX_CONTEXT_WINDOWS: ReadonlyArray<[(model: string) => boolean, number]> = [
+  [(model) => isCodexGpt6Model(model) || isCodexGpt56Model(model), 872_000],
+];
+/** Share of the window Codex lets a turn use (catalog effective_context_window_percent). */
+const CODEX_EFFECTIVE_CONTEXT_PERCENT = 95;
 export const DEFAULT_CODEX_CONTEXT_WINDOW = 200_000;
 
 function formatCodexModelSuffix(suffix: string): string {
@@ -113,7 +121,19 @@ export function supportsCodexUltraEffort(model: string): boolean {
     || model === CODEX_GPT_56_TERRA_MODEL;
 }
 
-export function getCodexModelContextWindow(model: string): number {
+/** The raw window to request for `model` when the large window is on; null when it has no larger one. */
+export function getCodexMaxContextWindow(model: string): number | null {
+  for (const [matches, window] of CODEX_MAX_CONTEXT_WINDOWS) {
+    if (matches(model)) return window;
+  }
+  return null;
+}
+
+export function getCodexModelContextWindow(model: string, options: { large?: boolean } = {}): number {
+  const max = options.large ? getCodexMaxContextWindow(model) : null;
+  if (max) {
+    return Math.round((max * CODEX_EFFECTIVE_CONTEXT_PERCENT) / 100);
+  }
   if (isCodexGpt6Model(model) || isCodexGpt56Model(model) || model === CODEX_GPT_55_MODEL) {
     return CODEX_CATALOG_CONTEXT_WINDOW;
   }

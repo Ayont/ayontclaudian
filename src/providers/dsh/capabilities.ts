@@ -24,4 +24,6 @@ export const DSH_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object.
   supportsMultiAgent: false,
   supportsTurnSteer: false,
   reasoningControl: 'none',
+  // dsh reports compaction/start|end on its own.
+  autoCompact: true,
 });

@@ -63,6 +63,25 @@ describe('ContextPressureController', () => {
     expect(last()).toBeNull();
   });
 
+  // Older builds stored a turn-wide sum as the fill: 30M of a 1M window.
+  it('ignores a reading above its window', () => {
+    const { controller, last } = setup({ usage: usageAt(100, { contextTokens: 30_688_792, contextWindow: 1_000_000 }) });
+    controller.refresh();
+    expect(last()).toBeNull();
+  });
+
+  it('stays out of the way at "high" when the provider compacts on its own', () => {
+    const { controller, last } = setup({ usage: usageAt(85), getAutoCompacts: () => true });
+    controller.refresh();
+    expect(last()).toBeNull();
+  });
+
+  it('near the limit says the provider is about to compact, calmly, with the actions kept', () => {
+    const { controller, last } = setup({ usage: usageAt(95), getAutoCompacts: () => true });
+    controller.refresh();
+    expect(last()).toEqual(expect.objectContaining({ level: 'high', autoCompact: true, compactCommand: '/compact' }));
+  });
+
   it('renders the level, usage and a builtin compact command', () => {
     const { controller, deps, last } = setup({ usage: usageAt(85) });
     controller.refresh();

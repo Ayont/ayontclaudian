@@ -219,6 +219,14 @@ Each of these has cost a real debugging session. They are not theoretical.
     are written atomically (`VaultFileAdapter.writeAtomic`); a file that fails to
     parse is copied to `.claudian/recovery/` before anything can replace it; delete
     moves chats to `.claudian/trash/` (30 days, undo notice).
+15. **`contextTokens` is how full the window is, not what a turn consumed.**
+    An agentic turn makes many model calls and each re-reads the cached context;
+    Claude, Antigravity, Cline and ACP report turn-wide sums, and adding those up
+    stored "30M of a 1M window". The fill is the LATEST call's prompt; the sum
+    goes to `processedTokens`, which budgets book via `consumedTokens()`. Any
+    display of a fill goes through `isPlausibleContextUsage` (older chats still
+    carry the sums). Providers that compact on their own declare `autoCompact`,
+    and the context warning only speaks up near the limit for them.
 
 ## Commands
 

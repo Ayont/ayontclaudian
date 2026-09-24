@@ -1461,6 +1461,13 @@ function initializeContextPressure(tab: TabData, plugin: ClaudianPlugin): void {
     view: banner,
     getProviderId: () => getTabProviderId(tab, plugin),
     getCompactSupport: () => getTabCapabilities(tab, plugin).compact,
+    getAutoCompacts: () => {
+      const providerId = getTabProviderId(tab, plugin);
+      if (providerId === CLINE_PROVIDER_ID) {
+        return getClineProviderSettings(plugin.settings as unknown as Record<string, unknown>).compaction !== 'off';
+      }
+      return getTabCapabilities(tab, plugin).autoCompact === true;
+    },
     getUsage: () => tab.state.usage,
     isStreaming: () => tab.state.isStreaming,
     getConversationId: () => tab.conversationId,

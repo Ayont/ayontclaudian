@@ -3261,7 +3261,7 @@ describe('TabManager - tab overview and cycling', () => {
       state: {
         isStreaming: true,
         responseStartTime: 1234,
-        usage: { percentage: 41.6 },
+        usage: { percentage: 41.6, contextTokens: 83_200, contextWindow: 200_000, inputTokens: 0 },
         currentTodos: [{ status: 'completed' }, { status: 'in_progress' }, { status: 'pending' }],
         needsAttention: false,
       },

@@ -16,13 +16,17 @@ export function buildAcpUsageInfo(params: BuildAcpUsageInfoParams): UsageInfo | 
     return null;
   }
 
+  // `usage_update.used` is the agent's own window fill; the prompt response
+  // totals every model call of the turn, which is consumption, not a fill.
   const contextTokens = contextWindow?.used ?? promptUsage?.totalTokens ?? 0;
   const contextWindowSize = contextWindow?.size ?? 0;
+  const processedTokens = promptUsage?.totalTokens ?? 0;
 
   return {
     cacheCreationInputTokens: promptUsage?.cachedWriteTokens ?? 0,
     cacheReadInputTokens: promptUsage?.cachedReadTokens ?? 0,
     contextTokens,
+    ...(processedTokens > contextTokens ? { processedTokens } : {}),
     contextWindow: contextWindowSize,
     // Only the contextWindow update speaks authoritatively about window size; falling back
     // to promptUsage alone is a best-effort approximation.

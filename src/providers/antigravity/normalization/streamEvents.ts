@@ -199,8 +199,18 @@ export function parseAgyStreamLine(line: string): AgyStreamEvent | null {
   return null;
 }
 
-export function usageFromAgyStream(usage: AgyStreamUsage, contextWindow: number): UsageInfo {
-  const contextTokens = usage.totalTokens;
+/**
+ * `result.usage` sums every model step of the turn, so it is consumption, not
+ * the window fill: that is the prompt of the latest step (`step_update.usage`,
+ * live-captured against agy 1.1.13). Cache reads are reported beside input.
+ */
+export function usageFromAgyStream(
+  usage: AgyStreamUsage,
+  contextWindow: number,
+  latestStep?: AgyStreamUsage | null,
+): UsageInfo {
+  const fill = latestStep ?? usage;
+  const contextTokens = fill.inputTokens + fill.cacheReadTokens;
   const percentage =
     contextWindow > 0
       ? Math.min(100, Math.max(0, Math.round((contextTokens / contextWindow) * 100)))
@@ -210,6 +220,7 @@ export function usageFromAgyStream(usage: AgyStreamUsage, contextWindow: number)
     outputTokens: usage.outputTokens,
     cacheReadInputTokens: usage.cacheReadTokens,
     contextTokens,
+    ...(usage.totalTokens > contextTokens ? { processedTokens: usage.totalTokens } : {}),
     contextWindow,
     contextWindowIsAuthoritative: false,
     percentage,
@@ -221,6 +232,8 @@ export interface MapAgyStreamOptions {
   contextWindow?: number;
   /** Step indexes that already emitted `tool_use`, so DONE does not duplicate. */
   toolUseEmitted?: Set<number>;
+  /** Per turn: the latest step's usage, which is what the window holds. */
+  stepUsage?: { latest: AgyStreamUsage | null };
 }
 
 /** Maps a parsed stream-json event onto chat stream chunks. */
@@ -228,6 +241,9 @@ export function mapAgyStreamEventToChunks(
   event: AgyStreamEvent,
   options: MapAgyStreamOptions = {},
 ): StreamChunk[] {
+  if (event.kind === 'step_update' && event.usage && options.stepUsage) {
+    options.stepUsage.latest = event.usage;
+  }
   if (event.kind === 'step_update' && event.stepType === 'tool' && event.toolName) {
     const id = `agy-stream-${event.stepIndex}`;
     const name = canonicalToolName(event.toolName) ?? event.toolName;
@@ -249,7 +265,7 @@ export function mapAgyStreamEventToChunks(
     return [
       {
         type: 'usage',
-        usage: usageFromAgyStream(event.usage, options.contextWindow ?? 1_000_000),
+        usage: usageFromAgyStream(event.usage, options.contextWindow ?? 1_000_000, options.stepUsage?.latest),
         sessionId: event.conversationId || null,
       },
     ];

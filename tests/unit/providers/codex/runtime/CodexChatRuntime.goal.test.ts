@@ -509,4 +509,22 @@ describe('CodexChatRuntime native goals', () => {
     const order = mockTransportRequest.mock.calls.map((c: any[]) => c[0]).filter((m: string) => m.startsWith('thread/goal'));
     expect(order.slice(0, 3)).toEqual(['thread/goal/set', 'thread/goal/clear', 'thread/goal/set']);
   });
+
+  it('asks Codex for the large window when the setting is on', async () => {
+    runtime.cleanup();
+    runtime = new CodexChatRuntime(createMockPlugin({ providerConfigs: { codex: { largeContextWindow: true } } }));
+    goalServer({ getGoal: null });
+
+    await collectChunks(runtime.query(createTurn('hallo')));
+
+    expect(findCall('thread/start')?.[1].config).toEqual({ model_context_window: 872_000 });
+  });
+
+  it('leaves the window to Codex by default', async () => {
+    goalServer({ getGoal: null });
+
+    await collectChunks(runtime.query(createTurn('hallo')));
+
+    expect(findCall('thread/start')?.[1].config).toBeUndefined();
+  });
 });

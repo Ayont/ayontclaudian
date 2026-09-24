@@ -365,6 +365,17 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
         });
       });
 
+    new Setting(container)
+      .setName('Großes Kontextfenster')
+      .setDesc('Codex nutzt standardmäßig 272.000 Tokens (258.400 nutzbar). Eingeschaltet fragt Claudian das Maximum aus Codex\' Modellkatalog an: 872.000 Tokens für GPT-6 und GPT-5.6. Größere Kontexte verbrauchen pro Nachricht mehr von deinem Nutzungslimit. Gilt für neue und fortgesetzte Threads.')
+      .addToggle((toggle) => {
+        toggle.setValue(codexSettings.largeContextWindow);
+        toggle.onChange(async (value) => {
+          updateCodexProviderSettings(settingsBag, { largeContextWindow: value });
+          await context.plugin.saveSettings();
+        });
+      });
+
     // --- Skills ---
 
     const codexCatalog = codexWorkspace.commandCatalog;

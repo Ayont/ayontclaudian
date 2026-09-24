@@ -76,6 +76,7 @@
       "usageEstimated": "約已用 {used} / 共 {total} 個 token（估算）",
       "bodyHigh": "對話已佔用大部分上下文視窗，早期的細節可能會遺失。",
       "bodyCritical": "下一次較長的回答可能超出上限。請立即釋放上下文。",
+      "bodyAutoCompact": "供應商會在達到上限前自動壓縮對話。你可以現在壓縮，或以較少的上下文繼續。",
       "compact": "壓縮",
       "compactHint": "由提供者在本工作階段內壓縮歷史記錄（{command}）",
       "continueFresh": "以更少上下文繼續",

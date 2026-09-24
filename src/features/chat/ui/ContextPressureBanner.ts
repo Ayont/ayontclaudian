@@ -13,6 +13,8 @@ export interface ContextPressureViewState {
   approximate: boolean;
   /** The provider's manual compact command, or null when it has none. */
   compactCommand: string | null;
+  /** The provider compacts by itself before the window overflows. */
+  autoCompact?: boolean;
   streaming: boolean;
   condensing: boolean;
 }
@@ -123,7 +125,7 @@ export class ContextPressureBanner {
     }
 
     const critical = state.level === 'critical';
-    this.titleEl.setText(t(critical ? 'chat.contextPressure.titleCritical' : 'chat.contextPressure.titleHigh'));
+    this.titleEl.setText(t(critical || state.autoCompact ? 'chat.contextPressure.titleCritical' : 'chat.contextPressure.titleHigh'));
     const percent = Math.round(state.percentage);
     this.percentEl.setText(`${state.approximate ? '≈' : ''}${t('chat.contextPressure.percent', { percent })}`);
     this.fillEl.setCssProps({
@@ -138,7 +140,9 @@ export class ContextPressureBanner {
       state.approximate ? 'chat.contextPressure.usageEstimated' : 'chat.contextPressure.usage',
       usageParams,
     ));
-    this.textEl.setText(t(critical ? 'chat.contextPressure.bodyCritical' : 'chat.contextPressure.bodyHigh'));
+    this.textEl.setText(t(state.autoCompact
+      ? 'chat.contextPressure.bodyAutoCompact'
+      : critical ? 'chat.contextPressure.bodyCritical' : 'chat.contextPressure.bodyHigh'));
 
     this.renderActions(state);
   }

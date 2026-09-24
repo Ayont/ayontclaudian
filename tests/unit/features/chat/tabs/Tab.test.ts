@@ -4964,11 +4964,12 @@ describe('syncComposerModeClasses', () => {
 });
 
 describe('Tab - Context pressure', () => {
+  // Claude compacts on its own, so its warning starts near the limit.
   const highUsage = {
     inputTokens: 0,
-    contextTokens: 176_000,
+    contextTokens: 190_000,
     contextWindow: 200_000,
-    percentage: 88,
+    percentage: 95,
   };
 
   function history() {

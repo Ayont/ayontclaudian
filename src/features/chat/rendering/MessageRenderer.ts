@@ -4,6 +4,7 @@ import { MarkdownRenderer, Menu, Notice, setIcon, setTooltip } from 'obsidian';
 import { extractContextSources, formatGraphContextForDisplay, sourceChipLabel, visibleContextSourceChips } from '../../../core/prompt/contextSources';
 import { ProviderRegistry } from '../../../core/providers/ProviderRegistry';
 import { DEFAULT_CHAT_PROVIDER_ID, type ProviderCapabilities, type ProviderId } from '../../../core/providers/types';
+import { isPlausibleContextUsage } from '../../../core/providers/usage/consumedTokens';
 import type { ChatRewindMode } from '../../../core/runtime/types';
 import {
   isSubagentToolName,
@@ -1423,7 +1424,7 @@ export class MessageRenderer {
       toolsEl.createSpan({ text: `${metrics.tools} ${metrics.tools === 1 ? 'Werkzeug' : 'Werkzeuge'}` });
     }
 
-    if (msg.usage && msg.usage.contextTokens > 0 && msg.usage.contextWindow > 0) {
+    if (msg.usage && isPlausibleContextUsage(msg.usage)) {
       const is1M = msg.usage.contextWindow >= 1_000_000;
       const formattedUsed = msg.usage.contextTokens >= 1000
         ? `${(msg.usage.contextTokens / 1000).toFixed(1)}k`

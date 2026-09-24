@@ -17,4 +17,6 @@ export const CLINE_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Objec
   supportsMultiAgent: true,
   supportsTurnSteer: false,
   reasoningControl: 'effort',
+  // --compaction defaults to agentic; 'off' is checked per setting in the tab.
+  autoCompact: true,
 });

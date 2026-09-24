@@ -182,7 +182,10 @@ interface PromptUsageSnapshot {
   inputTokens: number;
   cacheCreationInputTokens: number;
   cacheReadInputTokens: number;
+  /** Prompt size of the latest call: how full the window is. */
   contextTokens: number;
+  /** Prompt tokens of every call so far, for consumption. */
+  processedTokens: number;
 }
 
 export interface TransformUsageState {
@@ -466,6 +469,7 @@ const EMPTY_PROMPT_USAGE: PromptUsageSnapshot = {
   cacheCreationInputTokens: 0,
   cacheReadInputTokens: 0,
   contextTokens: 0,
+  processedTokens: 0,
 };
 
 function normalizeTokenCount(value: unknown): number {
@@ -487,11 +491,13 @@ function toPromptUsageSnapshot(usage: MessageUsage): PromptUsageSnapshot {
   const inputTokens = normalizeTokenCount(usage.input_tokens);
   const cacheCreationInputTokens = normalizeTokenCount(usage.cache_creation_input_tokens);
   const cacheReadInputTokens = normalizeTokenCount(usage.cache_read_input_tokens);
+  const contextTokens = inputTokens + cacheCreationInputTokens + cacheReadInputTokens;
   return {
     inputTokens,
     cacheCreationInputTokens,
     cacheReadInputTokens,
-    contextTokens: inputTokens + cacheCreationInputTokens + cacheReadInputTokens,
+    contextTokens,
+    processedTokens: contextTokens,
   };
 }
 
@@ -503,14 +509,20 @@ function mergePromptUsage(
   const inputTokens = Math.max(current.inputTokens, next.inputTokens);
   const cacheCreationInputTokens = Math.max(current.cacheCreationInputTokens, next.cacheCreationInputTokens);
   const cacheReadInputTokens = Math.max(current.cacheReadInputTokens, next.cacheReadInputTokens);
+  const contextTokens = inputTokens + cacheCreationInputTokens + cacheReadInputTokens;
   return {
     inputTokens,
     cacheCreationInputTokens,
     cacheReadInputTokens,
-    contextTokens: inputTokens + cacheCreationInputTokens + cacheReadInputTokens,
+    contextTokens,
+    processedTokens: contextTokens,
   };
 }
 
+/**
+ * Folds one more model call into a turn. Consumption adds up; the window fill
+ * is the latest call's prompt, since each call re-sends the whole context.
+ */
 function addPromptUsage(
   current: PromptUsageSnapshot,
   next: PromptUsageSnapshot,
@@ -519,7 +531,8 @@ function addPromptUsage(
     inputTokens: current.inputTokens + next.inputTokens,
     cacheCreationInputTokens: current.cacheCreationInputTokens + next.cacheCreationInputTokens,
     cacheReadInputTokens: current.cacheReadInputTokens + next.cacheReadInputTokens,
-    contextTokens: current.contextTokens + next.contextTokens,
+    contextTokens: next.contextTokens > 0 ? next.contextTokens : current.contextTokens,
+    processedTokens: current.processedTokens + next.processedTokens,
   };
 }
 
@@ -527,7 +540,8 @@ function samePromptUsage(a: PromptUsageSnapshot, b: PromptUsageSnapshot): boolea
   return a.inputTokens === b.inputTokens
     && a.cacheCreationInputTokens === b.cacheCreationInputTokens
     && a.cacheReadInputTokens === b.cacheReadInputTokens
-    && a.contextTokens === b.contextTokens;
+    && a.contextTokens === b.contextTokens
+    && a.processedTokens === b.processedTokens;
 }
 
 function buildUsageInfo(
@@ -549,6 +563,7 @@ function buildUsageInfo(
     contextWindow,
     ...(authoritativeContextWindow ? { contextWindowIsAuthoritative: true } : {}),
     contextTokens: promptUsage.contextTokens,
+    ...(promptUsage.processedTokens > promptUsage.contextTokens ? { processedTokens: promptUsage.processedTokens } : {}),
     percentage,
     ...(reportType ? { reportType } : {}),
   };

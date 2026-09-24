@@ -132,3 +132,14 @@ describe('Codex catalog windows and retired models', () => {
     expect(resolveCodexModelSelection({}, 'gpt-5.4-mini')).toBe(DEFAULT_CODEX_PRIMARY_MODEL);
   });
 });
+
+describe('large Codex context window', () => {
+  it('uses the catalog maximum at the 95 % Codex allows a turn', () => {
+    expect(getCodexModelContextWindow(CODEX_GPT_6_SOL_MODEL, { large: true })).toBe(828_400);
+    expect(getCodexModelContextWindow(CODEX_GPT_6_SOL_MODEL)).toBe(258_400);
+  });
+
+  it('stays at the standard window for models without a larger one', () => {
+    expect(getCodexModelContextWindow('gpt-5.5', { large: true })).toBe(258_400);
+  });
+});

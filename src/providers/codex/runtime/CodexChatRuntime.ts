@@ -57,7 +57,7 @@ import {
   findPreferredCodexSkillByName,
 } from '../skills/CodexSkillListingService';
 import { type CodexProviderState, getCodexState } from '../types';
-import { DEFAULT_CODEX_PRIMARY_MODEL, supportsCodexFastTier } from '../types/models';
+import { DEFAULT_CODEX_PRIMARY_MODEL, getCodexMaxContextWindow, supportsCodexFastTier } from '../types/models';
 import { CodexAppServerProcess } from './CodexAppServerProcess';
 import {
   initializeCodexAppServerTransport,
@@ -370,6 +370,7 @@ export class CodexChatRuntime implements ChatRuntime {
           baseInstructions: promptText,
           experimentalRawEvents: true,
           persistExtendedHistory: true,
+          ...this.contextWindowConfig(model ?? DEFAULT_CODEX_PRIMARY_MODEL),
         });
 
         this.loadedThreadId = threadId;
@@ -402,6 +403,7 @@ export class CodexChatRuntime implements ChatRuntime {
           baseInstructions: promptText,
           experimentalRawEvents: true,
           persistExtendedHistory: true,
+          ...this.contextWindowConfig(model ?? DEFAULT_CODEX_PRIMARY_MODEL),
         };
         try {
           const resumeResult = await this.transport!.request<ThreadResumeResult>('thread/resume', {
@@ -440,6 +442,7 @@ export class CodexChatRuntime implements ChatRuntime {
           baseInstructions: promptText,
           experimentalRawEvents: true,
           persistExtendedHistory: true,
+          ...this.contextWindowConfig(model ?? DEFAULT_CODEX_PRIMARY_MODEL),
         });
         threadId = startResult.thread.id;
         threadTargetPath = startResult.thread.path ?? null;
@@ -561,6 +564,7 @@ export class CodexChatRuntime implements ChatRuntime {
             baseInstructions: promptText,
             experimentalRawEvents: true,
             persistExtendedHistory: true,
+            ...this.contextWindowConfig(resolvedModel),
           });
           threadId = restart.thread.id;
           threadTargetPath = restart.thread.path ?? null;
@@ -1046,6 +1050,16 @@ export class CodexChatRuntime implements ChatRuntime {
   private resolveModel(queryOptions?: ChatRuntimeQueryOptions): string | undefined {
     const providerSettings = this.getProviderSettings();
     return queryOptions?.model ?? providerSettings.model as string | undefined;
+  }
+
+  /**
+   * With the large window on, Codex is asked for the model's maximum (the
+   * `model_context_window` config key; thread/start|resume accept `config`).
+   */
+  private contextWindowConfig(model: string): { config?: Record<string, unknown> } {
+    if (!getCodexProviderSettings(this.getProviderSettings()).largeContextWindow) return {};
+    const max = getCodexMaxContextWindow(model);
+    return max ? { config: { model_context_window: max } } : {};
   }
 
   private resolveSandboxConfig(): { approvalPolicy: string; sandbox: string } {

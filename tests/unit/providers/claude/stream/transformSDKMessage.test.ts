@@ -1793,7 +1793,9 @@ describe('transformSDKMessage', () => {
   });
 
   describe('assistant message usage extraction', () => {
-    it('emits cumulative tool-loop snapshots and one authoritative final usage', () => {
+    // The window fill is the latest call's prompt; what the loop processed in
+    // total goes to processedTokens. Summing the fills showed 30M of a 1M window.
+    it('reports the latest call as window fill and the loop total as processed tokens', () => {
       const usageState = createTransformUsageState();
       const firstAssistant = msg({
         type: 'assistant',
@@ -1819,8 +1821,8 @@ describe('transformSDKMessage', () => {
 
       expect(chunks).toEqual([
         expect.objectContaining({ usage: expect.objectContaining({ contextTokens: 120, reportType: 'snapshot' }) }),
-        expect.objectContaining({ usage: expect.objectContaining({ contextTokens: 400, reportType: 'snapshot' }) }),
-        expect.objectContaining({ usage: expect.objectContaining({ contextTokens: 400, reportType: 'final' }) }),
+        expect.objectContaining({ usage: expect.objectContaining({ contextTokens: 280, processedTokens: 400, reportType: 'snapshot' }) }),
+        expect.objectContaining({ usage: expect.objectContaining({ contextTokens: 280, processedTokens: 400, reportType: 'final' }) }),
       ]);
     });
 

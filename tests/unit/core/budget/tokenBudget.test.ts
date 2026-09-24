@@ -66,6 +66,14 @@ describe('TokenBudgetTracker', () => {
     expect(tracker.getState().sessionTotal).toBe(100);
   });
 
+  // contextTokens is the window fill of the latest call; a long agentic turn
+  // processed far more, and the budget has to see that.
+  it('books what a turn processed, not only how full its window ended up', () => {
+    const tracker = new TokenBudgetTracker();
+    tracker.trackUsage({ ...makeUsage(180_000), processedTokens: 4_200_000 });
+    expect(tracker.getState().dailyTotal).toBe(4_200_000);
+  });
+
   it('falls back to inputTokens when contextTokens is zero', () => {
     const tracker = new TokenBudgetTracker();
     tracker.trackUsage(makeUsage(0, 75));

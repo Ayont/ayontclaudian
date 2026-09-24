@@ -5,6 +5,9 @@ export type ClineJsonKind =
   | 'tool_end'
   | 'session'
   | 'usage'
+  /** One model call's share of the turn (`usage.updated`); deltas that add up per iteration. */
+  | 'call_usage'
+  | 'iteration_start'
   | 'error'
   | 'other';
 
@@ -135,6 +138,16 @@ export function parseClineJsonLine(line: string): ClineJsonEvent | null {
       sessionId,
       text: asString(parsed.message) ?? asString(parsed.reason) ?? 'Lauf abgebrochen',
     };
+  }
+
+  if (eventType === 'iteration_start') {
+    return { kind: 'iteration_start', sessionId };
+  }
+  // `usage.updated` → agent_event { type: "usage", inputTokens, cacheReadTokens, … }:
+  // deltas since the previous report, plus running totals (cline 3.0.62 binary).
+  if (eventType === 'usage' && envelopeType === 'agent_event') {
+    const usage = readUsage(inner);
+    return usage ? { kind: 'call_usage', sessionId, usage } : { kind: 'other', sessionId };
   }
 
   if (

@@ -34,6 +34,8 @@ export interface CodexProviderSettings {
   installationMethodsByHost: HostnameInstallationMethods;
   wslDistroOverride: string;
   wslDistroOverridesByHost: HostnameCliPaths;
+  /** Ask Codex for the model's largest context window (catalog `max_context_window`). */
+  largeContextWindow: boolean;
 }
 
 export const DEFAULT_CODEX_PROVIDER_SETTINGS: Readonly<CodexProviderSettings> = Object.freeze({
@@ -49,6 +51,7 @@ export const DEFAULT_CODEX_PROVIDER_SETTINGS: Readonly<CodexProviderSettings> = 
   installationMethodsByHost: {},
   wslDistroOverride: '',
   wslDistroOverridesByHost: {},
+  largeContextWindow: false,
 });
 
 export function shouldDisableCodexReasoningSummary(model: string | undefined): boolean {
@@ -165,6 +168,7 @@ export function getCodexProviderSettings(
           : legacyWslDistroOverride
       ),
     wslDistroOverridesByHost,
+    largeContextWindow: config.largeContextWindow === true,
   };
 }
 

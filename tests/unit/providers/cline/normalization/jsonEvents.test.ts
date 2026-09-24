@@ -200,3 +200,28 @@ describe('Cline content_end snapshots', () => {
     expect(lateReasoning && shouldEmitClineThinking(lateReasoning, state)).toBe(false);
   });
 });
+
+describe('per-call usage', () => {
+  it('reads the usage.updated agent event as one call\'s share, separate from the run total', () => {
+    const event = parseClineJsonLine(JSON.stringify({
+      type: 'agent_event',
+      payload: {
+        sessionId: 's1',
+        event: { type: 'usage', inputTokens: 120, outputTokens: 30, cacheReadTokens: 180_000, cacheWriteTokens: 900, totalInputTokens: 2_508_672 },
+      },
+    }));
+
+    expect(event).toEqual({
+      kind: 'call_usage',
+      sessionId: 's1',
+      usage: { inputTokens: 120, outputTokens: 30, cacheReadTokens: 180_000, cacheWriteTokens: 900 },
+    });
+  });
+
+  it('marks where a new model call begins', () => {
+    expect(parseClineJsonLine(JSON.stringify({
+      type: 'agent_event',
+      payload: { sessionId: 's1', event: { type: 'iteration_start', iteration: 3 } },
+    }))).toEqual({ kind: 'iteration_start', sessionId: 's1' });
+  });
+});

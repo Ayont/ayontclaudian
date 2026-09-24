@@ -150,6 +150,10 @@ export class TurnUndoService {
     return id;
   }
 
+  discard(id: string): void {
+    this.pending.delete(id);
+  }
+
   async finish(id: string): Promise<TurnUndoManifest | null> {
     const snapshot = this.pending.get(id);
     if (!snapshot) return null;

@@ -1,4 +1,5 @@
 // Must run before any SDK imports to patch Electron/Node.js realm incompatibility
+import { isPlausibleContextUsage } from './core/providers/usage/consumedTokens';
 import { patchSetMaxListenersForElectron } from './utils/electronCompat';
 patchSetMaxListenersForElectron();
 
@@ -2408,7 +2409,8 @@ export default class ClaudianPlugin extends Plugin {
     const settingsBag = this.settings as unknown as Record<string, unknown>;
     const enabled = ProviderRegistry.isEnabled(providerId, settingsBag);
     const ready = enabled && Boolean(this.getResolvedProviderCliPath(providerId));
-    const usage = tab.state.usage ?? null;
+    // An implausible reading (a sum from an older build) must not show as fill.
+    const usage = isPlausibleContextUsage(tab.state.usage) ? tab.state.usage : null;
     this.providerStatusBar.update({
       providerId,
       name: ProviderRegistry.getProviderDisplayName(providerId),

@@ -35,6 +35,7 @@ import {
   type ProviderId,
   type TitleGenerationService,
 } from '../../../core/providers/types';
+import { isPlausibleContextUsage } from '../../../core/providers/usage/consumedTokens';
 import { AUTO_MODEL_VALUE } from '../../../core/routing/modelRouterRules';
 import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
 import {
@@ -232,6 +233,7 @@ export class InputController {
   // ── Stream watchdog: detects hangs and provides user feedback + recovery ──
   private streamWatchdogTimer: number | null = null;
   private lastChunkTime = 0;
+  private lastProgressTime = 0;
   private streamStartTime = 0;
   private watchdogWarningShown = false;
   /** True when the current attempt was force-cancelled by the watchdog timeout. */
@@ -843,12 +845,6 @@ export class InputController {
       return;
     }
 
-    this.reportLiveActivity({
-      primary: 'Sende Anfrage an das Modell',
-      meta: 'Warte auf ersten Provider-Event',
-      phrase: 'Antwort wird angefordert',
-    });
-
     const activeModelForTimeline = this.deps.getActiveModel?.() ?? null;
     const timelineModel = activeModelForTimeline === AUTO_MODEL_VALUE
       ? (plugin.getView()?.getActiveTab()?.routedModel ?? this.getAuxiliaryModel())
@@ -883,13 +879,37 @@ export class InputController {
     // Capture a bounded vault baseline before the provider query. Only files
     // that actually change are persisted, yielding a provider-neutral undo.
     const undoService = plugin.turnUndoService;
-    const undoSnapshotId = undoService
-      ? await undoService.begin(
+    let undoSnapshotId = '';
+    if (undoService) {
+      let deadline: number | undefined;
+      let expired = false;
+      const baseline = undoService.begin(
         state.currentConversationId ?? 'pending',
         content,
         turnRequest.externalContextPaths ?? [],
-      ).catch(() => '')
-      : '';
+      ).then((id) => {
+        if (expired) undoService.discard(id);
+        return id;
+      }).catch(() => '');
+      try {
+        undoSnapshotId = await Promise.race([
+          baseline,
+          new Promise<string>((resolve) => {
+            deadline = window.setTimeout(() => {
+              expired = true;
+              resolve('');
+            }, 4_000);
+          }),
+        ]);
+      } finally {
+        if (deadline !== undefined) window.clearTimeout(deadline);
+      }
+    }
+    this.reportLiveActivity({
+      primary: 'Sende Anfrage an das Modell',
+      meta: 'Warte auf ersten Provider-Event',
+      phrase: 'Antwort wird angefordert',
+    });
     let consumedCarry: string | null = null;
     let sawProviderText = false;
     let sawUnsentRefusal = false;
@@ -976,7 +996,7 @@ export class InputController {
         try {
           for await (const chunk of agentService.query(preparedTurn, providerHistory)) {
             // Ping the watchdog on every chunk — resets the hang timer.
-            this.pingStreamWatchdog();
+            this.pingStreamWatchdog(chunk.type === 'keepalive');
 
             if (state.streamGeneration !== streamGeneration) {
               wasInvalidated = true;
@@ -1661,6 +1681,7 @@ export class InputController {
   private static readonly WATCHDOG_WARN_MS = 30_000;
   /** Time without any chunk before auto-canceling the stream (ms). */
   private static readonly WATCHDOG_TIMEOUT_MS = 120_000;
+  private static readonly WATCHDOG_PROGRESS_TIMEOUT_MS = 300_000;
   /** Watchdog check interval (ms). */
   private static readonly WATCHDOG_INTERVAL_MS = 5_000;
   /** How many times a timed-out turn is automatically re-sent before giving up. */
@@ -1734,6 +1755,7 @@ export class InputController {
   private startStreamWatchdog(state: ChatState): void {
     this.stopStreamWatchdog();
     this.lastChunkTime = Date.now();
+    this.lastProgressTime = this.lastChunkTime;
     this.streamStartTime = Date.now();
     this.watchdogWarningShown = false;
 
@@ -1745,6 +1767,7 @@ export class InputController {
         return;
       }
       const silenceMs = Date.now() - this.lastChunkTime;
+      const noProgressMs = Date.now() - this.lastProgressTime;
 
       // Phase 1: silence is now surfaced live by the StreamStatusBar (animated
       // progress bar + "Xs ohne Antwort" readout + a real Stop button), so we
@@ -1756,7 +1779,7 @@ export class InputController {
       // Phase 2: Auto-cancel after 120s of total silence. We only flag the
       // timeout + cancel the provider here; the send loop owns the messaging and
       // decides whether to auto-retry the same turn or surface a final timeout.
-      if (silenceMs > InputController.WATCHDOG_TIMEOUT_MS) {
+      if (silenceMs > InputController.WATCHDOG_TIMEOUT_MS || noProgressMs > InputController.WATCHDOG_PROGRESS_TIMEOUT_MS) {
         this.stopStreamWatchdog();
         this.watchdogTimedOut = true;
         state.cancelRequested = true;
@@ -1768,8 +1791,9 @@ export class InputController {
   }
 
   /** Updates the watchdog's last-chunk timestamp. Call on every stream chunk. */
-  private pingStreamWatchdog(): void {
+  private pingStreamWatchdog(keepalive = false): void {
     this.lastChunkTime = Date.now();
+    if (!keepalive) this.lastProgressTime = this.lastChunkTime;
   }
 
   /** Stops the watchdog timer. Call in the finally block of sendMessage. */
@@ -3381,7 +3405,7 @@ export class InputController {
         }
 
         const fmt = (n: number | undefined): string => (typeof n === 'number' ? n.toLocaleString() : '—');
-        const ctxLine = usage
+        const ctxLine = usage && isPlausibleContextUsage(usage)
           ? `${fmt(usage.contextTokens)} / ${fmt(usage.contextWindow)} tokens · **${usage.percentage ?? 0}%**`
           : '_no usage yet this session_';
 

@@ -1,4 +1,5 @@
 import { ProviderRegistry } from '../../../core/providers/ProviderRegistry';
+import { isPlausibleContextUsage } from '../../../core/providers/usage/consumedTokens';
 import type ClaudianPlugin from '../../../main';
 import { isLiveSubagentPhase, resolveSubagentPhase } from '../subagents/subagentPresentation';
 import { composerDraftKeyForTab } from './composerDraftTab';
@@ -41,7 +42,9 @@ export function buildTabOverviewItem(
   const providerId = getTabProviderId(tab, plugin);
   const conversation = tab.conversationId ? plugin.getConversationSync(tab.conversationId) : null;
   const todos = state.currentTodos;
-  const usagePercent = state.usage?.percentage ?? conversation?.usage?.percentage;
+  // A stored reading above its window is a turn-wide sum from an older build.
+  const usage = [state.usage, conversation?.usage].find((candidate) => isPlausibleContextUsage(candidate));
+  const usagePercent = usage?.percentage;
 
   return {
     id: tab.id,

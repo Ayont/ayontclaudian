@@ -76,6 +76,7 @@
       "usageEstimated": "≈ {used} de {total} tokens (estimado)",
       "bodyHigh": "La conversación ocupa la mayor parte de la ventana de contexto, así que los primeros detalles pueden perderse.",
       "bodyCritical": "La próxima respuesta larga puede superar el límite. Libera contexto ahora.",
+      "bodyAutoCompact": "El proveedor compacta la conversación automáticamente antes de alcanzar el límite. Puedes compactar ahora o continuar con menos contexto.",
       "compact": "Compactar",
       "compactHint": "El proveedor condensa el historial de esta sesión ({command})",
       "continueFresh": "Continuar con menos contexto",

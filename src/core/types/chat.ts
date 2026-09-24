@@ -373,7 +373,17 @@ export interface UsageInfo {
   contextWindow: number;
   /** True when `contextWindow` came from provider runtime data instead of a local heuristic. */
   contextWindowIsAuthoritative?: boolean;
+  /**
+   * How full the context window is: the prompt of the LATEST model call. Never
+   * a sum over a turn's calls; an agentic turn with 60 tool rounds re-reads its
+   * cached context 60 times, and adding those up showed 30M of a 1M window.
+   */
   contextTokens: number;
+  /**
+   * Tokens this report consumed across all model calls of the turn, for budgets
+   * and usage totals. Absent: the consumption equals `contextTokens`.
+   */
+  processedTokens?: number;
   percentage: number;
   /**
    * Accounting semantics for streamed usage reports.

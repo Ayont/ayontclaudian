@@ -76,6 +76,7 @@
       "usageEstimated": "约已用 {used} / 共 {total} 个 token（估算）",
       "bodyHigh": "对话已占用大部分上下文窗口，早期的细节可能会丢失。",
       "bodyCritical": "下一次较长的回答可能超出上限。请立即释放上下文。",
+      "bodyAutoCompact": "提供方会在达到上限前自动压缩对话。你可以现在压缩，或以更少的上下文继续。",
       "compact": "压缩",
       "compactHint": "由提供方在本会话内压缩历史记录（{command}）",
       "continueFresh": "以更少上下文继续",

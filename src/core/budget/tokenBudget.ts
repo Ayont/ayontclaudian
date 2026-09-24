@@ -1,3 +1,4 @@
+import { consumedTokens } from '../providers/usage/consumedTokens';
 import type { UsageInfo } from '../types';
 
 /**
@@ -110,9 +111,9 @@ export class TokenBudgetTracker {
   }
 
   /**
-   * Records additional token usage. Uses `contextTokens` when available and
-   * authoritative; otherwise falls back to `inputTokens` so every provider
-   * contributes a number even when only input tokens are reported.
+   * Records additional token usage: what the turn processed across its model
+   * calls (`processedTokens`), else `contextTokens`, else `inputTokens`, so every
+   * provider contributes a number even when only input tokens are reported.
    */
   trackUsage(usage: UsageInfo, providerId = 'unknown'): void {
     // Snapshots are cumulative display state, not additional consumption.
@@ -122,9 +123,7 @@ export class TokenBudgetTracker {
       return;
     }
     this.ensureDayRollover();
-    const delta = usage.contextTokens > 0
-      ? usage.contextTokens
-      : usage.inputTokens;
+    const delta = consumedTokens(usage);
     if (delta <= 0) return;
     this.state.dailyTotal += delta;
     this.state.sessionTotal += delta;

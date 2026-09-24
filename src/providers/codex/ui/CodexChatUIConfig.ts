@@ -7,7 +7,7 @@ import type {
 } from '../../../core/providers/types';
 import { OPENAI_PROVIDER_ICON } from '../../../shared/icons';
 import { getCodexModelOptions } from '../modelOptions';
-import { applyCodexModelDefaults } from '../settings';
+import { applyCodexModelDefaults, getCodexProviderSettings } from '../settings';
 import {
   DEFAULT_CODEX_CONTEXT_WINDOW,
   DEFAULT_CODEX_MODEL_SET,
@@ -82,14 +82,15 @@ export const codexChatUIConfig: ProviderChatUIConfig = {
     return 'medium';
   },
 
-  getContextWindowSize(model: string, customLimits?: Record<string, number>): number {
+  getContextWindowSize(model: string, customLimits?: Record<string, number>, settings?: Record<string, unknown>): number {
     // Codex feeds the custom-model UI via getCustomModelIds(), so a user CAN set a
     // per-model context override in Settings. This used to omit the parameter
     // entirely, so the value validated, saved, and was then silently ignored —
     // every other provider honours it.
     const custom = customLimits?.[model];
     if (typeof custom === 'number' && custom > 0 && isFinite(custom)) return custom;
-    return model ? getCodexModelContextWindow(model) : DEFAULT_CODEX_CONTEXT_WINDOW;
+    const large = settings ? getCodexProviderSettings(settings).largeContextWindow : false;
+    return model ? getCodexModelContextWindow(model, { large }) : DEFAULT_CODEX_CONTEXT_WINDOW;
   },
 
   isDefaultModel(model: string): boolean {

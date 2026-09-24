@@ -13,6 +13,7 @@ import type {
   ProviderServiceTierToggleConfig,
   ProviderUIOption,
 } from '../../../core/providers/types';
+import { isPlausibleContextUsage } from '../../../core/providers/usage/consumedTokens';
 import { AUTO_MODEL_VALUE } from '../../../core/routing/modelRouterRules';
 import type {
   ManagedMcpServer,
@@ -1551,7 +1552,8 @@ export class ContextUsageMeter {
   }
 
   update(usage: UsageInfo | null): void {
-    if (!usage || usage.contextTokens <= 0) {
+    // Above its window, a reading is a turn-wide sum (older builds), not a fill.
+    if (!usage || !isPlausibleContextUsage(usage)) {
       this.lastUsage = null;
       this.container.addClass('claudian-hidden');
       return;

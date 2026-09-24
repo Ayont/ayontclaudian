@@ -52,6 +52,11 @@ export interface ProviderCapabilities {
    */
   nativeGoal?: NativeGoalCapability;
   /**
+   * The provider compacts on its own before the window overflows, so a full
+   * window is handled without the user (verified per provider, trap 5).
+   */
+  autoCompact?: boolean;
+  /**
    * Manual context compaction sent as an ordinary turn. Absent when the
    * provider cannot compact on request (only automatically, or not at all).
    * Declare it only after verifying the command against the real CLI/SDK.

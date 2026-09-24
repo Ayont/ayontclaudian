@@ -18,6 +18,7 @@ import type {
   TitleGenerationResult,
   TitleGenerationService,
 } from '../providers/types';
+import { consumedTokens } from '../providers/usage/consumedTokens';
 import { buildEstimatedUsageInfo, estimateTokensForTexts } from '../providers/usage/estimateUsage';
 import { TurnUsageCollector } from '../providers/usage/TurnUsageCollector';
 import type { InstructionRefineResult, UsageInfo } from '../types';
@@ -254,6 +255,7 @@ function collectReportedUsage(reports: UsageInfo[]): UsageInfo | null {
     cacheReadInputTokens: (total.cacheReadInputTokens ?? 0)
       + (report.cacheReadInputTokens ?? 0),
     contextTokens: total.contextTokens + report.contextTokens,
+    processedTokens: consumedTokens(total) + consumedTokens(report),
     inputTokens: total.inputTokens + report.inputTokens,
     outputTokens: (total.outputTokens ?? 0) + (report.outputTokens ?? 0),
   }), { ...first });
