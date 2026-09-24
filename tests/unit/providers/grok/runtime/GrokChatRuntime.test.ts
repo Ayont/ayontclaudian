@@ -463,6 +463,84 @@ describe('GrokChatRuntime stale-session history recovery', () => {
     });
   });
 
+  it('reads the window fill from the last model response, not the turn sum', async () => {
+    const proc = makeFakeProcess(4310);
+    const call = (input: number, cacheRead: number) => JSON.stringify({
+      type: 'usage',
+      messageId: `resp_${input}`,
+      usage: { input_tokens: input, cache_read_input_tokens: cacheRead, cache_creation_input_tokens: 0, output_tokens: 40 },
+    });
+    spawn.mockImplementationOnce(() => {
+      finishProcess(proc, {
+        code: 0,
+        stdout: [
+          call(2_000, 60_000),
+          call(1_500, 64_000),
+          call(900, 70_000),
+          JSON.stringify({ type: 'text', data: 'Antwort.' }),
+          JSON.stringify({
+            type: 'end',
+            sessionId: 'grok-sum',
+            stopReason: 'end_turn',
+            usage: { input_tokens: 4_400, cache_read_input_tokens: 194_000, cache_creation_input_tokens: 0, output_tokens: 120 },
+            modelUsage: { 'grok-4.7': { contextWindow: 500000, inputTokens: 4_400, outputTokens: 120, modelCalls: 3 } },
+          }),
+          '',
+        ].join('\n'),
+      });
+      return proc;
+    });
+
+    const plugin = makePlugin();
+    (plugin.settings as { model?: string }).model = 'grok-4.7';
+    const chunks: StreamChunk[] = [];
+    for await (const chunk of new GrokChatRuntime(plugin).query(makeTurn('Hallo'), undefined, { model: 'grok-4.7' })) {
+      chunks.push(chunk);
+    }
+
+    expect(findLastUsage(chunks)).toMatchObject({
+      contextTokens: 70_900,
+      processedTokens: 198_400,
+      contextWindow: 500_000,
+      percentage: 14,
+    });
+  });
+
+  it('turns an auto-compaction into a boundary with the new size', async () => {
+    const proc = makeFakeProcess(4311);
+    spawn.mockImplementationOnce(() => {
+      finishProcess(proc, {
+        code: 0,
+        stdout: [
+          JSON.stringify({ type: 'usage', usage: { input_tokens: 1_000, cache_read_input_tokens: 420_000, output_tokens: 10 } }),
+          JSON.stringify({ type: 'auto_compact_started', tokens_used: 425_000, context_window: 500_000, percentage: 85 }),
+          JSON.stringify({ type: 'auto_compact_completed', tokens_before: 425_000, tokens_after: 38_000 }),
+          JSON.stringify({ type: 'text', data: 'Weiter.' }),
+          JSON.stringify({
+            type: 'end',
+            sessionId: 'grok-compact',
+            stopReason: 'end_turn',
+            usage: { input_tokens: 1_000, cache_read_input_tokens: 420_000, output_tokens: 10 },
+            modelUsage: { 'grok-4.7': { contextWindow: 500000 } },
+          }),
+          '',
+        ].join('\n'),
+      });
+      return proc;
+    });
+
+    const plugin = makePlugin();
+    (plugin.settings as { model?: string }).model = 'grok-4.7';
+    const chunks: StreamChunk[] = [];
+    for await (const chunk of new GrokChatRuntime(plugin).query(makeTurn('Hallo'), undefined, { model: 'grok-4.7' })) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks).toContainEqual({ type: 'context_compacted', tokensAfter: 38_000 });
+    // No model call reported after the compaction: the stated size is the fill.
+    expect(findLastUsage(chunks)).toMatchObject({ contextTokens: 38_000, contextWindow: 500_000 });
+  });
+
   it('surfaces a streamed rate-limit error once', async () => {
     const proc = makeFakeProcess(4305);
     spawn.mockImplementationOnce(() => {

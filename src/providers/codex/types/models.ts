@@ -1,4 +1,5 @@
 import type { ProviderUIOption } from '../../../core/providers/types';
+import { type CodexCatalogWindow, readCodexCatalogWindow } from './codexModelCatalog';
 
 export type CodexModel = string;
 
@@ -29,14 +30,47 @@ export const FAST_TIER_CODEX_MODELS = new Set<CodexModel>([
 // GPT-6, GPT-5.6 and GPT-5.5. The 1,050,000 once assumed for GPT-5.6 was never
 // in it. Live usage takes precedence after the first turn.
 export const CODEX_CATALOG_CONTEXT_WINDOW = 258_400;
-// The same catalog (models_cache.json, fetched 2026-09-24 from codex-cli
-// 0.156.1) lists max_context_window 872,000 for GPT-6 and GPT-5.6, 272,000
-// for GPT-5.5. Codex takes it via the `model_context_window` config key.
+// Built-in fallback when Codex' own catalog (models_cache.json) cannot be read:
+// codex-cli 0.156.1 declared max_context_window 872,000 for GPT-6 and GPT-5.6
+// and 272,000 for GPT-5.5 (fetched 2026-09-24).
 const CODEX_MAX_CONTEXT_WINDOWS: ReadonlyArray<[(model: string) => boolean, number]> = [
   [(model) => isCodexGpt6Model(model) || isCodexGpt56Model(model), 872_000],
 ];
 /** Share of the window Codex lets a turn use (catalog effective_context_window_percent). */
 const CODEX_EFFECTIVE_CONTEXT_PERCENT = 95;
+/**
+ * OpenAI's documented opt-in (Aug 2026): model_context_window = 1_000_000 with
+ * model_auto_compact_token_limit = 900_000. Codex clamps the window to the
+ * model's max_context_window, so compaction is set against what is granted.
+ */
+const CODEX_REQUESTED_LARGE_WINDOW = 1_000_000;
+const CODEX_LARGE_AUTO_COMPACT_SHARE = 0.9;
+
+export interface CodexLargeWindow {
+  /** Sent as `model_context_window`. */
+  requested: number;
+  /** What Codex grants: the request clamped to the model's max. */
+  granted: number;
+  /** What a turn may fill. */
+  usable: number;
+  /** Sent as `model_auto_compact_token_limit`. */
+  autoCompactLimit: number;
+}
+
+/** The large window for `model`, from Codex' catalog or the built-in fallback; null when it has none. */
+export function resolveCodexLargeWindow(model: string, catalog: CodexCatalogWindow | null): CodexLargeWindow | null {
+  const max = catalog?.maxContextWindow ?? getCodexMaxContextWindow(model);
+  const standard = catalog?.contextWindow ?? 272_000;
+  if (!max || max <= standard) return null;
+  const granted = Math.min(CODEX_REQUESTED_LARGE_WINDOW, max);
+  const percent = catalog?.effectivePercent ?? CODEX_EFFECTIVE_CONTEXT_PERCENT;
+  return {
+    requested: CODEX_REQUESTED_LARGE_WINDOW,
+    granted,
+    usable: Math.round((granted * percent) / 100),
+    autoCompactLimit: Math.round(granted * CODEX_LARGE_AUTO_COMPACT_SHARE),
+  };
+}
 export const DEFAULT_CODEX_CONTEXT_WINDOW = 200_000;
 
 function formatCodexModelSuffix(suffix: string): string {
@@ -129,10 +163,14 @@ export function getCodexMaxContextWindow(model: string): number | null {
   return null;
 }
 
-export function getCodexModelContextWindow(model: string, options: { large?: boolean } = {}): number {
-  const max = options.large ? getCodexMaxContextWindow(model) : null;
-  if (max) {
-    return Math.round((max * CODEX_EFFECTIVE_CONTEXT_PERCENT) / 100);
+export function getCodexModelContextWindow(
+  model: string,
+  options: { large?: boolean; catalog?: CodexCatalogWindow | null } = {},
+): number {
+  const catalog = options.catalog === undefined ? readCodexCatalogWindow(model) : options.catalog;
+  const large = options.large ? resolveCodexLargeWindow(model, catalog) : null;
+  if (large) {
+    return large.usable;
   }
   if (isCodexGpt6Model(model) || isCodexGpt56Model(model) || model === CODEX_GPT_55_MODEL) {
     return CODEX_CATALOG_CONTEXT_WINDOW;

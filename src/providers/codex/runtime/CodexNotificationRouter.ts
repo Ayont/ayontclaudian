@@ -89,6 +89,8 @@ export class CodexNotificationRouter {
   // Not reset by beginTurn/endTurn; links learnt by an earlier router come
   // from options.describeChildThread instead.
   private spawnToolIdsByChildThread = new Map<string, string>();
+  /** A failed turn reports its error twice (`error`, then `turn/completed`). */
+  private shownErrors = new Set<string>();
   private settledSubAgentActivityIds = new Set<string>();
 
   constructor(
@@ -143,6 +145,7 @@ export class CodexNotificationRouter {
   }
 
   beginTurn(params: { isPlanTurn: boolean }): void {
+    this.shownErrors.clear();
     this.isPlanTurn = params.isPlanTurn;
     this.sawPlanDelta = false;
     this.startedUserMessageIds.clear();
@@ -159,6 +162,7 @@ export class CodexNotificationRouter {
   }
 
   endTurn(): void {
+    this.shownErrors.clear();
     this.isPlanTurn = false;
     this.sawPlanDelta = false;
     this.startedUserMessageIds.clear();
@@ -867,7 +871,7 @@ export class CodexNotificationRouter {
     const turn = params.turn;
 
     if (turn.status === 'failed' && turn.error) {
-      this.emit({ type: 'error', content: turn.error.message });
+      this.emitErrorOnce(turn.error.message);
     }
 
     if (turn.status === 'completed') {
@@ -906,8 +910,24 @@ export class CodexNotificationRouter {
   }
 
   private onError(params: ErrorNotification): void {
-    if (params.willRetry) return;
-    this.emit({ type: 'error', content: params.error.message });
+    if (params.willRetry) {
+      // Codex retries on its own (5 attempts for an overloaded model); say so
+      // in the live status instead of leaving the answer silent.
+      this.emit({
+        type: 'notice',
+        level: 'info',
+        transient: true,
+        content: `Codex versucht es erneut: ${params.error.message}`,
+      });
+      return;
+    }
+    this.emitErrorOnce(params.error.message);
+  }
+
+  private emitErrorOnce(message: string): void {
+    if (this.shownErrors.has(message)) return;
+    this.shownErrors.add(message);
+    this.emit({ type: 'error', content: message });
   }
 }
 

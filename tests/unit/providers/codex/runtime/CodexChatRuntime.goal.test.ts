@@ -517,7 +517,8 @@ describe('CodexChatRuntime native goals', () => {
 
     await collectChunks(runtime.query(createTurn('hallo')));
 
-    expect(findCall('thread/start')?.[1].config).toEqual({ model_context_window: 872_000 });
+    // OpenAI's documented opt-in; compaction sits below what Codex grants (872k here).
+    expect(findCall('thread/start')?.[1].config).toEqual({ model_context_window: 1_000_000, model_auto_compact_token_limit: 784_800 });
   });
 
   it('leaves the window to Codex by default', async () => {

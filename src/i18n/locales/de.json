@@ -95,6 +95,11 @@
       "estimatedPrefix": "Geschätzt · ",
       "nearLimitCompact": "Limit fast erreicht – mit {command} verdichten",
       "nearLimit": "Limit fast erreicht – mit weniger Kontext fortsetzen"
+    },
+    "longText": {
+      "showMore": "Mehr anzeigen",
+      "showLess": "Weniger anzeigen",
+      "lines": "{count} Zeilen"
     }
   },
   "settings": {

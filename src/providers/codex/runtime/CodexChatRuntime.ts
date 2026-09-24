@@ -57,7 +57,8 @@ import {
   findPreferredCodexSkillByName,
 } from '../skills/CodexSkillListingService';
 import { type CodexProviderState, getCodexState } from '../types';
-import { DEFAULT_CODEX_PRIMARY_MODEL, getCodexMaxContextWindow, supportsCodexFastTier } from '../types/models';
+import { readCodexCatalogWindow } from '../types/codexModelCatalog';
+import { DEFAULT_CODEX_PRIMARY_MODEL, resolveCodexLargeWindow, supportsCodexFastTier } from '../types/models';
 import { CodexAppServerProcess } from './CodexAppServerProcess';
 import {
   initializeCodexAppServerTransport,
@@ -1053,13 +1054,16 @@ export class CodexChatRuntime implements ChatRuntime {
   }
 
   /**
-   * With the large window on, Codex is asked for the model's maximum (the
-   * `model_context_window` config key; thread/start|resume accept `config`).
+   * With the large window on, Codex gets OpenAI's documented opt-in (1M window,
+   * compaction before it fills) through thread/start|resume `config`.
    */
   private contextWindowConfig(model: string): { config?: Record<string, unknown> } {
     if (!getCodexProviderSettings(this.getProviderSettings()).largeContextWindow) return {};
-    const max = getCodexMaxContextWindow(model);
-    return max ? { config: { model_context_window: max } } : {};
+    const codexHome = this.runtimeContext?.codexHomeHost ?? undefined;
+    const large = resolveCodexLargeWindow(model, readCodexCatalogWindow(model, codexHome));
+    return large
+      ? { config: { model_context_window: large.requested, model_auto_compact_token_limit: large.autoCompactLimit } }
+      : {};
   }
 
   private resolveSandboxConfig(): { approvalPolicy: string; sandbox: string } {

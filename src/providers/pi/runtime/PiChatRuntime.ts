@@ -76,6 +76,8 @@ import { PiSubprocess } from './PiSubprocess';
 interface ActiveTurn {
   cancel: (error: Error) => void;
   cancelled: boolean;
+  /** Pi reported a compaction itself (`compaction_end`, manual or automatic). */
+  sawCompaction?: boolean;
   queue: StreamChunkQueue;
   rejectTerminal: (error: Error) => void;
   resolveTerminal: () => void;
@@ -558,11 +560,17 @@ export class PiChatRuntime implements ChatRuntime {
       }
 
       if (turn.isCompact) {
-        await this.transport!.request('compact', {
+        const result = await this.transport!.request('compact', {
           customInstructions: stripCompactCommand(turn.request.text),
         });
         this.currentTurnMetadata.wasSent = true;
-        activeTurn.queue.push({ type: 'context_compacted' });
+        // compaction_end also fires for a manual compact; one boundary is enough.
+        if (!activeTurn.sawCompaction) {
+          const tokensAfter = (result as { estimatedTokensAfter?: unknown } | null)?.estimatedTokensAfter;
+          activeTurn.queue.push(typeof tokensAfter === 'number'
+            ? { type: 'context_compacted', tokensAfter }
+            : { type: 'context_compacted' });
+        }
       } else {
         activeTurn.queue.push({
           type: 'user_message_start',
@@ -679,6 +687,9 @@ export class PiChatRuntime implements ChatRuntime {
     const state = this.getNormalizationState();
     const chunks = normalizePiRpcEvent(event, state);
     for (const chunk of chunks) {
+      if (chunk.type === 'context_compacted' && this.activeTurn) {
+        this.activeTurn.sawCompaction = true;
+      }
       this.activeTurn?.queue.push(chunk);
     }
     if (getPiTerminalErrorMessage(event)) {

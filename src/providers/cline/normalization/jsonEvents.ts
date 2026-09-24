@@ -8,8 +8,12 @@ export type ClineJsonKind =
   /** One model call's share of the turn (`usage.updated`); deltas that add up per iteration. */
   | 'call_usage'
   | 'iteration_start'
+  /** Cline compacted the conversation (a status notice with a compaction reason). */
+  | 'compacted'
   | 'error'
   | 'other';
+
+const CLINE_COMPACTION_REASONS = new Set(['auto_compaction', 'manual_compaction', 'compaction_budget_emergency']);
 
 export interface ClineRunUsage {
   cacheReadTokens?: number;
@@ -142,6 +146,11 @@ export function parseClineJsonLine(line: string): ClineJsonEvent | null {
 
   if (eventType === 'iteration_start') {
     return { kind: 'iteration_start', sessionId };
+  }
+  // @cline/core forwards a status notice's reason only for compaction (`kb`
+  // in dist/index.js, cline 3.0.62): auto, manual and budget-emergency.
+  if (eventType === 'notice' && envelopeType === 'agent_event' && CLINE_COMPACTION_REASONS.has(asString(inner.reason) ?? '')) {
+    return { kind: 'compacted', sessionId };
   }
   // `usage.updated` → agent_event { type: "usage", inputTokens, cacheReadTokens, … }:
   // deltas since the previous report, plus running totals (cline 3.0.62 binary).

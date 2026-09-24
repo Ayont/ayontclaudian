@@ -54,6 +54,18 @@ describe('transformSDKMessage', () => {
       ]);
     });
 
+    it('carries the post-compaction size so the meter drops at once', () => {
+      const message = msg({
+        type: 'system',
+        subtype: 'compact_boundary',
+        compact_metadata: { trigger: 'auto', pre_tokens: 190_000, post_tokens: 21_000 },
+      });
+
+      expect([...transformSDKMessage(message)]).toEqual([
+        { type: 'context_compacted', tokensAfter: 21_000 },
+      ]);
+    });
+
     it('turns a refusal fallback into a visible notice', () => {
       const message = msg({
         type: 'system',

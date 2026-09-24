@@ -25,4 +25,6 @@ export const VIBE_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object
   supportsMultiAgent: true,
   supportsTurnSteer: true,
   reasoningControl: 'effort',
+  // AutoCompactMiddleware is always installed (vibe 2.25.8 core/agent_loop/_loop.py).
+  autoCompact: true,
 });

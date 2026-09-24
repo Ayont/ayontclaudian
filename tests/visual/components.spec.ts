@@ -68,8 +68,8 @@ const PRESSURE_BANNERS = [
   'context-pressure-no-compact',
   'context-pressure-narrow',
 ] as const;
-const PRESSURE_SECTIONS = [...PRESSURE_BANNERS, 'session-boundary'] as const;
-const PRESSURE_LIGHT_SECTIONS = ['context-pressure-high', 'context-pressure-critical', 'context-pressure-narrow', 'session-boundary'] as const;
+const PRESSURE_SECTIONS = [...PRESSURE_BANNERS, 'session-boundary', 'long-message'] as const;
+const PRESSURE_LIGHT_SECTIONS = ['context-pressure-high', 'context-pressure-critical', 'context-pressure-narrow', 'session-boundary', 'long-message'] as const;
 
 async function isolateSection(page: import('@playwright/test').Page, section: string): Promise<void> {
   await page.evaluate((visibleSection) => {
@@ -592,6 +592,27 @@ for (const section of PRESSURE_SECTIONS) {
     await expect(el).toHaveScreenshot(`${section}-${testInfo.project.name}.png`, { maxDiffPixelRatio: 0.01 });
   });
 }
+
+test('a long sent message is clipped with its toggle still inside the bubble', async ({ page }) => {
+  await isolateSection(page, 'long-message');
+  const geometry = await page.locator('[data-vis="long-message"]').evaluate((section) => {
+    const bubble = section.querySelector('.claudian-message-user')!.getBoundingClientRect();
+    const text = section.querySelector('.claudian-text-block')!;
+    const toggle = section.querySelector('.claudian-user-text-toggle')!.getBoundingClientRect();
+    const composerToggle = section.querySelector('.claudian-composer-expand')!.getBoundingClientRect();
+    const composer = section.querySelector('.claudian-input-wrapper')!.getBoundingClientRect();
+    return {
+      clipped: text.scrollHeight > text.clientHeight,
+      toggleInside: toggle.bottom <= bubble.bottom + 0.5 && toggle.top >= bubble.top,
+      composerToggleInside: composerToggle.bottom <= composer.bottom + 0.5 && composerToggle.right <= composer.right + 0.5,
+      bubbleHeight: bubble.height,
+    };
+  });
+  expect(geometry.clipped).toBe(true);
+  expect(geometry.toggleInside).toBe(true);
+  expect(geometry.composerToggleInside).toBe(true);
+  expect(geometry.bubbleHeight).toBeLessThan(400);
+});
 
 // ── Tab overview and tab bar ───────────────────────────────────────────────
 // Geometry, not pixels, is what these assert: nothing leaves the pane, nothing

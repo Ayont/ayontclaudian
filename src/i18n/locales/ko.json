@@ -95,6 +95,11 @@
       "estimatedPrefix": "추정 · ",
       "nearLimitCompact": "한도에 거의 도달 – {command}(으)로 압축",
       "nearLimit": "한도에 거의 도달 – 더 적은 컨텍스트로 계속"
+    },
+    "longText": {
+      "showMore": "더 보기",
+      "showLess": "접기",
+      "lines": "{count}줄"
     }
   },
   "settings": {

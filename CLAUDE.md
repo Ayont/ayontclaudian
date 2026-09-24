@@ -227,6 +227,10 @@ Each of these has cost a real debugging session. They are not theoretical.
     display of a fill goes through `isPlausibleContextUsage` (older chats still
     carry the sums). Providers that compact on their own declare `autoCompact`,
     and the context warning only speaks up near the limit for them.
+    A compaction must reach the chat as `context_compacted` (with `tokensAfter`
+    when the provider states it): that resets the meter, and `historyInContext`
+    cuts every replay and estimate at the newest boundary. A provider that
+    compacts without emitting it keeps showing, and resending, the old size.
 
 ## Commands
 

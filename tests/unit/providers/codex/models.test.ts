@@ -134,12 +134,16 @@ describe('Codex catalog windows and retired models', () => {
 });
 
 describe('large Codex context window', () => {
-  it('uses the catalog maximum at the 95 % Codex allows a turn', () => {
-    expect(getCodexModelContextWindow(CODEX_GPT_6_SOL_MODEL, { large: true })).toBe(828_400);
-    expect(getCodexModelContextWindow(CODEX_GPT_6_SOL_MODEL)).toBe(258_400);
+  it('uses what Codex grants at the 95 % it allows a turn', () => {
+    expect(getCodexModelContextWindow(CODEX_GPT_6_SOL_MODEL, { large: true, catalog: null })).toBe(828_400);
+    expect(getCodexModelContextWindow(CODEX_GPT_6_SOL_MODEL, {
+      large: true,
+      catalog: { contextWindow: 272_000, maxContextWindow: 1_050_000, effectivePercent: 95 },
+    })).toBe(950_000);
+    expect(getCodexModelContextWindow(CODEX_GPT_6_SOL_MODEL, { catalog: null })).toBe(258_400);
   });
 
   it('stays at the standard window for models without a larger one', () => {
-    expect(getCodexModelContextWindow('gpt-5.5', { large: true })).toBe(258_400);
+    expect(getCodexModelContextWindow('gpt-5.5', { large: true, catalog: null })).toBe(258_400);
   });
 });

@@ -1,4 +1,4 @@
-import { preserveHistoryBeforeSessionBoundary } from '@/core/conversation/sessionBoundaryHistory';
+import { historyInContext, preserveHistoryBeforeSessionBoundary } from '@/core/conversation/sessionBoundaryHistory';
 import type { ChatMessage } from '@/core/types';
 
 function msg(id: string, role: ChatMessage['role'], extra: Partial<ChatMessage> = {}): ChatMessage {
@@ -46,5 +46,36 @@ describe('preserveHistoryBeforeSessionBoundary', () => {
   it('keeps the local transcript when the new session has nothing to hydrate yet', () => {
     const cached = [msg('u1', 'user'), msg('a2', 'assistant', { sessionBoundary: 'condensed' })];
     expect(preserveHistoryBeforeSessionBoundary(cached, []).map((message) => message.id)).toEqual(['u1', 'a2']);
+  });
+});
+
+describe('historyInContext', () => {
+  it('keeps the whole history when nothing was compacted', () => {
+    expect(historyInContext([msg('u1', 'user'), msg('a2', 'assistant')]).map((m) => m.id)).toEqual(['u1', 'a2']);
+  });
+
+  it('starts at the latest compaction, where the summary begins', () => {
+    const history = [
+      msg('u1', 'user'),
+      msg('a2', 'assistant', { contentBlocks: [{ type: 'context_compacted' }] }),
+      msg('u3', 'user'),
+      msg('a4', 'assistant'),
+    ];
+    expect(historyInContext(history).map((m) => m.id)).toEqual(['a2', 'u3', 'a4']);
+  });
+
+  it('starts after a fresh condensed session', () => {
+    const history = [msg('u1', 'user'), msg('a2', 'assistant', { sessionBoundary: 'condensed' }), msg('u3', 'user')];
+    expect(historyInContext(history).map((m) => m.id)).toEqual(['u3']);
+  });
+
+  it('uses whichever boundary is newest', () => {
+    const history = [
+      msg('a1', 'assistant', { sessionBoundary: 'condensed' }),
+      msg('u2', 'user'),
+      msg('a3', 'assistant', { contentBlocks: [{ type: 'context_compacted' }] }),
+      msg('u4', 'user'),
+    ];
+    expect(historyInContext(history).map((m) => m.id)).toEqual(['a3', 'u4']);
   });
 });

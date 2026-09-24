@@ -61,6 +61,8 @@ import {
   buildAcpUsageInfo,
   extractAcpSessionModelState,
   extractAcpSessionModeState,
+  finishAcpTurnChunks,
+  isAcpCompactPrompt,
 } from '../../acp';
 import { openWithMcpFallback, resolveClaudianAcpMcpServers } from '../../acp/acpMcpServers';
 import { HERMES_PROVIDER_CAPABILITIES } from '../capabilities';
@@ -391,8 +393,14 @@ export class HermesChatRuntime implements ChatRuntime {
           promptUsage: this.promptUsage,
           reportType: 'final',
         });
-        if (usage) {
-          activeTurn.queue.push({ sessionId, type: 'usage', usage });
+        for (const chunk of finishAcpTurnChunks({
+          compacted: isAcpCompactPrompt(turn.request.text, HERMES_PROVIDER_CAPABILITIES.compact?.command),
+          usage,
+          sessionId,
+          // Hermes re-measures the history and sends usage_update after /compress (server.py).
+          freshFill: true,
+        })) {
+          activeTurn.queue.push(chunk);
         }
       }
 
@@ -1088,6 +1096,14 @@ export class HermesChatRuntime implements ChatRuntime {
         }
         return;
       }
+      case 'session_info': {
+        // Hermes compresses by splitting its internal session; the ACP id stays
+        // and only the provenance says why (acp_adapter/provenance.py).
+        if (isHermesCompressionSplit(normalized.sessionInfo._meta)) {
+          this.activeTurn.queue.push({ type: 'context_compacted' });
+        }
+        return;
+      }
       case 'usage': {
         this.contextUsage = normalized.usage;
         const usage = buildAcpUsageInfo({
@@ -1351,4 +1367,13 @@ function selectPermissionOption(
   }
 
   return { outcome: { outcome: 'cancelled' } };
+}
+
+function isHermesCompressionSplit(meta: Record<string, unknown> | null | undefined): boolean {
+  const hermes = meta?.hermes;
+  if (!hermes || typeof hermes !== 'object') return false;
+  const provenance = (hermes as { sessionProvenance?: unknown }).sessionProvenance;
+  return Boolean(provenance)
+    && typeof provenance === 'object'
+    && (provenance as { reason?: unknown }).reason === 'compression';
 }

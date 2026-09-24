@@ -28,4 +28,7 @@ export const GROK_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object
   supportsMultiAgent: true,
   supportsTurnSteer: true,
   reasoningControl: 'effort',
+  // Auto-compacts at 85 % of the window (~/.grok/docs/user-guide/04-slash-commands.md,
+  // grok 1.0.41) and reports it headless as `auto_compact_completed`.
+  autoCompact: true,
 });

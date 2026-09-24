@@ -357,11 +357,9 @@ export class DshChatRuntime implements ChatRuntime {
         sessionId: this.lastSession?.sessionId ?? null,
       };
     } else {
-      const contextTokens = estimateTokensForTexts([
-        ...(conversationHistory ?? []).map((message) => message.content ?? ''),
-        promptText,
-        responseText,
-      ]);
+      // promptText already carries the bounded history (buildDshPrompt), so
+      // counting the history again would double the estimate.
+      const contextTokens = estimateTokensForTexts([promptText, responseText]);
       yield {
         type: 'usage',
         usage: buildEstimatedUsageInfo({

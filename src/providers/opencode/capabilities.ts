@@ -18,4 +18,6 @@ export const OPENCODE_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Ob
   // `opencode acp` (verified 1.18.32) answers a `/compact` prompt with
   // `session.summarize`, even though the command is not in its advertised list.
   compact: Object.freeze({ command: '/compact', availability: 'builtin' }),
+  // "Enable automatic compaction when context is full (default: true)" (opencode 1.18.32).
+  autoCompact: true,
 });

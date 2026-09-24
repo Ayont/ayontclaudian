@@ -62,6 +62,8 @@ import {
   extractAcpSessionModelState,
   extractAcpSessionModeState,
   extractAcpSessionThoughtLevelState,
+  finishAcpTurnChunks,
+  isAcpCompactPrompt,
 } from '../../acp';
 import { openWithMcpFallback, resolveClaudianAcpMcpServers } from '../../acp/acpMcpServers';
 import { ACP_KEEPALIVE_INTERVAL_MS, ACP_KEEPALIVE_MAX_SILENCE_MS } from '../../acp/keepalive';
@@ -427,8 +429,14 @@ export class OpencodeChatRuntime implements ChatRuntime {
         promptUsage: this.promptUsage,
         reportType: 'final',
       });
-      if (usage) {
-        activeTurn.queue.push({ sessionId, type: 'usage', usage });
+      // After a compact the last measured call is the summarizer reading the
+      // old history, so it must not come back as the window fill.
+      for (const chunk of finishAcpTurnChunks({
+        compacted: isAcpCompactPrompt(turn.request.text, OPENCODE_PROVIDER_CAPABILITIES.compact?.command),
+        usage,
+        sessionId,
+      })) {
+        activeTurn.queue.push(chunk);
       }
 
       activeTurn.queue.push({ type: 'done' });

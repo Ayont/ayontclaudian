@@ -11,6 +11,7 @@ import { getCodexWorkspaceServices } from '../app/CodexWorkspaceServices';
 import { parseConfiguredCustomModelIds, resolveCodexModelSelection } from '../modelOptions';
 import { isWindowsStyleCliReference } from '../runtime/CodexBinaryLocator';
 import { getCodexProviderSettings, updateCodexProviderSettings } from '../settings';
+import { readCodexCatalogWindow } from '../types/codexModelCatalog';
 import { DEFAULT_CODEX_PRIMARY_MODEL } from '../types/models';
 import { CodexSkillSettings } from './CodexSkillSettings';
 import { CodexSubagentSettings } from './CodexSubagentSettings';
@@ -365,9 +366,16 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
         });
       });
 
+    const grantedMax = readCodexCatalogWindow(DEFAULT_CODEX_PRIMARY_MODEL)?.maxContextWindow ?? 872_000;
     new Setting(container)
-      .setName('Großes Kontextfenster')
-      .setDesc('Codex nutzt standardmäßig 272.000 Tokens (258.400 nutzbar). Eingeschaltet fragt Claudian das Maximum aus Codex\' Modellkatalog an: 872.000 Tokens für GPT-6 und GPT-5.6. Größere Kontexte verbrauchen pro Nachricht mehr von deinem Nutzungslimit. Gilt für neue und fortgesetzte Threads.')
+      .setName('Großes Kontextfenster (bis 1 Mio.)')
+      .setDesc(
+        'Standard sind 272.000 Tokens (258.400 nutzbar). Eingeschaltet fordert Claudian wie von OpenAI dokumentiert '
+        + '1.000.000 Tokens an und lässt Codex bei 90 % automatisch verdichten. Codex gewährt höchstens das Maximum aus '
+        + `seinem Modellkatalog, für dein Konto derzeit ${grantedMax.toLocaleString('de-DE')} Tokens. Über 272.000 `
+        + 'Eingabe-Tokens rechnet OpenAI mit doppeltem Eingabepreis, dein Nutzungslimit sinkt also schneller. '
+        + 'Gilt für neue und fortgesetzte Threads.',
+      )
       .addToggle((toggle) => {
         toggle.setValue(codexSettings.largeContextWindow);
         toggle.onChange(async (value) => {

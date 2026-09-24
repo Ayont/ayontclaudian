@@ -10,6 +10,7 @@ import { buildLinkedNoteContext } from '../../../core/context/linkedNoteContext'
 import { computeBootstrapCharCap, limitSwitchCarry } from '../../../core/conversation/ConversationContextBootstrap';
 import { applyGoalPrefix, type GoalCommand, parseGoalArgs, parseGoalCommand } from '../../../core/conversation/goalPrompt';
 import { planNativeGoalCommand, resolveNativeGoalSupport } from '../../../core/conversation/nativeGoal';
+import { historyInContext } from '../../../core/conversation/sessionBoundaryHistory';
 import { providerErrorRecoveryService } from '../../../core/diagnostics/errorRecovery';
 import { getLastPerf, perfMark, perfSince } from '../../../core/diagnostics/perfLog';
 import { ensureProviderHealthy } from '../../../core/diagnostics/providerHealthCheck';
@@ -916,7 +917,9 @@ export class InputController {
     try {
       // Pass history WITHOUT current turn (userMsg + assistantMsg we just added).
       // This prevents duplication when rebuilding context for new sessions.
-      const previousMessages = state.messages.slice(0, -2);
+      // Turns before a compaction or condensed session were replaced by a
+      // summary; replaying them would refill the window the provider emptied.
+      const previousMessages = historyInContext(state.messages.slice(0, -2));
 
       // One-shot cross-provider context carry. The switch already watermarked it
       // to turns the target session does not have, including a return to a

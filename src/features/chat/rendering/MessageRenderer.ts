@@ -53,6 +53,7 @@ import {
   unfoldActivity,
 } from './activityFold';
 import { renderAutoMemoryChips } from './AutoMemoryChip';
+import { makeUserTextCollapsible } from './collapsibleUserText';
 import {
   containsMermaidFence,
   prepareDisplayOnlyCodeFences,
@@ -775,8 +776,7 @@ export class MessageRenderer {
         );
       }
       if (presentation.text) {
-        const textEl = contentEl.createDiv({ cls: 'claudian-text-block' });
-        void this.renderContent(textEl, presentation.text);
+        this.renderUserText(contentEl, presentation.text);
         this.addUserCopyButton(msgEl, presentation.text);
       }
       if (this.rewindCallback || this.forkCallback) {
@@ -786,6 +786,12 @@ export class MessageRenderer {
 
     this.scrollToBottom();
     return msgEl;
+  }
+
+  private renderUserText(contentEl: HTMLElement, text: string): void {
+    const textEl = contentEl.createDiv({ cls: 'claudian-text-block' });
+    void this.renderContent(textEl, text);
+    makeUserTextCollapsible(contentEl, textEl, text);
   }
 
   updateLiveUserMessage(msg: ChatMessage): void {
@@ -816,8 +822,7 @@ export class MessageRenderer {
       );
     }
     if (presentation.text) {
-      const textEl = contentEl.createDiv({ cls: 'claudian-text-block' });
-      void this.renderContent(textEl, presentation.text);
+      this.renderUserText(contentEl, presentation.text);
     }
 
     const toolbar = msgEl.querySelector<HTMLElement>('.claudian-user-msg-actions');
@@ -1081,8 +1086,7 @@ export class MessageRenderer {
         );
       }
       if (userPresentation?.text) {
-        const textEl = contentEl.createDiv({ cls: 'claudian-text-block' });
-        void this.renderContent(textEl, userPresentation.text);
+        this.renderUserText(contentEl, userPresentation.text);
         this.addUserCopyButton(msgEl, userPresentation.text);
       }
       if (msg.userMessageId && this.isRewindEligible(allMessages, index)) {

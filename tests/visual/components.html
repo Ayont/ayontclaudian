@@ -123,6 +123,7 @@
     .harness-tab-host { position: relative; display: flex; flex-direction: column; justify-content: flex-end; width: min(100%, 440px); height: 720px; border: 1px solid var(--background-modifier-border); border-radius: 12px; }
     .harness-tab-host--narrow { width: min(100%, 300px); }
     .harness-tab-host .claudian-input-wrapper { min-height: 72px; }
+    .harness-long-message { display: flex; flex-direction: column; gap: 16px; }
     .harness-tabbar-host { width: min(100%, 400px); padding: 8px 0; border: 1px solid var(--background-modifier-border); border-radius: 12px; }
     /* On a phone the chat drawer spans the screen; the body padding would make it narrower than any real pane. */
     @media (max-width: 380px) { .harness-tabbar-host { width: calc(100% + 40px); margin-inline: -20px; } }
@@ -973,6 +974,76 @@ kurze Zeile</code></pre>
   <div class="harness-section claudian-container" data-vis="session-boundary">
     <div class="harness-label">Neue Sitzung · Trenner im Verlauf</div>
     <div class="claudian-session-boundary" role="separator" aria-label="Neue Sitzung mit verdichtetem Kontext"><span class="claudian-session-boundary-label"><span class="claudian-session-boundary-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></span><span class="claudian-session-boundary-text">Neue Sitzung mit verdichtetem Kontext</span></span></div>
+  </div>
+  <!-- Long user message and long draft. Mirrors MessageRenderer.renderUserText
+       (collapsibleUserText.ts) and the composer toggle (textareaResize.ts). -->
+  <div class="harness-section claudian-container" data-vis="long-message">
+    <div class="harness-label">Lange Nachricht · eingeklappt</div>
+    <div class="harness-long-message">
+      <div class="claudian-message claudian-message-user" data-role="user">
+        <div class="claudian-message-content" dir="auto">
+          <div class="claudian-text-block is-collapsible is-collapsed"><p>CERTUSS GmbH, Hafenstraße 65, D-47809 Krefeld<br>&nbsp;<br>USt-ID-Nr.: DE 369998810, Steuernummer: 11758043859,<br>Amtsgericht Krefeld HRB 20499<br>Geschäftsführer: Robert Brauner, Daisuke Miyauchi, Akihiko Takada<br>&nbsp;<br>Pflichtangaben<br>E-Mail-footer-linie_CERTUSS.png<br>&nbsp;<br>Von: Ucar, Dogan<br>Gesendet: Donnerstag, 24. September 2026 09:35<br>An: Ucar, Dogan<br>Betreff: WLAN nach UniFi-Umzug<br>&nbsp;<br>Seit dem Umzug auf den neuen Controller verlieren die Scanner im Lager alle paar Minuten das WLAN.<br>Betroffen sind nur die 2,4-GHz-Geräte, die Laptops im Büro laufen stabil.<br>&nbsp;<br>Firewall ist offen als Tab mit CLI-Konsole, nur Read-only-Kommandos und erst fragen, bevor du etwas änderst.</p></div>
+          <button class="claudian-user-text-toggle" type="button" aria-expanded="false">Mehr anzeigen · 18 Zeilen</button>
+        </div>
+      </div>
+      <div class="claudian-input-wrapper">
+        <textarea class="claudian-input" readonly aria-label="Nachricht" style="--claudian-textarea-min-height:180px;--claudian-textarea-max-height:180px">CERTUSS GmbH, Hafenstraße 65, D-47809 Krefeld
+
+USt-ID-Nr.: DE 369998810, Steuernummer: 11758043859,
+Amtsgericht Krefeld HRB 20499
+Geschäftsführer: Robert Brauner, Daisuke Miyauchi, Akihiko Takada
+
+Pflichtangaben
+E-Mail-footer-linie_CERTUSS.png
+
+Von: Ucar, Dogan
+Gesendet: Donnerstag, 24. September 2026 09:35
+An: Ucar, Dogan
+Betreff: WLAN nach UniFi-Umzug
+
+Seit dem Umzug auf den neuen Controller verlieren die Scanner im Lager alle paar Minuten das WLAN.
+Betroffen sind nur die 2,4-GHz-Geräte, die Laptops im Büro laufen stabil.
+
+Firewall ist offen als Tab mit CLI-Konsole, nur Read-only-Kommandos und erst fragen, bevor du etwas änderst.
+CERTUSS GmbH, Hafenstraße 65, D-47809 Krefeld
+
+USt-ID-Nr.: DE 369998810, Steuernummer: 11758043859,
+Amtsgericht Krefeld HRB 20499
+Geschäftsführer: Robert Brauner, Daisuke Miyauchi, Akihiko Takada
+
+Pflichtangaben
+E-Mail-footer-linie_CERTUSS.png
+
+Von: Ucar, Dogan
+Gesendet: Donnerstag, 24. September 2026 09:35
+An: Ucar, Dogan
+Betreff: WLAN nach UniFi-Umzug
+
+Seit dem Umzug auf den neuen Controller verlieren die Scanner im Lager alle paar Minuten das WLAN.
+Betroffen sind nur die 2,4-GHz-Geräte, die Laptops im Büro laufen stabil.
+
+Firewall ist offen als Tab mit CLI-Konsole, nur Read-only-Kommandos und erst fragen, bevor du etwas änderst.
+CERTUSS GmbH, Hafenstraße 65, D-47809 Krefeld
+
+USt-ID-Nr.: DE 369998810, Steuernummer: 11758043859,
+Amtsgericht Krefeld HRB 20499
+Geschäftsführer: Robert Brauner, Daisuke Miyauchi, Akihiko Takada
+
+Pflichtangaben
+E-Mail-footer-linie_CERTUSS.png
+
+Von: Ucar, Dogan
+Gesendet: Donnerstag, 24. September 2026 09:35
+An: Ucar, Dogan
+Betreff: WLAN nach UniFi-Umzug
+
+Seit dem Umzug auf den neuen Controller verlieren die Scanner im Lager alle paar Minuten das WLAN.
+Betroffen sind nur die 2,4-GHz-Geräte, die Laptops im Büro laufen stabil.
+
+Firewall ist offen als Tab mit CLI-Konsole, nur Read-only-Kommandos und erst fragen, bevor du etwas änderst.</textarea>
+        <button class="claudian-composer-expand" type="button" aria-expanded="false">Mehr anzeigen · 54 Zeilen</button>
+      </div>
+    </div>
   </div>
   <!-- Todo lists. Empty hosts on purpose: components.spec.ts bundles the real
        StatusPanel / TodoWrite renderers (tests/visual/todoHarness.ts) and mounts

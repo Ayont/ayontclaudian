@@ -8,6 +8,7 @@ import {
   type ProviderId,
   type ProviderSubagentLifecycleAdapter,
 } from '../../../core/providers/types';
+import { usageAfterCompaction } from '../../../core/providers/usage/consumedTokens';
 import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
 import { type BrowserActivity, resolveBrowserActivity } from '../../../core/tools/browserActivity';
 import { parseTodoInput } from '../../../core/tools/todo';
@@ -479,6 +480,7 @@ export class StreamController {
         msg.contentBlocks = msg.contentBlocks || [];
         msg.contentBlocks.push({ type: 'context_compacted' });
         this.renderCompactBoundary();
+        state.usage = usageAfterCompaction(state.usage, chunk.tokensAfter);
         break;
       }
 

@@ -142,14 +142,19 @@ export function grokEventHasUsage(raw: Record<string, unknown>): boolean {
  */
 export function buildGrokUsageInfo(params: {
   reported: GrokReportedUsage;
+  /** Prompt size of the turn's last model call, when the stream reported one. */
+  fillTokens?: number;
   fallbackContextWindow: number;
   model?: string;
 }): UsageInfo {
   const model = params.model?.trim() || params.reported.model || undefined;
   const contextWindow = params.reported.contextWindow ?? params.fallbackContextWindow;
   const publishedWindow = model !== undefined && KNOWN_GROK_MODEL_CONTEXT_WINDOWS[model] !== undefined;
+  // The ledger sums every call of the turn; only the last call is the fill.
+  const contextTokens = params.fillTokens ?? params.reported.contextTokens;
+  const processedTokens = params.reported.contextTokens;
   const percentage = contextWindow > 0
-    ? Math.min(100, Math.max(0, Math.round((params.reported.contextTokens / contextWindow) * 100)))
+    ? Math.min(100, Math.max(0, Math.round((contextTokens / contextWindow) * 100)))
     : 0;
 
   return {
@@ -157,7 +162,8 @@ export function buildGrokUsageInfo(params: {
     cacheCreationInputTokens: params.reported.cacheCreationTokens,
     cacheReadInputTokens: params.reported.cacheReadTokens,
     ...(params.reported.hasOutput ? { outputTokens: params.reported.outputTokens } : {}),
-    contextTokens: params.reported.contextTokens,
+    contextTokens,
+    ...(processedTokens > contextTokens ? { processedTokens } : {}),
     contextWindow,
     contextWindowIsAuthoritative: !params.reported.incomplete
       && contextWindow > 0

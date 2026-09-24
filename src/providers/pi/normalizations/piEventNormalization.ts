@@ -38,8 +38,12 @@ export function normalizePiRpcEvent(
     case 'message_end':
     case 'turn_end':
       return normalizeTerminalError(event);
-    case 'compaction_end':
-      return [{ type: 'context_compacted' }];
+    case 'compaction_end': {
+      // `contextUsage.tokens` is null until the next answer (rpc.md); the
+      // event carries Pi's own estimate of the compacted size.
+      const tokensAfter = getNumber(getNestedRecord(event, 'result')?.estimatedTokensAfter);
+      return [tokensAfter !== null ? { type: 'context_compacted', tokensAfter } : { type: 'context_compacted' }];
+    }
     case 'auto_retry_start':
       return [{ type: 'notice', content: 'Pi is retrying the turn.', level: 'warning' }];
     case 'auto_retry_end':
@@ -175,6 +179,10 @@ function getNestedRecord(
 
 function getString(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
+}
+
+function getNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 }
 
 function getStringField(

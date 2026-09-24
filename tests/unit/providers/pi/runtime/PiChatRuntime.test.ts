@@ -24,6 +24,8 @@ class MockPiSubprocess {
 }
 
 class MockPiRpcTransport {
+  /** Answers the next `compact` request, e.g. to emit Pi's compaction events first. */
+  static compactHandler: ((transport: MockPiRpcTransport) => unknown) | null = null;
   isClosed = false;
   readonly eventHandlers: Array<(event: Record<string, unknown>) => void> = [];
   readonly closeHandlers: Array<(error?: Error) => void> = [];
@@ -36,6 +38,9 @@ class MockPiRpcTransport {
     }
     if (type === 'get_session_stats') {
       return {};
+    }
+    if (type === 'compact' && MockPiRpcTransport.compactHandler) {
+      return MockPiRpcTransport.compactHandler(this);
     }
     return {};
   });
@@ -163,6 +168,26 @@ describe('PiChatRuntime', () => {
     expect(chunks).toEqual([
       { type: 'context_compacted' },
       { type: 'done' },
+    ]);
+  });
+
+  it('shows one boundary when Pi also reports the manual compaction as an event', async () => {
+    const runtime = new PiChatRuntime(createPlugin());
+    const chunks: unknown[] = [];
+    MockPiRpcTransport.compactHandler = (transport) => {
+      for (const handler of transport.eventHandlers) {
+        handler({ type: 'compaction_end', reason: 'manual', result: { estimatedTokensAfter: 18_000 } });
+      }
+      return { estimatedTokensAfter: 18_000 };
+    };
+    try {
+      for await (const chunk of runtime.query(runtime.prepareTurn({ text: '/compact' }))) chunks.push(chunk);
+    } finally {
+      MockPiRpcTransport.compactHandler = null;
+    }
+
+    expect(chunks.filter((chunk: any) => chunk.type === 'context_compacted')).toEqual([
+      { type: 'context_compacted', tokensAfter: 18_000 },
     ]);
   });
 

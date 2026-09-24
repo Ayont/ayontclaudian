@@ -116,8 +116,27 @@ describe('KimiChatRuntime slash command interception', () => {
     ]);
   });
 
-  it('passes through /compact to CLI spawn path', async () => {
+  it('answers /compact locally on kimi-code, whose print mode only parses /goal', async () => {
+    const runtime = new KimiChatRuntime(makePlugin());
+    runtime.syncConversationState({ sessionId: null, providerState: {} });
+
+    const chunks: Array<{ type: string }> = [];
+    for await (const chunk of runtime.query({
+      request: { text: '/compact' },
+      isCompact: false,
+      mcpMentions: new Set<string>(),
+      persistedContent: '',
+      prompt: '/compact',
+    } as unknown as Parameters<KimiChatRuntime['query']>[0])) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks.map((chunk) => chunk.type)).toEqual(['text', 'done']);
+  });
+
+  it('passes through /compact to the legacy kimi-cli spawn path', async () => {
     const plugin = makePlugin();
+    (plugin.getResolvedProviderCliPath as jest.Mock).mockReturnValue('/usr/local/bin/kimi-cli');
     const runtime = new KimiChatRuntime(plugin);
     runtime.syncConversationState({ sessionId: null, providerState: {} });
 

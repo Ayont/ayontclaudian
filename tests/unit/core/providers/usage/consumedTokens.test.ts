@@ -1,4 +1,4 @@
-import { consumedTokens, isPlausibleContextUsage } from '@/core/providers/usage/consumedTokens';
+import { consumedTokens, isPlausibleContextUsage, usageAfterCompaction } from '@/core/providers/usage/consumedTokens';
 
 describe('consumedTokens', () => {
   it('counts what all calls of a turn processed, not just the window fill', () => {
@@ -17,5 +17,36 @@ describe('isPlausibleContextUsage', () => {
     expect(isPlausibleContextUsage({ contextTokens: 640_000, contextWindow: 1_000_000 })).toBe(true);
     expect(isPlausibleContextUsage({ contextTokens: 0, contextWindow: 1_000_000 })).toBe(false);
     expect(isPlausibleContextUsage(null)).toBe(false);
+  });
+});
+
+describe('usageAfterCompaction', () => {
+  const before = {
+    model: 'm',
+    inputTokens: 150_000,
+    cacheCreationInputTokens: 0,
+    cacheReadInputTokens: 0,
+    contextWindow: 200_000,
+    contextTokens: 180_000,
+    processedTokens: 900_000,
+    percentage: 90,
+  };
+
+  it('shows the size the provider reports after compacting', () => {
+    expect(usageAfterCompaction(before, 24_000)).toMatchObject({
+      contextTokens: 24_000,
+      contextWindow: 200_000,
+      percentage: 12,
+    });
+    expect(usageAfterCompaction(before, 24_000)).not.toHaveProperty('processedTokens');
+  });
+
+  it('drops a pre-compaction reading when the new size is unknown', () => {
+    expect(usageAfterCompaction(before)).toBeNull();
+  });
+
+  it('stays empty without a reading or a window', () => {
+    expect(usageAfterCompaction(null, 10_000)).toBeNull();
+    expect(usageAfterCompaction({ ...before, contextWindow: 0 }, 10_000)).toBeNull();
   });
 });

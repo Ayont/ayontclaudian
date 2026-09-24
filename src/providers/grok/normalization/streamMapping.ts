@@ -18,13 +18,27 @@ export interface GrokStreamState {
   stopReason: string | null;
   /** Latest `usage` or `end` object that carried a spend ledger. `end` wins. */
   usageRaw: Record<string, unknown> | null;
+  /**
+   * Latest per-response `usage` line since the last compaction. It is the
+   * window fill; the `end` ledger sums every call of the turn.
+   */
+  callUsageRaw: Record<string, unknown> | null;
+  /** Size Grok reported after its latest auto-compaction in this turn. */
+  compactedTokens: number | null;
   /** Message from a stream `error` event, when the CLI reported one. */
   streamError: string | null;
 }
 
 /** Fresh streaming state for a new query loop. */
 export function createGrokStreamState(): GrokStreamState {
-  return { sessionId: null, stopReason: null, usageRaw: null, streamError: null };
+  return {
+    sessionId: null,
+    stopReason: null,
+    usageRaw: null,
+    callUsageRaw: null,
+    compactedTokens: null,
+    streamError: null,
+  };
 }
 
 /**
@@ -45,8 +59,20 @@ export function mapGrokEventToChunks(
     case 'usage':
       if (grokEventHasUsage(event.raw)) {
         state.usageRaw = event.raw;
+        state.callUsageRaw = event.raw;
       }
       return [];
+    case 'auto_compact_completed': {
+      // Calls before the compaction no longer describe the window.
+      state.callUsageRaw = null;
+      const tokensAfter = event.raw.tokens_after;
+      if (typeof tokensAfter === 'number' && Number.isFinite(tokensAfter) && tokensAfter >= 0) {
+        state.compactedTokens = tokensAfter;
+        return [{ type: 'context_compacted', tokensAfter }];
+      }
+      state.compactedTokens = null;
+      return [{ type: 'context_compacted' }];
+    }
     case 'end':
       if (event.sessionId && event.sessionId.trim()) {
         state.sessionId = event.sessionId.trim();

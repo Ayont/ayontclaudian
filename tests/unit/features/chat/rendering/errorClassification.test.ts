@@ -77,6 +77,20 @@ describe('classifyProviderError', () => {
     expect(c.raw).toBe('something totally unexpected happened');
   });
 
+  // Codex, 2026-09-24: five retries, then this. Not a quota and not unexpected.
+  it('tells an overloaded model apart from a quota limit', () => {
+    setLocale('de');
+    const c = classifyProviderError('Selected model is at capacity. Please try a different model.', 'codex');
+    expect(c.title).toBe('Modell ausgelastet');
+    expect(c.severity).toBe('warning');
+    expect(c.isLimit).toBe(false);
+    expect(c.retryable).toBe(true);
+    expect(c.hint).toContain('anderes Modell');
+    expect(classifyProviderError('overloaded_error: Overloaded', 'claude').title).toBe('Modell ausgelastet');
+    setLocale('en');
+    expect(classifyProviderError('Selected model is at capacity.', 'codex').title).toBe('Model at capacity');
+  });
+
   it('uses German strings under the de locale', () => {
     setLocale('de');
     expect(classifyProviderError('HTTP 429', 'kimi').title).toBe('Limit erreicht');

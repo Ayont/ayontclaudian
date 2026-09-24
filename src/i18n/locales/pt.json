@@ -95,6 +95,11 @@
       "estimatedPrefix": "Estimado · ",
       "nearLimitCompact": "Limite quase atingido – condensar com {command}",
       "nearLimit": "Limite quase atingido – continuar com menos contexto"
+    },
+    "longText": {
+      "showMore": "Mostrar mais",
+      "showLess": "Mostrar menos",
+      "lines": "{count} linhas"
     }
   },
   "settings": {

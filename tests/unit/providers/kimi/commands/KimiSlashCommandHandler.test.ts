@@ -99,6 +99,21 @@ describe('KimiSlashCommandHandler', () => {
     expect(updates).toHaveLength(0);
   });
 
+  it('answers /compact itself where headless kimi-code would send it to the model', async () => {
+    const handler = new KimiSlashCommandHandler(
+      () => ({ sessionId: 's1' }),
+      () => undefined,
+      { openSessionList: () => undefined, openHelp: () => undefined, closeTab: () => undefined },
+      { runsSlashCompact: () => false },
+    );
+
+    const result = await handler.execute('/compact');
+
+    expect(result.consumed).toBe(true);
+    expect(result.followUpPrompt).toContain('selbst');
+    expect(result.followUpPrompt).toContain('Mit weniger Kontext fortsetzen');
+  });
+
   it('ignores ordinary prompts', async () => {
     const { handler, updates, opened } = makeHandler();
     const result = await handler.execute('hello');

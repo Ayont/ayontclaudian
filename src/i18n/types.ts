@@ -24,6 +24,9 @@ export type TranslationKey =
   | 'common.rewind'
 
   // Chat - Context pressure warning and meter
+  | 'chat.longText.showMore'
+  | 'chat.longText.showLess'
+  | 'chat.longText.lines'
   | 'chat.contextPressure.titleHigh'
   | 'chat.contextPressure.titleCritical'
   | 'chat.contextPressure.percent'

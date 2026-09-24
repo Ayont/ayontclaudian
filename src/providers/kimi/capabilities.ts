@@ -34,4 +34,16 @@ export const KIMI_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object
   // kimi-code 2.1 runs `/goal <objective>` headless until complete (exit 0),
   // blocked (3) or paused (6). Only the print runtime; ACP has no goal command.
   nativeGoal: { mode: 'slash' as const, canPause: false, persistent: true, resume: 'resend' as const },
+  // kimi-code 2.1.0 defaults `autoCompact` to true (`opts.autoCompact ?? true`).
+  autoCompact: true,
+});
+
+/**
+ * The ACP runtime (`kimi acp`) runs `/compact` as a builtin
+ * (`runBuiltinSlashCommand`, kimi-code 2.1.0) and advertises it in
+ * `available_commands_update`; print mode only parses `/goal`.
+ */
+export const KIMI_ACP_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({
+  ...KIMI_PROVIDER_CAPABILITIES,
+  compact: Object.freeze({ command: '/compact', availability: 'advertised' as const }),
 });

@@ -308,7 +308,8 @@ export type StreamChunk =
       /** Account this report without replacing the visible context-window snapshot. */
       contextDisplay?: 'preserve';
     }
-  | { type: 'context_compacted' }
+  /** The provider compacted; `tokensAfter` is the new fill when it states one. */
+  | { type: 'context_compacted'; tokensAfter?: number }
   /**
    * The provider's own goal changed (Codex `thread/goal/*`, Claude's `/goal`
    * Stop hook, Kimi's headless goal). `round` is set when the provider re-checked

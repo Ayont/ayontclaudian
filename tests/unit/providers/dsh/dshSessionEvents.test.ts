@@ -272,6 +272,22 @@ describe('buildDshUsageInfo', () => {
     });
   });
 
+  it('counts cache hits, which dsh keeps out of inputTokens', () => {
+    // dsh-llm-deepseek mapUsage: inputTokens = prompt_tokens - cached_tokens.
+    const cached = JSON.stringify({
+      type: 'assistant/chunk', seq: 80, time: 3,
+      data: { turn: 2, step: 1, chunk: { type: 'usage', usage: { inputTokens: 1_200, outputTokens: 90, cacheReadTokens: 48_000 } } },
+    });
+    const metadata = projectDshTranscript(cached, 0).metadata;
+
+    expect(buildDshUsageInfo(metadata, 128_000)).toMatchObject({
+      cacheReadInputTokens: 48_000,
+      contextTokens: 49_290,
+      inputTokens: 1_200,
+      percentage: 39,
+    });
+  });
+
   it('returns nothing when dsh reported no tokens', () => {
     expect(buildDshUsageInfo({}, 128_000)).toBeNull();
   });

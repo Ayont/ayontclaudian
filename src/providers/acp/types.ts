@@ -444,6 +444,8 @@ export interface AcpConfigOptionUpdate {
 export interface AcpSessionInfoUpdate {
   title?: string | null;
   updatedAt?: string | null;
+  /** Agent-specific extension data (ACP `_meta`). */
+  _meta?: Record<string, unknown> | null;
 }
 
 export interface AcpUsageUpdate {

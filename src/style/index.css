@@ -12,6 +12,7 @@
 @import "./components/history.css";
 @import "./components/tab-overview.css";
 @import "./components/messages.css";
+@import "./components/long-text.css";
 @import "./components/nav-sidebar.css";
 @import "./components/code.css";
 @import "./components/commit-bar.css";

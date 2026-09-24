@@ -73,7 +73,8 @@ export interface DshTurnMetadata {
   title?: string;
   /** Terminal reason from `turn/end`, e.g. `completed`. */
   endReason?: string;
-  usage?: { inputTokens: number; outputTokens: number };
+  /** `inputTokens` excludes cache hits, which dsh reports as `cacheReadTokens`. */
+  usage?: { inputTokens: number; outputTokens: number; cacheReadTokens?: number };
   /** Highest retry attempt seen, for the "was this turn healthy" signal. */
   retries?: number;
 }
@@ -190,8 +191,11 @@ export function projectDshRecord(
         const usage = asRecord(chunk?.usage);
         const inputTokens = typeof usage?.inputTokens === 'number' ? usage.inputTokens : 0;
         const outputTokens = typeof usage?.outputTokens === 'number' ? usage.outputTokens : 0;
-        if (inputTokens > 0 || outputTokens > 0) {
-          metadata.usage = { inputTokens, outputTokens };
+        const cacheReadTokens = typeof usage?.cacheReadTokens === 'number' ? usage.cacheReadTokens : 0;
+        if (inputTokens > 0 || outputTokens > 0 || cacheReadTokens > 0) {
+          metadata.usage = cacheReadTokens > 0
+            ? { inputTokens, outputTokens, cacheReadTokens }
+            : { inputTokens, outputTokens };
         }
       }
       break;
@@ -303,10 +307,11 @@ export function buildDshUsageInfo(
     return null;
   }
 
-  const contextTokens = metadata.usage.inputTokens + metadata.usage.outputTokens;
+  const cacheReadTokens = metadata.usage.cacheReadTokens ?? 0;
+  const contextTokens = metadata.usage.inputTokens + cacheReadTokens + metadata.usage.outputTokens;
   return {
     cacheCreationInputTokens: 0,
-    cacheReadInputTokens: 0,
+    cacheReadInputTokens: cacheReadTokens,
     contextTokens,
     contextWindow,
     // dsh reports real per-turn counts, so this is measured, not estimated.

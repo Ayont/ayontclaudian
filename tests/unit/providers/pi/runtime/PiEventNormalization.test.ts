@@ -120,6 +120,12 @@ describe('Pi event normalization', () => {
   it('maps compaction and extension errors', () => {
     const state = createPiEventNormalizationState();
     expect(normalizePiRpcEvent({ type: 'compaction_end' }, state)).toEqual([{ type: 'context_compacted' }]);
+    // rpc.md: `contextUsage.tokens` is null right after compaction; the event states the new size.
+    expect(normalizePiRpcEvent({
+      type: 'compaction_end',
+      reason: 'threshold',
+      result: { tokensBefore: 150_000, estimatedTokensAfter: 32_000 },
+    }, state)).toEqual([{ type: 'context_compacted', tokensAfter: 32_000 }]);
     expect(normalizePiRpcEvent({ error: 'extension failed', type: 'extension_error' }, state)).toEqual([{
       content: 'extension failed',
       level: 'warning',

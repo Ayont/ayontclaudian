@@ -95,6 +95,11 @@
       "estimatedPrefix": "估算 · ",
       "nearLimitCompact": "即将达到上限 – 使用 {command} 压缩",
       "nearLimit": "即将达到上限 – 以更少上下文继续"
+    },
+    "longText": {
+      "showMore": "显示更多",
+      "showLess": "收起",
+      "lines": "{count} 行"
     }
   },
   "settings": {

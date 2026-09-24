@@ -44,6 +44,20 @@ function lang(): Lang {
 }
 
 const COPY: Record<string, Record<Lang, Strings>> = {
+  overloaded: {
+    de: {
+      title: 'Modell ausgelastet',
+      explanation:
+        'Das gewählte Modell ist beim Anbieter gerade überlastet. Das liegt nicht an deinem Konto und ist meist nach kurzer Zeit vorbei.',
+      hint: 'Kurz warten und erneut versuchen oder im Modellmenü ein anderes Modell wählen. Ist „Fast“ aktiv, kann es helfen, ihn auszuschalten.',
+    },
+    en: {
+      title: 'Model at capacity',
+      explanation:
+        'The selected model is overloaded at the provider right now. This is not about your account and usually passes quickly.',
+      hint: 'Wait a moment and retry, or pick another model in the model menu. If “Fast” is on, turning it off can help.',
+    },
+  },
   limit: {
     de: {
       title: 'Limit erreicht',
@@ -187,6 +201,14 @@ interface Rule {
 // codes (a `code 75` is a quota signal, not a generic crash), and `session`
 // before `cliMissing` so "… not found" session errors aren't mislabeled.
 const RULES: Rule[] = [
+  {
+    // Before `limit`: an overloaded model is transient capacity, not a quota.
+    key: 'overloaded',
+    severity: 'warning',
+    isLimit: false,
+    retryable: true,
+    patterns: ['at capacity', 'overloaded', 'serveroverloaded', 'server overloaded', ' 529', 'http 529', 'try a different model'],
+  },
   {
     key: 'limit',
     severity: 'warning',

@@ -669,7 +669,10 @@ export function* transformSDKMessage(
           permissionMode: message.permissionMode,
         };
       } else if (message.subtype === 'compact_boundary') {
-        yield { type: 'context_compacted' };
+        const tokensAfter = message.compact_metadata?.post_tokens;
+        yield typeof tokensAfter === 'number'
+          ? { type: 'context_compacted', tokensAfter }
+          : { type: 'context_compacted' };
       } else if (message.subtype === 'task_started') {
         const started = transformTaskStarted(message);
         if (started) yield started;

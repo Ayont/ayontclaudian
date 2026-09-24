@@ -29,3 +29,23 @@ export function preserveHistoryBeforeSessionBoundary(
   }
   return [...cached.slice(0, boundaryIndex + 1), ...hydrated];
 }
+
+/**
+ * The part of the visible history the provider still holds. After a compaction
+ * (a `context_compacted` block) or a fresh condensed session, everything before
+ * it was replaced by a summary: replaying it would refill the window, and an
+ * estimate over the whole transcript would read "full" forever.
+ */
+export function historyInContext(messages: readonly ChatMessage[]): ChatMessage[] {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.sessionBoundary === 'condensed') {
+      return messages.slice(index + 1);
+    }
+    if (message.contentBlocks?.some((block) => block.type === 'context_compacted')) {
+      // The compacting answer is where the provider's summary begins.
+      return messages.slice(index);
+    }
+  }
+  return [...messages];
+}

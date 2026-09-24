@@ -482,6 +482,8 @@ export class GrokChatRuntime implements ChatRuntime {
           promptText,
           responseText,
           usageRaw: streamState.usageRaw,
+          callUsageRaw: streamState.callUsageRaw,
+          compactedTokens: streamState.compactedTokens,
         }),
         sessionId: this.sessionId,
       };
@@ -634,13 +636,19 @@ export class GrokChatRuntime implements ChatRuntime {
     promptText: string;
     responseText: string;
     usageRaw: Record<string, unknown> | null;
+    callUsageRaw?: Record<string, unknown> | null;
+    compactedTokens?: number | null;
   }): UsageInfo {
     const reported = params.usageRaw
       ? readGrokReportedUsage(params.usageRaw, params.model)
       : null;
     if (reported) {
+      const lastCall = params.callUsageRaw
+        ? readGrokReportedUsage(params.callUsageRaw, params.model)
+        : null;
       return buildGrokUsageInfo({
         reported,
+        fillTokens: lastCall?.contextTokens ?? params.compactedTokens ?? undefined,
         fallbackContextWindow: getGrokModelContextWindow(params.model),
         model: params.model || undefined,
       });

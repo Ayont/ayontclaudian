@@ -348,6 +348,11 @@ export class ClineChatRuntime implements ChatRuntime {
         callFill.startCall();
         return;
       }
+      if (event.kind === 'compacted') {
+        callFill.startCall();
+        pendingChunks.push({ type: 'context_compacted' });
+        return;
+      }
       if (event.kind === 'call_usage') {
         if (event.usage) callFill.addUsage(event.usage);
         return;

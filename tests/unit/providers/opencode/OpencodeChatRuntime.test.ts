@@ -110,6 +110,41 @@ describe('OpencodeChatRuntime', () => {
     });
   });
 
+  it('marks a /compact turn and keeps the summarizing call off the meter', async () => {
+    const plugin = createMockPlugin({
+      settings: { providerConfigs: { opencode: { enabled: true } } },
+    });
+    const runtime = new OpencodeChatRuntime(plugin);
+    jest.spyOn(ProviderRegistry, 'resolveSettingsProviderId').mockReturnValue('opencode');
+    jest.spyOn(ProviderSettingsCoordinator, 'getProviderSettingsSnapshot').mockReturnValue(plugin.settings);
+    (runtime as any).connection = {
+      prompt: jest.fn().mockImplementation(async () => {
+        await (runtime as any).handleSessionNotification({
+          sessionId: 'session-1',
+          update: { sessionUpdate: 'usage_update', size: 200_000, used: 180_000 },
+        });
+        return { stopReason: 'end_turn', usage: { inputTokens: 180_000, outputTokens: 3_000, totalTokens: 183_000 } };
+      }),
+    };
+    (runtime as any).sessionId = 'session-1';
+    (runtime as any).loadedSessionId = 'session-1';
+    (runtime as any).ensureReady = jest.fn().mockResolvedValue(true);
+    jest.spyOn(runtime as any, 'applySelectedMode').mockResolvedValue(undefined);
+    jest.spyOn(runtime as any, 'applySelectedModel').mockResolvedValue(undefined);
+    jest.spyOn(runtime as any, 'applySelectedEffort').mockResolvedValue(undefined);
+
+    const chunks: StreamChunk[] = [];
+    for await (const chunk of runtime.query(runtime.prepareTurn({ text: '/compact' }))) {
+      chunks.push(chunk);
+    }
+
+    const boundary = chunks.findIndex((chunk) => chunk.type === 'context_compacted');
+    const finalUsage = chunks.findIndex((chunk) => chunk.type === 'usage' && chunk.usage.reportType === 'final');
+    expect(boundary).toBeGreaterThanOrEqual(0);
+    expect(finalUsage).toBeGreaterThan(boundary);
+    expect(chunks[finalUsage]).toMatchObject({ contextDisplay: 'preserve' });
+  });
+
   it('captures available ACP commands even when no turn is active', async () => {
     const runtime = new OpencodeChatRuntime(createMockPlugin());
     runtime.syncConversationState({ providerState: {}, sessionId: 'session-1' });

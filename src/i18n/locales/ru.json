@@ -95,6 +95,11 @@
       "estimatedPrefix": "Оценка · ",
       "nearLimitCompact": "Лимит почти достигнут – сжать с помощью {command}",
       "nearLimit": "Лимит почти достигнут – продолжить с меньшим контекстом"
+    },
+    "longText": {
+      "showMore": "Показать больше",
+      "showLess": "Свернуть",
+      "lines": "Строк: {count}"
     }
   },
   "settings": {

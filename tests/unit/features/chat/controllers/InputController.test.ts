@@ -240,6 +240,25 @@ function createSendableDeps(
   return result;
 }
 
+describe('history handed to the provider', () => {
+  it('stops at the newest compaction so a replay does not refill the window', async () => {
+    const deps = createSendableDeps();
+    deps.state.messages = [
+      { id: 'u-old', role: 'user', content: 'OLD-TURN', timestamp: 1 },
+      { id: 'a-old', role: 'assistant', content: 'old answer', timestamp: 2, sessionBoundary: 'condensed' },
+      { id: 'u-new', role: 'user', content: 'after the boundary', timestamp: 3 },
+      { id: 'a-new', role: 'assistant', content: 'fresh answer', timestamp: 4 },
+    ];
+    deps.mockAgentService.query.mockImplementation(() => createMockStream([{ type: 'done' }]));
+    deps.getInputEl().value = 'next question';
+
+    await new InputController(deps).sendMessage();
+
+    const history = deps.mockAgentService.query.mock.calls[0][1] as Array<{ id: string }>;
+    expect(history.map((message) => message.id)).toEqual(['u-new', 'a-new']);
+  });
+});
+
 describe('cross-provider carry on the first send', () => {
   it('hands the target runtime the full local carry and no duplicate history', async () => {
     const userConstraint = 'KEEP-THE-PORTAL-REVERSIBLE';

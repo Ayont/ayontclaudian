@@ -39,4 +39,6 @@ export const OMP_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> = Object.
   // `compact` is a builtin with an ACP `handle` (slash-commands/builtin-lifecycle.ts):
   // advertised in `available_commands_update`, run by executeAcpBuiltinSlashCommand.
   compact: Object.freeze({ command: '/compact', availability: 'advertised' }),
+  // `compaction.enabled` defaults to true (src/config/settings-schema.ts, omp 18.2.11).
+  autoCompact: true,
 });

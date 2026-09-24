@@ -129,6 +129,8 @@ export class KimiChatRuntime implements ChatRuntime {
           }
         },
       },
+      // Only the legacy kimi-cli runs slash commands headless; see the handler.
+      { runsSlashCompact: () => !this.supportsNativeGoal() },
     );
   }
 

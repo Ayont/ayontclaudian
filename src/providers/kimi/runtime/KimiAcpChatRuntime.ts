@@ -44,14 +44,19 @@ import {
   type AcpSessionNotification,
   AcpSessionUpdateNormalizer,
   AcpSubprocess,
+  type AcpUsageUpdate,
+  buildAcpUsageInfo,
 } from '../../acp';
 import { openWithMcpFallback, resolveClaudianAcpMcpServers } from '../../acp/acpMcpServers';
-import { KIMI_PROVIDER_CAPABILITIES } from '../capabilities';
+import { KIMI_ACP_PROVIDER_CAPABILITIES } from '../capabilities';
 import { createKimiAcpToolStreamAdapter } from '../normalization/kimiAcpToolNormalization';
 import { getKimiProviderSettings, KIMI_PROVIDER_ID } from '../settings';
 import { buildPersistedKimiState, getKimiState, type KimiProviderState } from '../types';
 import { KIMI_KEEPALIVE_INTERVAL_MS, KIMI_KEEPALIVE_MAX_SILENCE_MS } from './keepalive';
 import { buildKimiRuntimeEnv } from './KimiRuntimeEnvironment';
+
+/** How long a settled turn waits for Kimi's trailing `usage_update`. */
+const KIMI_USAGE_UPDATE_GRACE_MS = 400;
 
 interface ActiveTurn {
   queue: StreamChunkQueue;
@@ -120,14 +125,17 @@ export class KimiAcpChatRuntime implements ChatRuntime {
   private sessionInvalidated = false;
   private readonly sessionUpdateNormalizer = new AcpSessionUpdateNormalizer();
   private readonly planTodos = new AcpPlanTodoBridge();
-  private readonly supportedCommands: SlashCommand[] = [];
+  private supportedCommands: SlashCommand[] = [];
+  /** Latest `usage_update`; Kimi sends it only after a turn settles. */
+  private contextUsage: AcpUsageUpdate | null = null;
+  private readonly usageWaiters: Array<() => void> = [];
   private readonly toolStreamAdapter = createKimiAcpToolStreamAdapter();
   private transport: AcpJsonRpcTransport | null = null;
 
   constructor(private readonly plugin: ClaudianPlugin) {}
 
   getCapabilities(): Readonly<ProviderCapabilities> {
-    return KIMI_PROVIDER_CAPABILITIES;
+    return KIMI_ACP_PROVIDER_CAPABILITIES;
   }
 
   prepareTurn(request: ChatTurnRequest): PreparedChatTurn {
@@ -295,9 +303,17 @@ export class KimiAcpChatRuntime implements ChatRuntime {
         prompt: promptBlocks,
         sessionId,
       })
-      .then((response) => {
+      .then(async (response) => {
         if (response.userMessageId) {
           this.currentTurnMetadata.userMessageId = response.userMessageId;
+        }
+        const usageBefore = this.contextUsage;
+        await this.waitForUsageUpdate(usageBefore);
+        const usage = this.contextUsage !== usageBefore
+          ? buildAcpUsageInfo({ contextWindow: this.contextUsage, model: queryOptions?.model, reportType: 'final' })
+          : null;
+        if (usage) {
+          activeTurn.queue.push({ sessionId, type: 'usage', usage });
         }
         activeTurn.queue.push({ type: 'done' });
         activeTurn.queue.close();
@@ -387,7 +403,22 @@ export class KimiAcpChatRuntime implements ChatRuntime {
   }
 
   async getSupportedCommands(): Promise<SlashCommand[]> {
-    return this.supportedCommands;
+    return [...this.supportedCommands];
+  }
+
+  /** Kimi reads its context size after the turn; a short wait catches it. */
+  private waitForUsageUpdate(previous: AcpUsageUpdate | null): Promise<void> {
+    if (this.contextUsage !== previous) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      const done = (): void => {
+        window.clearTimeout(timer);
+        const index = this.usageWaiters.indexOf(done);
+        if (index >= 0) this.usageWaiters.splice(index, 1);
+        resolve();
+      };
+      const timer = window.setTimeout(done, KIMI_USAGE_UPDATE_GRACE_MS);
+      this.usageWaiters.push(done);
+    });
   }
 
   getAuxiliaryModel?(): string | null {
@@ -621,6 +652,25 @@ export class KimiAcpChatRuntime implements ChatRuntime {
   }
 
   private async handleSessionNotification(notification: AcpSessionNotification): Promise<void> {
+    const normalized = this.sessionUpdateNormalizer.normalize(notification.update);
+    if (!normalized) {
+      return;
+    }
+
+    // Both arrive outside a turn: the command list right after session/new,
+    // usage right after the prompt response (`onTurnEnded` → emitUsageUpdate).
+    if (notification.sessionId === this.sessionId) {
+      if (normalized.type === 'commands') {
+        this.supportedCommands = normalized.commands.map((command) => ({ ...command }));
+        return;
+      }
+      if (normalized.type === 'usage') {
+        this.contextUsage = normalized.usage;
+        for (const resolve of this.usageWaiters.splice(0)) resolve();
+        return;
+      }
+    }
+
     const activeTurn = this.activeTurn;
     if (!activeTurn || activeTurn.sessionId !== notification.sessionId) {
       return;
@@ -628,11 +678,6 @@ export class KimiAcpChatRuntime implements ChatRuntime {
 
     // Real wire activity — refresh the keepalive silence cap.
     this.lastNotificationAt = Date.now();
-
-    const normalized = this.sessionUpdateNormalizer.normalize(notification.update);
-    if (!normalized) {
-      return;
-    }
 
     switch (normalized.type) {
       case 'current_mode': {

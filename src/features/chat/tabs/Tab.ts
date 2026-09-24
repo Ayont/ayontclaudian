@@ -72,7 +72,7 @@ import { NavigationSidebar } from '../ui/NavigationSidebar';
 import { extractRecallablePrompts, PromptHistoryCursor } from '../ui/promptHistory';
 import { StatusPanel } from '../ui/StatusPanel';
 import { StreamStatusBar } from '../ui/StreamStatusBar';
-import { autoResizeTextarea } from '../ui/textareaResize';
+import { autoResizeTextarea, registerComposerExpandToggle } from '../ui/textareaResize';
 import { VoiceInput } from '../ui/VoiceInput';
 import { buildWorkspaceQuickPromptRow } from '../ui/WorkspaceModeToggle';
 import { recalculateUsageForModel } from '../utils/usageInfo';
@@ -1124,6 +1124,7 @@ function buildTabDOM(contentEl: HTMLElement, plugin?: ClaudianPlugin): TabDOMEle
       dir: 'auto',
     },
   });
+  registerComposerExpandToggle(inputEl, inputWrapper.createEl('button'));
 
   // Mode quick actions (Code/Work) — inserted between nav row and composer;
   // the container's mode class picks the visible set.

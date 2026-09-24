@@ -164,6 +164,41 @@ describe('CodexNotificationRouter', () => {
 
   // app-server 0.155.1: `model/rerouted` { threadId, turnId, fromModel, toModel, reason }.
   // Without a notice the picker still names the chosen model while another one answers.
+  describe('turn errors', () => {
+    const capacity = { message: 'Selected model is at capacity. Please try a different model.', codexErrorInfo: 'serverOverloaded' };
+
+    // Recorded 2026-09-24: Codex retried five times, then failed the turn; the
+    // error notification and turn/completed both carried the same error.
+    it('shows a failed turn\'s error once, not once per notification', () => {
+      router.beginTurn({ isPlanTurn: false });
+      router.handleNotification('error', { threadId: 't', turnId: 'u', willRetry: false, error: capacity });
+      router.handleNotification('turn/completed', { threadId: 't', turn: { id: 'u', items: [], status: 'failed', error: capacity } });
+
+      expect(chunks.filter((c) => c.type === 'error')).toEqual([{ type: 'error', content: capacity.message }]);
+    });
+
+    it('shows Codex\'s own retries in the live status line only', () => {
+      router.beginTurn({ isPlanTurn: false });
+      router.handleNotification('error', { threadId: 't', turnId: 'u', willRetry: true, error: capacity });
+
+      expect(chunks).toEqual([{
+        type: 'notice',
+        level: 'info',
+        transient: true,
+        content: expect.stringContaining('Codex versucht es erneut'),
+      }]);
+    });
+
+    it('shows the same error again in a later turn', () => {
+      router.beginTurn({ isPlanTurn: false });
+      router.handleNotification('error', { threadId: 't', turnId: 'u', willRetry: false, error: capacity });
+      router.beginTurn({ isPlanTurn: false });
+      router.handleNotification('error', { threadId: 't', turnId: 'v', willRetry: false, error: capacity });
+
+      expect(chunks.filter((c) => c.type === 'error')).toHaveLength(2);
+    });
+  });
+
   describe('model reroute', () => {
     it('says which model answers instead and why', () => {
       router.handleNotification('model/rerouted', {
@@ -1218,7 +1253,9 @@ describe('CodexNotificationRouter', () => {
         turnId: 'turn1',
       });
 
-      expect(chunks).toHaveLength(0);
+      // No error card; the retry only shows in the live status line.
+      expect(chunks.filter((chunk) => chunk.type === 'error')).toHaveLength(0);
+      expect(chunks).toEqual([expect.objectContaining({ type: 'notice', transient: true })]);
     });
   });
 

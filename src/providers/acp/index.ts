@@ -1,4 +1,5 @@
 export * from './AcpClientConnection';
+export * from './acpCompactTurn';
 export * from './AcpJsonRpcTransport';
 export * from './AcpPlanTodoBridge';
 export * from './AcpSessionConfig';

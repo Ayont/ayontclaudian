@@ -95,6 +95,11 @@
       "estimatedPrefix": "推定 · ",
       "nearLimitCompact": "上限間近 – {command} で圧縮",
       "nearLimit": "上限間近 – コンテキストを減らして続行"
+    },
+    "longText": {
+      "showMore": "もっと見る",
+      "showLess": "折りたたむ",
+      "lines": "{count} 行"
     }
   },
   "settings": {

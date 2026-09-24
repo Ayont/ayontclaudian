@@ -218,6 +218,22 @@ describe('per-call usage', () => {
     });
   });
 
+  it('recognizes a compaction notice (reason passed through by @cline/core)', () => {
+    for (const reason of ['auto_compaction', 'manual_compaction', 'compaction_budget_emergency']) {
+      expect(parseClineJsonLine(JSON.stringify({
+        type: 'agent_event',
+        payload: { sessionId: 's1', event: { type: 'notice', noticeType: 'status', message: 'Kontext verdichtet', reason } },
+      }))).toEqual({ kind: 'compacted', sessionId: 's1' });
+    }
+  });
+
+  it('leaves other status notices alone', () => {
+    expect(parseClineJsonLine(JSON.stringify({
+      type: 'agent_event',
+      payload: { sessionId: 's1', event: { type: 'notice', noticeType: 'status', message: 'retry', reason: 'recovery_notice' } },
+    }))?.kind).not.toBe('compacted');
+  });
+
   it('marks where a new model call begins', () => {
     expect(parseClineJsonLine(JSON.stringify({
       type: 'agent_event',

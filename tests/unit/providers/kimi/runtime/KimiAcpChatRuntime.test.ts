@@ -55,6 +55,64 @@ describe('KimiAcpChatRuntime', () => {
     expect(connection.loadSession).toHaveBeenCalledWith({ cwd: '/tmp/vault', mcpServers: expected, sessionId: 'session-new' });
   });
 
+  it('offers the /compact the ACP agent advertises', () => {
+    const runtime = new KimiAcpChatRuntime(makePlugin());
+    expect(runtime.getCapabilities().compact).toEqual({ command: '/compact', availability: 'advertised' });
+    expect(runtime.getCapabilities().autoCompact).toBe(true);
+  });
+
+  it('keeps the command list Kimi sends outside a turn', async () => {
+    const runtime = new KimiAcpChatRuntime(makePlugin());
+    (runtime as any).sessionId = 'session-1';
+
+    await (runtime as any).handleSessionNotification({
+      sessionId: 'session-1',
+      update: {
+        sessionUpdate: 'available_commands_update',
+        availableCommands: [{ name: 'compact', description: 'Compact the context' }],
+      },
+    });
+
+    const commands = await runtime.getSupportedCommands();
+    expect(commands.map((command) => command.name)).toContain('compact');
+  });
+
+  it('reports the window fill Kimi sends right after the turn settles', async () => {
+    const runtime = new KimiAcpChatRuntime(makePlugin());
+    jest.spyOn(runtime as any, 'ensureReady').mockResolvedValue(true);
+    jest.spyOn(runtime as any, 'applyPermissionMode').mockResolvedValue(undefined);
+    jest.spyOn(runtime as any, 'applyModel').mockResolvedValue(undefined);
+    jest.spyOn(runtime as any, 'applyThinking').mockResolvedValue(undefined);
+    (runtime as any).sessionId = 'session-1';
+    (runtime as any).connection = {
+      prompt: jest.fn().mockImplementation(async () => {
+        // Kimi resolves the prompt first, then pushes usage_update.
+        setTimeout(() => {
+          void (runtime as any).handleSessionNotification({
+            sessionId: 'session-1',
+            update: { sessionUpdate: 'usage_update', used: 64_000, size: 256_000 },
+          });
+        }, 5);
+        return { stopReason: 'end_turn' };
+      }),
+    };
+
+    const chunks: any[] = [];
+    for await (const chunk of runtime.query({
+      isCompact: false,
+      mcpMentions: new Set(),
+      persistedContent: '',
+      prompt: 'Hallo',
+      request: { text: 'Hallo' },
+    } as any)) {
+      chunks.push(chunk);
+    }
+
+    const usage = chunks.find((chunk) => chunk.type === 'usage');
+    expect(usage?.usage).toMatchObject({ contextTokens: 64_000, contextWindow: 256_000, percentage: 25 });
+    expect(chunks[chunks.length - 1]).toEqual({ type: 'done' });
+  });
+
   it('exposes the kimi provider id', () => {
     const runtime = new KimiAcpChatRuntime(makePlugin());
     expect(runtime.providerId).toBe('kimi');

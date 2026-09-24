@@ -556,6 +556,37 @@ describe('keepalive', () => {
   });
 });
 
+describe('Hermes compression split', () => {
+  it('marks the boundary when Hermes rotates its session to compress', async () => {
+    const runtime = new HermesChatRuntime(createMockPlugin());
+    const turn = attachPlanTestTurn(runtime);
+
+    // acp_adapter/provenance.py: a rotation mid-turn is always compression.
+    await (runtime as any).handleSessionNotification({
+      sessionId: 'sess-1',
+      update: {
+        sessionUpdate: 'session_info_update',
+        title: 'Plan',
+        _meta: { hermes: { sessionProvenance: { previousHermesSessionId: 'h-1', currentHermesSessionId: 'h-2', reason: 'compression' } } },
+      },
+    });
+
+    expect(turn.chunks()).toEqual([{ type: 'context_compacted' }]);
+  });
+
+  it('ignores an ordinary title update', async () => {
+    const runtime = new HermesChatRuntime(createMockPlugin());
+    const turn = attachPlanTestTurn(runtime);
+
+    await (runtime as any).handleSessionNotification({
+      sessionId: 'sess-1',
+      update: { sessionUpdate: 'session_info_update', title: 'Plan' },
+    });
+
+    expect(turn.chunks()).toEqual([]);
+  });
+});
+
 describe('ACP plan updates', () => {
   it('fills the input-less todo card with the plan Hermes sends after it', async () => {
     const runtime = new HermesChatRuntime(createMockPlugin());

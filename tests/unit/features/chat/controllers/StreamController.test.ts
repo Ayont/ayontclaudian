@@ -604,6 +604,31 @@ describe('StreamController - Text Content', () => {
 
       expect(msg.contentBlocks).toContainEqual({ type: 'context_compacted' });
     });
+
+    it('resets the context meter to the compacted size', async () => {
+      const msg = createTestMessage();
+      deps.state.usage = {
+        model: 'm', inputTokens: 1, cacheCreationInputTokens: 0, cacheReadInputTokens: 0,
+        contextWindow: 200_000, contextTokens: 190_000, percentage: 95,
+      };
+
+      await controller.handleStreamChunk({ type: 'context_compacted', tokensAfter: 30_000 }, msg);
+
+      expect(deps.state.usage).toMatchObject({ contextTokens: 30_000, percentage: 15 });
+      expect(msg.contentBlocks).toContainEqual({ type: 'context_compacted' });
+    });
+
+    it('clears a stale reading when the compacted size is unknown', async () => {
+      const msg = createTestMessage();
+      deps.state.usage = {
+        model: 'm', inputTokens: 1, cacheCreationInputTokens: 0, cacheReadInputTokens: 0,
+        contextWindow: 200_000, contextTokens: 190_000, percentage: 95,
+      };
+
+      await controller.handleStreamChunk({ type: 'context_compacted' }, msg);
+
+      expect(deps.state.usage).toBeNull();
+    });
   });
 
   describe('provider goal updates', () => {
