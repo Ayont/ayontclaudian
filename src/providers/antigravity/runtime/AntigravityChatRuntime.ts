@@ -361,6 +361,9 @@ export class AntigravityChatRuntime implements ChatRuntime {
     const contextWindow = getAntigravityContextWindow(selectedModel ?? '');
     const streamToolUseEmitted = new Set<number>();
     const streamStepUsage: { latest: AgyStreamUsage | null } = { latest: null };
+    // agy compacts on its own (transcript CHECKPOINT); until a later step
+    // reports usage, the latest step still measures the old history.
+    let compactedSinceStepUsage = false;
     // Keeps transcript `thinking` out of the middle of a streaming text step.
     const thinkingSequencer = createAgyThinkingSequencer();
 
@@ -378,6 +381,9 @@ export class AntigravityChatRuntime implements ChatRuntime {
         const sessionId = event.kind === 'init'
           ? event.conversationId
           : event.conversationId || this.conversationId;
+        if (event.kind === 'step_update' && event.usage) {
+          compactedSinceStepUsage = false;
+        }
         const mappedStreamChunks = mapAgyStreamEventToChunks(event, {
           contextWindow,
           toolUseEmitted: streamToolUseEmitted,
@@ -394,7 +400,11 @@ export class AntigravityChatRuntime implements ChatRuntime {
             emittedAnyToolFromStream = true;
           }
           if (chunk.type === 'usage') {
-            pendingStreamChunks.push({ ...chunk, sessionId: sessionId || null });
+            pendingStreamChunks.push({
+              ...chunk,
+              sessionId: sessionId || null,
+              ...(compactedSinceStepUsage ? { contextDisplay: 'preserve' as const } : {}),
+            });
             continue;
           }
           pendingStreamChunks.push(chunk);
@@ -506,6 +516,9 @@ export class AntigravityChatRuntime implements ChatRuntime {
         for (const chunk of mapped) {
           if (chunk.type === 'text') {
             emittedAnyTextFromTranscript = true;
+          }
+          if (chunk.type === 'context_compacted') {
+            compactedSinceStepUsage = true;
           }
           if (chunk.type === 'thinking') {
             chunks.push(...thinkingSequencer.offerThinking(event.stepIndex, chunk));

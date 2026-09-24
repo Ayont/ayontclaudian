@@ -42,6 +42,7 @@ import {
   type WindowsCmdShimSpawnSpec,
 } from '../../../utils/windowsCmdShim';
 import { VIBE_PROVIDER_CAPABILITIES } from '../capabilities';
+import { readVibeContextTokens } from '../history/VibeSessionStore';
 import { getVibeModelContextWindow, resolveVibeModelSelection } from '../modelOptions';
 import { parseVibeStreamLine } from '../normalization/streamEvents';
 import {
@@ -74,6 +75,8 @@ export class VibeChatRuntime implements ChatRuntime {
   private isResumeRetry = false;
   private ready = false;
   private currentTurnMetadata: ChatTurnMetadata = {};
+  /** When this turn's process was spawned; older vibe 2.x entries are a resume replay. */
+  private turnStartedAt = 0;
   private readonly readyListeners = new Set<(ready: boolean) => void>();
   private activeProcess: ChildProcessWithoutNullStreams | null = null;
   private cancelled = false;
@@ -225,6 +228,7 @@ export class VibeChatRuntime implements ChatRuntime {
 
     let proc: ChildProcessWithoutNullStreams;
     let resolvedSpawnSpec: WindowsCmdShimSpawnSpec;
+    this.turnStartedAt = Date.now();
     try {
       resolvedSpawnSpec = resolveWindowsCmdShimSpawnSpec(launchSpec);
       proc = spawn(resolvedSpawnSpec.command, resolvedSpawnSpec.args, {
@@ -362,15 +366,20 @@ export class VibeChatRuntime implements ChatRuntime {
       }
 
       this.currentTurnMetadata.wasSent = true;
-      // Estimated context-window feedback: vibe reports no token usage, so
-      // approximate from the conversation history + this turn's prompt/response.
-      const contextTokens = estimateTokensForTexts([
-        ...(isRetry
-          ? []
-          : (conversationHistory ?? []).map((message) => message.content ?? '')),
-        promptText,
-        responseText,
-      ]);
+      // The stream carries no token counts; vibe keeps the latest call's
+      // prompt + completion in meta.json (`stats.context_tokens`, 0 = unknown).
+      // Only when that is missing is the fill estimated from the text.
+      const measured = this.sessionId ? readVibeContextTokens(this.sessionId) : null;
+      const compacted = streamState.emittedCompactions.size > 0;
+      const contextTokens = measured !== null && measured > 0
+        ? measured
+        : estimateTokensForTexts([
+          ...(isRetry
+            ? []
+            : (conversationHistory ?? []).map((message) => message.content ?? '')),
+          promptText,
+          responseText,
+        ]);
       yield {
         type: 'usage',
         usage: buildEstimatedUsageInfo({
@@ -380,6 +389,8 @@ export class VibeChatRuntime implements ChatRuntime {
           reportType: 'final',
         }),
         sessionId: this.sessionId,
+        // After a compaction the history estimate describes what vibe dropped.
+        ...(compacted && !(measured !== null && measured > 0) ? { contextDisplay: 'preserve' as const } : {}),
       };
       yield { type: 'done' };
     } finally {
@@ -503,9 +514,18 @@ export class VibeChatRuntime implements ChatRuntime {
     if (!event) {
       return;
     }
-    const sessionFromEvent = event.raw.session_id;
+    // vibe 2.x replays a resumed session's whole history before the new turn
+    // (cli/programmatic.py `output.start(session.history)`).
+    if (event.createdAt !== undefined && event.createdAt < this.turnStartedAt) {
+      return;
+    }
+    const sessionFromEvent = event.sessionId ?? event.raw.session_id;
     if (typeof sessionFromEvent === 'string' && sessionFromEvent.trim()) {
       this.sessionId = sessionFromEvent.trim();
+    }
+    // A compaction moves vibe into a new session; resume that one next time.
+    if (event.compaction?.newSessionId) {
+      this.sessionId = event.compaction.newSessionId;
     }
     const chunks = mapVibeEventToChunks(event, streamState, event.role === 'tool' ? nextIndex() : 0);
     for (const chunk of chunks) {

@@ -1,4 +1,7 @@
 import { EventEmitter } from 'node:events';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
 import { estimateTokensForTexts } from '@/core/providers/usage/estimateUsage';
 import type { ChatMessage, StreamChunk, UsageInfo } from '@/core/types';
@@ -214,5 +217,88 @@ describe('VibeChatRuntime stale-session history recovery', () => {
       'Nur der aktuelle Prompt',
       'Antwort.',
     ]));
+  });
+});
+
+describe('VibeChatRuntime with vibe 2.25.8 streaming entries', () => {
+  const originalHome = process.env.VIBE_HOME;
+  let home: string;
+
+  const SESSION = '7d9fe80c-6e47-829c-68c2-2a48ddd7ca53';
+  const entry = (fields: Record<string, unknown>): string => JSON.stringify({
+    sessionId: SESSION, turnId: 't2', createdAt: Date.now() + 60_000, updatedAt: 0,
+    generationStatus: 'completed', relatedEntryId: null, ...fields,
+  });
+
+  function writeMeta(sessionId: string, contextTokens: number): void {
+    const dir = path.join(home, 'logs', 'session', `session_20260924_150000_${sessionId.slice(0, 8)}`);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'meta.json'), JSON.stringify({ session_id: sessionId, stats: { context_tokens: contextTokens } }));
+  }
+
+  async function run(stdout: string): Promise<{ chunks: StreamChunk[]; runtime: VibeChatRuntime }> {
+    const proc = makeFakeProcess(4201);
+    spawn.mockImplementationOnce(() => {
+      finishProcess(proc, { code: 0, stdout });
+      return proc;
+    });
+    const runtime = new VibeChatRuntime(makePlugin());
+    const chunks: StreamChunk[] = [];
+    for await (const chunk of runtime.query(makeTurn('weiter'), [])) {
+      chunks.push(chunk);
+    }
+    return { chunks, runtime };
+  }
+
+  beforeEach(() => {
+    spawn.mockReset();
+    home = fs.mkdtempSync(path.join(os.tmpdir(), 'claudian-vibe-runtime-'));
+    process.env.VIBE_HOME = home;
+  });
+
+  afterEach(() => {
+    if (originalHome === undefined) delete process.env.VIBE_HOME;
+    else process.env.VIBE_HOME = originalHome;
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+
+  it('skips the history vibe replays before a resumed turn', async () => {
+    const old = JSON.stringify({
+      sessionId: SESSION, turnId: 't1', createdAt: 1_000, updatedAt: 1_000, generationStatus: 'completed', relatedEntryId: null,
+      id: 'm-old', type: 'message', role: 'assistant', content: [{ type: 'text', text: 'ALTE ANTWORT' }],
+    });
+    const fresh = entry({ id: 'm-new', type: 'message', role: 'assistant', content: [{ type: 'text', text: 'Neue Antwort.' }] });
+
+    const { chunks } = await run(`${old}\n${fresh}\n`);
+
+    const text = chunks.filter((chunk) => chunk.type === 'text').map((chunk) => (chunk as { content: string }).content).join('');
+    expect(text).toBe('Neue Antwort.');
+  });
+
+  it('keeps the camelCase session id for the next resume', async () => {
+    const { runtime } = await run(`${entry({ id: 'm', type: 'message', role: 'assistant', content: [{ type: 'text', text: 'ok' }] })}\n`);
+
+    expect(runtime.getSessionId()).toBe(SESSION);
+  });
+
+  it('reports the fill vibe measured instead of an estimate', async () => {
+    writeMeta(SESSION, 48_200);
+
+    const { chunks } = await run(`${entry({ id: 'm', type: 'message', role: 'assistant', content: [{ type: 'text', text: 'ok' }] })}\n`);
+
+    expect(findLastUsage(chunks)).toMatchObject({ contextTokens: 48_200, reportType: 'final' });
+  });
+
+  it('follows vibe into the compacted session and keeps the unknown fill off the meter', async () => {
+    const NEXT = 'aa11bb22-0000-0000-0000-000000000000';
+    writeMeta(NEXT, 0);
+    const checkpoint = entry({ id: 'cp', type: 'checkpoint', kind: 'compaction', message: 'Context compacted', details: { oldSessionId: SESSION, newSessionId: NEXT } });
+
+    const { chunks, runtime } = await run(`${checkpoint}\n`);
+
+    expect(chunks).toContainEqual({ type: 'context_compacted' });
+    expect(runtime.getSessionId()).toBe(NEXT);
+    const usage = chunks.filter((chunk) => chunk.type === 'usage').pop();
+    expect(usage).toMatchObject({ contextDisplay: 'preserve' });
   });
 });

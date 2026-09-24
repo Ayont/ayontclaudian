@@ -32,6 +32,8 @@ export interface VibeStreamState {
   emittedToolResult: Set<string>;
   /** Maps a tool-call id to its humanized name (for fallback result naming). */
   toolNames: Map<string, string>;
+  /** vibe 2.x compaction checkpoints already reported. */
+  emittedCompactions: Set<string>;
 }
 
 /** Fresh streaming state for a new query loop. */
@@ -42,6 +44,7 @@ export function createVibeStreamState(): VibeStreamState {
     emittedToolUse: new Set<string>(),
     emittedToolResult: new Set<string>(),
     toolNames: new Map<string, string>(),
+    emittedCompactions: new Set<string>(),
   };
 }
 
@@ -80,15 +83,28 @@ export function mapVibeEventToChunks(
     }
 
     for (const call of event.toolCalls) {
-      if (state.emittedToolUse.has(call.id)) {
-        continue;
+      if (!state.emittedToolUse.has(call.id)) {
+        state.emittedToolUse.add(call.id);
+        // vibe 2.x effects already carry the canonical name.
+        const name = event.entryType === 'effect' ? call.name : humanizeVibeTool(call.name);
+        state.toolNames.set(call.id, name);
+        chunks.push({ type: 'tool_use', id: call.id, name, input: call.input });
       }
-      state.emittedToolUse.add(call.id);
-      const name = humanizeVibeTool(call.name);
-      state.toolNames.set(call.id, name);
-      chunks.push({ type: 'tool_use', id: call.id, name, input: call.input });
+      if (event.toolResult && !state.emittedToolResult.has(call.id)) {
+        state.emittedToolResult.add(call.id);
+        chunks.push({ type: 'tool_result', id: call.id, content: event.toolResult.content, isError: event.toolResult.isError });
+      }
     }
 
+    return chunks;
+  }
+
+  if (event.compaction) {
+    const id = typeof event.raw.id === 'string' ? event.raw.id : 'vibe-compaction';
+    if (!state.emittedCompactions.has(id)) {
+      state.emittedCompactions.add(id);
+      chunks.push({ type: 'context_compacted' });
+    }
     return chunks;
   }
 

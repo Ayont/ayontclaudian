@@ -16,6 +16,12 @@
  *       text} parts (first part is often a `<system>...</system>` status
  *       wrapper), correlated to a prior assistant call via `tool_call_id`.
  *
+ * vibe 2.x (verified against the installed 2.25.8 source, app_server/models.py)
+ * writes camelCase PublicHistoryEntry objects tagged by `type` instead:
+ * `message` (role + text blocks), `reasoning`, `effect` (a finished tool call
+ * with its result), `checkpoint` (`kind: "compaction"` moves to a new session),
+ * `notice` and `callback`. Both shapes parse into the same event.
+ *
  * This module turns raw lines into a stable, internal event shape. The mapping
  * onto chat chunks/messages lives in `streamMapping.ts`.
  */
@@ -53,6 +59,16 @@ export interface VibeStreamEvent {
   toolCalls: VibeToolCall[];
   /** Correlation id on a `role: "tool"` result line. */
   toolCallId?: string;
+  /** vibe 2.x entry kind (`message`, `reasoning`, `effect`, `checkpoint`, …); absent on 1.x lines. */
+  entryType?: string;
+  /** vibe 2.x session the entry belongs to. */
+  sessionId?: string;
+  /** vibe 2.x creation time (epoch ms); a resumed run first replays older entries. */
+  createdAt?: number;
+  /** A finished vibe 2.x effect carries its tool result on the same line. */
+  toolResult?: { content: string; isError: boolean };
+  /** A finished vibe 2.x compaction; vibe continues in a new session. */
+  compaction?: { newSessionId?: string };
   /** Original parsed object, for fields not yet modelled (e.g. a session id). */
   raw: Record<string, unknown>;
 }
@@ -133,6 +149,95 @@ function parseToolCalls(value: unknown): VibeToolCall[] {
   return calls;
 }
 
+function toRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+// vibe 2.25.8 `ToolEffectKind` → the chat's canonical tool names and input keys.
+function canonicalEffectCall(detail: Record<string, unknown>): { name: string; input: Record<string, unknown> } {
+  const kind = toStr(detail.kind) ?? '';
+  const toolName = toStr(detail.toolName) ?? kind;
+  const input = toRecord(detail.input) ?? {};
+  const text = (key: string): string | undefined => toStr(input[key]);
+  switch (kind) {
+    case 'shell':
+      return { name: 'Bash', input: { command: text('command') ?? '' } };
+    case 'file_read':
+      return { name: 'Read', input: { file_path: text('filePath') ?? '' } };
+    case 'file_write':
+      return { name: 'Write', input: { file_path: text('filePath') ?? '', content: text('content') ?? '' } };
+    case 'file_edit':
+      return {
+        name: 'Edit',
+        input: {
+          file_path: text('filePath') ?? '',
+          ...(text('oldString') !== undefined ? { old_string: text('oldString') } : {}),
+          ...(text('newString') !== undefined ? { new_string: text('newString') } : {}),
+        },
+      };
+    case 'file_search':
+      return { name: 'Grep', input: { pattern: text('pattern') ?? '', path: text('path') ?? '.' } };
+    case 'web_search':
+      return { name: 'WebSearch', input: { query: text('query') ?? '' } };
+    case 'web_fetch':
+      return { name: 'WebFetch', input: { url: text('url') ?? '' } };
+    default:
+      return { name: humanizeVibeTool(toolName), input };
+  }
+}
+
+/** Reads one vibe 2.x PublicHistoryEntry (app_server/models.py), or null when it is not one. */
+function parseHistoryEntry(record: Record<string, unknown>, type: string): VibeStreamEvent | null {
+  const common = {
+    entryType: type,
+    sessionId: toStr(record.sessionId),
+    createdAt: typeof record.createdAt === 'number' ? record.createdAt : undefined,
+    toolCalls: [] as VibeToolCall[],
+    raw: record,
+  };
+  switch (type) {
+    case 'message':
+      return { ...common, role: toStr(record.role) ?? 'assistant', parts: parseContentParts(record.content) };
+    case 'reasoning': {
+      const text = toStr(record.text);
+      return { ...common, role: 'assistant', parts: text ? [{ type: 'think', text }] : [] };
+    }
+    case 'effect': {
+      const detail = toRecord(record.detail) ?? {};
+      const state = toRecord(record.state) ?? {};
+      const id = toStr(record.id) ?? 'vibe-effect';
+      const call = canonicalEffectCall(detail);
+      const status = toStr(state.status);
+      const failed = status === 'failed' || status === 'cancelled';
+      const output = toStr(state.outputText)
+        || toStr(toRecord(state.error)?.message)
+        || toStr(state.reason)
+        || '';
+      const settled = status === 'completed' || failed || status === 'skipped';
+      return {
+        ...common,
+        role: 'assistant',
+        parts: [],
+        toolCalls: [{ id, name: call.name, input: call.input }],
+        ...(settled ? { toolResult: { content: output, isError: failed } } : {}),
+      };
+    }
+    case 'checkpoint': {
+      const done = toStr(record.generationStatus) === 'completed';
+      if (toStr(record.kind) !== 'compaction' || !done) {
+        return { ...common, role: 'checkpoint', parts: [] };
+      }
+      const newSessionId = toStr(toRecord(record.details)?.newSessionId);
+      return { ...common, role: 'checkpoint', parts: [], compaction: newSessionId ? { newSessionId } : {} };
+    }
+    case 'notice':
+    case 'callback':
+      return { ...common, role: type, parts: [] };
+    default:
+      return null;
+  }
+}
+
 /** Parse a single stream-json NDJSON line. Returns `null` for blank/invalid lines. */
 export function parseVibeStreamLine(line: string): VibeStreamEvent | null {
   const trimmed = line.trim();
@@ -149,6 +254,10 @@ export function parseVibeStreamLine(line: string): VibeStreamEvent | null {
     return null;
   }
   const record = obj as Record<string, unknown>;
+  const entryType = toStr(record.type);
+  if (entryType) {
+    return parseHistoryEntry(record, entryType);
+  }
   const role = toStr(record.role);
   if (!role) {
     return null;

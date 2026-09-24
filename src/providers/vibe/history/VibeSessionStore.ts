@@ -2,6 +2,8 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
+import { parse as parseToml } from 'smol-toml';
+
 /**
  * Filesystem layout helpers for the Vibe (`vibe`) data directory:
  *
@@ -14,6 +16,11 @@ import * as path from 'node:path';
  * deletion — never for live streaming. The exact log filename inside a session
  * directory is not contractually fixed by the CLI, so `readVibeSessionLog`
  * resolves the newest NDJSON-looking file in the directory defensively.
+ *
+ * vibe 2.x logs sessions elsewhere (`logs/session/session_<date>_<time>_<id8>/`
+ * with meta.json + messages.jsonl); `findVibeSessionLogDir` reads the window
+ * fill from there. History hydration still uses the path above: its parser does
+ * not rebuild user turns from messages.jsonl yet.
  */
 
 const VIBE_DATA_SUBDIR = '.vibe';
@@ -140,4 +147,80 @@ export function deleteVibeSessionDir(sessionId: string): void {
   } catch {
     // Best-effort cleanup; never throw from history teardown.
   }
+}
+
+/**
+ * Where vibe 2.25.8 writes its session logs: `[session_logging] save_dir` in
+ * config.toml, else `VIBE_HOME/logs/session` (vibe/core/paths/_vibe_home.py).
+ */
+export function getVibeSessionLogRoot(): string {
+  const fallback = path.join(getVibeDataDir(), 'logs', 'session');
+  let raw: string;
+  try {
+    raw = fs.readFileSync(getVibeConfigPath(), 'utf-8');
+  } catch {
+    return fallback;
+  }
+  try {
+    const config = parseToml(raw) as Record<string, unknown>;
+    const logging = config.session_logging;
+    const saveDir = logging && typeof logging === 'object'
+      ? (logging as Record<string, unknown>).save_dir
+      : undefined;
+    if (typeof saveDir === 'string' && saveDir.trim()) {
+      const trimmed = saveDir.trim();
+      return trimmed.startsWith('~') ? path.join(os.homedir(), trimmed.slice(1)) : trimmed;
+    }
+  } catch {
+    // An unreadable config leaves vibe on its default directory too.
+  }
+  return fallback;
+}
+
+function readSessionMeta(dir: string): Record<string, unknown> | null {
+  try {
+    const parsed: unknown = JSON.parse(fs.readFileSync(path.join(dir, 'meta.json'), 'utf-8'));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The log directory of one session. Vibe names it
+ * `session_<date>_<time>_<first 8 id chars>` (session_interop.py); the short id
+ * can repeat, so meta.json's `session_id` decides.
+ */
+export function findVibeSessionLogDir(sessionId: string): string | null {
+  const shortId = sessionId.trim().slice(0, 8);
+  if (!shortId) return null;
+  const root = getVibeSessionLogRoot();
+  let names: string[];
+  try {
+    names = fs.readdirSync(root);
+  } catch {
+    return null;
+  }
+  const candidates = names
+    .filter((name) => name.startsWith('session_') && name.endsWith(`_${shortId}`))
+    .map((name) => path.join(root, name));
+  const exact = candidates.filter((dir) => readSessionMeta(dir)?.session_id === sessionId).sort();
+  // Directory names start with the date, so the last one is the newest.
+  return exact.length > 0 ? exact[exact.length - 1] : null;
+}
+
+/**
+ * The window fill vibe records for a session: `stats.context_tokens`, the
+ * prompt + completion of its latest model call (core/agent_loop/_loop.py).
+ * 0 means "unknown" (right after a compaction, or before the first call).
+ */
+export function readVibeContextTokens(sessionId: string): number | null {
+  const dir = findVibeSessionLogDir(sessionId);
+  if (!dir) return null;
+  const stats = readSessionMeta(dir)?.stats;
+  if (!stats || typeof stats !== 'object') return null;
+  const tokens = (stats as Record<string, unknown>).context_tokens;
+  return typeof tokens === 'number' && Number.isFinite(tokens) && tokens >= 0 ? tokens : null;
 }

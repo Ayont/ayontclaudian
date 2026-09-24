@@ -170,6 +170,15 @@ export function isToolEvent(event: AntigravityTranscriptEvent): boolean {
 }
 
 /**
+ * agy's compaction summary. Every SYSTEM `CHECKPOINT` in real transcripts
+ * (agy 1.2.7, 638 of 638) replaces the history before it: "{{ CHECKPOINT n }}
+ * … truncated due to its long length" or "# Resuming from a compaction".
+ */
+export function isCompactionCheckpoint(event: AntigravityTranscriptEvent): boolean {
+  return event.source === 'SYSTEM' && event.type === 'CHECKPOINT';
+}
+
+/**
  * Echoed user input and internal bookkeeping the live chat UI already owns.
  *
  * `SYSTEM`/`USER_*`-sourced events (CONVERSATION_HISTORY, SYSTEM_MESSAGE,

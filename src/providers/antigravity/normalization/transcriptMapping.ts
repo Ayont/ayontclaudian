@@ -18,6 +18,7 @@ import {
   hasPlannerToolCalls,
   humanizeToolType,
   isAssistantTextEvent,
+  isCompactionCheckpoint,
   isContentTruncated,
   isIgnorableEvent,
   isSubagentEvent,
@@ -156,6 +157,8 @@ export interface AntigravityTailState {
   emittedThinking: Set<number>;
   /** Subagent ref per tool step (when the step belongs to a subagent). */
   subagentByStep: Map<number, AntigravitySubagentRef>;
+  /** Checkpoint steps already reported as a compaction (agy may repeat a line). */
+  emittedCompactions: Set<number>;
 }
 
 /** Fresh tailing state for a new query loop. */
@@ -168,6 +171,7 @@ export function createAntigravityTailState(): AntigravityTailState {
     resolvedCallByStep: new Map<number, AntigravityToolCall | null>(),
     emittedThinking: new Set<number>(),
     subagentByStep: new Map<number, AntigravitySubagentRef>(),
+    emittedCompactions: new Set<number>(),
   };
 }
 
@@ -247,6 +251,14 @@ export function mapTranscriptEventToChunks(
   if (thinking && !state.emittedThinking.has(event.stepIndex)) {
     state.emittedThinking.add(event.stepIndex);
     chunks.push({ type: 'thinking', content: thinking });
+  }
+
+  if (isCompactionCheckpoint(event)) {
+    if (!state.emittedCompactions.has(event.stepIndex)) {
+      state.emittedCompactions.add(event.stepIndex);
+      chunks.push({ type: 'context_compacted' });
+    }
+    return chunks;
   }
 
   if (isIgnorableEvent(event)) {
@@ -453,8 +465,27 @@ export function transcriptToChatMessages(buffer: string): ChatMessage[] {
     }
   };
 
+  const compactedSteps = new Set<number>();
+
   for (const event of events) {
     if (event.type === 'CONVERSATION_HISTORY') {
+      continue;
+    }
+
+    // A standalone separator, like Claude's compact_boundary: it must not merge
+    // into an answer, and history replay starts here (`historyInContext`).
+    if (isCompactionCheckpoint(event)) {
+      if (!compactedSteps.has(event.stepIndex)) {
+        compactedSteps.add(event.stepIndex);
+        flushAssistant();
+        messages.push({
+          id: `agy-compact-${event.stepIndex}-${counter++}`,
+          role: 'assistant',
+          content: '',
+          timestamp: eventTimestamp(event, Date.now()),
+          contentBlocks: [{ type: 'context_compacted' }],
+        });
+      }
       continue;
     }
 

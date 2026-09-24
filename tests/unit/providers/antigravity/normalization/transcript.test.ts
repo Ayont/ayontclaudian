@@ -559,3 +559,52 @@ describe('stripAgyTrailingRecap', () => {
     expect(stripAgyTrailingRecap('')).toBe('');
   });
 });
+
+// Real shape (agy 1.2.7, ~/.gemini/antigravity-cli/brain/*/transcript.jsonl): every
+// SYSTEM CHECKPOINT is a compaction summary, either "{{ CHECKPOINT n }} … truncated
+// due to its long length" (automatic) or "# Resuming from a compaction".
+const CHECKPOINT_LINE = JSON.stringify({
+  step_index: 3,
+  source: 'SYSTEM',
+  type: 'CHECKPOINT',
+  status: 'DONE',
+  created_at: '2026-06-20T15:19:24Z',
+  content: '{{ CHECKPOINT 0 }}\n **The earlier parts of this conversation have been truncated due to its long length. The following content summarizes the truncated context so that you may continue your work. **',
+});
+const SECOND_USER_LINE = JSON.stringify({
+  step_index: 4,
+  source: 'USER_EXPLICIT',
+  type: 'USER_INPUT',
+  status: 'DONE',
+  created_at: '2026-06-20T15:19:47Z',
+  content: '<USER_REQUEST>\nweiter\n</USER_REQUEST>',
+});
+const SECOND_MODEL_LINE = JSON.stringify({
+  step_index: 5,
+  source: 'MODEL',
+  type: 'PLANNER_RESPONSE',
+  status: 'DONE',
+  content: 'Weiter geht es.',
+});
+
+describe('antigravity compaction checkpoints', () => {
+  it('reports a checkpoint live as a compaction, once per step', () => {
+    const state = createAntigravityTailState();
+    const checkpoint = parseTranscriptLine(CHECKPOINT_LINE)!;
+
+    expect(mapTranscriptEventToChunks(checkpoint, state)).toEqual([{ type: 'context_compacted' }]);
+    // agy can write the same checkpoint step twice.
+    expect(mapTranscriptEventToChunks(checkpoint, state)).toEqual([]);
+  });
+
+  it('keeps the boundary as its own message on reload, in transcript order', () => {
+    const buffer = [USER_LINE, HISTORY_LINE, MODEL_LINE, CHECKPOINT_LINE, CHECKPOINT_LINE, SECOND_USER_LINE, SECOND_MODEL_LINE].join('\n');
+
+    const messages = transcriptToChatMessages(buffer);
+
+    expect(messages.map((message) => message.role)).toEqual(['user', 'assistant', 'assistant', 'user', 'assistant']);
+    expect(messages[2]).toMatchObject({ content: '', contentBlocks: [{ type: 'context_compacted' }] });
+    expect(messages[1].content).toBe('Hello! I am Antigravity.');
+    expect(messages[3].content).toBe('weiter');
+  });
+});

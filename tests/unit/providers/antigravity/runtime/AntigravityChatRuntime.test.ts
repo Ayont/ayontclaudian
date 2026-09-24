@@ -291,6 +291,75 @@ describe('AntigravityChatRuntime stream/transcript interleaving', () => {
     const text = chunks.filter((c) => c.type === 'text').map((c) => (c as { content: string }).content).join('');
     expect(text).toBe('```powershell\nGet-ChildItem *.log\n```\n');
   });
+  function runCompactionTurn(afterCheckpoint: string[]): Promise<StreamChunk[]> {
+    const proc = makeFakeProcess(4402);
+    const cid = 'agy-compact';
+    const step = (index: number, input: number) => JSON.stringify({
+      event: 'step_update',
+      step_update: {
+        conversation_id: cid, step_index: index, state: 'DONE', step_type: 'agent_response', text_delta: 'ok',
+        usage: { input_tokens: input, output_tokens: 10, thinking_tokens: 0, cache_read_tokens: 0, total_tokens: input + 10 },
+      },
+    });
+    const before = [
+      JSON.stringify({ event: 'init', conversation_id: cid, init: {} }),
+      step(1, 900_000),
+    ];
+    const result = JSON.stringify({
+      event: 'result',
+      result: {
+        conversation_id: cid, status: 'SUCCESS', response: '',
+        usage: { input_tokens: 940_000, output_tokens: 30, thinking_tokens: 0, cache_read_tokens: 0, total_tokens: 940_030 },
+      },
+    });
+    const transcriptRows = [
+      JSON.stringify({ type: 'USER_INPUT', step_index: 0, status: 'DONE', content: 'frage' }),
+      JSON.stringify({ source: 'SYSTEM', type: 'CHECKPOINT', step_index: 2, status: 'DONE', content: '{{ CHECKPOINT 0 }}\n **The earlier parts of this conversation have been truncated due to its long length.' }),
+    ];
+    let transcriptVisible = false;
+    brain.readAntigravityTranscriptIfChanged.mockImplementation(() => (
+      transcriptVisible ? { stat: { size: 1, mtimeMs: 1 }, buffer: transcriptRows.join('\n') } : null
+    ));
+    brain.splitTranscriptLines.mockImplementation((buffer: string) => buffer.split('\n'));
+    spawn.mockImplementationOnce(() => {
+      setImmediate(() => {
+        proc.stdout.emit('data', Buffer.from(`${before.join('\n')}\n`, 'utf-8'));
+        setTimeout(() => { transcriptVisible = true; }, 100);
+        setTimeout(() => {
+          proc.stdout.emit('data', Buffer.from(`${[...afterCheckpoint.map((_, i) => step(3 + i, Number(afterCheckpoint[i]))), result].join('\n')}\n`, 'utf-8'));
+          proc.exitCode = 0;
+          proc.emit('exit', 0);
+        }, 400);
+      });
+      return proc;
+    });
+    return (async () => {
+      const chunks: StreamChunk[] = [];
+      for await (const chunk of new AntigravityChatRuntime(makePlugin()).query(makeTurn('frage'), [])) {
+        chunks.push(chunk);
+      }
+      return chunks;
+    })();
+  }
+
+  it('marks agy\'s own compaction and keeps the stale pre-compaction fill off the meter', async () => {
+    const chunks = await runCompactionTurn([]);
+
+    const boundary = chunks.findIndex((chunk) => chunk.type === 'context_compacted');
+    const finalUsage = chunks.findIndex((chunk) => chunk.type === 'usage' && chunk.usage.reportType === 'final');
+    expect(boundary).toBeGreaterThanOrEqual(0);
+    expect(finalUsage).toBeGreaterThan(boundary);
+    expect(chunks[finalUsage]).toMatchObject({ contextDisplay: 'preserve' });
+  });
+
+  it('shows the fill of the first step after the compaction', async () => {
+    const chunks = await runCompactionTurn(['120000']);
+
+    const finalUsage = chunks.find((chunk) => chunk.type === 'usage' && chunk.usage.reportType === 'final');
+    expect(finalUsage).not.toHaveProperty('contextDisplay');
+    expect(finalUsage).toMatchObject({ usage: { contextTokens: 120_000 } });
+  });
+
   it("stages multiple images with duplicate or identical names to distinct files without collision", async () => {
     const proc = makeFakeProcess(5501);
     const stream = [

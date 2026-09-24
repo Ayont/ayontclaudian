@@ -37,4 +37,7 @@ export const ANTIGRAVITY_PROVIDER_CAPABILITIES: Readonly<ProviderCapabilities> =
   supportsMultiAgent: true,
   supportsTurnSteer: true,
   reasoningControl: 'none',
+  // agy compacts by itself: 580 "{{ CHECKPOINT n }} … truncated due to its long
+  // length" records across the local transcripts (agy 1.2.7, see transcript.ts).
+  autoCompact: true,
 });
