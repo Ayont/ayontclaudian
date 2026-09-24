@@ -234,6 +234,7 @@ export function updateCodexProviderSettings(
     environmentHash: next.environmentHash,
     installationMethodsByHost,
     wslDistroOverridesByHost,
+    largeContextWindow: next.largeContextWindow,
   });
   return next;
 }

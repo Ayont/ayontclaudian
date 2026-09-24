@@ -186,4 +186,22 @@ describe('codex settings', () => {
 
     expect(getCodexProviderSettings(settingsBag).reasoningSummary).toBe('none');
   });
+
+  it('keeps the large context window across unrelated updates', () => {
+    const settingsBag: Record<string, unknown> = { providerConfigs: { codex: { enabled: true, largeContextWindow: true } } };
+
+    updateCodexProviderSettings(settingsBag, { environmentHash: 'abc' });
+
+    expect(getCodexProviderSettings(settingsBag).largeContextWindow).toBe(true);
+    expect((settingsBag.providerConfigs as Record<string, Record<string, unknown>>).codex.largeContextWindow).toBe(true);
+  });
+
+  it('switches the large context window off when asked', () => {
+    const settingsBag: Record<string, unknown> = { providerConfigs: { codex: { enabled: true, largeContextWindow: true } } };
+
+    updateCodexProviderSettings(settingsBag, { largeContextWindow: false });
+
+    expect(getCodexProviderSettings(settingsBag).largeContextWindow).toBe(false);
+  });
 });
+
