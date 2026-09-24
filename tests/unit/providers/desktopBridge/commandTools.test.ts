@@ -37,7 +37,8 @@ describe('host command process boundary', () => {
     expect(result.timedOut).toBe(false);
   });
   it('caps retained output at 32 KiB without splitting a code point', async () => {
-    const result = await run('process.stdout.write("😀".repeat(20000));');
+    // Only the cap is under test; a loaded machine can take seconds just to start node.
+    const result = await run('process.stdout.write("😀".repeat(20000));', 15_000);
     expect(Buffer.byteLength(result.data, 'utf8')).toBeLessThanOrEqual(32768);
     expect(result.data).toBe('😀'.repeat(8192));
     expect(result.outputTruncated).toBe(true);

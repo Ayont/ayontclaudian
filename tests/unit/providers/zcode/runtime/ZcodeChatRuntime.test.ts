@@ -100,6 +100,10 @@ describe('ZcodeChatRuntime', () => {
       expect(chunks.some((c) => c.type === 'text' && c.content === 'Gravity is a force.')).toBe(true);
       expect(chunks.some((c) => c.type === 'usage')).toBe(true);
       expect(chunks[chunks.length - 1]).toEqual({ type: 'done' });
+      // API mode has no tools; the model must be told so, or it invents file contents.
+      const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+      expect(body.system).toMatch(/keine Werkzeuge/);
+      expect(body.system).toMatch(/erfinde/i);
     } finally {
       global.fetch = originalFetch;
     }

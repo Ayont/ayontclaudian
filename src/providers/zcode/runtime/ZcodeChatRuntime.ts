@@ -44,6 +44,18 @@ interface ZcodeThinkingConfig {
   budget_tokens: number;
 }
 
+/**
+ * The direct API path is a plain Messages call without tools, while the shared
+ * instructions describe an agent that reads files and runs commands. Asked to
+ * read a file, GLM then made one up in a live check; this note keeps it honest.
+ */
+const API_MODE_SYSTEM_NOTE = [
+  'Du läufst im direkten API-Modus und hast keine Werkzeuge: Du kannst keine Dateien lesen oder schreiben,',
+  'keine Befehle ausführen und nichts im Projekt ansehen. Verlangt eine Aufgabe das, sag das klar und nenne,',
+  'was der Nutzer selbst tun kann (z. B. den Inhalt einfügen oder den CLI-Modus von Z.ai wählen).',
+  'Erfinde niemals Dateiinhalte, Befehlsausgaben oder Ergebnisse von Werkzeugen.',
+].join(' ');
+
 export class ZcodeChatRuntime implements ChatRuntime {
   readonly providerId = ZCODE_PROVIDER_ID;
 
@@ -209,6 +221,7 @@ export class ZcodeChatRuntime implements ChatRuntime {
       model: normalizedModel,
       max_tokens: 16384,
       stream: true,
+      system: API_MODE_SYSTEM_NOTE,
       messages,
     };
     if (thinkingConfig) {
