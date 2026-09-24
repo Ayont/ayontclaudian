@@ -228,7 +228,8 @@ export function parseClineJsonLine(line: string): ClineJsonEvent | null {
       kind: 'text',
       sessionId,
       text,
-      isFinal: eventType === 'content_end',
+      // `done` restates the whole answer after the deltas (cline 3.0.62 trace).
+      isFinal: eventType === 'content_end' || eventType === 'done',
     };
   }
 

@@ -64,6 +64,10 @@ export function getPiTerminalErrorMessage(event: Record<string, unknown>): strin
     ?? getNestedRecord(event, 'assistant_message_event')
     ?? event;
   const records = terminalEvent === event ? [event] : [terminalEvent, event];
+  // Pi 0.85 puts stopReason/errorMessage on the assistant message itself.
+  const message = getNestedRecord(event, 'message');
+  if (message && message.role === 'assistant') records.unshift(message);
+  else if (message && message.role === 'user') return null;
   const stopReason = getStringField(records, ['stopReason', 'stop_reason']);
   if (stopReason?.toLowerCase() !== 'error') {
     return null;

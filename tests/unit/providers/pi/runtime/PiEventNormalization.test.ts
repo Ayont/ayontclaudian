@@ -1,5 +1,6 @@
 import {
   createPiEventNormalizationState,
+  getPiTerminalErrorMessage,
   normalizePiRpcEvent,
 } from '@/providers/pi/normalizations/piEventNormalization';
 
@@ -151,3 +152,31 @@ describe('Pi event normalization', () => {
     }, state)).toEqual([{ type: 'error', content: 'Authentication failed' }]);
   });
 });
+
+describe('Pi 0.85.1 assistant errors', () => {
+  // Real message_end: the failure sits on the assistant message, not on the event.
+  const messageEnd = {
+    type: 'message_end',
+    message: {
+      role: 'assistant',
+      content: [],
+      provider: 'kimi-coding',
+      model: 'kimi-for-coding',
+      stopReason: 'error',
+      errorMessage: '403 {"error":{"type":"permission_error","message":"Your current subscription does not have access to Kimi Code right now."}}',
+    },
+  };
+
+  it('reports the provider error instead of an empty success', () => {
+    expect(getPiTerminalErrorMessage(messageEnd)).toContain('Your current subscription does not have access to Kimi Code');
+    expect(normalizePiRpcEvent(messageEnd, createPiEventNormalizationState())).toEqual([
+      { type: 'error', content: messageEnd.message.errorMessage },
+    ]);
+  });
+
+  it('ignores the user message and successful answers', () => {
+    expect(getPiTerminalErrorMessage({ type: 'message_end', message: { role: 'user', content: [] } })).toBeNull();
+    expect(getPiTerminalErrorMessage({ type: 'message_end', message: { role: 'assistant', stopReason: 'stop' } })).toBeNull();
+  });
+});
+

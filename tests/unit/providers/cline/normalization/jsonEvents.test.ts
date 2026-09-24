@@ -241,3 +241,23 @@ describe('per-call usage', () => {
     }))).toEqual({ kind: 'iteration_start', sessionId: 's1' });
   });
 });
+
+describe('Cline 3.0.62 done event', () => {
+  // Real trace: content_start (delta) → content_end (snapshot) → done (text again) → run_result.
+  it('treats the done event text as the final restatement it is', () => {
+    const replay = createClineReplayState();
+    const lines = [
+      '{"ts":"2026-09-24T16:13:29.255Z","type":"agent_event","event":{"type":"content_start","contentType":"text","text":"OK"}}',
+      '{"ts":"2026-09-24T16:13:29.479Z","type":"agent_event","event":{"type":"content_end","contentType":"text","text":"OK"}}',
+      '{"ts":"2026-09-24T16:13:29.483Z","type":"agent_event","event":{"type":"done","reason":"completed","text":"OK","iterations":1}}',
+    ];
+
+    const emitted = lines
+      .map((line) => parseClineJsonLine(line)!)
+      .filter((event) => shouldEmitClineText(event, replay))
+      .map((event) => event.text);
+
+    expect(emitted).toEqual(['OK']);
+  });
+});
+
