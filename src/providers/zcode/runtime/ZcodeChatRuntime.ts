@@ -230,6 +230,16 @@ export class ZcodeChatRuntime implements ChatRuntime {
 
     let inputTokens = 0;
     let outputTokens = 0;
+    let cacheReadTokens = 0;
+    // Z.ai sends a zero input count at message_start and the real one with
+    // message_delta; the larger reading wins, whichever event carried it.
+    const readUsage = (usage: Record<string, unknown> | undefined) => {
+      if (!usage) return;
+      const count = (key: string) => (typeof usage[key] === 'number' && Number.isFinite(usage[key]) ? usage[key] as number : 0);
+      inputTokens = Math.max(inputTokens, count('input_tokens'));
+      outputTokens = Math.max(outputTokens, count('output_tokens'));
+      cacheReadTokens = Math.max(cacheReadTokens, count('cache_read_input_tokens'));
+    };
 
     const requestHeaders: Record<string, string> = {
       'x-api-key': apiKey,
@@ -294,9 +304,7 @@ export class ZcodeChatRuntime implements ChatRuntime {
             const eventType = event?.type;
 
             if (eventType === 'message_start') {
-              if (event.message?.usage?.input_tokens) {
-                inputTokens = event.message.usage.input_tokens;
-              }
+              readUsage(event.message?.usage);
             } else if (eventType === 'content_block_delta') {
               const delta = event.delta;
               if (delta?.type === 'thinking_delta' && delta.thinking) {
@@ -305,9 +313,7 @@ export class ZcodeChatRuntime implements ChatRuntime {
                 yield { type: 'text', content: delta.text };
               }
             } else if (eventType === 'message_delta') {
-              if (event.usage?.output_tokens) {
-                outputTokens = event.usage.output_tokens;
-              }
+              readUsage(event.usage);
             } else if (eventType === 'error') {
               yield {
                 type: 'error',
@@ -320,13 +326,14 @@ export class ZcodeChatRuntime implements ChatRuntime {
         }
       }
 
-      const contextTokens = inputTokens + outputTokens;
+      const contextTokens = inputTokens + cacheReadTokens + outputTokens;
       const percentage = Math.min(100, Math.round((contextTokens / contextWindow) * 100));
 
       const usage: UsageInfo = {
         model: rawModel,
         inputTokens,
         outputTokens,
+        ...(cacheReadTokens ? { cacheReadInputTokens: cacheReadTokens } : {}),
         contextWindow,
         contextTokens,
         percentage,

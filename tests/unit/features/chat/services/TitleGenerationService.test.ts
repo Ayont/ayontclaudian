@@ -283,7 +283,7 @@ describe('TitleGenerationService', () => {
       });
     });
 
-    it('should set settingSources to project only when loadUserClaudeSettings is false', async () => {
+    it('loads no settings for this tool-less call with user settings off either', async () => {
       mockPlugin.settings.loadUserClaudeSettings = false;
 
       setMockMessages([
@@ -301,10 +301,10 @@ describe('TitleGenerationService', () => {
       await service.generateTitle('conv-123', 'test', callback);
 
       const options = getLastOptions();
-      expect(options?.settingSources).toEqual(['project', 'local']);
+      expect(options?.settingSources).toEqual([]);
     });
 
-    it('should set settingSources to include user when loadUserClaudeSettings is true', async () => {
+    it('loads no settings for this tool-less call, even with user settings on (hooks and plugins cost ~100k tokens)', async () => {
       mockPlugin.settings.loadUserClaudeSettings = true;
 
       setMockMessages([
@@ -322,7 +322,8 @@ describe('TitleGenerationService', () => {
       await service.generateTitle('conv-123', 'test', callback);
 
       const options = getLastOptions();
-      expect(options?.settingSources).toEqual(['user', 'project', 'local']);
+      expect(options?.settingSources).toEqual([]);
+      expect(options?.strictMcpConfig).toBe(true);
     });
 
     it('should truncate long user messages', async () => {

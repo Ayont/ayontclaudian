@@ -52,6 +52,31 @@ describe('ZcodeChatRuntime', () => {
     }
   });
 
+  it('reads input and cache tokens that arrive with message_delta, so output is never booked as input', async () => {
+    zcodeSettingsModule.updateZcodeProviderSettings(settingsBag, (curr) => ({ ...curr, enabled: true, apiKey: 'test-api-key' }));
+    const runtime = new ZcodeChatRuntime(mockPlugin);
+    const turn = runtime.prepareTurn({ text: 'Hallo' });
+    const ssePayload = [
+      'data: {"type":"message_start","message":{"usage":{"input_tokens":0,"output_tokens":0}}}',
+      'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Hi."}}',
+      'data: {"type":"message_delta","usage":{"input_tokens":1500,"output_tokens":80,"cache_read_input_tokens":300}}',
+      'data: [DONE]',
+      '',
+    ].join('\n');
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({ start(controller) { controller.enqueue(encoder.encode(ssePayload)); controller.close(); } });
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, body: stream });
+    try {
+      const chunks: StreamChunk[] = [];
+      for await (const chunk of runtime.query(turn)) chunks.push(chunk);
+      const usage = chunks.find((chunk): chunk is Extract<StreamChunk, { type: 'usage' }> => chunk.type === 'usage')?.usage;
+      expect(usage).toMatchObject({ inputTokens: 1500, outputTokens: 80, cacheReadInputTokens: 300, contextTokens: 1880 });
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
   it('streams thinking deltas, text deltas and usage when API responds', async () => {
     zcodeSettingsModule.updateZcodeProviderSettings(settingsBag, (curr) => ({
       ...curr,

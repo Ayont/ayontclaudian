@@ -20,6 +20,7 @@ import {
   toApiEffortLevel,
 } from '../types/models';
 import { createCustomSpawnFunction } from './customSpawn';
+import { claudeConfigDir, leanAuxOptions } from './leanAuxSettings';
 
 export interface ColdStartQueryConfig {
   plugin: ClaudianPlugin;
@@ -104,6 +105,16 @@ export async function runColdStartQuery(
 
   if (config.tools !== undefined) {
     options.tools = config.tools;
+  }
+
+  // Without tools the call needs nothing from the user's setup but the way to reach Claude.
+  if (config.tools?.length === 0) {
+    const lean = leanAuxOptions(claudeConfigDir({ ...process.env, ...customEnv }));
+    options.settingSources = lean.settingSources;
+    options.strictMcpConfig = lean.strictMcpConfig;
+    options.mcpServers = lean.mcpServers;
+    options.extraArgs = { ...options.extraArgs, ...lean.extraArgs };
+    options.env = { ...process.env, ...lean.env, ...customEnv, PATH: enhancedPath };
   }
 
   if (config.hooks) {
